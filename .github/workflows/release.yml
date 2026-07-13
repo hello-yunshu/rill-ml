@@ -1,24 +1,39 @@
-name: Rill Runtime release
+name: Release
 
 on:
   push:
     tags:
-      - "runtime-v*.*.*"
+      - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: rill-runtime-release-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
   PUBLISHER_KEY_ID: mira-plugins-2026-001
+  RILL_PUBLIC_KEY_HEX: 29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e
 
 jobs:
+  package-check:
+    name: cargo package dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo package
+      - run: cargo package --features serde
+      - run: cargo publish --dry-run --features serde
+
   build-runtime:
     name: Runtime ${{ matrix.target_os }} ${{ matrix.target_arch }}
+    needs: package-check
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -104,7 +119,7 @@ jobs:
           EXTENSION: ${{ matrix.extension }}
         run: |
           import os, pathlib, shutil
-          version = os.environ["VERSION"].removeprefix("runtime-v")
+          version = os.environ["VERSION"].removeprefix("v")
           extension = os.environ["EXTENSION"]
           source = pathlib.Path("target") / os.environ["TARGET"] / "release" / f"rill-runtime{extension}"
           output = pathlib.Path("dist") / f"rill-runtime-{version}-{os.environ['TARGET_OS']}-{os.environ['TARGET_ARCH']}{extension}"
@@ -117,7 +132,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Sign model, index, and publish
+    name: Sign and publish
     needs: build-runtime
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -135,7 +150,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#runtime-v}"
+          version="${GITHUB_REF_NAME#v}"
           test "$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n1)" = "$version"
           test "$(python3 -c 'import json; print(json.load(open("models/mira-battery-default/manifest.json"))["version"])')" = "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -144,7 +159,6 @@ jobs:
       - name: Verify existing stable index when present
         env:
           GH_TOKEN: ${{ github.token }}
-          RILL_PUBLIC_KEY_HEX: 29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e
         shell: bash
         run: |
           set -euo pipefail
@@ -193,7 +207,6 @@ jobs:
             --output dist/stable-index.json
       - name: Verify signed outputs before publishing
         env:
-          RILL_PUBLIC_KEY_HEX: 29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
@@ -214,7 +227,7 @@ jobs:
           set -euo pipefail
           gh release create "$GITHUB_REF_NAME" dist/rill-runtime-* dist/*.rillpack dist/stable-index.json \
             --verify-tag \
-            --title "Rill Runtime ${{ steps.version.outputs.version }}" \
+            --title "Rill ML ${{ steps.version.outputs.version }}" \
             --generate-notes
       - name: Move signed stable-index pointer
         env:
