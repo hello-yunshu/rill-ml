@@ -17,7 +17,7 @@ default = []
 serde = ["dep:serde"]
 
 [dependencies]
-thiserror = "1.0"
+thiserror = "2.0"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 
 [dev-dependencies]
