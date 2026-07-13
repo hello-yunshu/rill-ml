@@ -15,7 +15,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   PUBLISHER_KEY_ID: mira-plugins-2026-001
-  RILL_PUBLIC_KEY_HEX: eb80fdde2dc7ba507b6c8afbbf5a7de82e6219967edf1914ddb979d5601d39b3
+  RILL_PUBLIC_KEY_HEX: 29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e
 
 jobs:
   publish-model:
