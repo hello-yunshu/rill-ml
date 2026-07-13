@@ -1,0 +1,23 @@
+name: Docs
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  docs:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo doc --features serde --no-deps
+        run: cargo doc --features serde --no-deps
+      - name: Warn on broken intra-doc links
+        run: cargo doc --features serde --no-deps --document-private-items
