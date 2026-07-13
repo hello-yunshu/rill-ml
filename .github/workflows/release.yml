@@ -161,9 +161,16 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          cargo publish -p rill-runtime-protocol --no-verify
-          cargo publish -p rill-ml --no-verify
-          cargo publish -p rill-runtime --no-verify
+          for crate in rill-runtime-protocol rill-ml rill-runtime; do
+            output=$(cargo publish -p "$crate" --no-verify 2>&1) || {
+              if echo "$output" | grep -q "already exists"; then
+                echo "$crate already published, continuing"
+              else
+                echo "$output"
+                exit 1
+              fi
+            }
+          done
       - name: Verify existing stable index when present
         env:
           GH_TOKEN: ${{ github.token }}
