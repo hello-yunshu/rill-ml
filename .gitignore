@@ -13,3 +13,6 @@ __pycache__/
 # Build artifacts
 /dist/
 *.rillpack
+
+# Local signing key (never commit)
+.rill-signing-key
