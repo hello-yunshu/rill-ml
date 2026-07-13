@@ -62,19 +62,19 @@ def main() -> None:
             (
                 item
                 for item in envelope["payload"]["artifacts"]
-                if item["kind"] == "model" and item["id"] == "mira.battery.default"
+                if item["kind"] == "model" and item["id"] == "rillml.example.default"
             ),
             None,
         )
     if existing_model and semver_key(existing_model["version"]) > semver_key(args.version):
         artifacts.append(existing_model)
     else:
-        model_name = f"mira-battery-default-{args.version}.rillpack"
+        model_name = f"example-default-{args.version}.rillpack"
         artifacts.append(
             artifact(
                 args.release_dir / model_name,
                 kind="model",
-                id="mira.battery.default",
+                id="rillml.example.default",
                 version=args.version,
                 runtimeApiVersion=1,
                 url=f"{base_url}/{model_name}",

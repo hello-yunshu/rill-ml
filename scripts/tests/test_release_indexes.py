@@ -38,7 +38,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                         runtime,
                         {
                             "kind": "model",
-                            "id": "mira.battery.default",
+                            "id": "rillml.example.default",
                             "version": "0.5.0",
                             "runtimeApiVersion": 1,
                             "url": "https://example.invalid/model-0.5.0",
@@ -87,7 +87,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 (temp / name).write_bytes(name.encode())
             newer_model = {
                 "kind": "model",
-                "id": "mira.battery.default",
+                "id": "rillml.example.default",
                 "version": "0.8.0",
                 "runtimeApiVersion": 1,
                 "url": "https://example.invalid/model-0.8.0",
@@ -159,7 +159,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 "--model",
                 str(model),
                 "--model-id",
-                "mira.battery.default",
+                "rillml.example.default",
                 "--version",
                 version,
                 "--url",

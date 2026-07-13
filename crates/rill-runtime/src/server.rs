@@ -1,15 +1,33 @@
-use rill_runtime_protocol::{RUNTIME_API_VERSION, RuntimeRequest, RuntimeResponse};
+use std::sync::Arc;
 
-use crate::{battery, package::LoadedModelPack};
+use rill_runtime_protocol::{RUNTIME_API_VERSION, RuntimeRequest, RuntimeResponse};
+use serde_json::Value;
+
+use crate::package::LoadedModelPack;
+
+/// 消费方实现此 trait 处理 Invoke 请求。
+/// RillML runtime 不提供默认实现。
+pub trait InvokeHandler: Send + Sync + std::fmt::Debug {
+    fn invoke(&self, capability: &str, input: &Value) -> Result<Value, String>;
+}
 
 #[derive(Debug, Clone)]
 pub struct RuntimeEngine {
     pack: LoadedModelPack,
+    invoke_handler: Option<Arc<dyn InvokeHandler>>,
 }
 
 impl RuntimeEngine {
     pub fn new(pack: LoadedModelPack) -> Self {
-        Self { pack }
+        Self {
+            pack,
+            invoke_handler: None,
+        }
+    }
+
+    pub fn with_invoke_handler(mut self, handler: Arc<dyn InvokeHandler>) -> Self {
+        self.invoke_handler = Some(handler);
+        self
     }
 
     pub fn handle(&self, request: RuntimeRequest) -> RuntimeResponse {
@@ -61,17 +79,26 @@ impl RuntimeEngine {
                 model_pack_id: self.pack.manifest.id.clone(),
                 model_pack_version: self.pack.manifest.version.clone(),
             },
-            RuntimeRequest::BatteryPredict {
-                request_id, input, ..
-            } => match battery::predict(&input, &self.pack.battery) {
-                Ok(output) => RuntimeResponse::BatteryPrediction {
-                    request_id,
-                    api_version: RUNTIME_API_VERSION,
-                    output,
+            RuntimeRequest::Invoke {
+                request_id,
+                capability,
+                input,
+                ..
+            } => match &self.invoke_handler {
+                Some(handler) => match handler.invoke(&capability, &input) {
+                    Ok(output) => RuntimeResponse::Result {
+                        request_id,
+                        api_version: RUNTIME_API_VERSION,
+                        output,
+                    },
+                    Err(message) => self.error(request_id, "invokeFailed", &message, false),
                 },
-                Err(error) => {
-                    self.error(request_id, "invalidBatteryInput", &error.to_string(), false)
-                }
+                None => self.error(
+                    request_id,
+                    "noInvokeHandler",
+                    "no invoke handler registered",
+                    false,
+                ),
             },
         }
     }
@@ -95,7 +122,7 @@ impl RuntimeEngine {
 
 #[cfg(test)]
 mod tests {
-    use rill_runtime_protocol::{BatteryModelConfig, MODEL_PACK_FORMAT_VERSION, ModelPackManifest};
+    use rill_runtime_protocol::{MODEL_PACK_FORMAT_VERSION, ModelPackManifest};
 
     use super::*;
 
@@ -103,14 +130,14 @@ mod tests {
         RuntimeEngine::new(LoadedModelPack {
             manifest: ModelPackManifest {
                 format_version: MODEL_PACK_FORMAT_VERSION,
-                id: "mira.battery.default".into(),
+                id: "rillml.example.default".into(),
                 version: "0.5.0".into(),
                 runtime_api_version: RUNTIME_API_VERSION,
                 min_runtime_version: "0.5.0".into(),
                 publisher_key_id: "test".into(),
-                capabilities: vec!["batteryUsage".into()],
+                capabilities: vec!["rillml.example".into()],
             },
-            battery: BatteryModelConfig::default(),
+            model: serde_json::json!({}),
         })
     }
 
@@ -119,13 +146,13 @@ mod tests {
         let response = engine().handle(RuntimeRequest::Handshake {
             request_id: "hello".into(),
             api_version: RUNTIME_API_VERSION,
-            client_name: "mira".into(),
+            client_name: "example-host".into(),
             client_version: "0.9.0".into(),
         });
         assert!(matches!(
             response,
             RuntimeResponse::Handshake { model_pack_id, .. }
-                if model_pack_id == "mira.battery.default"
+                if model_pack_id == "rillml.example.default"
         ));
     }
 
@@ -138,6 +165,20 @@ mod tests {
         assert!(matches!(
             response,
             RuntimeResponse::Error { code, .. } if code == "incompatibleApiVersion"
+        ));
+    }
+
+    #[test]
+    fn invoke_without_handler_returns_no_invoke_handler_error() {
+        let response = engine().handle(RuntimeRequest::Invoke {
+            request_id: "invoke-1".into(),
+            api_version: RUNTIME_API_VERSION,
+            capability: "rillml.example".into(),
+            input: serde_json::json!({}),
+        });
+        assert!(matches!(
+            response,
+            RuntimeResponse::Error { code, .. } if code == "noInvokeHandler"
         ));
     }
 }

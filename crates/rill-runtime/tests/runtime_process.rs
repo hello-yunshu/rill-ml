@@ -7,27 +7,25 @@ use std::{
 use ed25519_dalek::SigningKey;
 use rill_runtime::build_signed_model_pack;
 use rill_runtime_protocol::{
-    BATTERY_USAGE_CAPABILITY, BatteryModelConfig, BatteryPredictionInput,
     MODEL_PACK_FORMAT_VERSION, ModelPackManifest, RUNTIME_API_VERSION, RuntimeRequest,
     RuntimeResponse,
 };
 
 #[test]
-fn signed_pack_handshake_and_prediction_work_across_the_real_process_boundary() {
+fn signed_pack_handshake_and_invoke_work_across_the_real_process_boundary() {
     let signing = SigningKey::from_bytes(&[5; 32]);
     let manifest = ModelPackManifest {
         format_version: MODEL_PACK_FORMAT_VERSION,
-        id: "mira.battery.default".into(),
+        id: "rillml.example.default".into(),
         version: "0.5.0".into(),
         runtime_api_version: RUNTIME_API_VERSION,
         min_runtime_version: "0.5.0".into(),
         publisher_key_id: "process-test".into(),
-        capabilities: vec![BATTERY_USAGE_CAPABILITY.into()],
+        capabilities: vec!["rillml.example".into()],
     };
-    let pack =
-        build_signed_model_pack(&manifest, &BatteryModelConfig::default(), &signing).unwrap();
+    let pack = build_signed_model_pack(&manifest, &serde_json::json!({}), &signing).unwrap();
     let temporary = tempfile::tempdir().unwrap();
-    let pack_path = temporary.path().join("battery.rillpack");
+    let pack_path = temporary.path().join("example.rillpack");
     fs::write(&pack_path, pack).unwrap();
 
     let trust = format!(
@@ -50,13 +48,11 @@ fn signed_pack_handshake_and_prediction_work_across_the_real_process_boundary() 
             client_name: "runtime-process-test".into(),
             client_version: "0.5.0".into(),
         },
-        RuntimeRequest::BatteryPredict {
-            request_id: "integration-predict".into(),
+        RuntimeRequest::Invoke {
+            request_id: "integration-invoke".into(),
             api_version: RUNTIME_API_VERSION,
-            input: BatteryPredictionInput {
-                now_unix_ms: 1_720_000_000_000,
-                samples: Vec::new(),
-            },
+            capability: "rillml.example".into(),
+            input: serde_json::json!({}),
         },
     ];
     let mut stdin = child.stdin.take().unwrap();
@@ -85,16 +81,14 @@ fn signed_pack_handshake_and_prediction_work_across_the_real_process_boundary() 
             request_id,
             model_pack_id,
             ..
-        } if request_id == "integration-handshake" && model_pack_id == "mira.battery.default"
+        } if request_id == "integration-handshake" && model_pack_id == "rillml.example.default"
     ));
     assert!(matches!(
         &responses[1],
-        RuntimeResponse::BatteryPrediction {
+        RuntimeResponse::Error {
             request_id,
-            api_version,
-            output,
-        } if request_id == "integration-predict"
-            && *api_version == RUNTIME_API_VERSION
-            && output.remaining_hours.is_none()
+            code,
+            ..
+        } if request_id == "integration-invoke" && code == "noInvokeHandler"
     ));
 }

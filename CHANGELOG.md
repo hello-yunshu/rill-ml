@@ -15,6 +15,34 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-14
+
+### Changed — Breaking: protocol decoupled from battery business
+
+RillML runtime protocol and loader no longer hardcode battery prediction
+business types. This enforces the Roadmap principle (L967-983) that Mira
+business names must not leak into the core library.
+
+- `rill-runtime-protocol`: `BatteryModelConfig`, `BatteryPredict`,
+  `BatteryPredictionOutput`, `BatterySampleInput`, `BatteryPredictionInput`,
+  `BATTERY_USAGE_CAPABILITY`, `PredictionSource` removed.
+  `RuntimeRequest` now has a generic `Invoke { capability, input: Value }`
+  variant; `RuntimeResponse` has `Result { output: Value }`.
+- `rill-runtime`: `battery.rs` module removed. `load_model_pack` no longer
+  requires `batteryUsage` capability; `model.json` loaded as generic JSON.
+  `RuntimeEngine` accepts an injectable `InvokeHandler` trait.
+- `rill-pack` CLI: `create` command accepts any JSON model file.
+- Example model renamed `mira.battery.default` → `rillml.example.default`.
+- Publisher key id `mira-plugins-2026-001` → `rillml-examples-2026-001`.
+- Crates published to crates.io: `rill-ml`, `rill-runtime-protocol`,
+  `rill-runtime`.
+
+### Migration
+
+Hosts implementing battery prediction (e.g. Mira) must now define their own
+config types and invoke handlers. See section 4 of the decouple plan for
+mira-mouse migration steps.
+
 ## [0.5.0] - 2026-07-13
 
 ### Added — Online decision-making (bandits)
