@@ -64,10 +64,12 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
-          set -euo pipefail
-          test -n "$APPLE_CERTIFICATE_P12_BASE64"
-          test -n "$APPLE_CERTIFICATE_PASSWORD"
-          test -n "$APPLE_SIGNING_IDENTITY"
+          set -uo pipefail
+          if [ -z "${APPLE_CERTIFICATE_P12_BASE64:-}" ] || [ -z "${APPLE_CERTIFICATE_PASSWORD:-}" ] || [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            echo "Apple Developer ID secrets not configured — skipping codesign"
+            exit 0
+          fi
+          set -e
           python3 - <<'PY'
           import base64, os, pathlib
           pathlib.Path("certificate.p12").write_bytes(base64.b64decode(os.environ["APPLE_CERTIFICATE_P12_BASE64"]))
@@ -84,7 +86,12 @@ jobs:
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            echo "Skipping codesign — no Apple signing identity"
+            exit 0
+          fi
+          set -e
           codesign --force --timestamp --options runtime --sign "$APPLE_SIGNING_IDENTITY" "target/${{ matrix.rust_target }}/release/rill-runtime"
           codesign --verify --strict --verbose=2 "target/${{ matrix.rust_target }}/release/rill-runtime"
       - name: Stage asset
