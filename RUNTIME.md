@@ -46,12 +46,17 @@ cargo run -p rill-runtime --bin rill-pack -- create \
 
 ## 正式发布
 
-`.github/workflows/runtime-release.yml` 在 `runtime-vX.Y.Z` 标签上构建 Linux、Windows、Intel macOS 和 Apple Silicon macOS Runtime，签名模型包与稳定索引，并发布版本化资产。发布前必须配置：
+`.github/workflows/release.yml` 在 `vX.Y.Z` 标签上执行完整的发布流程：
+
+1. `cargo package --dry-run` 验证 crate 可发布；
+2. 为 Linux、Windows、Intel macOS 和 Apple Silicon macOS 编译 `rill-runtime` 二进制；
+3. 签名模型包与稳定索引；
+4. 创建单个 GitHub Release，包含所有平台二进制、`.rillpack` 和 `stable-index.json`。
+
+发布前必须配置：
 
 - `RILL_SIGNING_KEY_HEX`：必须对应 Mira 内置的生产 Ed25519 公钥；
-- `APPLE_CERTIFICATE_P12_BASE64`、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_SIGNING_IDENTITY`：macOS Developer ID 代码签名；
+- `APPLE_CERTIFICATE_P12_BASE64`、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_SIGNING_IDENTITY`：macOS Developer ID 代码签名（未配置时 macOS 二进制照常构建，仅跳过 codesign）；
 - 模型 manifest、workspace 版本与标签版本必须完全一致。
 
-仓库不会保存或生成生产私钥，也不会把未签名的示例文件冒充正式发布。首次可用更新仍需要维护者配置上述 Secrets 并创建真实发布标签。
-
-完整 Runtime release 建立首个稳定通道后，可以只修改模型 manifest/参数并创建 `model-vX.Y.Z` 标签。`.github/workflows/model-release.yml` 会先验证当前稳定索引的签名，保留所有已发布 Runtime 条目，只替换 `mira.battery.default` 模型条目并重新签名。因此模型更新不要求提高 Runtime 或 Mira 的版本。
+仓库不会保存或生成生产私钥，也不会把未签名的示例文件冒充正式发布。
