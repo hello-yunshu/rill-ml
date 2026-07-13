@@ -2,7 +2,7 @@
 //!
 //! Time complexity per update: `O(1)`. Space complexity: `O(1)`.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 use crate::traits::OnlineStatistic;
 
 /// Running minimum of observed values.
@@ -31,11 +31,12 @@ impl Min {
 impl OnlineStatistic for Min {
     fn update(&mut self, value: f64) -> Result<(), RillError> {
         ensure_finite("value", value)?;
+        let next_count = checked_increment(self.count, "minimum sample")?;
         self.current = Some(match self.current {
             None => value,
             Some(c) => c.min(value),
         });
-        self.count += 1;
+        self.count = next_count;
         Ok(())
     }
 
@@ -75,11 +76,12 @@ impl Max {
 impl OnlineStatistic for Max {
     fn update(&mut self, value: f64) -> Result<(), RillError> {
         ensure_finite("value", value)?;
+        let next_count = checked_increment(self.count, "maximum sample")?;
         self.current = Some(match self.current {
             None => value,
             Some(c) => c.max(value),
         });
-        self.count += 1;
+        self.count = next_count;
         Ok(())
     }
 

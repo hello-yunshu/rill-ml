@@ -2,7 +2,7 @@
 //!
 //! Time complexity per update: `O(1)`. Space complexity: `O(1)`.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite};
 use crate::traits::OnlineStatistic;
 
 /// A running sum.
@@ -33,8 +33,10 @@ impl Sum {
 impl OnlineStatistic for Sum {
     fn update(&mut self, value: f64) -> Result<(), RillError> {
         ensure_finite("value", value)?;
-        self.sum += value;
-        self.count += 1;
+        let next_sum = checked_finite_add(self.sum, value, "sum")?;
+        let next_count = checked_increment(self.count, "sum sample")?;
+        self.sum = next_sum;
+        self.count = next_count;
         Ok(())
     }
 
@@ -58,5 +60,14 @@ mod tests {
         s.update(1.5).unwrap();
         s.update(2.5).unwrap();
         assert_eq!(s.value(), 4.0);
+    }
+
+    #[test]
+    fn sum_rejects_overflow_without_mutating_state() {
+        let mut s = Sum::new();
+        s.update(f64::MAX).unwrap();
+        assert!(s.update(f64::MAX).is_err());
+        assert_eq!(s.value(), f64::MAX);
+        assert_eq!(s.count(), 1);
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! Time complexity per update: `O(1)`. Space complexity: `O(1)`.
 
-use crate::error::RillError;
+use crate::error::{RillError, checked_increment};
 use crate::traits::OnlineStatistic;
 
 /// A simple observation counter.
@@ -26,7 +26,7 @@ impl Count {
 
 impl OnlineStatistic for Count {
     fn update(&mut self, _value: f64) -> Result<(), RillError> {
-        self.count += 1;
+        self.count = checked_increment(self.count, "count sample")?;
         Ok(())
     }
 

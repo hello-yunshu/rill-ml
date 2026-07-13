@@ -1,0 +1,14 @@
+[package]
+name = "rill-runtime-protocol"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Versioned IPC and package contracts for the Rill local runtime."
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

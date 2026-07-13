@@ -4,7 +4,7 @@
 //! should be compared against at least [`MeanRegressor`] and
 //! [`ExponentiallyWeightedMeanRegressor`] before being considered useful.
 
-use crate::error::{RillError, ensure_finite, ensure_finite_target};
+use crate::error::{RillError, checked_increment, ensure_finite, ensure_finite_target};
 use crate::stats::{ExponentiallyWeightedMean, Mean};
 use crate::traits::{OnlineRegressor, OnlineStatistic};
 
@@ -128,8 +128,9 @@ impl OnlineRegressor for LastValueRegressor {
 
     fn learn(&mut self, _features: &[f64], target: f64) -> Result<(), RillError> {
         ensure_finite_target(target)?;
+        let next_count = checked_increment(self.count, "last-value sample")?;
         self.last_value = Some(target);
-        self.count += 1;
+        self.count = next_count;
         Ok(())
     }
 

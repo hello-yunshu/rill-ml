@@ -4,6 +4,8 @@ Lightweight, serializable online machine learning for Rust applications and stre
 
 RillML provides incremental learning primitives that can be embedded directly in native Rust applications: online statistics, preprocessors, linear/logistic regression, evaluation metrics, pipelines, progressive evaluation, and optional serde-based state persistence.
 
+The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, and signed `.rillpack` model packages. Hosts can compile only the protocol crate and update the runtime and models independently from the main application. See [`RUNTIME.md`](RUNTIME.md) for the product and release boundary.
+
 > RillML is inspired by the online-learning workflow popularized by [River](https://riverml.xyz/). It is an independent Rust project and is not affiliated with or endorsed by River. It does not currently aim for API or model compatibility.
 
 ---
@@ -50,14 +52,14 @@ Add RillML to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-rill-ml = "0.1"
+rill-ml = "0.5"
 ```
 
 For serialization support, enable the `serde` feature:
 
 ```toml
 [dependencies]
-rill-ml = { version = "0.1", features = ["serde"] }
+rill-ml = { version = "0.5", features = ["serde"] }
 ```
 
 **Requirements:** Rust 1.85+ (Edition 2024), no nightly needed.
@@ -203,6 +205,21 @@ cargo run --example drift_demo
 
 ---
 
+## Online decision-making example
+
+See [`examples/bandit_demo.rs`](examples/bandit_demo.rs), demonstrating the v0.5 online decision-making module:
+
+- Comparing `EpsilonGreedy`, `Ucb1`, `ThompsonSampling` on fixed reward distributions.
+- Demonstrating `LinUCB` contextual bandit selecting the optimal arm based on context features.
+- Demonstrating a safe fallback strategy when insufficient data is available.
+- `Ucb1` and `ThompsonSampling` require rewards normalized to `[0, 1]`; restored model state is validated.
+
+```sh
+cargo run --example bandit_demo
+```
+
+---
+
 ## Serialization
 
 Enable the `serde` feature to serialize and restore model state:
@@ -223,7 +240,13 @@ let m = restored.into_model().unwrap();
 assert!((m.value() - 1.5).abs() < 1e-12);
 ```
 
-`Snapshot<T>` wraps model state with a format version for forward compatibility.
+`Snapshot<T>` wraps model state with a format version and rejects incompatible versions. For untrusted snapshots or application-specific model constraints, use `into_model_with_validation()` to validate restored state before activation. See [`RELIABILITY.md`](RELIABILITY.md) for the complete production integration and fallback guidance.
+
+---
+
+## Production reliability
+
+RillML is an in-process algorithm library; service replicas, traffic failover, and durable storage availability remain the host application's responsibility. Core update paths reject non-finite arithmetic results, failed statistics and optimizer updates do not commit partial state, and pipelines can use `learn_transactional()` at reliability boundaries for the same all-or-nothing semantics. Production deployments should still retain a last-known-good snapshot and a simple baseline, fall back on load failure, unhealthy model state, or drift, and monitor rejected samples, load failures, drift events, and error relative to the baseline. See [`RELIABILITY.md`](RELIABILITY.md).
 
 ---
 
@@ -239,7 +262,7 @@ Always compare your model against baselines using progressive evaluation. Only t
 
 ---
 
-## Current scope (v0.4)
+## Current scope (v0.5)
 
 | Category | Modules |
 |---|---|
@@ -256,6 +279,7 @@ Always compare your model against baselines using progressive evaluation. Only t
 | Persistence | `Snapshot<T>` with versioned envelope (serde feature) |
 | Diagnostics | TrainingSummary, WarmupTracker, BaselineComparator, OnlineModelSelector, ResidualInterval, ModelHealthReport, PredictionReporter |
 | Drift detection | PageHinkley, Adwin, Kswin, DriftAwareModel, DriftAction, DriftStrategy, TimeDecayedMean, LearningRateScheduler, FixedWindowBuffer |
+| Online decision-making | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb, ArmStats |
 
 Memory bounds:
 - Non-rolling statistics: O(1)
@@ -266,6 +290,8 @@ Memory bounds:
 - Categorical encoders: O(c) where c = seen category count
 - Drift detectors: O(1) (PageHinkley) or O(window_size) (Adwin/Kswin)
 - DriftAwareModel: O(max_events) event log + model + detector
+- Non-contextual bandits: O(arm_count)
+- LinUCB contextual bandit: O(arm_count * d²) where d = feature count
 
 ---
 
@@ -276,8 +302,8 @@ RillML follows a real-need-driven roadmap. See [RillML_Roadmap.md](RillML_Roadma
 - **v0.1** — Basic closed loop: predict, evaluate, learn, save, restore.
 - **v0.2** — Reliability and diagnostics: prediction reports, cold-start, baseline comparison.
 - **v0.3** — Sparse features and high-dimensional data: FeatureHasher, FTRL, Naive Bayes.
-- **v0.4** — Drift detection: Page-Hinkley, ADWIN, KSWIN, adaptive learning. *(current)*
-- **v0.5** — Online decision-making: multi-armed bandits, contextual bandits.
+- **v0.4** — Drift detection: Page-Hinkley, ADWIN, KSWIN, adaptive learning.
+- **v0.5** — Online decision-making: multi-armed bandits, contextual bandits. *(current)*
 - **v0.6** — Platform and ecosystem: WASM, Python bindings, Tokio Stream adapters.
 - **v1.0** — Stable API and state format.
 
@@ -287,9 +313,9 @@ RillML follows a real-need-driven roadmap. See [RillML_Roadmap.md](RillML_Roadma
 
 RillML is validated through multiple layers:
 
-- **Unit tests** for every module (451 tests).
-- **Integration tests** comparing online algorithms against batch reference formulas (112 tests).
-- **Doctests** for all public APIs (31 tests).
+- **Unit tests** for every module (562 tests).
+- **Integration tests** comparing online algorithms against batch reference formulas (130 tests).
+- **Doctests** for all public APIs (40 tests).
 - **Serialization round-trip tests** for all stateful types.
 - **Property-based tests** with `proptest`.
 - **Deterministic tests** with fixed seeds (`rand_chacha`).

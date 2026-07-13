@@ -4,7 +4,7 @@
 //!
 //! See <https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm>.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 use crate::traits::OnlineStatistic;
 
 /// Whether to compute population or sample variance.
@@ -107,12 +107,20 @@ impl Variance {
 impl OnlineStatistic for Variance {
     fn update(&mut self, value: f64) -> Result<(), RillError> {
         ensure_finite("value", value)?;
-        self.count += 1;
-        let n = self.count as f64;
+        let next_count = checked_increment(self.count, "variance sample")?;
+        let n = next_count as f64;
         let delta = value - self.mean;
-        self.mean += delta / n;
-        let delta2 = value - self.mean;
-        self.m2 += delta * delta2;
+        ensure_finite("variance delta", delta)?;
+        let next_mean = self.mean + delta / n;
+        ensure_finite("variance mean", next_mean)?;
+        let delta2 = value - next_mean;
+        ensure_finite("variance delta", delta2)?;
+        let next_m2 = self.m2 + delta * delta2;
+        ensure_finite("variance M2", next_m2)?;
+
+        self.count = next_count;
+        self.mean = next_mean;
+        self.m2 = next_m2;
         Ok(())
     }
 
@@ -183,6 +191,17 @@ mod tests {
         let mut v = Variance::new(VarianceKind::Population);
         assert!(v.update(f64::NAN).is_err());
         assert_eq!(v.count(), 0);
+    }
+
+    #[test]
+    fn variance_rejects_overflow_without_mutating_state() {
+        let mut v = Variance::new(VarianceKind::Population);
+        v.update(f64::MAX).unwrap();
+        let before = v.clone();
+        assert!(v.update(-f64::MAX).is_err());
+        assert_eq!(v.count(), before.count());
+        assert_eq!(v.mean(), before.mean());
+        assert_eq!(v.value(), before.value());
     }
 
     #[test]

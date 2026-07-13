@@ -74,6 +74,7 @@ RillML's runtime dependencies (linked into downstream users' binaries) are:
 | Crate           | Version range | License        | Required by          |
 | --------------- | ------------- | -------------- | -------------------- |
 | `thiserror`     | ^1            | MIT OR Apache-2.0 | error types        |
+| `rand`          | ^0.8          | MIT OR Apache-2.0 | bandit exploration |
 | `serde`         | ^1            | MIT OR Apache-2.0 | optional, behind `serde` feature |
 | `serde_json`    | ^1            | MIT OR Apache-2.0 | only in dev-deps and examples |
 
@@ -84,7 +85,6 @@ linked into releases of `rill-ml`):
 | -------------- | ---------------- | -------------------------------- |
 | `approx`       | MIT OR Apache-2.0 | float-equality assertions       |
 | `proptest`     | MIT OR Apache-2.0 | property-based testing          |
-| `rand`         | MIT OR Apache-2.0 | reproducible randomness         |
 | `rand_chacha`  | MIT OR Apache-2.0 | deterministic RNG for tests     |
 | `serde_json`   | MIT OR Apache-2.0 | JSON (de)serialization in tests |
 | `criterion`    | MIT OR Apache-2.0 | benchmarks                      |

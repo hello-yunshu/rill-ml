@@ -1,6 +1,6 @@
 //! Stochastic gradient descent optimizer.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 
 /// Configuration for [`Sgd`].
 #[derive(Debug, Clone)]
@@ -100,15 +100,30 @@ impl Sgd {
                 actual: grad_weights.len(),
             });
         }
-        let lr = self.config.learning_rate;
-        let l2 = self.config.l2;
-        for (w, &g) in weights.iter_mut().zip(grad_weights) {
-            ensure_finite("grad_weight", g)?;
-            *w -= lr * (g + l2 * *w);
+        for &gradient in grad_weights {
+            ensure_finite("grad_weight", gradient)?;
         }
         ensure_finite("grad_intercept", grad_intercept)?;
-        *intercept -= lr * grad_intercept;
-        self.samples_seen += 1;
+        let next_samples = checked_increment(self.samples_seen, "SGD sample")?;
+        let lr = self.config.learning_rate;
+        let l2 = self.config.l2;
+        let next_weights = weights
+            .iter()
+            .zip(grad_weights)
+            .map(|(&weight, &gradient)| {
+                let regularized_gradient = gradient + l2 * weight;
+                ensure_finite("regularized gradient", regularized_gradient)?;
+                let next_weight = weight - lr * regularized_gradient;
+                ensure_finite("weight", next_weight)?;
+                Ok(next_weight)
+            })
+            .collect::<Result<Vec<_>, RillError>>()?;
+        let next_intercept = *intercept - lr * grad_intercept;
+        ensure_finite("intercept", next_intercept)?;
+
+        weights.copy_from_slice(&next_weights);
+        *intercept = next_intercept;
+        self.samples_seen = next_samples;
         Ok(())
     }
 
@@ -196,5 +211,17 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn failed_step_is_atomic() {
+        let mut opt = Sgd::new(2, SgdConfig::default()).unwrap();
+        let mut weights = vec![1.0, 2.0];
+        let mut intercept = 3.0;
+        let result = opt.step(&mut weights, &mut intercept, &[1.0, f64::INFINITY], 1.0);
+        assert!(result.is_err());
+        assert_eq!(weights, vec![1.0, 2.0]);
+        assert_eq!(intercept, 3.0);
+        assert_eq!(opt.samples_seen(), 0);
     }
 }

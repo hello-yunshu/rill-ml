@@ -100,8 +100,8 @@ RillML is currently at `0.x`. Breaking changes are allowed but must be:
   `OnlineBinaryClassifier`, `Transformer`, `Metric`, `OnlineStatistic`, or
   `Snapshot<T>`.
 
-`Snapshot<T>` carries a `schema_version`. Bumping the schema version requires
-a migration note in `CHANGELOG.md`.
+`Snapshot<T>` carries a `format_version`. Bumping the format version requires a
+migration note in `CHANGELOG.md`.
 
 ## 6. Code style
 

@@ -5,7 +5,7 @@
 
 use std::collections::VecDeque;
 
-use crate::error::{RillError, ensure_finite, ensure_finite_target};
+use crate::error::{RillError, checked_finite_add, ensure_finite, ensure_finite_target};
 use crate::traits::Metric;
 
 /// Rolling Mean Absolute Error.
@@ -39,13 +39,22 @@ impl Metric for RollingMae {
         ensure_finite_target(truth)?;
         ensure_finite("prediction", prediction)?;
         let err = (truth - prediction).abs();
+        ensure_finite("rolling absolute error", err)?;
+        let base_sum = if self.errors.len() == self.capacity {
+            checked_finite_add(
+                self.sum,
+                -self.errors.front().copied().unwrap_or(0.0),
+                "rolling MAE sum",
+            )?
+        } else {
+            self.sum
+        };
+        let next_sum = checked_finite_add(base_sum, err, "rolling MAE sum")?;
         if self.errors.len() == self.capacity {
-            if let Some(old) = self.errors.pop_front() {
-                self.sum -= old;
-            }
+            self.errors.pop_front();
         }
         self.errors.push_back(err);
-        self.sum += err;
+        self.sum = next_sum;
         Ok(())
     }
 
@@ -97,14 +106,25 @@ impl Metric for RollingMse {
     fn update(&mut self, truth: f64, prediction: f64) -> Result<(), RillError> {
         ensure_finite_target(truth)?;
         ensure_finite("prediction", prediction)?;
-        let err = (truth - prediction).powi(2);
+        let difference = truth - prediction;
+        ensure_finite("rolling squared error input", difference)?;
+        let err = difference.powi(2);
+        ensure_finite("rolling squared error", err)?;
+        let base_sum = if self.errors.len() == self.capacity {
+            checked_finite_add(
+                self.sum,
+                -self.errors.front().copied().unwrap_or(0.0),
+                "rolling MSE sum",
+            )?
+        } else {
+            self.sum
+        };
+        let next_sum = checked_finite_add(base_sum, err, "rolling MSE sum")?;
         if self.errors.len() == self.capacity {
-            if let Some(old) = self.errors.pop_front() {
-                self.sum -= old;
-            }
+            self.errors.pop_front();
         }
         self.errors.push_back(err);
-        self.sum += err;
+        self.sum = next_sum;
         Ok(())
     }
 
@@ -226,6 +246,22 @@ mod tests {
         assert!(RollingMae::new(0).is_err());
         assert!(RollingMse::new(0).is_err());
         assert!(RollingAccuracy::new(0).is_err());
+    }
+
+    #[test]
+    fn rolling_metrics_reject_overflow_without_mutating_state() {
+        let mut mae = RollingMae::new(2).unwrap();
+        let mut mse = RollingMse::new(2).unwrap();
+        mae.update(0.0, 1.0).unwrap();
+        mse.update(0.0, 1.0).unwrap();
+
+        assert!(mae.update(f64::MAX, -f64::MAX).is_err());
+        assert!(mse.update(f64::MAX, 0.0).is_err());
+
+        assert_eq!(mae.samples_seen(), 1);
+        assert_eq!(mse.samples_seen(), 1);
+        assert_eq!(mae.value(), Some(1.0));
+        assert_eq!(mse.value(), Some(1.0));
     }
 
     #[test]

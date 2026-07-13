@@ -5,7 +5,7 @@
 //! The update rule is `mean = alpha * x + (1 - alpha) * mean`. The first
 //! observation seeds the mean directly.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 use crate::traits::OnlineStatistic;
 
 /// Exponentially weighted moving average.
@@ -72,12 +72,15 @@ impl ExponentiallyWeightedMean {
 impl OnlineStatistic for ExponentiallyWeightedMean {
     fn update(&mut self, value: f64) -> Result<(), RillError> {
         ensure_finite("value", value)?;
-        if self.count == 0 {
-            self.mean = value;
+        let next_count = checked_increment(self.count, "EW mean sample")?;
+        let next_mean = if self.count == 0 {
+            value
         } else {
-            self.mean = self.alpha * value + (1.0 - self.alpha) * self.mean;
-        }
-        self.count += 1;
+            self.alpha * value + (1.0 - self.alpha) * self.mean
+        };
+        ensure_finite("EW mean", next_mean)?;
+        self.mean = next_mean;
+        self.count = next_count;
         Ok(())
     }
 

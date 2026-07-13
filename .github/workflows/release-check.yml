@@ -9,21 +9,26 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
+concurrency:
+  group: release-check-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   package:
     name: cargo package
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: cargo package (no features)
-        run: cargo package --no-verify
+        run: cargo package
       - name: cargo package --features serde
-        run: cargo package --features serde --no-verify
+        run: cargo package --features serde
       - name: cargo publish --dry-run --features serde
-        continue-on-error: true
-        run: |
-          echo "::warning::cargo publish --dry-run may fail due to crates.io name availability or network access. Inspect the log to distinguish code/packaging errors from registry errors."
-          cargo publish --dry-run --features serde
+        run: cargo publish --dry-run --features serde
