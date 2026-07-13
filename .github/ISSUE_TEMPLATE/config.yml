@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/hello-yunshu/rill-ml/security/advisories/new
+    about: |
+      Found a security vulnerability? Please use a private GitHub Security
+      Advisory instead of opening a public issue. See SECURITY.md.
+  - name: Question or discussion
+    url: https://github.com/hello-yunshu/rill-ml/discussions
+    about: |
+      General questions about usage, design, or roadmap. Please do not
+      open an issue for usage questions unless you have confirmed a bug.

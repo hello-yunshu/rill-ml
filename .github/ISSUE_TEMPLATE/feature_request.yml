@@ -1,0 +1,81 @@
+name: Feature request
+description: Propose a new module, API, or improvement for RillML.
+title: "[feature] "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for proposing a feature. RillML prefers a small set of
+        well-tested modules over a large set of loosely verified ones, so
+        please justify the addition with a concrete use case.
+
+        Please read `CONTRIBUTING.md` and the Roadmap before opening a
+        feature request.
+
+  - type: input
+    id: use-case
+    attributes:
+      label: Real-world use case
+      description: Which concrete problem does this solve? Which project needs it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-alternatives
+    attributes:
+      label: Current alternatives
+      description: |
+        How do you solve this today? Is a baseline (Mean, EWMean,
+        LastValue, LinearRegression) already sufficient?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: |
+        Sketch the public API (struct/enum/function signatures). Concrete
+        types are preferred over trait objects.
+      value: |
+        ```rust
+        // sketch
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: math
+    attributes:
+      label: Mathematical definition
+      description: |
+        Update rule, complexity (time and space), boundary conditions
+        (zero samples, one sample, non-finite inputs).
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: |
+        Papers, textbooks, or reliable reference implementations to compare
+        against.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      description: Confirm the proposal fits RillML's scope.
+      options:
+        - label: This is online, single-pass, and bounded memory.
+          required: true
+        - label: This does not introduce domain-specific types (Battery, Mouse, HID, Tauri, etc.).
+          required: true
+        - label: This is not a copy-paste port of a River module.
+          required: true
+        - label: This does not require trait-object-based dynamic pipelines.
+          required: true
