@@ -62,6 +62,26 @@ impl<T> Snapshot<T> {
         }
         Ok(self.model)
     }
+
+    /// Consume the snapshot, verify its format version, and run an
+    /// application-provided model-state validator before returning the model.
+    ///
+    /// The snapshot envelope can only validate its own version field because
+    /// `T` may be an application type. Use this method at trust boundaries to
+    /// enforce model-specific invariants before activating restored state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RillError::IncompatibleStateVersion`] for a version mismatch,
+    /// or propagates the validator's error.
+    pub fn into_model_with_validation<F>(self, validate: F) -> Result<T, RillError>
+    where
+        F: FnOnce(&T) -> Result<(), RillError>,
+    {
+        let model = self.into_model()?;
+        validate(&model)?;
+        Ok(model)
+    }
 }
 
 #[cfg(test)]
@@ -92,5 +112,16 @@ mod tests {
             model: Mean::new(),
         };
         assert!(snap.into_model().is_err());
+    }
+
+    #[test]
+    fn application_validation_runs_before_activation() {
+        let snap = Snapshot::new(Mean::new());
+        let result = snap.into_model_with_validation(|_| {
+            Err(RillError::InvalidState(
+                "application check failed".to_owned(),
+            ))
+        });
+        assert!(matches!(result, Err(RillError::InvalidState(_))));
     }
 }

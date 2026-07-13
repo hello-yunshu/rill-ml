@@ -4,6 +4,8 @@
 
 RillML 提供可直接嵌入 Rust 原生应用的增量学习组件：在线统计、预处理器、线性/逻辑回归、评估指标、Pipeline、渐进式评估，以及基于 serde 的可选状态持久化。
 
+除嵌入式 crate 外，workspace 还提供可独立分发的 `rill-runtime`、稳定 IPC 约定和签名 `.rillpack` 模型包。宿主可以只依赖协议 crate，让 Runtime 与模型脱离主程序单独更新。完整边界与发布流程见 [`RUNTIME.md`](RUNTIME.md)。
+
 > RillML 受 [River](https://riverml.xyz/) 推广的在线学习工作流启发。它是一个独立的 Rust 项目，与 River 无关联，也未获得 River 的认可。目前不追求 API 或模型兼容性。
 
 ---
@@ -50,14 +52,14 @@ Python 更适合研究、数据分析和快速算法实验。RillML 重点解决
 
 ```toml
 [dependencies]
-rill-ml = "0.1"
+rill-ml = "0.5"
 ```
 
 需要序列化支持时启用 `serde` feature：
 
 ```toml
 [dependencies]
-rill-ml = { version = "0.1", features = ["serde"] }
+rill-ml = { version = "0.5", features = ["serde"] }
 ```
 
 **环境要求：** Rust 1.85+（Edition 2024），无需 nightly。
@@ -203,6 +205,21 @@ cargo run --example drift_demo
 
 ---
 
+## 在线决策示例
+
+参见 [`examples/bandit_demo.rs`](examples/bandit_demo.rs)，演示 v0.5 在线决策模块：
+
+- 对比 `EpsilonGreedy`、`Ucb1`、`ThompsonSampling` 在固定奖励分布下的表现。
+- 演示 `LinUCB` 上下文老虎机根据上下文特征选择最优 arm。
+- 演示安全回退策略：在数据不足时使用默认 arm。
+- `Ucb1` 与 `ThompsonSampling` 的奖励必须归一化到 `[0, 1]`；反序列化时会校验模型状态。
+
+```sh
+cargo run --example bandit_demo
+```
+
+---
+
 ## 序列化
 
 启用 `serde` feature 后可以序列化和恢复模型状态：
@@ -223,7 +240,13 @@ let m = restored.into_model().unwrap();
 assert!((m.value() - 1.5).abs() < 1e-12);
 ```
 
-`Snapshot<T>` 使用格式版本号包裹模型状态，支持前向兼容。
+`Snapshot<T>` 使用格式版本号包裹模型状态，并拒绝不兼容的版本。快照来源不可信或模型还有业务约束时，请使用 `into_model_with_validation()` 在启用恢复状态前执行应用级校验。完整的生产接入与故障回退建议见 [`RELIABILITY.md`](RELIABILITY.md)。
+
+---
+
+## 生产可靠性
+
+RillML 是进程内算法库，不负责服务副本、流量切换或外部存储高可用；这些由宿主应用承担。核心更新路径会拒绝非有限算术结果，统计量和优化器的失败更新不会提交半成品状态；Pipeline 在可靠性边界可使用 `learn_transactional()` 获得同样的全有或全无语义。生产环境仍应保留最后一个已验证快照与简单基线，在加载失败、模型健康异常或漂移时回退，并监控拒绝样本、加载失败、漂移事件和相对基线误差。详见 [`RELIABILITY.md`](RELIABILITY.md)。
 
 ---
 
@@ -239,7 +262,7 @@ RillML 提供三个简单的基线回归器：
 
 ---
 
-## 当前范围（v0.4）
+## 当前范围（v0.5）
 
 | 类别 | 模块 |
 |---|---|
@@ -256,6 +279,7 @@ RillML 提供三个简单的基线回归器：
 | 持久化 | `Snapshot<T>` 版本化封装（serde feature） |
 | 诊断 | TrainingSummary, WarmupTracker, BaselineComparator, OnlineModelSelector, ResidualInterval, ModelHealthReport, PredictionReporter |
 | 漂移检测 | PageHinkley, Adwin, Kswin, DriftAwareModel, DriftAction, DriftStrategy, TimeDecayedMean, LearningRateScheduler, FixedWindowBuffer |
+| 在线决策 | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb, ArmStats |
 
 内存界限：
 - 非滚动统计量：O(1)
@@ -266,6 +290,8 @@ RillML 提供三个简单的基线回归器：
 - 分类编码器：O(c)，c 为已见类别数
 - 漂移检测器：O(1)（PageHinkley）或 O(window_size)（Adwin/Kswin）
 - DriftAwareModel：O(max_events) 事件日志 + 模型 + 检测器
+- 非上下文老虎机：O(arm_count)
+- LinUCB 上下文老虎机：O(arm_count * d²)，d 为特征数
 
 ---
 
@@ -276,8 +302,8 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [RillML_Roadmap
 - **v0.1** — 基础闭环：预测、评估、学习、保存、恢复。
 - **v0.2** — 可靠性与诊断：预测报告、冷启动、基线比较。
 - **v0.3** — 稀疏特征与高维数据：FeatureHasher、FTRL、朴素贝叶斯。
-- **v0.4** — 漂移检测：Page-Hinkley、ADWIN、KSWIN、自适应学习。*（当前）*
-- **v0.5** — 在线决策：多臂老虎机、上下文老虎机。
+- **v0.4** — 漂移检测：Page-Hinkley、ADWIN、KSWIN、自适应学习。
+- **v0.5** — 在线决策：多臂老虎机、上下文老虎机。*（当前）*
 - **v0.6** — 平台与生态：WASM、Python 绑定、Tokio Stream 适配。
 - **v1.0** — 稳定的 API 和状态格式。
 
@@ -287,9 +313,9 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [RillML_Roadmap
 
 RillML 通过多层验证保证正确性：
 
-- **单元测试**：每个模块的单元测试，共 451 个。
-- **集成测试**：112 个集成测试，将在线算法与批量参考公式对照。
-- **Doctest**：所有公共 API 均有文档测试，共 31 个。
+- **单元测试**：每个模块的单元测试，共 562 个。
+- **集成测试**：130 个集成测试，将在线算法与批量参考公式对照。
+- **Doctest**：所有公共 API 均有文档测试，共 40 个。
 - **序列化往返测试**：所有有状态类型的序列化/反序列化验证。
 - **性质测试**：使用 `proptest`。
 - **确定性测试**：使用固定随机种子（`rand_chacha`）。

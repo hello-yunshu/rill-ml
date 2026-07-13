@@ -1,6 +1,8 @@
 //! Regression metrics: MAE, MSE, RMSE, R².
 
-use crate::error::{RillError, ensure_finite, ensure_finite_target};
+use crate::error::{
+    RillError, checked_finite_add, checked_increment, ensure_finite, ensure_finite_target,
+};
 use crate::traits::Metric;
 
 /// Mean Absolute Error.
@@ -28,8 +30,12 @@ impl Metric for Mae {
     fn update(&mut self, truth: f64, prediction: f64) -> Result<(), RillError> {
         ensure_finite_target(truth)?;
         ensure_finite("prediction", prediction)?;
-        self.sum_abs_error += (truth - prediction).abs();
-        self.count += 1;
+        let error = truth - prediction;
+        ensure_finite("absolute error", error)?;
+        let next_sum = checked_finite_add(self.sum_abs_error, error.abs(), "MAE sum")?;
+        let next_count = checked_increment(self.count, "MAE sample")?;
+        self.sum_abs_error = next_sum;
+        self.count = next_count;
         Ok(())
     }
 
@@ -77,8 +83,13 @@ impl Metric for Mse {
         ensure_finite_target(truth)?;
         ensure_finite("prediction", prediction)?;
         let err = truth - prediction;
-        self.sum_sq_error += err * err;
-        self.count += 1;
+        ensure_finite("squared error input", err)?;
+        let squared_error = err * err;
+        ensure_finite("squared error", squared_error)?;
+        let next_sum = checked_finite_add(self.sum_sq_error, squared_error, "MSE sum")?;
+        let next_count = checked_increment(self.count, "MSE sample")?;
+        self.sum_sq_error = next_sum;
+        self.count = next_count;
         Ok(())
     }
 
@@ -169,10 +180,21 @@ impl Metric for R2 {
         ensure_finite_target(truth)?;
         ensure_finite("prediction", prediction)?;
         let err = truth - prediction;
-        self.ss_res += err * err;
-        self.sum_truth += truth;
-        self.sum_truth_sq += truth * truth;
-        self.count += 1;
+        ensure_finite("R2 error", err)?;
+        let squared_error = err * err;
+        let squared_truth = truth * truth;
+        ensure_finite("R2 squared error", squared_error)?;
+        ensure_finite("R2 squared truth", squared_truth)?;
+        let next_ss_res = checked_finite_add(self.ss_res, squared_error, "R2 residual sum")?;
+        let next_sum_truth = checked_finite_add(self.sum_truth, truth, "R2 truth sum")?;
+        let next_sum_truth_sq =
+            checked_finite_add(self.sum_truth_sq, squared_truth, "R2 squared truth sum")?;
+        let next_count = checked_increment(self.count, "R2 sample")?;
+
+        self.ss_res = next_ss_res;
+        self.sum_truth = next_sum_truth;
+        self.sum_truth_sq = next_sum_truth_sq;
+        self.count = next_count;
         Ok(())
     }
 
@@ -219,6 +241,21 @@ mod tests {
         m.update(3.0, 5.0).unwrap(); // err=2, sq=4
         m.update(5.0, 4.0).unwrap(); // err=1, sq=1
         assert!((m.value().unwrap() - 2.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn metrics_reject_overflow_without_mutating_state() {
+        let mut mae = Mae::new();
+        let mut mse = Mse::new();
+        let mut r2 = R2::new();
+
+        assert!(mae.update(f64::MAX, -f64::MAX).is_err());
+        assert!(mse.update(f64::MAX, 0.0).is_err());
+        assert!(r2.update(f64::MAX, 0.0).is_err());
+
+        assert_eq!(mae.samples_seen(), 0);
+        assert_eq!(mse.samples_seen(), 0);
+        assert_eq!(r2.samples_seen(), 0);
     }
 
     #[test]

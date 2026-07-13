@@ -2,7 +2,7 @@
 //!
 //! Time complexity per update: `O(1)`. Space complexity: `O(1)`.
 
-use crate::error::RillError;
+use crate::error::{RillError, checked_increment, ensure_finite};
 use crate::traits::OnlineStatistic;
 
 /// Incremental mean computed with the delta method to minimize floating-point
@@ -50,10 +50,15 @@ impl Mean {
 
 impl OnlineStatistic for Mean {
     fn update(&mut self, value: f64) -> Result<(), RillError> {
-        crate::error::ensure_finite("value", value)?;
-        self.count += 1;
+        ensure_finite("value", value)?;
+        let next_count = checked_increment(self.count, "mean sample")?;
         let delta = value - self.mean;
-        self.mean += delta / (self.count as f64);
+        ensure_finite("mean delta", delta)?;
+        let next_mean = self.mean + delta / next_count as f64;
+        ensure_finite("mean", next_mean)?;
+
+        self.count = next_count;
+        self.mean = next_mean;
         Ok(())
     }
 
@@ -95,6 +100,16 @@ mod tests {
         assert!(m.update(f64::NAN).is_err());
         assert!(m.update(f64::INFINITY).is_err());
         assert_eq!(m.count(), 0);
+    }
+
+    #[test]
+    fn mean_rejects_overflow_without_mutating_state() {
+        let mut m = Mean::new();
+        m.update(f64::MAX).unwrap();
+        let before = m.clone();
+        assert!(m.update(-f64::MAX).is_err());
+        assert_eq!(m.count(), before.count());
+        assert_eq!(m.value(), before.value());
     }
 
     #[test]

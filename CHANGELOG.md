@@ -15,6 +15,86 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-13
+
+### Added — Online decision-making (bandits)
+
+v0.5 introduces bounded-memory multi-armed bandit and contextual bandit
+algorithms. Bandits learn to select the best action (arm) from a fixed set by
+balancing exploration and exploitation, and are independent from the supervised
+learning models in `models`.
+
+- **`Bandit` trait** (`src/bandit/mod.rs`): unified trait for non-contextual
+  bandits. `select` is side-effect free; state updates happen only in `update`.
+  Includes `ArmStats` for per-arm diagnostics.
+- **`ContextualBandit` trait** (`src/bandit/mod.rs`): trait for contextual
+  bandits that select an arm based on a context (feature) vector.
+- **`EpsilonGreedy`** (`src/bandit/epsilon_greedy.rs`): fixed and
+  exponentially-decaying epsilon exploration. O(arm_count) select, O(1) update.
+- **`Ucb1`** (`src/bandit/ucb1.rs`): Upper Confidence Bound 1 with
+  configurable exploration constant and normalized `[0, 1]` rewards. The
+  default constant matches the documented classic UCB1 formula. Unpulled arms
+  are prioritized. O(arm_count) select, O(1) update.
+- **`ThompsonSampling`** (`src/bandit/thompson.rs`): Beta-distribution
+  Thompson Sampling for Bernoulli rewards. Includes internal Marsaglia-Tsang
+  Gamma sampling and Box-Muller Normal generation — no external statistics
+  crate required. O(arm_count) select, O(1) update.
+- **`LinUcb`** (`src/bandit/linucb.rs`): contextual bandit with per-arm linear
+  ridge-regression models. Matrix inversion via Gauss-Jordan elimination with
+  partial pivoting. O(arm_count * d³) select, O(d²) update,
+  O(arm_count * d²) space.
+- **New error variants** (`src/error.rs`): `InvalidArmCount`, `InvalidEpsilon`,
+  `InvalidArm`, `InvalidReward`, `InvalidFeatureCount`, `InvalidState`.
+- **New dependency**: `rand = "0.8"` added as a required dependency (bandits
+  fundamentally require randomness for exploration).
+
+### Example
+
+- `examples/bandit_demo.rs`: demonstrates non-contextual bandits comparison
+  (EpsilonGreedy vs UCB1 vs ThompsonSampling), LinUCB contextual selection,
+  and a safe fallback strategy for cold-start. Run with
+  `cargo run --example bandit_demo`.
+
+### Integration tests
+
+- `tests/bandit_learning.rs`: tests for all four bandit algorithms — learning
+  convergence (finding the best arm), reset behavior, and error handling.
+- `tests/serialization.rs`: 4 new serialization round-trip tests for all
+  bandit types (EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb).
+
+### Reliability and release hardening
+
+- Core statistics, regression/classification metrics, SGD, AdaGrad,
+  `StandardScaler`, sparse-feature merging, and feature hashing now reject
+  arithmetic overflow before committing state.
+- SGD and AdaGrad steps are failure-atomic; pipelines expose
+  `learn_transactional()` for all-or-nothing transformer/model updates when the
+  clone cost is acceptable.
+- `StandardScaler`, `SparseFeatures`, and `FeatureHasher` now reject malformed
+  persisted state during deserialization, matching the bandit validation model.
+- `Snapshot<T>::into_model_with_validation()` adds an application validation
+  hook before restored state is activated.
+- Added `RELIABILITY.md` with production activation, rollback, observability,
+  and release-gate guidance.
+- Release packaging no longer skips crate verification or ignores publish
+  dry-run failures. CI jobs now have explicit timeouts and concurrency control.
+- Added scheduled and dependency-change RustSec advisory audits.
+
+### Compatibility notes
+
+- The bandit module is additive: existing v0.1/v0.2/v0.3/v0.4 APIs are
+  unchanged.
+- All bandit types implement `Debug`, `Clone`, and (with the `serde` feature)
+  `Serialize` / validated `Deserialize`; malformed persisted state is rejected.
+- `rand` is now a required dependency (was previously dev-only). This is
+  necessary because bandit exploration requires randomness.
+- Bandits are independent from supervised learning models. The caller is
+  responsible for defining what "reward" means (business layer).
+- Beta distribution sampling is implemented internally (Marsaglia-Tsang Gamma
+  method); no external statistics crate is required.
+- Matrix operations in LinUCB use `Vec<Vec<f64>>` internally; no
+  `nalgebra`/`ndarray` dependency is introduced.
+
 ## [0.4.0] - 2026-07-13
 
 ### Added — Drift detection and adaptation
@@ -208,7 +288,7 @@ by River but implemented independently.
   `progressive_regress` and `progressive_classify` enforcing the
   predict-before-learn order with side-effect-free predictions.
 - **Persistence** (`src/persistence.rs`): optional `serde` feature with a
-  versioned `Snapshot<T>` envelope (`schema_version`, `created_at`, `model`).
+  versioned `Snapshot<T>` envelope (`format_version`, `model`).
 - **Examples** (`examples/`): `online_regression`, `sensor_stream`,
   `online_classification`, `progressive_validation`. All use fixed seeds for
   reproducibility.
@@ -236,13 +316,15 @@ by River but implemented independently.
 ### Compatibility notes
 
 - The `Snapshot<T>` format is versioned but **not** guaranteed to be stable
-  across 0.x releases. Always check `schema_version` before restoring state.
+  across 0.x releases. Restore through `into_model()` so `format_version` is
+  checked before activating state.
 - Random examples and tests use fixed seeds (`ChaCha8Rng::seed_from_u64`) so
   outputs are reproducible.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.5.0
 [0.4.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.4.0
 [0.3.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.2.0

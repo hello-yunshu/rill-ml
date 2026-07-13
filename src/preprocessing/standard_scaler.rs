@@ -3,7 +3,7 @@
 //! Maintains per-feature Welford variance and mean. Time complexity per
 //! update/transform: `O(d)`. Space complexity: `O(d)`.
 
-use crate::error::{RillError, ensure_finite, validate_features};
+use crate::error::{RillError, checked_increment, ensure_finite, validate_features};
 use crate::traits::Transformer;
 
 /// Configuration for [`StandardScaler`].
@@ -41,7 +41,7 @@ impl Default for StandardScalerConfig {
 ///
 /// `transform` does not update state; only `update` does.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct StandardScaler {
     feature_count: usize,
     config: StandardScalerConfig,
@@ -113,14 +113,42 @@ impl StandardScaler {
             .collect()
     }
 
-    fn update_feature(&mut self, idx: usize, value: f64) {
-        let n = self.counts[idx] + 1;
-        self.counts[idx] = n;
-        let n_f = n as f64;
-        let delta = value - self.means[idx];
-        self.means[idx] += delta / n_f;
-        let delta2 = value - self.means[idx];
-        self.m2s[idx] += delta * delta2;
+    /// Validate all configuration and persisted-state invariants.
+    ///
+    /// This is run automatically during deserialization and before operations
+    /// that index per-feature state.
+    pub fn validate(&self) -> Result<(), RillError> {
+        if self.feature_count == 0 {
+            return Err(RillError::EmptyFeatures);
+        }
+        ensure_finite("epsilon", self.config.epsilon)?;
+        if self.config.epsilon < 0.0 {
+            return Err(RillError::InvalidParameter {
+                name: "epsilon",
+                value: self.config.epsilon,
+            });
+        }
+        if self.counts.len() != self.feature_count
+            || self.means.len() != self.feature_count
+            || self.m2s.len() != self.feature_count
+        {
+            return Err(RillError::InvalidState(
+                "standard scaler feature_count does not match state lengths".to_owned(),
+            ));
+        }
+        if self.means.iter().any(|value| !value.is_finite())
+            || self.m2s.iter().any(|value| !value.is_finite())
+        {
+            return Err(RillError::InvalidState(
+                "standard scaler state must contain only finite values".to_owned(),
+            ));
+        }
+        if self.counts.windows(2).any(|pair| pair[0] != pair[1]) {
+            return Err(RillError::InvalidState(
+                "standard scaler feature counts must stay synchronized".to_owned(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -134,9 +162,10 @@ impl Transformer for StandardScaler {
     }
 
     fn transform(&self, features: &[f64]) -> Result<Vec<f64>, RillError> {
+        self.validate()?;
         validate_features(self.feature_count, features)?;
         let scales = self.scales();
-        Ok(features
+        features
             .iter()
             .enumerate()
             .map(|(i, &x)| {
@@ -146,17 +175,36 @@ impl Transformer for StandardScaler {
                     0.0
                 };
                 let scale = if self.config.with_std { scales[i] } else { 1.0 };
-                (x - mean) / scale
+                let transformed = (x - mean) / scale;
+                ensure_finite("transformed feature", transformed)?;
+                Ok(transformed)
             })
-            .collect())
+            .collect()
     }
 
     fn update(&mut self, features: &[f64]) -> Result<(), RillError> {
+        self.validate()?;
         validate_features(self.feature_count, features)?;
+        let mut next_counts = self.counts.clone();
+        let mut next_means = self.means.clone();
+        let mut next_m2s = self.m2s.clone();
         for (i, &x) in features.iter().enumerate() {
-            ensure_finite("feature", x)?;
-            self.update_feature(i, x);
+            let count = checked_increment(self.counts[i], "standard scaler sample")?;
+            let delta = x - self.means[i];
+            ensure_finite("standard scaler delta", delta)?;
+            let mean = self.means[i] + delta / count as f64;
+            ensure_finite("standard scaler mean", mean)?;
+            let delta2 = x - mean;
+            ensure_finite("standard scaler delta", delta2)?;
+            let m2 = self.m2s[i] + delta * delta2;
+            ensure_finite("standard scaler M2", m2)?;
+            next_counts[i] = count;
+            next_means[i] = mean;
+            next_m2s[i] = m2;
         }
+        self.counts = next_counts;
+        self.means = next_means;
+        self.m2s = next_m2s;
         Ok(())
     }
 
@@ -174,6 +222,35 @@ impl Transformer for StandardScaler {
         for m2 in &mut self.m2s {
             *m2 = 0.0;
         }
+    }
+}
+
+#[cfg(feature = "serde")]
+#[derive(serde::Deserialize)]
+struct StandardScalerState {
+    feature_count: usize,
+    config: StandardScalerConfig,
+    counts: Vec<u64>,
+    means: Vec<f64>,
+    m2s: Vec<f64>,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for StandardScaler {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let state = StandardScalerState::deserialize(deserializer)?;
+        let scaler = Self {
+            feature_count: state.feature_count,
+            config: state.config,
+            counts: state.counts,
+            means: state.means,
+            m2s: state.m2s,
+        };
+        scaler.validate().map_err(serde::de::Error::custom)?;
+        Ok(scaler)
     }
 }
 
@@ -212,6 +289,30 @@ mod tests {
         let _ = s.transform(&[5.0]).unwrap();
         assert_eq!(s.means()[0], mean_before);
         assert_eq!(s.counts[0], 1);
+    }
+
+    #[test]
+    fn update_rejects_overflow_without_mutating_state() {
+        let mut scaler = StandardScaler::new(1).unwrap();
+        scaler.update(&[f64::MAX]).unwrap();
+        let before = scaler.clone();
+        assert!(scaler.update(&[-f64::MAX]).is_err());
+        assert_eq!(scaler.counts, before.counts);
+        assert_eq!(scaler.means, before.means);
+        assert_eq!(scaler.m2s, before.m2s);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_rejects_malformed_state() {
+        let malformed = r#"{
+            "feature_count":2,
+            "config":{"with_mean":true,"with_std":true,"epsilon":1e-12},
+            "counts":[1],
+            "means":[0.0],
+            "m2s":[0.0]
+        }"#;
+        assert!(serde_json::from_str::<StandardScaler>(malformed).is_err());
     }
 
     #[test]

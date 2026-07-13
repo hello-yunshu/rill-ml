@@ -8,6 +8,10 @@ use rill_ml::OnlineBinaryClassifier;
 use rill_ml::OnlineRegressor;
 use rill_ml::OnlineStatistic;
 use rill_ml::Transformer;
+use rill_ml::bandit::{
+    Bandit, ContextualBandit, EpsilonGreedy, EpsilonGreedyConfig, LinUcb, LinUcbConfig,
+    ThompsonConfig, ThompsonSampling, Ucb1, Ucb1Config,
+};
 use rill_ml::drift::{
     Adwin, AdwinConfig, DriftAction, DriftAwareModel, DriftDetector, DriftEvent, DriftLevel,
     FixedWindowBuffer, Kswin, KswinConfig, LearningRateScheduler, PageHinkley, PageHinkleyConfig,
@@ -470,4 +474,118 @@ fn drift_aware_model_serde_roundtrip() {
         aware.learn(&[], i as f64).unwrap();
     }
     assert_roundtrip(&aware);
+}
+
+// ---------------------------------------------------------------------------
+// Bandit serialization round-trip tests (v0.5)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn epsilon_greedy_serialization_roundtrip() {
+    let mut bandit = EpsilonGreedy::new(
+        3,
+        EpsilonGreedyConfig {
+            epsilon: 0.2,
+            decay: 0.99,
+            min_epsilon: 0.05,
+        },
+    )
+    .unwrap();
+    bandit.update(0, 0.8).unwrap();
+    bandit.update(1, 0.3).unwrap();
+    bandit.update(0, 0.9).unwrap();
+
+    let json = serde_json::to_string(&bandit).unwrap();
+    let restored: EpsilonGreedy = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored.arm_count(), bandit.arm_count());
+    assert_eq!(restored.samples_seen(), bandit.samples_seen());
+    for arm in 0..3 {
+        let orig = bandit.arm_stats(arm).unwrap();
+        let rest = restored.arm_stats(arm).unwrap();
+        assert_eq!(orig.pulls, rest.pulls);
+        assert!((orig.total_reward - rest.total_reward).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn ucb1_serialization_roundtrip() {
+    let mut bandit = Ucb1::new(
+        3,
+        Ucb1Config {
+            exploration_constant: 2.0,
+        },
+    )
+    .unwrap();
+    bandit.update(0, 1.0).unwrap();
+    bandit.update(1, 0.5).unwrap();
+    bandit.update(2, 0.7).unwrap();
+
+    let json = serde_json::to_string(&bandit).unwrap();
+    let restored: Ucb1 = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored.arm_count(), bandit.arm_count());
+    assert_eq!(restored.samples_seen(), bandit.samples_seen());
+    for arm in 0..3 {
+        let orig = bandit.arm_stats(arm).unwrap();
+        let rest = restored.arm_stats(arm).unwrap();
+        assert_eq!(orig.pulls, rest.pulls);
+    }
+}
+
+#[test]
+fn thompson_sampling_serialization_roundtrip() {
+    let mut bandit = ThompsonSampling::new(
+        3,
+        ThompsonConfig {
+            alpha_prior: 1.0,
+            beta_prior: 1.0,
+        },
+    )
+    .unwrap();
+    bandit.update(0, 1.0).unwrap();
+    bandit.update(1, 0.0).unwrap();
+    bandit.update(0, 0.7).unwrap();
+
+    let json = serde_json::to_string(&bandit).unwrap();
+    let restored: ThompsonSampling = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored.arm_count(), bandit.arm_count());
+    assert_eq!(restored.samples_seen(), bandit.samples_seen());
+    for arm in 0..3 {
+        let orig = bandit.arm_stats(arm).unwrap();
+        let rest = restored.arm_stats(arm).unwrap();
+        assert_eq!(orig.pulls, rest.pulls);
+    }
+}
+
+#[test]
+fn linucb_serialization_roundtrip() {
+    let mut bandit = LinUcb::new(LinUcbConfig {
+        alpha: 1.5,
+        arm_count: 2,
+        feature_count: 3,
+    })
+    .unwrap();
+    bandit.update(0, &[1.0, 0.5, 0.2], 1.0).unwrap();
+    bandit.update(1, &[0.3, 0.7, 0.9], 0.5).unwrap();
+    bandit.update(0, &[0.8, 0.1, 0.4], 0.9).unwrap();
+
+    let json = serde_json::to_string(&bandit).unwrap();
+    let restored: LinUcb = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored.arm_count(), bandit.arm_count());
+    assert_eq!(restored.feature_count(), bandit.feature_count());
+    assert_eq!(restored.samples_seen(), bandit.samples_seen());
+    // Verify A matrices and b vectors are preserved.
+    for arm in 0..2 {
+        let orig_a = bandit.a_matrix(arm).unwrap();
+        let rest_a = restored.a_matrix(arm).unwrap();
+        for i in 0..3 {
+            for j in 0..3 {
+                assert!((orig_a[i][j] - rest_a[i][j]).abs() < 1e-12);
+            }
+        }
+        let orig_b = bandit.b_vector(arm).unwrap();
+        let rest_b = restored.b_vector(arm).unwrap();
+        for i in 0..3 {
+            assert!((orig_b[i] - rest_b[i]).abs() < 1e-12);
+        }
+    }
 }

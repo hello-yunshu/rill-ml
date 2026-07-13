@@ -3,12 +3,14 @@
 //! The learning contract is fixed:
 //! - `predict(x)`: `transform(x)` → `model.predict()`. No state updates.
 //! - `learn(x, y)`: `transformer.update(x)` → `transform(x)` → `model.learn()`.
+//! - `learn_transactional` is the failure-atomic variant: neither stage is
+//!   committed unless all three operations succeed.
 //!
 //! The transformer never sees the target `y`, so there is no label leakage in
 //! the progressive-evaluation sense (the prediction for the current sample is
 //! produced *before* any state update).
 
-use crate::error::RillError;
+use crate::error::{RillError, ensure_finite_target};
 use crate::traits::{OnlineBinaryClassifier, OnlineRegressor, Transformer};
 
 /// A pipeline combining a transformer and a regressor.
@@ -47,6 +49,27 @@ where
     pub fn model(&self) -> &M {
         &self.model
     }
+
+    /// Learn one sample with all-or-nothing state changes.
+    ///
+    /// This clones both stages, applies the update to the clones, and commits
+    /// them only after every operation succeeds. Prefer this at reliability
+    /// boundaries; use [`OnlineRegressor::learn`] when avoiding the clone cost
+    /// is more important and both stages already provide atomic updates.
+    pub fn learn_transactional(&mut self, features: &[f64], target: f64) -> Result<(), RillError>
+    where
+        T: Clone,
+        M: Clone,
+    {
+        let mut next_transformer = self.transformer.clone();
+        let mut next_model = self.model.clone();
+        next_transformer.update(features)?;
+        let transformed = next_transformer.transform(features)?;
+        next_model.learn(&transformed, target)?;
+        self.transformer = next_transformer;
+        self.model = next_model;
+        Ok(())
+    }
 }
 
 impl<T, M> OnlineRegressor for RegressionPipeline<T, M>
@@ -68,6 +91,7 @@ where
     }
 
     fn learn(&mut self, features: &[f64], target: f64) -> Result<(), RillError> {
+        ensure_finite_target(target)?;
         self.transformer.update(features)?;
         let transformed = self.transformer.transform(features)?;
         self.model.learn(&transformed, target)
@@ -111,6 +135,22 @@ where
     /// Borrow the model.
     pub fn model(&self) -> &M {
         &self.model
+    }
+
+    /// Learn one classification sample with all-or-nothing state changes.
+    pub fn learn_transactional(&mut self, features: &[f64], target: bool) -> Result<(), RillError>
+    where
+        T: Clone,
+        M: Clone,
+    {
+        let mut next_transformer = self.transformer.clone();
+        let mut next_model = self.model.clone();
+        next_transformer.update(features)?;
+        let transformed = next_transformer.transform(features)?;
+        next_model.learn(&transformed, target)?;
+        self.transformer = next_transformer;
+        self.model = next_model;
+        Ok(())
     }
 }
 
@@ -173,6 +213,24 @@ mod tests {
 
         pipe.learn(&[1.0, 2.0], 3.0).unwrap();
         assert_eq!(pipe.transformer().samples_seen(), 1);
+    }
+
+    #[test]
+    fn failed_pipeline_learn_does_not_mutate_either_stage() {
+        let scaler = StandardScaler::new(1).unwrap();
+        let model = LinearRegression::new(
+            1,
+            LinearRegressionConfig {
+                optimizer: Optimizer::sgd(1, SgdConfig::default()).unwrap(),
+                loss: Default::default(),
+            },
+        )
+        .unwrap();
+        let mut pipe = RegressionPipeline::new(scaler, model).unwrap();
+
+        assert!(pipe.learn_transactional(&[1.0], f64::NAN).is_err());
+        assert_eq!(pipe.transformer().samples_seen(), 0);
+        assert_eq!(pipe.model().samples_seen(), 0);
     }
 
     #[test]

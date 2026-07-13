@@ -1,0 +1,220 @@
+name: Rill Runtime release
+
+on:
+  push:
+    tags:
+      - "runtime-v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rill-runtime-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  PUBLISHER_KEY_ID: mira-plugins-2026-001
+
+jobs:
+  build-runtime:
+    name: Runtime ${{ matrix.target_os }} ${{ matrix.target_arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            target_os: linux
+            target_arch: x86_64
+            extension: ""
+          - runner: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            target_os: windows
+            target_arch: x86_64
+            extension: .exe
+          - runner: macos-14
+            rust_target: x86_64-apple-darwin
+            target_os: macos
+            target_arch: x86_64
+            extension: ""
+          - runner: macos-14
+            rust_target: aarch64-apple-darwin
+            target_os: macos
+            target_arch: aarch64
+            extension: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.85.0
+          targets: ${{ matrix.rust_target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: runtime-${{ matrix.rust_target }}
+      - name: Build runtime
+        run: cargo build --locked --release --target ${{ matrix.rust_target }} -p rill-runtime --bin rill-runtime
+      - name: Import Apple Developer ID certificate
+        if: matrix.target_os == 'macos'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          test -n "$APPLE_CERTIFICATE_P12_BASE64"
+          test -n "$APPLE_CERTIFICATE_PASSWORD"
+          test -n "$APPLE_SIGNING_IDENTITY"
+          python3 - <<'PY'
+          import base64, os, pathlib
+          pathlib.Path("certificate.p12").write_bytes(base64.b64decode(os.environ["APPLE_CERTIFICATE_P12_BASE64"]))
+          PY
+          security create-keychain -p "${RUNNER_TEMP}" rill-signing.keychain-db
+          security set-keychain-settings -lut 21600 rill-signing.keychain-db
+          security unlock-keychain -p "${RUNNER_TEMP}" rill-signing.keychain-db
+          security import certificate.p12 -k rill-signing.keychain-db -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s rill-signing.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${RUNNER_TEMP}" rill-signing.keychain-db
+      - name: Code-sign macOS runtime
+        if: matrix.target_os == 'macos'
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          codesign --force --timestamp --options runtime --sign "$APPLE_SIGNING_IDENTITY" "target/${{ matrix.rust_target }}/release/rill-runtime"
+          codesign --verify --strict --verbose=2 "target/${{ matrix.rust_target }}/release/rill-runtime"
+      - name: Stage asset
+        shell: python
+        env:
+          VERSION: ${{ github.ref_name }}
+          TARGET: ${{ matrix.rust_target }}
+          TARGET_OS: ${{ matrix.target_os }}
+          TARGET_ARCH: ${{ matrix.target_arch }}
+          EXTENSION: ${{ matrix.extension }}
+        run: |
+          import os, pathlib, shutil
+          version = os.environ["VERSION"].removeprefix("runtime-v")
+          extension = os.environ["EXTENSION"]
+          source = pathlib.Path("target") / os.environ["TARGET"] / "release" / f"rill-runtime{extension}"
+          output = pathlib.Path("dist") / f"rill-runtime-{version}-{os.environ['TARGET_OS']}-{os.environ['TARGET_ARCH']}{extension}"
+          output.parent.mkdir(exist_ok=True)
+          shutil.copyfile(source, output)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-${{ matrix.target_os }}-${{ matrix.target_arch }}
+          path: dist/rill-runtime-*
+          if-no-files-found: error
+
+  publish:
+    name: Sign model, index, and publish
+    needs: build-runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.85.0
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Validate release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#runtime-v}"
+          test "$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n1)" = "$version"
+          test "$(python3 -c 'import json; print(json.load(open("models/mira-battery-default/manifest.json"))["version"])')" = "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build signing tool
+        run: cargo build --locked --release -p rill-runtime --bin rill-pack
+      - name: Verify existing stable index when present
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RILL_PUBLIC_KEY_HEX: eb80fdde2dc7ba507b6c8afbbf5a7de82e6219967edf1914ddb979d5601d39b3
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release download local-ai-stable --pattern stable-index.json --dir dist; then
+            mv dist/stable-index.json dist/current-stable-index.json
+            target/release/rill-pack verify-index \
+              --index dist/current-stable-index.json \
+              --key-id "$PUBLISHER_KEY_ID" \
+              --public-key-hex "$RILL_PUBLIC_KEY_HEX"
+          fi
+      - name: Create signed model package
+        env:
+          RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RILL_SIGNING_KEY_HEX"
+          target/release/rill-pack create \
+            --manifest models/mira-battery-default/manifest.json \
+            --model models/mira-battery-default/model.json \
+            --output "dist/mira-battery-default-${VERSION}.rillpack"
+      - name: Build and sign stable index
+        env:
+          RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          extra=()
+          if [ -f dist/current-stable-index.json ]; then
+            extra+=(--existing-index dist/current-stable-index.json)
+          fi
+          python3 scripts/build-release-index.py \
+            --release-dir dist \
+            --version "$VERSION" \
+            --tag "$GITHUB_REF_NAME" \
+            --repository "$GITHUB_REPOSITORY" \
+            --publisher-key-id "$PUBLISHER_KEY_ID" \
+            --generated-at "$generated_at" \
+            --output dist/stable-index-payload.json \
+            "${extra[@]}"
+          target/release/rill-pack sign-index \
+            --payload dist/stable-index-payload.json \
+            --output dist/stable-index.json
+      - name: Verify signed outputs before publishing
+        env:
+          RILL_PUBLIC_KEY_HEX: eb80fdde2dc7ba507b6c8afbbf5a7de82e6219967edf1914ddb979d5601d39b3
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target/release/rill-pack verify \
+            --pack "dist/mira-battery-default-${VERSION}.rillpack" \
+            --key-id "$PUBLISHER_KEY_ID" \
+            --public-key-hex "$RILL_PUBLIC_KEY_HEX"
+          target/release/rill-pack verify-index \
+            --index dist/stable-index.json \
+            --key-id "$PUBLISHER_KEY_ID" \
+            --public-key-hex "$RILL_PUBLIC_KEY_HEX"
+      - name: Publish immutable versioned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" dist/rill-runtime-* dist/*.rillpack dist/stable-index.json \
+            --verify-tag \
+            --title "Rill Runtime ${{ steps.version.outputs.version }}" \
+            --generate-notes
+      - name: Move signed stable-index pointer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view local-ai-stable >/dev/null 2>&1 || \
+            gh release create local-ai-stable --title "Rill Local AI stable index" --notes "Machine-readable signed update index."
+          gh release upload local-ai-stable dist/stable-index.json --clobber

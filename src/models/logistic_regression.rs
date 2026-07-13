@@ -2,7 +2,9 @@
 //!
 //! Uses a numerically stable sigmoid and binary cross-entropy (log) loss.
 
-use crate::error::{RillError, validate_features};
+use crate::error::{
+    RillError, checked_finite_add, checked_increment, ensure_finite, validate_features,
+};
 use crate::loss::log_loss::{BinaryLogLoss, sigmoid};
 use crate::optim::Optimizer;
 use crate::traits::OnlineBinaryClassifier;
@@ -76,13 +78,15 @@ impl LogisticRegression {
     /// Compute the logit `w·x + b`.
     fn logit(&self, features: &[f64]) -> Result<f64, RillError> {
         validate_features(self.feature_count, features)?;
-        let dot = self
-            .weights
-            .iter()
-            .zip(features.iter())
-            .map(|(w, x)| w * x)
-            .sum::<f64>();
-        Ok(dot + self.intercept)
+        let dot = self.weights.iter().zip(features.iter()).try_fold(
+            0.0,
+            |sum, (&weight, &feature)| {
+                let term = weight * feature;
+                ensure_finite("logit term", term)?;
+                checked_finite_add(sum, term, "logit")
+            },
+        )?;
+        checked_finite_add(dot, self.intercept, "logit")
     }
 }
 
@@ -102,11 +106,20 @@ impl OnlineBinaryClassifier for LogisticRegression {
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {
         validate_features(self.feature_count, features)?;
+        let next_samples = checked_increment(self.samples_seen, "logistic regression sample")?;
         let z = self.logit(features)?;
         let p = sigmoid(z);
         // gradient of log loss w.r.t. logit is (p - y)
         let grad = self.loss.gradient_wrt_logit(p, target);
-        let grad_weights: Vec<f64> = features.iter().map(|&x| grad * x).collect();
+        ensure_finite("loss gradient", grad)?;
+        let grad_weights = features
+            .iter()
+            .map(|&feature| {
+                let gradient = grad * feature;
+                ensure_finite("weight gradient", gradient)?;
+                Ok(gradient)
+            })
+            .collect::<Result<Vec<_>, RillError>>()?;
         let grad_intercept = grad;
         self.optimizer.step(
             &mut self.weights,
@@ -114,7 +127,7 @@ impl OnlineBinaryClassifier for LogisticRegression {
             &grad_weights,
             grad_intercept,
         )?;
-        self.samples_seen += 1;
+        self.samples_seen = next_samples;
         Ok(())
     }
 

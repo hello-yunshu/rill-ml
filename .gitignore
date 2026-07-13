@@ -1,5 +1,4 @@
 /target
-/Cargo.lock
 *.swp
 *.swo
 *~
@@ -8,3 +7,5 @@
 .vscode/
 *.iml
 .trae/
+__pycache__/
+*.pyc

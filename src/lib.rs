@@ -6,7 +6,8 @@
 //! RillML provides incremental learning primitives that can be embedded
 //! directly in native Rust applications: online statistics, preprocessors,
 //! linear/logistic regression, evaluation metrics, pipelines, progressive
-//! evaluation, drift detection, and optional serde-based state persistence.
+//! evaluation, drift detection, online decision-making (bandits), and optional
+//! serde-based state persistence.
 //!
 //! ## Quick start
 //!
@@ -47,6 +48,7 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+pub mod bandit;
 pub mod diagnostics;
 pub mod drift;
 pub mod error;

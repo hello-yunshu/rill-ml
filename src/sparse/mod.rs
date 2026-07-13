@@ -4,7 +4,7 @@
 //! `HashMap<String, f64>` as the core sparse representation. This keeps
 //! serialization deterministic and memory predictable.
 
-use crate::error::RillError;
+use crate::error::{RillError, checked_finite_add};
 
 /// Feature identifier type. Use integers, not strings.
 pub type FeatureId = u64;
@@ -32,7 +32,7 @@ pub type FeatureId = u64;
 /// assert_eq!(features.get(3), Some(2.0));
 /// ```
 #[derive(Debug, Clone, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct SparseFeatures {
     values: Vec<(FeatureId, f64)>,
 }
@@ -68,7 +68,7 @@ impl SparseFeatures {
         for (id, val) in values {
             if let Some(last) = merged.last_mut() {
                 if last.0 == id {
-                    last.1 += val;
+                    last.1 = checked_finite_add(last.1, val, "sparse value")?;
                     continue;
                 }
             }
@@ -151,6 +151,22 @@ impl SparseFeatures {
     }
 }
 
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for SparseFeatures {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct SparseFeaturesState {
+            values: Vec<(FeatureId, f64)>,
+        }
+
+        let state = SparseFeaturesState::deserialize(deserializer)?;
+        Self::from_sorted(state.values).map_err(serde::de::Error::custom)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,6 +194,19 @@ mod tests {
     fn from_sorted_duplicate_rejected() {
         let result = SparseFeatures::from_sorted(vec![(1, 0.5), (1, 2.0)]);
         assert!(matches!(result, Err(RillError::DuplicateFeatureId(1))));
+    }
+
+    #[test]
+    fn duplicate_merge_rejects_overflow() {
+        let result = SparseFeatures::from_unsorted(vec![(1, f64::MAX), (1, f64::MAX)]);
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_rejects_invalid_state() {
+        let unsorted = r#"{"values":[[2,1.0],[1,1.0]]}"#;
+        assert!(serde_json::from_str::<SparseFeatures>(unsorted).is_err());
     }
 
     #[test]

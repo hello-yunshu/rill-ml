@@ -1,6 +1,6 @@
 [package]
 name = "rill-ml"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
@@ -10,7 +10,31 @@ documentation = "https://docs.rs/rill-ml"
 readme = "README.md"
 keywords = ["machine-learning", "online-learning", "streaming", "incremental", "edge"]
 categories = ["algorithms", "science"]
-exclude = [".github/"]
+exclude = [".github/", "RillML_AI_IDE_Prompt_Final(1).md"]
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/rill-runtime-protocol",
+    "crates/rill-runtime",
+]
+
+[workspace.package]
+version = "0.5.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/hello-yunshu/rill-ml"
+
+[workspace.dependencies]
+ed25519-dalek = "3.0.0"
+hex = "0.4"
+semver = { version = "1.0", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "1.0"
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
 
 [features]
 default = []
@@ -18,12 +42,12 @@ serde = ["dep:serde"]
 
 [dependencies]
 thiserror = "1.0"
+rand = "0.8"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 
 [dev-dependencies]
 approx = "0.5"
 proptest = "1.0"
-rand = "0.8"
 rand_chacha = "0.3"
 serde_json = "1.0"
 criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"] }
@@ -53,6 +77,9 @@ name = "sparse_classification"
 
 [[example]]
 name = "drift_demo"
+
+[[example]]
+name = "bandit_demo"
 
 [[bench]]
 name = "online_stats"

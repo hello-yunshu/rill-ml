@@ -1,6 +1,6 @@
 //! Classification metrics: Accuracy, Precision, Recall, F1, LogLoss.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite};
 use crate::loss::log_loss::BinaryLogLoss;
 use crate::traits::Metric;
 
@@ -17,10 +17,14 @@ impl Metric for Accuracy {
     type Prediction = bool;
 
     fn update(&mut self, truth: bool, prediction: bool) -> Result<(), RillError> {
-        if truth == prediction {
-            self.correct += 1;
-        }
-        self.count += 1;
+        let next_count = checked_increment(self.count, "accuracy sample")?;
+        let next_correct = if truth == prediction {
+            checked_increment(self.correct, "accuracy correct")?
+        } else {
+            self.correct
+        };
+        self.count = next_count;
+        self.correct = next_correct;
         Ok(())
     }
 
@@ -56,24 +60,30 @@ impl Metric for Precision {
 
     fn update(&mut self, truth: bool, prediction: bool) -> Result<(), RillError> {
         match (truth, prediction) {
-            (true, true) => self.true_positive += 1,
-            (false, true) => self.false_positive += 1,
+            (true, true) => {
+                self.true_positive =
+                    checked_increment(self.true_positive, "precision true positive")?
+            }
+            (false, true) => {
+                self.false_positive =
+                    checked_increment(self.false_positive, "precision false positive")?
+            }
             _ => {}
         }
         Ok(())
     }
 
     fn value(&self) -> Option<f64> {
-        let denom = self.true_positive + self.false_positive;
-        if denom == 0 {
+        let denominator = self.true_positive as f64 + self.false_positive as f64;
+        if denominator == 0.0 {
             None
         } else {
-            Some(self.true_positive as f64 / denom as f64)
+            Some(self.true_positive as f64 / denominator)
         }
     }
 
     fn samples_seen(&self) -> u64 {
-        self.true_positive + self.false_positive
+        self.true_positive.saturating_add(self.false_positive)
     }
 
     fn reset(&mut self) {
@@ -96,24 +106,29 @@ impl Metric for Recall {
 
     fn update(&mut self, truth: bool, prediction: bool) -> Result<(), RillError> {
         match (truth, prediction) {
-            (true, true) => self.true_positive += 1,
-            (true, false) => self.false_negative += 1,
+            (true, true) => {
+                self.true_positive = checked_increment(self.true_positive, "recall true positive")?
+            }
+            (true, false) => {
+                self.false_negative =
+                    checked_increment(self.false_negative, "recall false negative")?
+            }
             _ => {}
         }
         Ok(())
     }
 
     fn value(&self) -> Option<f64> {
-        let denom = self.true_positive + self.false_negative;
-        if denom == 0 {
+        let denominator = self.true_positive as f64 + self.false_negative as f64;
+        if denominator == 0.0 {
             None
         } else {
-            Some(self.true_positive as f64 / denom as f64)
+            Some(self.true_positive as f64 / denominator)
         }
     }
 
     fn samples_seen(&self) -> u64 {
-        self.true_positive + self.false_negative
+        self.true_positive.saturating_add(self.false_negative)
     }
 
     fn reset(&mut self) {
@@ -137,25 +152,35 @@ impl Metric for F1Score {
 
     fn update(&mut self, truth: bool, prediction: bool) -> Result<(), RillError> {
         match (truth, prediction) {
-            (true, true) => self.true_positive += 1,
-            (false, true) => self.false_positive += 1,
-            (true, false) => self.false_negative += 1,
+            (true, true) => {
+                self.true_positive = checked_increment(self.true_positive, "F1 true positive")?
+            }
+            (false, true) => {
+                self.false_positive = checked_increment(self.false_positive, "F1 false positive")?
+            }
+            (true, false) => {
+                self.false_negative = checked_increment(self.false_negative, "F1 false negative")?
+            }
             _ => {}
         }
         Ok(())
     }
 
     fn value(&self) -> Option<f64> {
-        let denom = 2 * self.true_positive + self.false_positive + self.false_negative;
-        if denom == 0 {
+        let denominator = 2.0 * self.true_positive as f64
+            + self.false_positive as f64
+            + self.false_negative as f64;
+        if denominator == 0.0 {
             None
         } else {
-            Some(2.0 * self.true_positive as f64 / denom as f64)
+            Some(2.0 * self.true_positive as f64 / denominator)
         }
     }
 
     fn samples_seen(&self) -> u64 {
-        self.true_positive + self.false_positive + self.false_negative
+        self.true_positive
+            .saturating_add(self.false_positive)
+            .saturating_add(self.false_negative)
     }
 
     fn reset(&mut self) {
@@ -193,8 +218,12 @@ impl Metric for LogLoss {
         if !(0.0..=1.0).contains(&prediction) {
             return Err(RillError::InvalidProbability(prediction));
         }
-        self.sum_loss += self.loss.loss(prediction, truth);
-        self.count += 1;
+        let loss = self.loss.loss(prediction, truth);
+        ensure_finite("log loss", loss)?;
+        let next_sum = checked_finite_add(self.sum_loss, loss, "log loss sum")?;
+        let next_count = checked_increment(self.count, "log loss sample")?;
+        self.sum_loss = next_sum;
+        self.count = next_count;
         Ok(())
     }
 

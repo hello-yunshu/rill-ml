@@ -16,7 +16,7 @@
 //! assert_eq!(dense.len(), 8);
 //! ```
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_finite_add, ensure_finite};
 use crate::sparse::{FeatureId, SparseFeatures};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -52,7 +52,7 @@ impl Default for FeatureHasherConfig {
 /// The hash is deterministic given the same `seed`, ensuring reproducible
 /// output across runs.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct FeatureHasher {
     config: FeatureHasherConfig,
 }
@@ -146,13 +146,33 @@ impl FeatureHasher {
     /// the sign if signed hashing is enabled). Collisions cause values to
     /// accumulate.
     pub fn transform(&self, features: &SparseFeatures) -> Result<Vec<f64>, RillError> {
+        if self.config.dimension == 0 {
+            return Err(RillError::InvalidHashDimension(0));
+        }
+        features.validate()?;
         let mut output = vec![0.0; self.config.dimension];
         for &(id, value) in features.values() {
             ensure_finite("sparse_value", value)?;
             let (bucket, sign) = self.hash_id(id);
-            output[bucket] += sign * value;
+            output[bucket] = checked_finite_add(output[bucket], sign * value, "hashed feature")?;
         }
         Ok(output)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for FeatureHasher {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct FeatureHasherState {
+            config: FeatureHasherConfig,
+        }
+
+        let state = FeatureHasherState::deserialize(deserializer)?;
+        Self::with_config(state.config).map_err(serde::de::Error::custom)
     }
 }
 
@@ -167,6 +187,25 @@ mod tests {
         let out1 = h.transform(&sf).unwrap();
         let out2 = h.transform(&sf).unwrap();
         assert_eq!(out1, out2);
+    }
+
+    #[test]
+    fn collision_overflow_is_rejected() {
+        let hasher = FeatureHasher::with_config(FeatureHasherConfig {
+            dimension: 1,
+            seed: 42,
+            signed: false,
+        })
+        .unwrap();
+        let features = SparseFeatures::from_sorted(vec![(1, f64::MAX), (2, f64::MAX)]).unwrap();
+        assert!(hasher.transform(&features).is_err());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_rejects_zero_dimension() {
+        let malformed = r#"{"config":{"dimension":0,"seed":0,"signed":true}}"#;
+        assert!(serde_json::from_str::<FeatureHasher>(malformed).is_err());
     }
 
     #[test]

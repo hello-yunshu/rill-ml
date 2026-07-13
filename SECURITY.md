@@ -7,8 +7,8 @@ minor release receives security fixes. There is no separate LTS branch.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
-| < 0.1   | :x:                |
+| 0.5.x   | :white_check_mark: |
+| < 0.5   | :x:                |
 
 Once RillML reaches `1.0`, a more detailed support table will be published
 here.
@@ -60,10 +60,16 @@ The optional `serde` feature allows serializing and deserializing
 `Snapshot<T>`. **Do not deserialize `Snapshot<T>` from untrusted sources
 without validation.**
 
-- Always check `schema_version` before restoring state. A mismatch means the
-  state format is not what the current code expects.
-- `Snapshot<T>` carries `created_at` as a string for portability; do not
-  interpret it as an authoritative timestamp for security decisions.
+- Always restore through `Snapshot::into_model()` (or
+  `Snapshot::into_model_with_validation()`) so `format_version` is checked. A
+  mismatch means the state format is not what the current code expects.
+- The envelope validates only its own format version. It cannot infer the
+  invariants of an arbitrary `T`. At a trust boundary, use
+  `into_model_with_validation()` and reject state that violates your model or
+  application limits before making it active.
+- Bandit types, `StandardScaler`, `SparseFeatures`, and `FeatureHasher` also
+  validate their internal invariants during deserialization. Do not assume all
+  arbitrary serde-enabled types provide the same guarantee.
 - Deserializing a `Snapshot<T>` with absurdly large arrays can allocate large
   amounts of memory. If you accept snapshots from untrusted input, cap the
   size of the incoming payload **before** handing it to `serde_json` or
@@ -105,7 +111,8 @@ appropriate to your platform.
   `serde_json`, `criterion`) are not linked into downstream releases of
   `rill-ml` and do not affect the runtime attack surface of users who depend
   on this crate.
-- Runtime dependencies (`thiserror`, optional `serde`) are kept to a minimum.
+- Runtime dependencies (`thiserror`, `rand`, and optional `serde`) are kept to
+  a minimum.
   Dependabot will open PRs for patched versions; maintainers will review and
   merge them promptly.
 - RillML will never silently add a runtime dependency that executes code at

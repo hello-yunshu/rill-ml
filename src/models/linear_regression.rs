@@ -4,7 +4,10 @@
 //! Prediction is side-effect free; learning computes the gradient of the
 //! configured loss and applies one optimizer step.
 
-use crate::error::{RillError, ensure_finite_target, validate_features};
+use crate::error::{
+    RillError, checked_finite_add, checked_increment, ensure_finite, ensure_finite_target,
+    validate_features,
+};
 use crate::loss::RegressionLoss;
 use crate::optim::Optimizer;
 use crate::traits::OnlineRegressor;
@@ -103,13 +106,15 @@ impl LinearRegression {
     /// Compute the prediction `w·x + b` without updating state.
     fn predict_inner(&self, features: &[f64]) -> Result<f64, RillError> {
         validate_features(self.feature_count, features)?;
-        let dot = self
-            .weights
-            .iter()
-            .zip(features.iter())
-            .map(|(w, x)| w * x)
-            .sum::<f64>();
-        Ok(dot + self.intercept)
+        let dot = self.weights.iter().zip(features.iter()).try_fold(
+            0.0,
+            |sum, (&weight, &feature)| {
+                let term = weight * feature;
+                ensure_finite("linear prediction term", term)?;
+                checked_finite_add(sum, term, "linear prediction")
+            },
+        )?;
+        checked_finite_add(dot, self.intercept, "linear prediction")
     }
 }
 
@@ -129,12 +134,21 @@ impl OnlineRegressor for LinearRegression {
     fn learn(&mut self, features: &[f64], target: f64) -> Result<(), RillError> {
         validate_features(self.feature_count, features)?;
         ensure_finite_target(target)?;
+        let next_samples = checked_increment(self.samples_seen, "linear regression sample")?;
 
         let prediction = self.predict_inner(features)?;
         let grad = self.loss.gradient(prediction, target);
+        ensure_finite("loss gradient", grad)?;
 
         // gradient w.r.t. each weight w_i is grad * x_i
-        let grad_weights: Vec<f64> = features.iter().map(|&x| grad * x).collect();
+        let grad_weights = features
+            .iter()
+            .map(|&feature| {
+                let gradient = grad * feature;
+                ensure_finite("weight gradient", gradient)?;
+                Ok(gradient)
+            })
+            .collect::<Result<Vec<_>, RillError>>()?;
         let grad_intercept = grad;
 
         self.optimizer.step(
@@ -143,7 +157,7 @@ impl OnlineRegressor for LinearRegression {
             &grad_weights,
             grad_intercept,
         )?;
-        self.samples_seen += 1;
+        self.samples_seen = next_samples;
         Ok(())
     }
 

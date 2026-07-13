@@ -95,6 +95,35 @@ pub enum RillError {
     /// A significance level or probability threshold was outside `(0, 1)`.
     #[error("invalid significance level: {0} (must be in (0, 1))")]
     InvalidSignificanceLevel(f64),
+
+    /// A bandit arm count was invalid (must be greater than zero).
+    #[error("invalid arm count: {0} (must be greater than zero)")]
+    InvalidArmCount(usize),
+
+    /// An epsilon value for epsilon-greedy was outside `[0, 1]`.
+    #[error("invalid epsilon: {0} (must be in [0, 1])")]
+    InvalidEpsilon(f64),
+
+    /// A bandit arm index was out of range.
+    #[error("invalid arm index: {actual} (must be < {expected})")]
+    InvalidArm {
+        /// The number of arms (upper bound).
+        expected: usize,
+        /// The offending arm index.
+        actual: usize,
+    },
+
+    /// A reward value was outside the valid range for the given bandit type.
+    #[error("invalid reward: {0} (must be finite and in the valid range)")]
+    InvalidReward(f64),
+
+    /// A feature count was invalid (must be greater than zero).
+    #[error("invalid feature count: {0} (must be greater than zero)")]
+    InvalidFeatureCount(usize),
+
+    /// A restored model violated one of its internal invariants.
+    #[error("invalid model state: {0}")]
+    InvalidState(String),
 }
 
 /// Helper to validate that a value is finite.
@@ -104,6 +133,24 @@ pub(crate) fn ensure_finite(field: &'static str, value: f64) -> Result<(), RillE
     } else {
         Err(RillError::NonFiniteValue { field, value })
     }
+}
+
+/// Add two values without allowing a finite-input overflow to poison state.
+pub(crate) fn checked_finite_add(
+    current: f64,
+    delta: f64,
+    field: &'static str,
+) -> Result<f64, RillError> {
+    let value = current + delta;
+    ensure_finite(field, value)?;
+    Ok(value)
+}
+
+/// Increment a long-running counter without allowing wraparound.
+pub(crate) fn checked_increment(value: u64, field: &'static str) -> Result<u64, RillError> {
+    value
+        .checked_add(1)
+        .ok_or_else(|| RillError::InvalidState(format!("{field} counter overflow")))
 }
 
 /// Helper to validate a feature slice's length and finiteness.
@@ -179,5 +226,42 @@ mod tests {
     fn validate_features_rejects_non_finite() {
         assert!(validate_features(2, &[1.0, f64::NAN]).is_err());
         assert!(validate_features(2, &[f64::INFINITY, 2.0]).is_err());
+    }
+
+    #[test]
+    fn invalid_arm_count_display() {
+        let e = RillError::InvalidArmCount(0);
+        assert!(format!("{e}").contains("invalid arm count"));
+        assert!(format!("{e}").contains("0"));
+    }
+
+    #[test]
+    fn invalid_epsilon_display() {
+        let e = RillError::InvalidEpsilon(-0.5);
+        assert!(format!("{e}").contains("invalid epsilon"));
+        assert!(format!("{e}").contains("-0.5"));
+    }
+
+    #[test]
+    fn invalid_arm_display() {
+        let e = RillError::InvalidArm {
+            expected: 3,
+            actual: 5,
+        };
+        assert!(format!("{e}").contains("5"));
+        assert!(format!("{e}").contains("3"));
+    }
+
+    #[test]
+    fn invalid_reward_display() {
+        let e = RillError::InvalidReward(f64::NAN);
+        assert!(format!("{e}").contains("invalid reward"));
+    }
+
+    #[test]
+    fn invalid_feature_count_display() {
+        let e = RillError::InvalidFeatureCount(0);
+        assert!(format!("{e}").contains("invalid feature count"));
+        assert!(format!("{e}").contains("0"));
     }
 }
