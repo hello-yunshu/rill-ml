@@ -4,10 +4,7 @@ use std::{
 };
 
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use rill_runtime_protocol::{
-    BATTERY_USAGE_CAPABILITY, BatteryModelConfig, ModelPackManifest, ReleaseIndexPayload,
-    SignedReleaseIndex,
-};
+use rill_runtime_protocol::{ModelPackManifest, ReleaseIndexPayload, SignedReleaseIndex};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -29,7 +26,7 @@ pub struct TrustStore(pub BTreeMap<String, VerifyingKey>);
 #[derive(Debug, Clone)]
 pub struct LoadedModelPack {
     pub manifest: ModelPackManifest,
-    pub battery: BatteryModelConfig,
+    pub model: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -144,26 +141,13 @@ pub fn load_model_pack<R: Read + Seek>(
             actual: runtime.to_string(),
         });
     }
-    if !manifest
-        .capabilities
-        .iter()
-        .any(|capability| capability == BATTERY_USAGE_CAPABILITY)
-    {
-        return Err(ModelPackError::Manifest(
-            "batteryUsage capability is required".into(),
-        ));
-    }
-
     verify_checksums_and_signature(&files, &manifest, trust)?;
 
-    let battery: BatteryModelConfig = serde_json::from_slice(
+    let model: serde_json::Value = serde_json::from_slice(
         files
             .get(MODEL_PATH)
             .ok_or(ModelPackError::Missing(MODEL_PATH))?,
     )?;
-    battery
-        .validate()
-        .map_err(|message| ModelPackError::Manifest(message.into()))?;
     let inspection = ModelPackInspection {
         id: manifest.id.clone(),
         version: manifest.version.clone(),
@@ -172,7 +156,7 @@ pub fn load_model_pack<R: Read + Seek>(
         capabilities: manifest.capabilities.clone(),
         signature_verified: true,
     };
-    Ok((LoadedModelPack { manifest, battery }, inspection))
+    Ok((LoadedModelPack { manifest, model }, inspection))
 }
 
 fn read_archive<R: Read + Seek>(reader: R) -> Result<BTreeMap<String, Vec<u8>>, ModelPackError> {
@@ -261,17 +245,14 @@ fn verify_checksums_and_signature(
 
 pub fn build_signed_model_pack(
     manifest: &ModelPackManifest,
-    battery: &BatteryModelConfig,
+    model: &serde_json::Value,
     signing_key: &SigningKey,
 ) -> Result<Vec<u8>, ModelPackError> {
     manifest
         .validate_shape()
         .map_err(|message| ModelPackError::Manifest(message.into()))?;
-    battery
-        .validate()
-        .map_err(|message| ModelPackError::Manifest(message.into()))?;
     let manifest_bytes = serde_json::to_vec_pretty(manifest)?;
-    let model_bytes = serde_json::to_vec_pretty(battery)?;
+    let model_bytes = serde_json::to_vec_pretty(model)?;
     let checksums = Checksums {
         schema_version: 1,
         files: BTreeMap::from([
@@ -376,12 +357,12 @@ mod tests {
     fn manifest(key_id: &str) -> ModelPackManifest {
         ModelPackManifest {
             format_version: MODEL_PACK_FORMAT_VERSION,
-            id: "mira.battery.default".into(),
+            id: "rillml.example.default".into(),
             version: "0.5.0".into(),
             runtime_api_version: RUNTIME_API_VERSION,
             min_runtime_version: "0.5.0".into(),
             publisher_key_id: key_id.into(),
-            capabilities: vec![BATTERY_USAGE_CAPABILITY.into()],
+            capabilities: vec!["rillml.example".into()],
         }
     }
 
@@ -389,12 +370,15 @@ mod tests {
     fn signed_pack_roundtrip_and_tamper_rejection() {
         let signing = SigningKey::from_bytes(&[7; 32]);
         let key_id = "test-key";
-        let bytes =
-            build_signed_model_pack(&manifest(key_id), &BatteryModelConfig::default(), &signing)
-                .unwrap();
+        let bytes = build_signed_model_pack(
+            &manifest(key_id),
+            &serde_json::json!({"description": "test"}),
+            &signing,
+        )
+        .unwrap();
         let trust = TrustStore(BTreeMap::from([(key_id.into(), signing.verifying_key())]));
         let (loaded, inspection) = load_model_pack(Cursor::new(&bytes), &trust).unwrap();
-        assert_eq!(loaded.manifest.id, "mira.battery.default");
+        assert_eq!(loaded.manifest.id, "rillml.example.default");
         assert!(inspection.signature_verified);
 
         let wrong = SigningKey::from_bytes(&[8; 32]);
@@ -403,16 +387,6 @@ mod tests {
             load_model_pack(Cursor::new(bytes), &wrong_trust),
             Err(ModelPackError::Signature)
         ));
-    }
-
-    #[test]
-    fn config_validation_happens_after_signature_verification() {
-        let signing = SigningKey::from_bytes(&[9; 32]);
-        let config = BatteryModelConfig {
-            quality_window: 0,
-            ..BatteryModelConfig::default()
-        };
-        assert!(build_signed_model_pack(&manifest("test"), &config, &signing).is_err());
     }
 
     #[test]

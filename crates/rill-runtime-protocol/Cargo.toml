@@ -9,6 +9,4 @@ description = "Versioned IPC and package contracts for the Rill local runtime."
 
 [dependencies]
 serde.workspace = true
-
-[dev-dependencies]
 serde_json.workspace = true

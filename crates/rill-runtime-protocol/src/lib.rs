@@ -13,7 +13,6 @@ pub const RELEASE_INDEX_SCHEMA_VERSION: u32 = 1;
 /// Hard upper bound for one newline-delimited IPC message.
 pub const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 
-pub const BATTERY_USAGE_CAPABILITY: &str = "batteryUsage";
 pub const RUNTIME_ARTIFACT_ID: &str = "rill-runtime";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -164,102 +163,6 @@ pub struct SignedReleaseIndex {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct BatteryModelConfig {
-    pub feature_count: usize,
-    pub learning_rate: f64,
-    pub l2: f64,
-    pub huber_delta: f64,
-    pub min_training_samples: u64,
-    pub min_validation_samples: u64,
-    pub quality_window: usize,
-    pub required_error_ratio: f64,
-    pub max_drain_per_hour: f64,
-    pub max_remaining_hours: f64,
-    pub session_gap_minutes: i64,
-    pub replacement_rise_percent: u8,
-    pub min_drop_percent: f64,
-    pub baseline_decay_tau_hours: f64,
-}
-
-impl Default for BatteryModelConfig {
-    fn default() -> Self {
-        Self {
-            feature_count: 6,
-            learning_rate: 0.03,
-            l2: 0.001,
-            huber_delta: 5.0,
-            min_training_samples: 6,
-            min_validation_samples: 8,
-            quality_window: 24,
-            required_error_ratio: 0.98,
-            max_drain_per_hour: 50.0,
-            max_remaining_hours: 9999.0,
-            session_gap_minutes: 10,
-            replacement_rise_percent: 5,
-            min_drop_percent: 1.0,
-            baseline_decay_tau_hours: 48.0,
-        }
-    }
-}
-
-impl BatteryModelConfig {
-    pub fn validate(&self) -> Result<(), &'static str> {
-        let finite = [
-            self.learning_rate,
-            self.l2,
-            self.huber_delta,
-            self.required_error_ratio,
-            self.max_drain_per_hour,
-            self.max_remaining_hours,
-            self.min_drop_percent,
-            self.baseline_decay_tau_hours,
-        ]
-        .into_iter()
-        .all(f64::is_finite);
-        if !finite {
-            return Err("battery model contains non-finite parameters");
-        }
-        if self.feature_count != 6 {
-            return Err("unsupported battery feature schema");
-        }
-        if self.learning_rate <= 0.0
-            || self.l2 < 0.0
-            || self.huber_delta <= 0.0
-            || self.min_training_samples == 0
-            || self.min_validation_samples == 0
-            || self.quality_window < self.min_validation_samples as usize
-            || !(0.0..1.0).contains(&self.required_error_ratio)
-            || self.max_drain_per_hour <= 0.0
-            || self.max_remaining_hours <= 0.0
-            || self.session_gap_minutes <= 0
-            || self.replacement_rise_percent == 0
-            || self.replacement_rise_percent > 100
-            || self.min_drop_percent <= 0.0
-            || self.baseline_decay_tau_hours <= 0.0
-        {
-            return Err("invalid battery model parameters");
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct BatterySampleInput {
-    pub at_unix_ms: i64,
-    pub percentage: u8,
-    pub charging: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct BatteryPredictionInput {
-    pub now_unix_ms: i64,
-    pub samples: Vec<BatterySampleInput>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(
     tag = "method",
     rename_all = "camelCase",
@@ -277,10 +180,11 @@ pub enum RuntimeRequest {
         request_id: String,
         api_version: u32,
     },
-    BatteryPredict {
+    Invoke {
         request_id: String,
         api_version: u32,
-        input: BatteryPredictionInput,
+        capability: String,
+        input: serde_json::Value,
     },
 }
 
@@ -289,7 +193,7 @@ impl RuntimeRequest {
         match self {
             Self::Handshake { request_id, .. }
             | Self::Health { request_id, .. }
-            | Self::BatteryPredict { request_id, .. } => request_id,
+            | Self::Invoke { request_id, .. } => request_id,
         }
     }
 
@@ -297,28 +201,9 @@ impl RuntimeRequest {
         match self {
             Self::Handshake { api_version, .. }
             | Self::Health { api_version, .. }
-            | Self::BatteryPredict { api_version, .. } => *api_version,
+            | Self::Invoke { api_version, .. } => *api_version,
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum PredictionSource {
-    LocalAi,
-    BaselineRecommended,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct BatteryPredictionOutput {
-    pub remaining_hours: Option<f64>,
-    pub source: PredictionSource,
-    pub reason: String,
-    pub training_samples: u64,
-    pub validation_samples: u64,
-    pub baseline_mae: Option<f64>,
-    pub candidate_mae: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -344,10 +229,10 @@ pub enum RuntimeResponse {
         model_pack_id: String,
         model_pack_version: String,
     },
-    BatteryPrediction {
+    Result {
         request_id: String,
         api_version: u32,
-        output: BatteryPredictionOutput,
+        output: serde_json::Value,
     },
     Error {
         request_id: String,
@@ -381,46 +266,32 @@ mod tests {
     }
 
     #[test]
-    fn mira_handshake_fixture_is_stable() {
+    fn handshake_fixture_is_stable() {
         let request = RuntimeRequest::Handshake {
             request_id: "fixture".into(),
             api_version: RUNTIME_API_VERSION,
-            client_name: "mira".into(),
+            client_name: "example-host".into(),
             client_version: "0.6.10".into(),
         };
         assert_eq!(
             serde_json::to_string(&request).unwrap(),
-            r#"{"method":"handshake","requestId":"fixture","apiVersion":1,"clientName":"mira","clientVersion":"0.6.10"}"#
+            r#"{"method":"handshake","requestId":"fixture","apiVersion":1,"clientName":"example-host","clientVersion":"0.6.10"}"#
         );
     }
 
     #[test]
-    fn battery_config_rejects_unsafe_values() {
-        assert!(BatteryModelConfig::default().validate().is_ok());
-        assert!(
-            BatteryModelConfig {
-                quality_window: 0,
-                ..BatteryModelConfig::default()
-            }
-            .validate()
-            .is_err()
-        );
-        assert!(
-            BatteryModelConfig {
-                learning_rate: f64::NAN,
-                ..BatteryModelConfig::default()
-            }
-            .validate()
-            .is_err()
-        );
-        assert!(
-            BatteryModelConfig {
-                max_remaining_hours: 0.0,
-                ..BatteryModelConfig::default()
-            }
-            .validate()
-            .is_err()
-        );
+    fn invoke_roundtrip_preserves_capability_and_input() {
+        let request = RuntimeRequest::Invoke {
+            request_id: "invoke-1".into(),
+            api_version: RUNTIME_API_VERSION,
+            capability: "rillml.example".into(),
+            input: serde_json::json!({"samples": []}),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("\"method\":\"invoke\""));
+        assert!(json.contains("\"capability\":\"rillml.example\""));
+        let restored: RuntimeRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, request);
     }
 
     #[test]
@@ -439,7 +310,7 @@ mod tests {
         assert!(runtime.validate_shape().is_ok());
         let mut model = runtime;
         model.kind = ReleaseArtifactKind::Model;
-        model.id = "mira.battery.default".into();
+        model.id = "rillml.example.default".into();
         assert!(model.validate_shape().is_err());
         model.target_os = None;
         model.target_arch = None;

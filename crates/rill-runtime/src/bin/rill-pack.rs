@@ -6,9 +6,7 @@ use rill_runtime::{
     TrustStore,
     package::{build_signed_model_pack, load_model_pack, sign_release_index, verify_release_index},
 };
-use rill_runtime_protocol::{
-    BatteryModelConfig, ModelPackManifest, ReleaseIndexPayload, SignedReleaseIndex,
-};
+use rill_runtime_protocol::{ModelPackManifest, ReleaseIndexPayload, SignedReleaseIndex};
 use thiserror::Error;
 
 #[derive(Debug, Parser)]
@@ -91,7 +89,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
             output,
         } => {
             let manifest: ModelPackManifest = serde_json::from_slice(&fs::read(manifest)?)?;
-            let model: BatteryModelConfig = serde_json::from_slice(&fs::read(model)?)?;
+            let model: serde_json::Value = serde_json::from_slice(&fs::read(model)?)?;
             let signing_key = signing_key_from_environment()?;
             let bytes = build_signed_model_pack(&manifest, &model, &signing_key)?;
             if let Some(parent) = output.parent() {
