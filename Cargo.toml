@@ -1,6 +1,6 @@
 [package]
 name = "rill-ml"
-version = "0.5.2"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
@@ -17,10 +17,16 @@ resolver = "3"
 members = [
     "crates/rill-runtime-protocol",
     "crates/rill-runtime",
+    "crates/rill-ml-tokio",
+    "crates/rill-ml-arrow",
+    "crates/rill-ml-polars",
+    "crates/rillml-inspect",
+    "crates/rill-ml-wasm",
+    "crates/rill-ml-python",
 ]
 
 [workspace.package]
-version = "0.5.2"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
@@ -35,6 +41,15 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "1.0"
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
+tokio = { version = "1", features = ["rt", "macros"] }
+tokio-stream = "0.1"
+arrow = "55"
+polars = { version = "0.46", default-features = false }
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+getrandom = { version = "0.2", features = ["js"] }
+pyo3 = { version = "0.22", features = ["extension-module"] }
+clap = { version = "4.5", features = ["derive"] }
 
 [features]
 default = []

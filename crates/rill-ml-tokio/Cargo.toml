@@ -1,0 +1,24 @@
+[package]
+name = "rill-ml-tokio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Tokio Stream adapters for RillML progressive evaluation."
+
+[dependencies]
+rill-ml = { version = "0.6.0", path = "../.." }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lib]
+name = "rill_ml_tokio"
+path = "src/lib.rs"
+
+[[example]]
+name = "stream_demo"

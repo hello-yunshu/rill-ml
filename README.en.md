@@ -54,14 +54,14 @@ RillML implements this workflow in pure, safe Rust with bounded memory.
 
 ```toml
 [dependencies]
-rill-ml = "0.5"
+rill-ml = "0.6"
 ```
 
 For serialization support, enable the `serde` feature:
 
 ```toml
 [dependencies]
-rill-ml = { version = "0.5", features = ["serde"] }
+rill-ml = { version = "0.6", features = ["serde"] }
 ```
 
 **Requirements:** Rust 1.85+ (Edition 2024), no nightly needed.
@@ -166,7 +166,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 `Snapshot<T>` wraps model state with a format version and rejects incompatible versions. For untrusted snapshots or application-specific model constraints, use `into_model_with_validation()` to validate restored state before activation. See [`RELIABILITY.md`](RELIABILITY.md) for the complete production integration and fallback guidance.
 
-## Module overview (v0.5)
+## Module overview (v0.6)
 
 | Category | Modules |
 |---|---|
@@ -187,6 +187,19 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 **Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count; drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
 
+## Ecosystem and platform extensions (v0.6)
+
+v0.6 adds five independently publishable crates under `crates/`. They depend on `rill-ml` without changing its public API. The core library does not pull in `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3` by default.
+
+| Crate | Description | Install |
+|---|---|---|
+| `rill-ml-tokio` | Drives `predict → metric → learn` over a `tokio_stream::Stream` | `cargo add rill-ml-tokio` |
+| `rill-ml-arrow` | Convert between Apache Arrow `RecordBatch`/`Float64Array` and `&[f64]` | `cargo add rill-ml-arrow` |
+| `rill-ml-polars` | Convert between Polars `DataFrame` and sample pairs; append prediction column | `cargo add rill-ml-polars` |
+| `rillml-inspect` | CLI to view `Snapshot` JSON, version, and validation status (not a runtime dependency) | `cargo install rillml-inspect` |
+| `rill-ml-wasm` | WebAssembly bindings (`wasm32-unknown-unknown`) for browser-side online learning | `cargo add rill-ml-wasm` |
+| `rill-ml-python` | Python bindings (PyO3 + Maturin); PyPI package `rill-ml-python`, `import rill_ml` | `pip install rill-ml-python` |
+
 ## Roadmap
 
 RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for the full plan.
@@ -195,8 +208,8 @@ RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for th
 - **v0.2** — Reliability and diagnostics: prediction reports, cold-start, baseline comparison.
 - **v0.3** — Sparse features and high-dimensional data: FeatureHasher, FTRL, Naive Bayes.
 - **v0.4** — Drift detection: Page-Hinkley, ADWIN, KSWIN, adaptive learning.
-- **v0.5** — Online decision-making: multi-armed bandits, contextual bandits. *(current)*
-- **v0.6** — Platform and ecosystem: WASM, Python bindings, Tokio Stream adapters.
+- **v0.5** — Online decision-making: multi-armed bandits, contextual bandits.
+- **v0.6** — Platform and ecosystem: WASM, Python bindings, Tokio Stream adapters. *(current)*
 - **v1.0** — Stable API and state format.
 
 ## Correctness and validation

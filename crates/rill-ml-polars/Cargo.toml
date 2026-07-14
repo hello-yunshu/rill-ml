@@ -1,0 +1,17 @@
+[package]
+name = "rill-ml-polars"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Polars DataFrame conversion helpers for RillML."
+
+[dependencies]
+rill-ml = { version = "0.6.0", path = "../.." }
+polars = { workspace = true, features = ["dtype-full"] }
+thiserror = { workspace = true }
+
+[lib]
+name = "rill_ml_polars"
+path = "src/lib.rs"
