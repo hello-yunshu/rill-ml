@@ -48,7 +48,9 @@ Every contribution must respect:
 
 Requirements:
 
-- Rust 1.85.0 or newer (MSRV is pinned to 1.85).
+- Rust 1.85.0 or newer (MSRV is pinned to 1.85 for the `rill-ml` core crate).
+  Ecosystem crates under `crates/` (`rill-ml-polars`, `rill-ml-python`,
+  `rill-ml-arrow`) require the stable toolchain due to transitive dependencies.
 - `cargo`, `rustfmt`, `clippy` from the stable toolchain.
 
 Common commands:
@@ -153,8 +155,10 @@ Please do not open PRs for:
 - A "dynamic, arbitrarily-composed pipeline" with trait objects and runtime
   composition. This is explicitly out of scope.
 - `no_std` support. It is a future possibility, not a current goal.
-- Python bindings, WASM bindings, or PyO3 wrappers in this crate. They belong
-  in separate packages once the Rust core is stable.
+- Python bindings, WASM bindings, or PyO3 wrappers in the **core** `rill-ml`
+  crate. They now live in separate workspace crates — `rill-ml-python`
+  (PyO3/Maturin) and `rill-ml-wasm` (wasm-bindgen) — where contributions
+  should go.
 - Domain-specific features (battery, mouse, HID, Tauri, plugin protocols).
 - Copy-paste ports of River modules without independent verification.
 - A CLI named `rill`.

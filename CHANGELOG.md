@@ -15,6 +15,59 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-15
+
+### Added — Platform and ecosystem expansion
+
+v0.6 widens RillML's reach without growing the core crate. Five new
+independently-publishable crates live under `crates/` and depend on `rill-ml`
+without changing its public API. The core library remains lightweight: no new
+dependencies are introduced into `rill-ml` itself.
+
+- **`rill-ml-tokio`** (`crates/rill-ml-tokio`): async Stream adapters that
+  drive the same `predict → metric.update → learn` contract over
+  `tokio_stream::Stream`. Core models stay synchronous; this crate provides
+  `progressive_regress_stream` and `progressive_classify_stream`.
+- **`rill-ml-arrow`** (`crates/rill-ml-arrow`): conversion helpers between
+  Apache Arrow `RecordBatch` / `Float64Array` and RillML's `&[f64]` feature
+  slices. Keeps DataFrame plumbing out of the core crate.
+- **`rill-ml-polars`** (`crates/rill-ml-polars`): conversion helpers between
+  Polars `DataFrame` and `(features, target)` sample pairs, plus a helper to
+  append predictions as a new column.
+- **`rillml-inspect`** (`crates/rillml-inspect`): a small CLI binary (not a
+  runtime dependency) that reads `Snapshot<T>` JSON files and reports
+  schema version, model summary, and validation status. Subcommands:
+  `version`, `view-snapshot`, `summary`, `validate`. The CLI is not named
+  `rill`, consistent with the project's naming policy.
+- **`rill-ml-wasm`** (`crates/rill-ml-wasm`): WebAssembly bindings
+  (`wasm32-unknown-unknown` target) exposing a core subset of RillML to the
+  browser: `WasmMean`, `WasmVariance`, `WasmEWMean`, `WasmStandardScaler`,
+  `WasmLinearRegression`, `WasmLogisticRegression`, `WasmRegressionPipeline`,
+  `WasmClassificationPipeline`, and `WasmSnapshot`. Uses `getrandom` with the
+  `js` feature; no system threads, no filesystem.
+- **`rill-ml-python`** (`crates/rill-ml-python`): Python bindings via PyO3 +
+  Maturin. Exposes `Mean`, `Variance`, `EWMean`, `StandardScaler`,
+  `LinearRegression`, `LogisticRegression`, `RegressionPipeline`,
+  `ClassificationPipeline`, and `Snapshot` to Python with River-style
+  `predict_one` / `learn_one` method names. Distributed to PyPI as
+  `rill-ml-python`.
+
+### Compatibility notes
+
+- The new crates are additive: `rill-ml`'s public API is unchanged.
+- All new crates live under `crates/` and are workspace members, but none are
+  dependencies of `rill-ml`. Default builds of `rill-ml` do not pull in
+  `tokio`, `arrow`, `polars`, `wasm-bindgen`, or `pyo3`.
+- WASM and Python bindings cover the **core subset** (statistics, scalers,
+  linear/logistic regression, pipelines, snapshots). FTRL, Naive Bayes, drift
+  detectors, bandits, and diagnostics will be added in later minor releases.
+- The `rillml-inspect` CLI is a binary crate, not a library. It does not affect
+  downstream applications.
+- CI gains two new jobs: `wasm-build` (cargo check on `wasm32-unknown-unknown`)
+  and `python-build` (maturin develop + pytest on Linux).
+
+## [0.5.2] - 2026-07-14
+
 ### Fixed
 
 - The distributed runtime now installs a business-neutral linear-regression
@@ -361,7 +414,9 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.6.0
+[0.5.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.5.2
 [0.5.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.5.1
 [0.5.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.5.0
 [0.4.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.4.0
