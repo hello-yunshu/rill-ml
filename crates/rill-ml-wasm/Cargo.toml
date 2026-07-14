@@ -1,0 +1,22 @@
+[package]
+name = "rill-ml-wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "WebAssembly bindings for RillML — browser-side online learning."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rill-ml = { version = "0.6.0", path = "../..", features = ["serde"] }
+wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+getrandom = { workspace = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"

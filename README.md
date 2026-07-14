@@ -54,14 +54,14 @@ RillML 用纯安全 Rust 实现这一工作流，内存有界。
 
 ```toml
 [dependencies]
-rill-ml = "0.5"
+rill-ml = "0.6"
 ```
 
 需要序列化支持时启用 `serde` feature：
 
 ```toml
 [dependencies]
-rill-ml = { version = "0.5", features = ["serde"] }
+rill-ml = { version = "0.6", features = ["serde"] }
 ```
 
 **环境要求：** Rust 1.85+（Edition 2024），无需 nightly。
@@ -166,7 +166,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 `Snapshot<T>` 使用格式版本号包裹模型状态，并拒绝不兼容的版本。快照来源不可信或模型还有业务约束时，请使用 `into_model_with_validation()` 在启用恢复状态前执行应用级校验。完整的生产接入与故障回退建议见 [`RELIABILITY.md`](RELIABILITY.md)。
 
-## 模块总览（v0.5）
+## 模块总览（v0.6）
 
 | 类别 | 模块 |
 |---|---|
@@ -187,6 +187,19 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 **内存界限：** 非滚动统计量 O(1)；线性模型 O(d)；滚动统计量 O(window_size)；稀疏模型（FTRL）O(k)，k 为已见特征数；漂移检测器 O(1) 或 O(window_size)；LinUCB O(arm_count × d²)。
 
+## 生态与平台扩展（v0.6）
+
+v0.6 新增五个独立可发布的 crate，均位于 `crates/` 下，依赖 `rill-ml` 但不改变核心 API。核心库默认不引入 `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3`。
+
+| Crate | 说明 | 安装 |
+|---|---|---|
+| `rill-ml-tokio` | 在 `tokio_stream::Stream` 上驱动 `predict → metric → learn` | `cargo add rill-ml-tokio` |
+| `rill-ml-arrow` | Apache Arrow `RecordBatch`/`Float64Array` 与 `&[f64]` 互转 | `cargo add rill-ml-arrow` |
+| `rill-ml-polars` | Polars `DataFrame` 与样本对互转，追加预测列 | `cargo add rill-ml-polars` |
+| `rillml-inspect` | 查看 `Snapshot` JSON、版本与校验的 CLI（非运行依赖） | `cargo install rillml-inspect` |
+| `rill-ml-wasm` | WebAssembly 绑定（`wasm32-unknown-unknown`），浏览器端在线学习 | `cargo add rill-ml-wasm` |
+| `rill-ml-python` | Python 绑定（PyO3 + Maturin），PyPI 包名 `rill-ml-python`，`import rill_ml` | `pip install rill-ml-python` |
+
 ## 路线图
 
 RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](ROADMAP.md)。
@@ -195,8 +208,8 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](
 - **v0.2** — 可靠性与诊断：预测报告、冷启动、基线比较。
 - **v0.3** — 稀疏特征与高维数据：FeatureHasher、FTRL、朴素贝叶斯。
 - **v0.4** — 漂移检测：Page-Hinkley、ADWIN、KSWIN、自适应学习。
-- **v0.5** — 在线决策：多臂老虎机、上下文老虎机。*（当前）*
-- **v0.6** — 平台与生态：WASM、Python 绑定、Tokio Stream 适配。
+- **v0.5** — 在线决策：多臂老虎机、上下文老虎机。
+- **v0.6** — 平台与生态：WASM、Python 绑定、Tokio Stream 适配。*（当前）*
 - **v1.0** — 稳定的 API 和状态格式。
 
 ## 正确性与验证

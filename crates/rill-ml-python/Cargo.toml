@@ -1,0 +1,18 @@
+[package]
+name = "rill-ml-python"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Python bindings for RillML via PyO3."
+
+[lib]
+name = "rill_ml_python"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rill-ml = { version = "0.6.0", path = "../..", features = ["serde"] }
+pyo3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
