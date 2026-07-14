@@ -131,6 +131,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: pip install maturin pytest
-      - run: cd crates/rill-ml-python && maturin develop --release
-      - run: cd crates/rill-ml-python && pytest tests/ -v
+      - name: Build and test Python bindings
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install maturin pytest
+          cd crates/rill-ml-python
+          maturin develop --release
+          pytest tests/ -v
