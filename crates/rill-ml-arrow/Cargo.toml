@@ -1,0 +1,17 @@
+[package]
+name = "rill-ml-arrow"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Apache Arrow conversion helpers for RillML."
+
+[dependencies]
+rill-ml = { version = "0.6.0", path = "../.." }
+arrow = { workspace = true }
+thiserror = { workspace = true }
+
+[lib]
+name = "rill_ml_arrow"
+path = "src/lib.rs"
