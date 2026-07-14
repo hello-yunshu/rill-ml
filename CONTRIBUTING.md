@@ -13,7 +13,7 @@ loosely verified ones.
 Please read:
 
 - `README.md` (or `README.en.md`) — project scope, status, and disclaimers.
-- `RillML_Roadmap(1).md` — long-term direction and per-version goals.
+- `ROADMAP.md` — long-term direction and per-version goals.
 - `CHANGELOG.md` — what has already shipped.
 
 If your contribution is substantial (new module, API change, or new

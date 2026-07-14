@@ -10,7 +10,7 @@ documentation = "https://docs.rs/rill-ml"
 readme = "README.md"
 keywords = ["machine-learning", "online-learning", "streaming", "incremental", "edge"]
 categories = ["algorithms", "science"]
-exclude = [".github/", "RillML_AI_IDE_Prompt_Final(1).md"]
+exclude = [".github/"]
 
 [workspace]
 resolver = "3"
