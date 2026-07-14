@@ -8,7 +8,7 @@ use std::{
 use clap::{Parser, Subcommand};
 use ed25519_dalek::VerifyingKey;
 use rill_runtime::{
-    RuntimeEngine, TrustStore,
+    LinearRegressionInvokeHandler, RuntimeEngine, TrustStore,
     package::{ModelPackError, load_model_pack},
 };
 use rill_runtime_protocol::{
@@ -56,6 +56,8 @@ enum CliError {
     TrustKey(String),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("runtime handler error: {0}")]
+    Handler(String),
     #[error("IPC message exceeds {MAX_MESSAGE_BYTES} bytes")]
     MessageTooLarge,
 }
@@ -72,7 +74,9 @@ fn run(cli: Cli) -> Result<(), CliError> {
         Command::Serve { pack, trust_keys } => {
             let trust = parse_trust_store(&trust_keys)?;
             let (loaded, _) = load_model_pack(File::open(pack)?, &trust)?;
-            serve(RuntimeEngine::new(loaded))
+            let handler =
+                LinearRegressionInvokeHandler::from_pack(&loaded).map_err(CliError::Handler)?;
+            serve(RuntimeEngine::new(loaded).with_invoke_handler(std::sync::Arc::new(handler)))
         }
         Command::InspectPack { pack, trust_keys } => {
             let trust = parse_trust_store(&trust_keys)?;

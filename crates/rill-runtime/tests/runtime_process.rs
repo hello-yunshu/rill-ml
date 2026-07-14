@@ -5,7 +5,7 @@ use std::{
 };
 
 use ed25519_dalek::SigningKey;
-use rill_runtime::build_signed_model_pack;
+use rill_runtime::{LINEAR_REGRESSION_CAPABILITY, build_signed_model_pack};
 use rill_runtime_protocol::{
     MODEL_PACK_FORMAT_VERSION, ModelPackManifest, RUNTIME_API_VERSION, RuntimeRequest,
     RuntimeResponse,
@@ -21,9 +21,14 @@ fn signed_pack_handshake_and_invoke_work_across_the_real_process_boundary() {
         runtime_api_version: RUNTIME_API_VERSION,
         min_runtime_version: "0.5.0".into(),
         publisher_key_id: "process-test".into(),
-        capabilities: vec!["rillml.example".into()],
+        capabilities: vec![LINEAR_REGRESSION_CAPABILITY.into()],
     };
-    let pack = build_signed_model_pack(&manifest, &serde_json::json!({}), &signing).unwrap();
+    let model = serde_json::json!({
+        "kind": "linearRegression",
+        "weights": [0.5, -0.25],
+        "intercept": 1.0
+    });
+    let pack = build_signed_model_pack(&manifest, &model, &signing).unwrap();
     let temporary = tempfile::tempdir().unwrap();
     let pack_path = temporary.path().join("example.rillpack");
     fs::write(&pack_path, pack).unwrap();
@@ -51,8 +56,8 @@ fn signed_pack_handshake_and_invoke_work_across_the_real_process_boundary() {
         RuntimeRequest::Invoke {
             request_id: "integration-invoke".into(),
             api_version: RUNTIME_API_VERSION,
-            capability: "rillml.example".into(),
-            input: serde_json::json!({}),
+            capability: LINEAR_REGRESSION_CAPABILITY.into(),
+            input: serde_json::json!({"features": [4.0, 2.0]}),
         },
     ];
     let mut stdin = child.stdin.take().unwrap();
@@ -85,10 +90,10 @@ fn signed_pack_handshake_and_invoke_work_across_the_real_process_boundary() {
     ));
     assert!(matches!(
         &responses[1],
-        RuntimeResponse::Error {
+        RuntimeResponse::Result {
             request_id,
-            code,
+            output,
             ..
-        } if request_id == "integration-invoke" && code == "noInvokeHandler"
+        } if request_id == "integration-invoke" && output["prediction"] == 2.5
     ));
 }

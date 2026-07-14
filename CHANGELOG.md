@@ -15,6 +15,16 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+### Fixed
+
+- The distributed runtime now installs a business-neutral linear-regression
+  invoke handler instead of returning `noInvokeHandler` for every request.
+- Runtime invocation is restricted to capabilities declared by the signed
+  model-pack manifest.
+- Release retries preserve existing immutable version assets and can continue
+  repairing the mutable stable-index pointer; crate publication also waits for
+  bounded crates.io dependency-index propagation.
+
 ## [0.5.1] - 2026-07-14
 
 ### Changed — Breaking: protocol decoupled from battery business

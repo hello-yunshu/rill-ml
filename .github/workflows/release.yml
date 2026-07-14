@@ -161,15 +161,31 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
+          set -euo pipefail
           for crate in rill-runtime-protocol rill-ml rill-runtime; do
-            output=$(cargo publish -p "$crate" --no-verify 2>&1) || {
+            published=false
+            for attempt in {1..10}; do
+              if output=$(cargo publish -p "$crate" --no-verify 2>&1); then
+                echo "$output"
+                published=true
+                break
+              fi
               if echo "$output" | grep -q "already exists"; then
                 echo "$crate already published, continuing"
+                published=true
+                break
+              elif echo "$output" | grep -Eq "failed to select a version|no matching package named" && [ "$attempt" -lt 10 ]; then
+                echo "Waiting for crates.io to index dependencies before publishing $crate (attempt $attempt/10)"
+                sleep 15
               else
                 echo "$output"
                 exit 1
               fi
-            }
+            done
+            if [ "$published" != true ]; then
+              echo "Timed out waiting to publish $crate"
+              exit 1
+            fi
           done
       - name: Verify existing stable index when present
         env:
@@ -184,6 +200,33 @@ jobs:
               --key-id "$PUBLISHER_KEY_ID" \
               --public-key-hex "$RILL_PUBLIC_KEY_HEX"
           fi
+      - name: Reuse immutable versioned assets when present
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release download "$GITHUB_REF_NAME" \
+              --pattern 'rill-runtime-*' \
+              --pattern '*.rillpack' \
+              --dir dist \
+              --clobber
+            mkdir -p dist/versioned-release
+            gh release download "$GITHUB_REF_NAME" \
+              --pattern stable-index.json \
+              --dir dist/versioned-release \
+              --clobber
+            target/release/rill-pack verify-index \
+              --index dist/versioned-release/stable-index.json \
+              --key-id "$PUBLISHER_KEY_ID" \
+              --public-key-hex "$RILL_PUBLIC_KEY_HEX"
+            python3 scripts/verify-release-assets.py \
+              --index dist/versioned-release/stable-index.json \
+              --release-dir dist \
+              --version "$VERSION"
+          fi
       - name: Create signed model package
         env:
           RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
@@ -192,10 +235,12 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$RILL_SIGNING_KEY_HEX"
-          target/release/rill-pack create \
-            --manifest models/example-default/manifest.json \
-            --model models/example-default/model.json \
-            --output "dist/example-default-${VERSION}.rillpack"
+          if [ ! -f "dist/example-default-${VERSION}.rillpack" ]; then
+            target/release/rill-pack create \
+              --manifest models/example-default/manifest.json \
+              --model models/example-default/model.json \
+              --output "dist/example-default-${VERSION}.rillpack"
+          fi
       - name: Build and sign stable index
         env:
           RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
@@ -240,10 +285,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" dist/rill-runtime-* dist/*.rillpack dist/stable-index.json \
-            --verify-tag \
-            --title "Rill ML ${{ steps.version.outputs.version }}" \
-            --generate-notes
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            mapfile -t existing_assets < <(
+              gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name'
+            )
+            for asset in dist/rill-runtime-* dist/*.rillpack dist/stable-index.json; do
+              name="$(basename "$asset")"
+              present=false
+              for existing in "${existing_assets[@]}"; do
+                if [ "$existing" = "$name" ]; then
+                  present=true
+                  break
+                fi
+              done
+              if [ "$present" = true ]; then
+                echo "Preserving immutable asset $name"
+              else
+                gh release upload "$GITHUB_REF_NAME" "$asset"
+              fi
+            done
+          else
+            gh release create "$GITHUB_REF_NAME" dist/rill-runtime-* dist/*.rillpack dist/stable-index.json \
+              --verify-tag \
+              --title "Rill ML ${{ steps.version.outputs.version }}" \
+              --generate-notes
+          fi
       - name: Move signed stable-index pointer
         env:
           GH_TOKEN: ${{ github.token }}
