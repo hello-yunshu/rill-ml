@@ -1,6 +1,24 @@
-# RillML
+<p align="center">
+  <img src="logo.png" alt="RillML" width="480">
+</p>
 
-Lightweight, serializable online machine learning for Rust applications and streaming data.
+<p align="center">
+  Lightweight online machine learning for Rust applications, edge devices, and continuously changing data streams
+</p>
+
+<p align="center">
+  <a href="https://github.com/hello-yunshu/rill-ml/actions/workflows/ci.yml"><img src="https://github.com/hello-yunshu/rill-ml/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://crates.io/crates/rill-ml"><img src="https://img.shields.io/crates/v/rill-ml.svg" alt="crates.io"></a>
+  <a href="https://docs.rs/rill-ml"><img src="https://docs.rs/rill-ml/badge.svg" alt="docs.rs"></a>
+  <a href="LICENSE-MIT"><img src="https://img.shields.io/crates/l/rill-ml.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/rust-1.85%2B-orange.svg" alt="Rust 1.85+">
+</p>
+
+<p align="center">
+  <a href="README.md">中文</a> &middot; <a href="CHANGELOG.md">Changelog</a> &middot; <a href="ROADMAP.md">Roadmap</a> &middot; <a href="https://docs.rs/rill-ml">API Docs</a>
+</p>
+
+---
 
 RillML provides incremental learning primitives that can be embedded directly in native Rust applications: online statistics, preprocessors, linear/logistic regression, evaluation metrics, pipelines, progressive evaluation, and optional serde-based state persistence.
 
@@ -8,23 +26,19 @@ The workspace also includes a separately distributable `rill-runtime`, a stable 
 
 > RillML is inspired by the online-learning workflow popularized by [River](https://riverml.xyz/). It is an independent Rust project and is not affiliated with or endorsed by River. It does not currently aim for API or model compatibility.
 
----
-
 ## Why online learning?
 
 Traditional machine learning follows a batch workflow: collect data, train offline, deploy a fixed model, and periodically retrain. This works well when data is abundant, static, and centrally available.
 
-Online learning takes a different approach: process one sample at a time, predict before learning, and adapt continuously. This is well-suited for:
+Online learning takes a different approach: **process one sample at a time, predict before learning, and adapt continuously**. This is well-suited for:
 
-- **Streaming data** where you cannot store all history.
-- **Edge devices** with limited memory and no Python runtime.
-- **Continuously changing environments** where a fixed model goes stale.
-- **Privacy-sensitive scenarios** where data should not leave the device.
-- **Real-time systems** that need predictions before the next sample arrives.
+- **Streaming data** — you cannot store all history.
+- **Edge devices** — limited memory, no Python runtime.
+- **Continuously changing environments** — a fixed model goes stale.
+- **Privacy-sensitive scenarios** — data should not leave the device.
+- **Real-time systems** — predictions needed before the next sample arrives.
 
 RillML implements this workflow in pure, safe Rust with bounded memory.
-
----
 
 ## Suitable scenarios
 
@@ -34,21 +48,9 @@ RillML implements this workflow in pure, safe Rust with bounded memory.
 - Network latency prediction with concept drift.
 - Any Rust application that needs a lightweight, always-on learning component.
 
-## Non-suitable scenarios
-
-- Large-scale offline model training (use Linfa, SmartCore, or Python instead).
-- Deep learning (use Burn, candle, or tch-rs).
-- Distributed training across multiple machines.
-- Scenarios requiring GPU acceleration.
-- Research and rapid algorithm experimentation (Python is better suited).
-
-Python is more appropriate for research, data analysis, and fast algorithm experimentation. RillML focuses on Rust-native embedding and continuous operation. Rust does not make the same algorithm inherently more accurate; the value comes from engineering deployment, state management, and local execution.
-
----
+**Non-suitable scenarios:** Large-scale offline training (use Linfa/SmartCore/Python), deep learning (use Burn/candle/tch-rs), distributed training, GPU acceleration, research experimentation (Python is better suited). Rust does not make the same algorithm inherently more accurate; the value comes from engineering deployment, state management, and local execution.
 
 ## Installation
-
-Add RillML to your `Cargo.toml`:
 
 ```toml
 [dependencies]
@@ -63,8 +65,6 @@ rill-ml = { version = "0.5", features = ["serde"] }
 ```
 
 **Requirements:** Rust 1.85+ (Edition 2024), no nightly needed.
-
----
 
 ## Quick start
 
@@ -103,11 +103,9 @@ for (features, target) in samples {
 }
 ```
 
----
-
 ## Progressive evaluation
 
-The core contract of online learning is: **predict before you learn**. RillML's `evaluate` module enforces this order:
+The core contract of online learning is: **predict before you learn**. The `evaluate` module enforces this order:
 
 ```text
 predict  →  metric.update  →  learn
@@ -133,92 +131,18 @@ let samples = vec![
 let final_mae = evaluate_regression(&mut model, &mut mae, samples).unwrap();
 ```
 
----
+## Examples
 
-## Regression example
-
-See [`examples/online_regression.rs`](examples/online_regression.rs) for a full online regression demo that:
-- Compares `MeanRegressor`, `EWMeanRegressor`, and `LinearRegression`.
-- Uses `StandardScaler` for feature normalization.
-- Demonstrates `Snapshot` serialization round-trip.
-
-```sh
-cargo run --example online_regression --features serde
-```
-
----
-
-## Classification example
-
-See [`examples/online_classification.rs`](examples/online_classification.rs) for online binary classification with `LogisticRegression`:
-
-```sh
-cargo run --example online_classification
-```
-
----
-
-## Diagnostics example
-
-See [`examples/diagnostics_demo.rs`](examples/diagnostics_demo.rs) for the v0.2 diagnostics module:
-
-- Uses `TrainingSummary` to track training statistics.
-- Uses `PredictionReporter` to generate reports with confidence levels and prediction intervals.
-- Uses `OnlineModelSelector` to compare `MeanRegressor` vs `LinearRegression` and auto-select the best model.
-- Uses `ModelHealthReport` to detect NaN/Infinity in model parameters.
-
-```sh
-cargo run --example diagnostics_demo
-```
-
----
-
-## Sparse features example
-
-See [`examples/sparse_classification.rs`](examples/sparse_classification.rs) for high-dimensional sparse classification:
-
-- Uses `SparseFeatures` to represent sparse feature vectors.
-- Uses `FeatureHasher` to hash string feature names into `FeatureId` buckets.
-- Compares `FtrlClassifier` (sparse input) vs `LogisticRegression` (hashed dense input) vs `GaussianNaiveBayes`.
-- Demonstrates sparse weights produced by FTRL's L1 regularization.
-
-```sh
-cargo run --example sparse_classification
-```
-
-`SparseFeatures` uses a sorted `Vec<(u64, f64)>` instead of `HashMap`, supporting binary search lookup and deterministic serialization. `FtrlRegressor` / `FtrlClassifier` achieve dynamic feature growth via `BTreeMap<FeatureId, FtrlParam>`, without needing to know all feature IDs in advance.
-
----
-
-## Drift detection example
-
-See [`examples/drift_demo.rs`](examples/drift_demo.rs), demonstrating the v0.4 drift detection module:
-
-- Uses `PageHinkley` to detect mean shifts.
-- Uses `Adwin` to detect adaptive-window distribution changes.
-- Uses `Kswin` to detect distribution shape changes.
-- Demonstrates `DriftAwareModel` automatically resetting `LinearRegression` when drift is detected.
-
-```sh
-cargo run --example drift_demo
-```
-
----
-
-## Online decision-making example
-
-See [`examples/bandit_demo.rs`](examples/bandit_demo.rs), demonstrating the v0.5 online decision-making module:
-
-- Comparing `EpsilonGreedy`, `Ucb1`, `ThompsonSampling` on fixed reward distributions.
-- Demonstrating `LinUCB` contextual bandit selecting the optimal arm based on context features.
-- Demonstrating a safe fallback strategy when insufficient data is available.
-- `Ucb1` and `ThompsonSampling` require rewards normalized to `[0, 1]`; restored model state is validated.
-
-```sh
-cargo run --example bandit_demo
-```
-
----
+| Example | Description | Command |
+|---|---|---|
+| [online_regression](examples/online_regression.rs) | Compare Mean/EWMean/LinearRegression, StandardScaler, Snapshot serialization | `cargo run --example online_regression --features serde` |
+| [online_classification](examples/online_classification.rs) | Online binary classification with LogisticRegression | `cargo run --example online_classification` |
+| [diagnostics_demo](examples/diagnostics_demo.rs) | TrainingSummary, PredictionReporter, OnlineModelSelector, ModelHealthReport | `cargo run --example diagnostics_demo` |
+| [sparse_classification](examples/sparse_classification.rs) | SparseFeatures, FeatureHasher, FTRL, NaiveBayes high-dim sparse classification | `cargo run --example sparse_classification` |
+| [drift_demo](examples/drift_demo.rs) | Page-Hinkley, ADWIN, KSWIN drift detection with DriftAwareModel | `cargo run --example drift_demo` |
+| [bandit_demo](examples/bandit_demo.rs) | EpsilonGreedy, UCB1, ThompsonSampling, LinUCB online decision-making | `cargo run --example bandit_demo` |
+| [sensor_stream](examples/sensor_stream.rs) | Sensor data stream online statistics | `cargo run --example sensor_stream` |
+| [progressive_validation](examples/progressive_validation.rs) | Progressive evaluation flow demo | `cargo run --example progressive_validation` |
 
 ## Serialization
 
@@ -242,27 +166,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 `Snapshot<T>` wraps model state with a format version and rejects incompatible versions. For untrusted snapshots or application-specific model constraints, use `into_model_with_validation()` to validate restored state before activation. See [`RELIABILITY.md`](RELIABILITY.md) for the complete production integration and fallback guidance.
 
----
-
-## Production reliability
-
-RillML is an in-process algorithm library; service replicas, traffic failover, and durable storage availability remain the host application's responsibility. Core update paths reject non-finite arithmetic results, failed statistics and optimizer updates do not commit partial state, and pipelines can use `learn_transactional()` at reliability boundaries for the same all-or-nothing semantics. Production deployments should still retain a last-known-good snapshot and a simple baseline, fall back on load failure, unhealthy model state, or drift, and monitor rejected samples, load failures, drift events, and error relative to the baseline. See [`RELIABILITY.md`](RELIABILITY.md).
-
----
-
-## Baselines
-
-RillML provides three simple baseline regressors:
-
-- **`MeanRegressor`** — predicts the running mean of all targets seen.
-- **`ExponentiallyWeightedMeanRegressor`** — weights recent targets more heavily.
-- **`LastValueRegressor`** — predicts the last seen target.
-
-Always compare your model against baselines using progressive evaluation. Only trust a complex model if it consistently beats baselines.
-
----
-
-## Current scope (v0.5)
+## Module overview (v0.5)
 
 | Category | Modules |
 |---|---|
@@ -281,23 +185,11 @@ Always compare your model against baselines using progressive evaluation. Only t
 | Drift detection | PageHinkley, Adwin, Kswin, DriftAwareModel, DriftAction, DriftStrategy, TimeDecayedMean, LearningRateScheduler, FixedWindowBuffer |
 | Online decision-making | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb, ArmStats |
 
-Memory bounds:
-- Non-rolling statistics: O(1)
-- Linear models: O(d) where d = feature count
-- Rolling statistics: O(window_size)
-- Diagnostics: O(1) or O(window_size), never stores raw samples
-- Sparse models (FTRL): O(k) where k = seen feature count (not total feature space)
-- Categorical encoders: O(c) where c = seen category count
-- Drift detectors: O(1) (PageHinkley) or O(window_size) (Adwin/Kswin)
-- DriftAwareModel: O(max_events) event log + model + detector
-- Non-contextual bandits: O(arm_count)
-- LinUCB contextual bandit: O(arm_count * d²) where d = feature count
-
----
+**Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count; drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
 
 ## Roadmap
 
-RillML follows a real-need-driven roadmap. See [RillML_Roadmap.md](RillML_Roadmap(1).md) for the full plan.
+RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for the full plan.
 
 - **v0.1** — Basic closed loop: predict, evaluate, learn, save, restore.
 - **v0.2** — Reliability and diagnostics: prediction reports, cold-start, baseline comparison.
@@ -307,62 +199,37 @@ RillML follows a real-need-driven roadmap. See [RillML_Roadmap.md](RillML_Roadma
 - **v0.6** — Platform and ecosystem: WASM, Python bindings, Tokio Stream adapters.
 - **v1.0** — Stable API and state format.
 
----
-
 ## Correctness and validation
 
 RillML is validated through multiple layers:
 
-- **Unit tests** for every module (562 tests).
-- **Integration tests** comparing online algorithms against batch reference formulas (130 tests).
-- **Doctests** for all public APIs (40 tests).
-- **Serialization round-trip tests** for all stateful types.
-- **Property-based tests** with `proptest`.
-- **Deterministic tests** with fixed seeds (`rand_chacha`).
-- **Clippy** with `-D warnings` in CI.
-- **rustfmt** enforced.
-- **Example run verification**: all examples are actually run and verified.
+- **562** unit tests + **130** integration tests + **40** doctests.
+- Serialization round-trip tests for all stateful types.
+- `proptest` property-based tests with fixed seeds (`rand_chacha`).
+- Clippy with `-D warnings` in CI; rustfmt enforced.
+- All examples are actually run and verified.
 
-Numerical stability:
-- Welford's algorithm for variance.
-- Numerically stable sigmoid.
-- Epsilon-guarded scaling to avoid division by zero.
-- No panics in public APIs; all errors are returned as `Result<_, RillError>`.
+**Numerical stability:** Welford's algorithm for variance; numerically stable sigmoid; epsilon-guarded scaling; no panics in public APIs, all errors returned as `Result<_, RillError>`.
 
----
+## Related projects
 
-## Relationship to River
+| Project | Focus | Relationship to RillML |
+|---|---|---|
+| [River](https://riverml.xyz/) | Python online learning | RillML is inspired by its workflow, independently implemented, no compatibility target |
+| [Linfa](https://github.com/rust-ml/linfa) | Rust batch learning toolkit | Batch-focused; RillML focuses on online/incremental learning |
+| [SmartCore](https://smartcorelib.org/) | Rust ML library | Primarily batch-oriented; RillML targets streaming and edge deployment |
+| [Burn](https://burn-rs.github.io/) | Rust deep learning framework | Targets neural networks and GPU; RillML targets lightweight online models |
 
-RillML is inspired by the online-learning workflow popularized by [River](https://riverml.xyz/). It is an independent Rust project and is not affiliated with or endorsed by River. It does not currently aim for API or model compatibility.
-
-River remains an excellent choice for Python-based online learning research and experimentation.
-
----
-
-## Relationship to Linfa, SmartCore, and Burn
-
-- **[Linfa](https://github.com/rust-ml/linfa)** — A comprehensive Rust ML toolkit inspired by scikit-learn. Linfa focuses on batch learning. RillML focuses on online/incremental learning with bounded memory.
-- **[SmartCore](https://smartcorelib.org/)** — A fast Rust ML library with broad algorithm coverage. SmartCore is primarily batch-oriented. RillML is designed for streaming and edge deployment.
-- **[Burn](https://burn-rs.github.io/)** — A deep learning framework in Rust. Burn targets neural networks and GPU computation. RillML targets lightweight online models that can run anywhere.
-
-These projects are complementary, not competitive. RillML does not aim to replace them.
-
----
+These projects are complementary, not competitive.
 
 ## Naming note
 
 This project is named **RillML**. It is not affiliated with, endorsed by, or related to [Rill Data](https://www.rilldata.com/) or any product named "Rill". RillML does not provide a CLI tool named `rill`.
 
----
-
 ## License
 
 Licensed under the MIT License ([LICENSE-MIT](LICENSE-MIT)).
 
----
-
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request.
-
-RillML follows a "real-need-driven" development principle: every new feature should solve a real problem in a real Rust application, not just replicate what exists in other frameworks. See the [Roadmap](RillML_Roadmap(1).md) for prioritized directions.
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request. RillML follows a "real-need-driven" development principle: every new feature should solve a real problem in a real Rust application.
