@@ -884,7 +884,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rill-ml"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "approx",
  "criterion",
@@ -898,7 +898,7 @@ dependencies = [
 
 [[package]]
 name = "rill-runtime"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "clap",
  "ed25519-dalek",
@@ -916,7 +916,7 @@ dependencies = [
 
 [[package]]
 name = "rill-runtime-protocol"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "serde",
  "serde_json",

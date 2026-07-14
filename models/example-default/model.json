@@ -1,3 +1,8 @@
 {
-  "description": "Reference model with no business semantics. Real models define their own schema."
+  "kind": "linearRegression",
+  "weights": [
+    0.5,
+    -0.25
+  ],
+  "intercept": 1.0
 }

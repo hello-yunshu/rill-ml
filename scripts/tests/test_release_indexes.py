@@ -143,6 +143,47 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             self.assertEqual(len(runtimes), 4)
             self.assertTrue(all(item["version"] == version for item in runtimes))
 
+    def test_verify_release_assets_accepts_matching_files_and_rejects_tampering(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            version = "0.6.0"
+            runtime = temp / f"rill-runtime-{version}-linux-x86_64"
+            model = temp / f"example-default-{version}.rillpack"
+            runtime.write_bytes(b"runtime")
+            model.write_bytes(b"model")
+            artifacts = []
+            for path in (runtime, model):
+                artifacts.append(
+                    {
+                        "version": version,
+                        "url": f"https://example.invalid/{path.name}",
+                        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                        "size": path.stat().st_size,
+                    }
+                )
+            index = temp / "stable-index.json"
+            index.write_text(
+                json.dumps({"payload": {"artifacts": artifacts}}), encoding="utf-8"
+            )
+
+            valid = self.run_asset_verifier(index, temp, version)
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+
+            expected_model_name = f"example-default-{version}.rillpack"
+            model.rename(temp / expected_model_name)
+            artifacts[-1]["url"] = "https://example.invalid/newer-model.rillpack"
+            artifacts[-1]["version"] = "0.8.0"
+            index.write_text(
+                json.dumps({"payload": {"artifacts": artifacts}}), encoding="utf-8"
+            )
+            superseded = self.run_asset_verifier(index, temp, version)
+            self.assertEqual(superseded.returncode, 0, superseded.stderr)
+
+            runtime.write_bytes(b"tampered")
+            tampered = self.run_asset_verifier(index, temp, version)
+            self.assertNotEqual(tampered.returncode, 0)
+            self.assertIn("differs from the signed immutable asset", tampered.stderr)
+
     @staticmethod
     def run_model_update(
         current: pathlib.Path,
@@ -170,6 +211,26 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 "2026-07-13T01:00:00Z",
                 "--output",
                 str(output),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    @staticmethod
+    def run_asset_verifier(
+        index: pathlib.Path, release_dir: pathlib.Path, version: str
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/verify-release-assets.py"),
+                "--index",
+                str(index),
+                "--release-dir",
+                str(release_dir),
+                "--version",
+                version,
             ],
             capture_output=True,
             text=True,
