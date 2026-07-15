@@ -62,9 +62,9 @@ fn build_echo_pack(module: &[u8], signing: &SigningKey) -> Vec<u8> {
     let manifest = HandlerPackManifest {
         format_version: HANDLER_PACKAGE_FORMAT_VERSION,
         id: "rillml.echo.handler".into(),
-        version: "0.7.0".into(),
+        version: "0.7.1".into(),
         handler_api_version: HANDLER_API_VERSION,
-        min_runtime_version: "0.7.0".into(),
+        min_runtime_version: "0.7.1".into(),
         publisher_key_id: "wasm-test-key".into(),
         capabilities: vec!["rillml.linearRegression.predict".into()],
         module_sha256: hex::encode(Sha256::digest(module)),
@@ -149,9 +149,9 @@ fn echo_handler_metadata_mismatch_rejected() {
     let manifest = HandlerPackManifest {
         format_version: HANDLER_PACKAGE_FORMAT_VERSION,
         id: "wrong.handler.id".into(), // mismatched
-        version: "0.7.0".into(),
+        version: "0.7.1".into(),
         handler_api_version: HANDLER_API_VERSION,
-        min_runtime_version: "0.7.0".into(),
+        min_runtime_version: "0.7.1".into(),
         publisher_key_id: "wasm-test-key".into(),
         capabilities: vec!["rillml.linearRegression.predict".into()],
         module_sha256: hex::encode(Sha256::digest(&component)),
