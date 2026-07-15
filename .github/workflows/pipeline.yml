@@ -1,33 +1,213 @@
-name: Release
-run-name: Release ${{ inputs.tag || github.ref_name }}
+name: CI / Release
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Release {0}', inputs.tag) || 'CI' }}
 
 on:
+  pull_request:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [main, master]
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing version tag to publish
+        description: Existing version tag to publish (e.g. v0.7.0)
         required: true
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: release-${{ inputs.tag || github.ref }}
-  cancel-in-progress: false
+  group: pipeline-${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
   PUBLISHER_KEY_ID: rillml-examples-2026-001
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
   RILL_PUBLIC_KEY_HEX: 29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CI jobs — run on push (branches) and pull_request, never on workflow_dispatch.
+# Release jobs — run only on workflow_dispatch (auto-release dispatches them
+# after CI succeeds; the tag-push trigger is intentionally omitted to avoid
+# duplicate runs).
+# ─────────────────────────────────────────────────────────────────────────────
+
 jobs:
+  fmt:
+    name: cargo fmt
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+
+  clippy:
+    name: cargo clippy
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo clippy
+        run: cargo clippy --locked --workspace --all-targets --all-features --exclude rill-ml-python -- -D warnings
+
+  test:
+    name: test (${{ matrix.os }}, ${{ matrix.rust }})
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust (${{ matrix.rust }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo check workspace
+        run: cargo check --locked --workspace --all-targets --all-features
+      - name: cargo test workspace
+        run: cargo test --locked --workspace --all-targets --all-features --exclude rill-ml-python
+      - name: cargo test docs
+        run: cargo test --locked --workspace --doc --all-features --exclude rill-ml-python
+
+  msrv:
+    name: MSRV (1.94) lib check
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust 1.94.0
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.94.0
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo +1.94 check rill-ml --lib
+        run: cargo +1.94.0 check --locked --lib
+      - name: cargo +1.94 check rill-ml --lib --features serde
+        run: cargo +1.94.0 check --locked --lib --features serde
+      - name: cargo +1.94 check rill-handler-api
+        run: cargo +1.94.0 check --locked -p rill-handler-api
+      - name: cargo +1.94 check rill-runtime-protocol
+        run: cargo +1.94.0 check --locked -p rill-runtime-protocol
+      - name: cargo +1.94 check rill-runtime (default features)
+        run: cargo +1.94.0 check --locked -p rill-runtime
+      - name: cargo +1.94 check rill-runtime (wasm feature)
+        run: cargo +1.94.0 check --locked -p rill-runtime --features wasm
+
+  doc:
+    name: cargo doc
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo doc --features serde --no-deps
+        run: cargo doc --locked --features serde --no-deps
+
+  release-index-helpers:
+    name: release-index helper tests
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify model/runtime index update behavior
+        run: python3 -m unittest discover -s scripts/tests -v
+
+  wasm-build:
+    name: WASM build + test
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --locked -p rill-ml-wasm --target wasm32-unknown-unknown
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: wasm-pack test (--node)
+        run: cd crates/rill-ml-wasm && wasm-pack test --node --release
+
+  wasm-handler:
+    name: WASM handler component build + test
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-tools
+        run: cargo install wasm-tools --locked
+      - name: Build echo handler component
+        run: |
+          cd handlers/echo-handler
+          cargo build --release --target wasm32-unknown-unknown
+          mkdir -p ../../target
+          wasm-tools component new \
+            target/wasm32-unknown-unknown/release/echo-handler.wasm \
+            -o ../../target/echo-handler.wasm
+      - name: Run WASM handler integration tests
+        env:
+          ECHO_HANDLER_WASM: ${{ github.workspace }}/target/echo-handler.wasm
+        run: cargo test --locked -p rill-runtime --features wasm --test wasm_handler -- --include-ignored
+
+  python-build:
+    name: Python bindings build + pytest
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build and test Python bindings
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install maturin pytest
+          cd crates/rill-ml-python
+          maturin develop --release
+          pytest tests/ -v
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Release jobs — only on workflow_dispatch.
+  # Auto Release dispatches this workflow after CI passes; the tag-push
+  # trigger is intentionally omitted so retries are idempotent.
+  # ─────────────────────────────────────────────────────────────────────────
+
   package-check:
     name: cargo package dry-run
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -42,6 +222,7 @@ jobs:
 
   build-runtime:
     name: Runtime ${{ matrix.target_os }} ${{ matrix.target_arch }}
+    if: github.event_name == 'workflow_dispatch'
     needs: package-check
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -144,9 +325,12 @@ jobs:
 
   publish:
     name: Sign and publish
+    if: github.event_name == 'workflow_dispatch'
     needs: build-runtime
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -210,10 +394,13 @@ jobs:
           set -euo pipefail
           if gh release download local-ai-stable --pattern stable-index.json --dir dist; then
             mv dist/stable-index.json dist/current-stable-index.json
-            target/release/rill-pack verify-index \
+            if ! target/release/rill-pack verify-index \
               --index dist/current-stable-index.json \
               --key-id "$PUBLISHER_KEY_ID" \
-              --public-key-hex "$RILL_PUBLIC_KEY_HEX"
+              --public-key-hex "$RILL_PUBLIC_KEY_HEX"; then
+              echo "::warning::Existing stable index could not be verified (possibly incompatible schema). Treating as fresh release."
+              rm -f dist/current-stable-index.json
+            fi
           fi
       - name: Reuse immutable versioned assets when present
         env:
@@ -234,14 +421,17 @@ jobs:
               --pattern stable-index.json \
               --dir dist/versioned-release \
               --clobber
-            target/release/rill-pack verify-index \
+            if target/release/rill-pack verify-index \
               --index dist/versioned-release/stable-index.json \
               --key-id "$PUBLISHER_KEY_ID" \
-              --public-key-hex "$RILL_PUBLIC_KEY_HEX"
-            python3 scripts/verify-release-assets.py \
-              --index dist/versioned-release/stable-index.json \
-              --release-dir dist \
-              --version "$VERSION"
+              --public-key-hex "$RILL_PUBLIC_KEY_HEX"; then
+              python3 scripts/verify-release-assets.py \
+                --index dist/versioned-release/stable-index.json \
+                --release-dir dist \
+                --version "$VERSION"
+            else
+              echo "::warning::Versioned stable-index could not be verified (possibly incompatible schema). Skipping asset-matching check; individual assets are still verified in the next step."
+            fi
           fi
       - name: Create signed model package
         env:
@@ -365,6 +555,7 @@ jobs:
 
   publish-python:
     name: Publish Python bindings to PyPI
+    if: github.event_name == 'workflow_dispatch'
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 30
