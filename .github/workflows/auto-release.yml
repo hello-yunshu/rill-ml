@@ -64,9 +64,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          runs="$(gh run list --workflow release.yml --branch "$TAG" --limit 20 --json status,conclusion)"
-          active="$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")"
-          successful="$(jq '[.[] | select(.conclusion == "success")] | length' <<<"$runs")"
+          runs="$(gh run list --workflow release.yml --limit 50 --json displayTitle,status,conclusion)"
+          active="$(jq --arg title "Release $TAG" '[.[] | select(.displayTitle == $title and .status != "completed")] | length' <<<"$runs")"
+          successful="$(jq --arg title "Release $TAG" '[.[] | select(.displayTitle == $title and .conclusion == "success")] | length' <<<"$runs")"
 
           if git show-ref --verify --quiet "refs/tags/$TAG"; then
             tag_sha="$(git rev-list -n 1 "$TAG")"
@@ -80,11 +80,7 @@ jobs:
               echo "dispatch=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            if [ "$tag_sha" != "$TARGET_SHA" ]; then
-              echo "Refusing to publish unreleased $TAG at stale $tag_sha; current main is $TARGET_SHA" >&2
-              exit 1
-            fi
-            echo "Retrying Release for existing tag $TAG"
+            echo "Retrying immutable $TAG at $tag_sha with the current Release workflow"
             echo "dispatch=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -115,4 +111,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
-        run: gh workflow run release.yml --ref "$TAG"
+        run: gh workflow run release.yml --ref main -f tag="$TAG"

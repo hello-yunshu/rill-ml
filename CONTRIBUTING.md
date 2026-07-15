@@ -153,7 +153,8 @@ After the `CI` workflow succeeds, `Auto Release` validates that every version
 source agrees, creates the missing annotated `vX.Y.Z` tag at the verified
 `main` commit, and dispatches `Release` on that tag. Existing tags are never
 moved. A successful or active release is treated as an idempotent no-op, while
-a failed release at the same commit can be retried automatically.
+a failed release can be retried automatically with the current workflow while
+still checking out the original immutable version tag.
 
 ## 10. Licensing
 
