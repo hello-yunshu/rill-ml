@@ -147,11 +147,16 @@ fn run(cli: Cli) -> Result<(), CliError> {
             let mut manifest_value: serde_json::Value =
                 serde_json::from_slice(&fs::read(manifest)?)?;
             if let Some(obj) = manifest_value.as_object_mut() {
-                obj.insert("moduleSha256".into(), serde_json::Value::String(actual_digest));
-                obj.insert("moduleSize".into(), serde_json::Value::Number(module_size.into()));
+                obj.insert(
+                    "moduleSha256".into(),
+                    serde_json::Value::String(actual_digest),
+                );
+                obj.insert(
+                    "moduleSize".into(),
+                    serde_json::Value::Number(module_size.into()),
+                );
             }
-            let manifest: HandlerPackManifest =
-                serde_json::from_value(manifest_value)?;
+            let manifest: HandlerPackManifest = serde_json::from_value(manifest_value)?;
             let signing_key = signing_key_from_environment()?;
             let bytes = build_signed_handler_pack(&manifest, &module, &signing_key)?;
             write_output(&output, &bytes)?;
