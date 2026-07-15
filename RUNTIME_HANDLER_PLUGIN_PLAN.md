@@ -232,7 +232,7 @@ effective_capabilities = model_manifest.capabilities ∩ handler_manifest.capabi
 
 ### 5.5 WASM 沙箱
 
-建议使用满足 Rust 1.85 MSRV 的 Wasmtime 版本，并固定 major 版本。启用功能应最小化，
+建议使用满足 Rust 1.94 MSRV 的 Wasmtime 版本，并固定 major 版本。启用功能应最小化，
 禁止使用默认 feature 集合直接进入生产依赖。
 
 首版必须具备：
@@ -337,7 +337,7 @@ Rill 只负责定义、签名和验证这些产物及兼容信息。选择更新
 
 任务：
 
-- 选择满足 Rust 1.85 的 Wasmtime/wit-bindgen 版本组合。
+- 选择满足 Rust 1.94 的 Wasmtime/wit-bindgen 版本组合。
 - 构建一个不依赖业务类型的 echo component。
 - 在 Linux、Windows、macOS 上完成 host 加载和一次 invoke。
 - 验证 fuel、epoch deadline、memory limiter 和无 WASI 权限配置。
@@ -423,7 +423,7 @@ Rill 只负责定义、签名和验证这些产物及兼容信息。选择更新
 
 - CI 增加 guest component 构建和跨平台 host 测试。
 - MSRV job 覆盖 `rill-handler-api`、`rill-runtime-protocol` 和带 WASM feature 的
-  `rill-runtime`；如果依赖无法满足 1.85，必须先做显式 MSRV 决策。
+  `rill-runtime`；如果依赖无法满足 1.94，必须先做显式 MSRV 决策。
 - release index helper 支持 Handler artifact，并增加保留已有 runtime/model/handler 的
   更新测试。
 - release workflow 发布 `rill-handler-api` crate 和一个业务无关的官方 example handler。

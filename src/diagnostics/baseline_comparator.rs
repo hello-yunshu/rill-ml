@@ -149,11 +149,11 @@ impl BaselineComparator {
         let mut new_best: Option<usize> = None;
         let mut best_err: f64 = f64::INFINITY;
         for (i, entry) in self.entries.iter().enumerate() {
-            if let Some(err) = entry.rolling_mae() {
-                if err < best_err {
-                    best_err = err;
-                    new_best = Some(i);
-                }
+            if let Some(err) = entry.rolling_mae()
+                && err < best_err
+            {
+                best_err = err;
+                new_best = Some(i);
             }
         }
 

@@ -159,11 +159,11 @@ fn drift_aware_model_logs_events_on_drift() {
     let mut drift_recorded = false;
     for _ in 0..150 {
         aware.learn(&[], 50.0).unwrap();
-        if let Some(last) = aware.events().last() {
-            if last.level == DriftLevel::Drift {
-                drift_recorded = true;
-                break;
-            }
+        if let Some(last) = aware.events().last()
+            && last.level == DriftLevel::Drift
+        {
+            drift_recorded = true;
+            break;
         }
     }
     assert!(drift_recorded, "DriftAwareModel should log a drift event");
@@ -230,11 +230,11 @@ fn drift_aware_model_replace_with_baseline_action_recorded() {
     let mut seen_action = false;
     for _ in 0..200 {
         aware.learn(&[], 100.0).unwrap();
-        if let Some(action) = aware.last_action() {
-            if action == DriftAction::ReplaceWithBaseline {
-                seen_action = true;
-                break;
-            }
+        if let Some(action) = aware.last_action()
+            && action == DriftAction::ReplaceWithBaseline
+        {
+            seen_action = true;
+            break;
         }
     }
     assert!(

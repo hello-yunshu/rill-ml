@@ -75,7 +75,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.85.0
+          toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
       - uses: Swatinem/rust-cache@v2
         with:
@@ -153,7 +153,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.85.0
+          toolchain: 1.94.0
           targets: wasm32-unknown-unknown
       - uses: actions/download-artifact@v4
         with:
