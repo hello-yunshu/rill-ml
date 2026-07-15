@@ -81,7 +81,7 @@ class ReleaseVersionTest(unittest.TestCase):
 
     def test_rejects_stale_local_dependency_requirement(self) -> None:
         self.metadata["packages"][1]["dependencies"][0]["req"] = "^0.5.2"
-        with self.assertRaisesRegex(ValueError, "expected \^0.7.0"):
+        with self.assertRaisesRegex(ValueError, r"expected \^0.7.0"):
             validate_release(self.root, self.metadata)
 
     def test_rejects_python_or_model_version_drift(self) -> None:
