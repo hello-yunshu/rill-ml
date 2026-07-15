@@ -3,16 +3,21 @@ use std::{
     fs::File,
     io::{self, BufRead, BufReader, BufWriter, Read, Write},
     path::PathBuf,
+    sync::Arc,
 };
 
 use clap::{Parser, Subcommand};
 use ed25519_dalek::VerifyingKey;
+#[cfg(feature = "wasm")]
+use rill_runtime::handler::effective_capabilities;
 use rill_runtime::{
-    LinearRegressionInvokeHandler, RuntimeEngine, TrustStore,
+    HandlerIdentity, InvokeHandler, LinearRegressionInvokeHandler, LoadedHandlerPack,
+    RuntimeEngine, TrustStore,
+    handler_package::HandlerPackError,
     package::{ModelPackError, load_model_pack},
 };
 use rill_runtime_protocol::{
-    MAX_MESSAGE_BYTES, RUNTIME_API_VERSION, RuntimeRequest, RuntimeResponse,
+    MAX_MESSAGE_BYTES, RUNTIME_API_VERSION, RuntimeRequest, RuntimeResponse, RuntimeResponseV2,
 };
 use thiserror::Error;
 
@@ -33,9 +38,23 @@ enum Command {
     Serve {
         #[arg(long)]
         pack: PathBuf,
-        /// Trusted Ed25519 public key as KEY_ID=64_HEX_CHARS. May be repeated.
-        #[arg(long = "trust-key", required = true)]
+        /// Trusted Ed25519 public key for model packs, as KEY_ID=64_HEX_CHARS.
+        /// May be repeated. `--trust-key` is a deprecated alias.
+        #[arg(long = "trust-key")]
         trust_keys: Vec<String>,
+        /// Trusted Ed25519 public key for handler packs, as KEY_ID=64_HEX_CHARS.
+        /// May be repeated.
+        #[arg(long = "handler-trust-key")]
+        handler_trust_keys: Vec<String>,
+        /// Path to a signed `.rillhandler` file. Mutually exclusive with
+        /// `--builtin-handler`.
+        #[arg(long)]
+        handler: Option<PathBuf>,
+        /// Select a built-in handler by name. Currently only
+        /// `linear-regression` is supported. Mutually exclusive with
+        /// `--handler`.
+        #[arg(long)]
+        builtin_handler: Option<String>,
     },
     /// Verify and print metadata for a signed model package.
     InspectPack {
@@ -43,6 +62,13 @@ enum Command {
         pack: PathBuf,
         #[arg(long = "trust-key", required = true)]
         trust_keys: Vec<String>,
+    },
+    /// Verify and print metadata for a signed handler package.
+    InspectHandler {
+        #[arg(long)]
+        handler: PathBuf,
+        #[arg(long = "handler-trust-key", required = true)]
+        handler_trust_keys: Vec<String>,
     },
 }
 
@@ -52,6 +78,8 @@ enum CliError {
     Io(#[from] io::Error),
     #[error("model package error: {0}")]
     Pack(#[from] ModelPackError),
+    #[error("handler package error: {0}")]
+    HandlerPack(#[from] HandlerPackError),
     #[error("invalid trusted key: {0}")]
     TrustKey(String),
     #[error("JSON error: {0}")]
@@ -60,6 +88,10 @@ enum CliError {
     Handler(String),
     #[error("IPC message exceeds {MAX_MESSAGE_BYTES} bytes")]
     MessageTooLarge,
+    #[error("--handler and --builtin-handler are mutually exclusive")]
+    ConflictingHandlerOption,
+    #[error("unknown built-in handler: {0}")]
+    UnknownBuiltinHandler(String),
 }
 
 fn main() {
@@ -71,12 +103,67 @@ fn main() {
 
 fn run(cli: Cli) -> Result<(), CliError> {
     match cli.command {
-        Command::Serve { pack, trust_keys } => {
-            let trust = parse_trust_store(&trust_keys)?;
-            let (loaded, _) = load_model_pack(File::open(pack)?, &trust)?;
-            let handler =
-                LinearRegressionInvokeHandler::from_pack(&loaded).map_err(CliError::Handler)?;
-            serve(RuntimeEngine::new(loaded).with_invoke_handler(std::sync::Arc::new(handler)))
+        Command::Serve {
+            pack,
+            trust_keys,
+            handler_trust_keys,
+            handler,
+            builtin_handler,
+        } => {
+            if handler.is_some() && builtin_handler.is_some() {
+                return Err(CliError::ConflictingHandlerOption);
+            }
+            let model_trust = parse_trust_store(&trust_keys)?;
+            let (loaded, _) = load_model_pack(File::open(&pack)?, &model_trust)?;
+
+            let (invoke_handler, identity) = match (&handler, &builtin_handler) {
+                (Some(handler_path), None) => {
+                    let handler_trust = parse_trust_store(&handler_trust_keys)?;
+                    let (loaded_handler, _) =
+                        rill_runtime::load_handler_pack(File::open(handler_path)?, &handler_trust)?;
+                    build_wasm_handler(&loaded, &loaded_handler)?
+                }
+                (None, Some(name)) => {
+                    let name = name.as_str();
+                    if name != "linear-regression" {
+                        return Err(CliError::UnknownBuiltinHandler(name.into()));
+                    }
+                    eprintln!(
+                        "rill-runtime: --builtin-handler linear-regression is deprecated; \
+                         use --handler with a signed .rillhandler in future releases"
+                    );
+                    let handler = LinearRegressionInvokeHandler::from_pack(&loaded)
+                        .map_err(CliError::Handler)?;
+                    let identity = HandlerIdentity {
+                        handler_id: "rillml.builtin.linear-regression".into(),
+                        handler_version: env!("CARGO_PKG_VERSION").into(),
+                        handler_api_version: 0,
+                        effective_capabilities: loaded.manifest.capabilities.clone(),
+                    };
+                    (Arc::new(handler) as Arc<dyn InvokeHandler>, identity)
+                }
+                (None, None) => {
+                    eprintln!(
+                        "rill-runtime: no --handler or --builtin-handler specified; \
+                         defaulting to built-in linear-regression (deprecated)"
+                    );
+                    let handler = LinearRegressionInvokeHandler::from_pack(&loaded)
+                        .map_err(CliError::Handler)?;
+                    let identity = HandlerIdentity {
+                        handler_id: "rillml.builtin.linear-regression".into(),
+                        handler_version: env!("CARGO_PKG_VERSION").into(),
+                        handler_api_version: 0,
+                        effective_capabilities: loaded.manifest.capabilities.clone(),
+                    };
+                    (Arc::new(handler) as Arc<dyn InvokeHandler>, identity)
+                }
+                _ => return Err(CliError::ConflictingHandlerOption),
+            };
+
+            let engine = RuntimeEngine::new(loaded)
+                .with_invoke_handler(invoke_handler)
+                .with_handler_identity(identity);
+            serve(engine)
         }
         Command::InspectPack { pack, trust_keys } => {
             let trust = parse_trust_store(&trust_keys)?;
@@ -84,7 +171,49 @@ fn run(cli: Cli) -> Result<(), CliError> {
             println!("{}", serde_json::to_string_pretty(&inspection)?);
             Ok(())
         }
+        Command::InspectHandler {
+            handler,
+            handler_trust_keys,
+        } => {
+            let trust = parse_trust_store(&handler_trust_keys)?;
+            let (_, inspection) = rill_runtime::load_handler_pack(File::open(handler)?, &trust)?;
+            println!("{}", serde_json::to_string_pretty(&inspection)?);
+            Ok(())
+        }
     }
+}
+
+#[cfg(feature = "wasm")]
+fn build_wasm_handler(
+    loaded: &rill_runtime::LoadedModelPack,
+    handler_pack: &LoadedHandlerPack,
+) -> Result<(Arc<dyn InvokeHandler>, HandlerIdentity), CliError> {
+    let effective = effective_capabilities(
+        &loaded.manifest.capabilities,
+        &handler_pack.manifest.capabilities,
+    )
+    .map_err(|e| CliError::Handler(e.to_string()))?;
+
+    let wasm_handler = rill_runtime::WasmInvokeHandler::new(handler_pack, &loaded.model)
+        .map_err(|e| CliError::Handler(e.to_string()))?;
+
+    let identity = HandlerIdentity {
+        handler_id: handler_pack.manifest.id.clone(),
+        handler_version: handler_pack.manifest.version.clone(),
+        handler_api_version: handler_pack.manifest.handler_api_version,
+        effective_capabilities: effective,
+    };
+    Ok((Arc::new(wasm_handler) as Arc<dyn InvokeHandler>, identity))
+}
+
+#[cfg(not(feature = "wasm"))]
+fn build_wasm_handler(
+    _loaded: &rill_runtime::LoadedModelPack,
+    _handler_pack: &LoadedHandlerPack,
+) -> Result<(Arc<dyn InvokeHandler>, HandlerIdentity), CliError> {
+    Err(CliError::Handler(
+        "WASM handler support requires the 'wasm' feature (not compiled in)".into(),
+    ))
 }
 
 fn parse_trust_store(values: &[String]) -> Result<TrustStore, CliError> {
@@ -134,20 +263,37 @@ fn serve(engine: RuntimeEngine) -> Result<(), CliError> {
             continue;
         }
         let response = match serde_json::from_slice::<RuntimeRequest>(&line) {
-            Ok(request) => engine.handle(request),
-            Err(_) => RuntimeResponse::Error {
+            Ok(request) => {
+                let api_version = request.api_version();
+                let engine_response = engine.handle(request);
+                if api_version >= RUNTIME_API_VERSION {
+                    EngineResponseJson::V2(engine_response.to_v2(api_version))
+                } else {
+                    EngineResponseJson::V1(engine_response.to_v1(api_version))
+                }
+            }
+            Err(_) => EngineResponseJson::V1(RuntimeResponse::Error {
                 request_id: String::new(),
                 api_version: RUNTIME_API_VERSION,
                 code: "invalidJson".into(),
                 message: "request is not valid protocol JSON".into(),
                 retryable: false,
-            },
+            }),
         };
-        serde_json::to_writer(&mut output, &response)?;
+        match response {
+            EngineResponseJson::V1(v1) => serde_json::to_writer(&mut output, &v1)?,
+            EngineResponseJson::V2(v2) => serde_json::to_writer(&mut output, &v2)?,
+        }
         output.write_all(b"\n")?;
         output.flush()?;
     }
     Ok(())
+}
+
+/// Helper to track which wire version to serialise.
+enum EngineResponseJson {
+    V1(RuntimeResponse),
+    V2(RuntimeResponseV2),
 }
 
 #[cfg(test)]
@@ -159,5 +305,13 @@ mod tests {
         let key = hex::encode([3u8; 32]);
         let error = parse_trust_store(&[format!("same={key}"), format!("same={key}")]).unwrap_err();
         assert!(error.to_string().contains("duplicate key id"));
+    }
+
+    #[test]
+    fn trust_store_rejects_short_keys() {
+        // Valid hex (16 bytes) but not the required 32 bytes.
+        let error =
+            parse_trust_store(&["short=00112233445566778899aabbccddeeff".into()]).unwrap_err();
+        assert!(error.to_string().contains("must contain 32 bytes"));
     }
 }

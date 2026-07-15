@@ -1,0 +1,31 @@
+package rill:handler@1.0.0;
+
+/// A handler component exports three functions: `metadata`, `configure` and
+/// `invoke`. The runtime calls `metadata` once during loading to verify
+/// consistency with the signed manifest, `configure` once per process with the
+/// canonical model JSON, and `invoke` for every IPC `Invoke` request.
+world invoke-handler {
+    /// Metadata returned by the handler. Must match the signed handler manifest.
+    record handler-metadata {
+        id: string,
+        version: string,
+        api-version: u32,
+        capabilities: list<string>,
+    }
+
+    /// Typed errors returned by the handler. The runtime maps these to stable
+    /// IPC error codes and does not forward arbitrary strings to untrusted callers.
+    variant handler-error {
+        invalid-model(string),
+        invalid-input(string),
+        unsupported-capability(string),
+        execution-failed(string),
+    }
+
+    export metadata: func() -> handler-metadata;
+    export configure: func(model-json: list<u8>) -> result<_, handler-error>;
+    export invoke: func(
+        capability: string,
+        input-json: list<u8>,
+    ) -> result<list<u8>, handler-error>;
+}

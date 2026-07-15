@@ -4,16 +4,20 @@ use clap::{Parser, Subcommand};
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use rill_runtime::{
     TrustStore,
+    handler_package::{HandlerPackError, build_signed_handler_pack, load_handler_pack},
     package::{build_signed_model_pack, load_model_pack, sign_release_index, verify_release_index},
 };
-use rill_runtime_protocol::{ModelPackManifest, ReleaseIndexPayload, SignedReleaseIndex};
+use rill_runtime_protocol::{
+    HandlerPackManifest, ModelPackManifest, ReleaseIndexPayload, SignedReleaseIndex,
+};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 #[derive(Debug, Parser)]
 #[command(
     name = "rill-pack",
     version,
-    about = "Build and verify signed Rill model packages"
+    about = "Build and verify signed Rill model and handler packages"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -22,7 +26,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Create a package. Reads the 32-byte signing seed only from RILL_SIGNING_KEY_HEX.
+    /// Create a model package. Reads the 32-byte signing seed only from RILL_SIGNING_KEY_HEX.
     Create {
         #[arg(long)]
         manifest: PathBuf,
@@ -31,10 +35,28 @@ enum Command {
         #[arg(long)]
         output: PathBuf,
     },
-    /// Verify a package using one Ed25519 public key.
+    /// Verify a model package using one Ed25519 public key.
     Verify {
         #[arg(long)]
         pack: PathBuf,
+        #[arg(long)]
+        key_id: String,
+        #[arg(long)]
+        public_key_hex: String,
+    },
+    /// Create a handler package. Reads the 32-byte signing seed only from RILL_SIGNING_KEY_HEX.
+    CreateHandler {
+        #[arg(long)]
+        manifest: PathBuf,
+        #[arg(long)]
+        module: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Verify a handler package using one Ed25519 public key.
+    InspectHandler {
+        #[arg(long)]
+        handler: PathBuf,
         #[arg(long)]
         key_id: String,
         #[arg(long)]
@@ -64,10 +86,12 @@ enum CliError {
     Io(#[from] std::io::Error),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("package error: {0}")]
+    #[error("model package error: {0}")]
     Package(#[from] rill_runtime::package::ModelPackError),
+    #[error("handler package error: {0}")]
+    HandlerPackage(#[from] HandlerPackError),
     #[error("release-index error: {0}")]
-    ReleaseIndex(#[from] rill_runtime::package::ReleaseIndexError),
+    ReleaseIndex(#[from] rill_runtime::archive::ReleaseIndexError),
     #[error("RILL_SIGNING_KEY_HEX must contain exactly one 32-byte hexadecimal signing seed")]
     SigningKey,
     #[error("public key must contain exactly 32 hexadecimal bytes")]
@@ -92,10 +116,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
             let model: serde_json::Value = serde_json::from_slice(&fs::read(model)?)?;
             let signing_key = signing_key_from_environment()?;
             let bytes = build_signed_model_pack(&manifest, &model, &signing_key)?;
-            if let Some(parent) = output.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(output, bytes)?;
+            write_output(&output, &bytes)?;
             Ok(())
         }
         Command::Verify {
@@ -111,13 +132,43 @@ fn run(cli: Cli) -> Result<(), CliError> {
             println!("{}", serde_json::to_string_pretty(&inspection)?);
             Ok(())
         }
+        Command::CreateHandler {
+            manifest,
+            module,
+            output,
+        } => {
+            let manifest: HandlerPackManifest = serde_json::from_slice(&fs::read(manifest)?)?;
+            let module = fs::read(&module)?;
+            // Verify the manifest's module digest matches the actual module.
+            let actual_digest = hex::encode(Sha256::digest(&module));
+            if actual_digest != manifest.module_sha256 {
+                eprintln!(
+                    "rill-pack: manifest moduleSha256 does not match the actual module digest"
+                );
+                std::process::exit(1);
+            }
+            let signing_key = signing_key_from_environment()?;
+            let bytes = build_signed_handler_pack(&manifest, &module, &signing_key)?;
+            write_output(&output, &bytes)?;
+            Ok(())
+        }
+        Command::InspectHandler {
+            handler,
+            key_id,
+            public_key_hex,
+        } => {
+            let public_key = decode_32(&public_key_hex).ok_or(CliError::PublicKey)?;
+            let public_key =
+                VerifyingKey::from_bytes(&public_key).map_err(|_| CliError::PublicKey)?;
+            let trust = TrustStore([(key_id, public_key)].into_iter().collect());
+            let (_, inspection) = load_handler_pack(fs::File::open(handler)?, &trust)?;
+            println!("{}", serde_json::to_string_pretty(&inspection)?);
+            Ok(())
+        }
         Command::SignIndex { payload, output } => {
             let payload: ReleaseIndexPayload = serde_json::from_slice(&fs::read(payload)?)?;
             let index = sign_release_index(payload, &signing_key_from_environment()?)?;
-            if let Some(parent) = output.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(output, serde_json::to_vec_pretty(&index)?)?;
+            write_output(&output, &serde_json::to_vec_pretty(&index)?)?;
             Ok(())
         }
         Command::VerifyIndex {
@@ -135,6 +186,14 @@ fn run(cli: Cli) -> Result<(), CliError> {
             Ok(())
         }
     }
+}
+
+fn write_output(output: &PathBuf, bytes: &[u8]) -> Result<(), CliError> {
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(output, bytes)?;
+    Ok(())
 }
 
 fn signing_key_from_environment() -> Result<SigningKey, CliError> {

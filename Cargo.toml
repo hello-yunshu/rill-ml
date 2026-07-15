@@ -1,6 +1,6 @@
 [package]
 name = "rill-ml"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
@@ -15,6 +15,7 @@ exclude = [".github/"]
 [workspace]
 resolver = "3"
 members = [
+    "crates/rill-handler-api",
     "crates/rill-runtime-protocol",
     "crates/rill-runtime",
     "crates/rill-ml-tokio",
@@ -24,9 +25,12 @@ members = [
     "crates/rill-ml-wasm",
     "crates/rill-ml-python",
 ]
+exclude = [
+    "handlers/echo-handler",
+]
 
 [workspace.package]
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
@@ -50,14 +54,16 @@ js-sys = "0.3"
 getrandom = { version = "0.2", features = ["js"] }
 pyo3 = { version = "0.29", features = ["extension-module"] }
 clap = { version = "4.5", features = ["derive"] }
+wasmtime = { version = "27", default-features = false, features = ["cranelift", "component-model", "runtime", "parallel-compilation"] }
 
 [features]
-default = []
+default = ["bandit"]
+bandit = ["dep:rand"]
 serde = ["dep:serde"]
 
 [dependencies]
 thiserror = "1.0"
-rand = "0.8"
+rand = { version = "0.8", optional = true }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 
 [dev-dependencies]

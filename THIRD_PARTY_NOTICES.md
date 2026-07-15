@@ -69,7 +69,12 @@ RillML is original Rust code written for this project.
 
 ## Dependencies
 
-RillML's runtime dependencies (linked into downstream users' binaries) are:
+RillML is published as multiple crates. Each crate section below lists only the
+dependencies that crate links into its own release artefact. Workspace-internal
+crates (`rill-ml`, `rill-handler-api`, `rill-runtime-protocol`,
+`rill-runtime`) are not repeated as third-party dependencies.
+
+### `rill-ml` runtime dependencies
 
 | Crate           | Version range | License        | Required by          |
 | --------------- | ------------- | -------------- | -------------------- |
@@ -89,9 +94,77 @@ linked into releases of `rill-ml`):
 | `serde_json`   | MIT OR Apache-2.0 | JSON (de)serialization in tests |
 | `criterion`    | MIT OR Apache-2.0 | benchmarks                      |
 
-All listed crates are compatible with RillML's MIT license. If
-a future contribution introduces a dependency under a different license, it
-must be vetted for compatibility and listed here.
+### `rill-handler-api` runtime dependencies
+
+`rill-handler-api` has no third-party runtime dependencies. It only re-exports
+the WIT handler ABI constant (`HANDLER_API_VERSION`) and the canonical WIT
+world path. Handler authors compile their guest components against the WIT file
+directly using `wit-bindgen`; the host uses `wasmtime::component::bindgen!` to
+generate bindings from the same file.
+
+### `rill-runtime-protocol` runtime dependencies
+
+| Crate           | Version range | License        | Required by          |
+| --------------- | ------------- | -------------- | -------------------- |
+| `serde`         | ^1            | MIT OR Apache-2.0 | IPC and manifest (de)serialization |
+| `serde_json`    | ^1            | MIT OR Apache-2.0 | JSON IPC wire format |
+
+### `rill-runtime` runtime dependencies (default features)
+
+| Crate              | Version range | License        | Required by          |
+| ------------------ | ------------- | -------------- | -------------------- |
+| `clap`             | ^4.5          | MIT OR Apache-2.0 | `rill-runtime` and `rill-pack` CLI argument parsing |
+| `ed25519-dalek`    | 3.0.0         | BSD-3-Clause     | Ed25519 signature verification for model and handler packs |
+| `hex`              | ^0.4          | MIT OR Apache-2.0 | hex encoding/decoding of public keys and digests |
+| `semver`           | ^1.0          | MIT OR Apache-2.0 | manifest version parsing and compatibility checks |
+| `serde`            | ^1            | MIT OR Apache-2.0 | manifest and archive (de)serialization |
+| `serde_json`       | ^1            | MIT OR Apache-2.0 | canonical JSON for manifest and checksums |
+| `sha2`             | ^0.10         | MIT OR Apache-2.0 | SHA-256 digests for pack contents |
+| `thiserror`        | ^1            | MIT OR Apache-2.0 | error enums for pack and runtime |
+| `zip`              | ^2.2          | MIT              | read/write `.rillpack` and `.rillhandler` ZIP archives |
+
+Dev-dependencies (used only for tests; **not** linked into releases of
+`rill-runtime`):
+
+| Crate          | License          | Purpose                          |
+| -------------- | ---------------- | -------------------------------- |
+| `tempfile`     | MIT OR Apache-2.0 | temporary pack files in tests    |
+
+### `rill-runtime` optional dependencies (`wasm` feature)
+
+The `wasm` feature is opt-in. Default builds of `rill-runtime` do not pull in
+Wasmtime and cannot load `.rillhandler` packs. When the feature is enabled:
+
+| Crate              | Version range | License        | Required by          |
+| ------------------ | ------------- | -------------- | -------------------- |
+| `wasmtime`         | ^27           | Apache-2.0 WITH LLVM-exception | sandboxed WASM component execution |
+
+Wasmtime's `Apache-2.0 WITH LLVM-exception` license is compatible with
+RillML's MIT license for both distribution and static/dynamic linking. The
+`LLVM-exception` is an additional permission that further relaxes the Apache
+default, so it does not impose additional obligations on RillML consumers
+beyond what Apache-2.0 already requires. Wasmtime is configured with the
+minimal feature set (`cranelift`, `component-model`, `runtime`,
+`parallel-compilation`); the default feature set is explicitly disabled to
+avoid pulling in WASI and other unused subsystems.
+
+### License compatibility notes
+
+- `ed25519-dalek` 3.x is distributed under the BSD-3-Clause License. BSD-3-Clause
+  is permissive and compatible with RillML's MIT license; downstream users may
+  redistribute combined works under MIT while honouring the BSD-3-Clause
+  attribution and disclaimer clauses.
+- `wasmtime` is distributed under the Apache-2.0 License with the LLVM
+  exception. The LLVM exception explicitly permits static and dynamic linking
+  with code under other licenses (including permissive licenses such as MIT)
+  without copyleft-style obligations. RillML's use of Wasmtime as an optional
+  dependency behind the `wasm` feature does not change the licensing of the
+  core `rill-ml`, `rill-handler-api`, or `rill-runtime-protocol` crates.
+- `zip` is distributed under the MIT License.
+
+All listed crates are compatible with RillML's MIT license. If a future
+contribution introduces a dependency under a different license, it must be
+vetted for compatibility and listed here.
 
 ## Bundled assets
 

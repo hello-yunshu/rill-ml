@@ -16,12 +16,12 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_name:
             temp = pathlib.Path(temp_name)
             model = temp / "model.rillpack"
-            model.write_bytes(b"signed-model-v0.6.0")
+            model.write_bytes(b"signed-model-v0.7.0")
             runtime = {
                 "kind": "runtime",
                 "id": "rill-runtime",
                 "version": "0.5.0",
-                "runtimeApiVersion": 1,
+                "runtimeApiVersion": 2,
                 "targetOs": "macos",
                 "targetArch": "aarch64",
                 "url": "https://example.invalid/runtime",
@@ -30,7 +30,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             }
             current = {
                 "payload": {
-                    "schemaVersion": 1,
+                    "schemaVersion": 2,
                     "channel": "stable",
                     "generatedAt": "2026-07-13T00:00:00Z",
                     "publisherKeyId": PUBLISHER,
@@ -40,7 +40,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                             "kind": "model",
                             "id": "rillml.example.default",
                             "version": "0.5.0",
-                            "runtimeApiVersion": 1,
+                            "runtimeApiVersion": 2,
                             "url": "https://example.invalid/model-0.5.0",
                             "sha256": "11" * 32,
                             "size": 1,
@@ -53,7 +53,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             current_path.write_text(json.dumps(current), encoding="utf-8")
             output = temp / "next-payload.json"
 
-            advanced = self.run_model_update(current_path, model, "0.6.0", output)
+            advanced = self.run_model_update(current_path, model, "0.7.0", output)
             self.assertEqual(advanced.returncode, 0, advanced.stderr)
             payload = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(
@@ -63,7 +63,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             next_model = next(
                 item for item in payload["artifacts"] if item["kind"] == "model"
             )
-            self.assertEqual(next_model["version"], "0.6.0")
+            self.assertEqual(next_model["version"], "0.7.0")
             self.assertEqual(
                 next_model["sha256"], hashlib.sha256(model.read_bytes()).hexdigest()
             )
@@ -77,7 +77,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
     def test_runtime_release_preserves_a_newer_model(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp = pathlib.Path(temp_name)
-            version = "0.6.0"
+            version = "0.7.0"
             for name in (
                 f"rill-runtime-{version}-linux-x86_64",
                 f"rill-runtime-{version}-macos-x86_64",
@@ -89,7 +89,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 "kind": "model",
                 "id": "rillml.example.default",
                 "version": "0.8.0",
-                "runtimeApiVersion": 1,
+                "runtimeApiVersion": 2,
                 "url": "https://example.invalid/model-0.8.0",
                 "sha256": "22" * 32,
                 "size": 2,
@@ -146,7 +146,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
     def test_verify_release_assets_accepts_matching_files_and_rejects_tampering(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp = pathlib.Path(temp_name)
-            version = "0.6.0"
+            version = "0.7.0"
             runtime = temp / f"rill-runtime-{version}-linux-x86_64"
             model = temp / f"example-default-{version}.rillpack"
             runtime.write_bytes(b"runtime")

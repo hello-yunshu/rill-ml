@@ -22,7 +22,7 @@
 
 RillML provides incremental learning primitives that can be embedded directly in native Rust applications: online statistics, preprocessors, linear/logistic regression, evaluation metrics, pipelines, progressive evaluation, and optional serde-based state persistence.
 
-The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, and signed `.rillpack` model packages. Hosts can compile only the protocol crate and update the runtime and models independently from the main application. See [`RUNTIME.md`](RUNTIME.md) for the product and release boundary.
+The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, signed `.rillpack` model packages, and signed `.rillhandler` WASM handler packages. As of v0.7, the runtime loads signature-verified WASM handlers in a sandbox; updating a handler no longer requires recompiling the runtime binary. Hosts can compile only the protocol crate and update the runtime, models, and handlers independently from the main application. See [`RUNTIME.md`](RUNTIME.md) for the product and release boundary.
 
 > RillML is inspired by the online-learning workflow popularized by [River](https://riverml.xyz/). It is an independent Rust project and is not affiliated with or endorsed by River. It does not currently aim for API or model compatibility.
 
@@ -54,14 +54,14 @@ RillML implements this workflow in pure, safe Rust with bounded memory.
 
 ```toml
 [dependencies]
-rill-ml = "0.6"
+rill-ml = "0.7"
 ```
 
 For serialization support, enable the `serde` feature:
 
 ```toml
 [dependencies]
-rill-ml = { version = "0.6", features = ["serde"] }
+rill-ml = { version = "0.7", features = ["serde"] }
 ```
 
 **Requirements:** Rust 1.85+ (Edition 2024), no nightly needed.
@@ -166,7 +166,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 `Snapshot<T>` wraps model state with a format version and rejects incompatible versions. For untrusted snapshots or application-specific model constraints, use `into_model_with_validation()` to validate restored state before activation. See [`RELIABILITY.md`](RELIABILITY.md) for the complete production integration and fallback guidance.
 
-## Module overview (v0.6)
+## Module overview (v0.7)
 
 | Category | Modules |
 |---|---|
@@ -187,9 +187,9 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 **Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count; drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
 
-## Ecosystem and platform extensions (v0.6)
+## Ecosystem and platform extensions (v0.7)
 
-v0.6 adds five independently publishable crates under `crates/`. They depend on `rill-ml` without changing its public API. The core library does not pull in `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3` by default.
+v0.6 adds five independently publishable crates; v0.7 adds `rill-handler-api`. They live under `crates/` and depend on `rill-ml` without changing its public API. The core library does not pull in `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3` by default.
 
 | Crate | Description | Install |
 |---|---|---|
@@ -199,6 +199,9 @@ v0.6 adds five independently publishable crates under `crates/`. They depend on 
 | `rillml-inspect` | CLI to view `Snapshot` JSON, version, and validation status (not a runtime dependency) | `cargo install rillml-inspect` |
 | `rill-ml-wasm` | WebAssembly bindings (`wasm32-unknown-unknown`) for browser-side online learning | `cargo add rill-ml-wasm` |
 | `rill-ml-python` | Python bindings (PyO3 + Maturin); PyPI package `rill-ml-python`, `import rill_ml` | `pip install rill-ml-python` |
+| `rill-handler-api` | Versioned WIT handler ABI contract (for handler authors) | `cargo add rill-handler-api` |
+| `rill-runtime-protocol` | Stable, strict, versioned JSON IPC types | `cargo add rill-runtime-protocol` |
+| `rill-runtime` | Standalone executable runtime that loads signed model and handler packs | `cargo install rill-runtime` |
 
 ## Roadmap
 
@@ -209,7 +212,8 @@ RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for th
 - **v0.3** — Sparse features and high-dimensional data: FeatureHasher, FTRL, Naive Bayes.
 - **v0.4** — Drift detection: Page-Hinkley, ADWIN, KSWIN, adaptive learning.
 - **v0.5** — Online decision-making: multi-armed bandits, contextual bandits.
-- **v0.6** — Platform and ecosystem: WASM, Python bindings, Tokio Stream adapters. *(current)*
+- **v0.6** — Platform and ecosystem: WASM, Python bindings, Tokio Stream adapters.
+- **v0.7** — Pluggable WASM handlers: signed `.rillhandler` packs, Wasmtime sandbox, IPC v2. *(current)*
 - **v1.0** — Stable API and state format.
 
 ## Correctness and validation

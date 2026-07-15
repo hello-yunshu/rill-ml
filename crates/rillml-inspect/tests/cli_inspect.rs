@@ -12,7 +12,7 @@ fn version_outputs_version() {
     let output = bin().arg("version").output().unwrap();
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("rill-ml: 0.6.0"));
+    assert!(stdout.contains("rill-ml: 0.7.0"));
     assert!(stdout.contains("snapshot_format_version: 1"));
 }
 
