@@ -1,6 +1,6 @@
 [package]
 name = "echo-handler"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 publish = false
 description = "Business-neutral echo handler for Rill runtime — returns input as output."

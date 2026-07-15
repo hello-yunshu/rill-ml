@@ -2886,11 +2886,11 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rill-handler-api"
-version = "0.7.0"
+version = "0.7.1"
 
 [[package]]
 name = "rill-ml"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "approx",
  "criterion",
@@ -2904,7 +2904,7 @@ dependencies = [
 
 [[package]]
 name = "rill-ml-arrow"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "arrow",
  "rill-ml",
@@ -2913,7 +2913,7 @@ dependencies = [
 
 [[package]]
 name = "rill-ml-polars"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "polars",
  "rill-ml",
@@ -2922,7 +2922,7 @@ dependencies = [
 
 [[package]]
 name = "rill-ml-python"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "pyo3",
  "rill-ml",
@@ -2932,7 +2932,7 @@ dependencies = [
 
 [[package]]
 name = "rill-ml-tokio"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "futures",
  "rill-ml",
@@ -2942,7 +2942,7 @@ dependencies = [
 
 [[package]]
 name = "rill-ml-wasm"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "getrandom 0.2.17",
  "js-sys",
@@ -2955,7 +2955,7 @@ dependencies = [
 
 [[package]]
 name = "rill-runtime"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "clap",
  "ed25519-dalek",
@@ -2975,7 +2975,7 @@ dependencies = [
 
 [[package]]
 name = "rill-runtime-protocol"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2983,7 +2983,7 @@ dependencies = [
 
 [[package]]
 name = "rillml-inspect"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "clap",
  "rill-ml",
