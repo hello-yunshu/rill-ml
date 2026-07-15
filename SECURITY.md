@@ -7,8 +7,8 @@ minor release receives security fixes. There is no separate LTS branch.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.5.x   | :white_check_mark: |
-| < 0.5   | :x:                |
+| 0.7.x   | :white_check_mark: |
+| < 0.7   | :x:                |
 
 Once RillML reaches `1.0`, a more detailed support table will be published
 here.
@@ -104,6 +104,48 @@ generation, or any security-critical randomness.
 RillML runs in the host process. It is not sandboxed. If you execute untrusted
 example code or load untrained models from third parties, do so in a sandbox
 appropriate to your platform.
+
+### 6. Untrusted WASM handlers (rill-runtime 0.7+)
+
+`rill-runtime` with the `wasm` feature loads signed `.rillhandler` WASM
+components. The sandbox is designed to minimise trust in handler code:
+
+- **Signature before instantiation.** The handler pack's manifest, checksums,
+  and Ed25519 signature are verified before any WASM byte is compiled. An
+  unsigned or tampered pack is rejected at load time.
+- **Trust domain separation.** Handler trust keys are independent of model
+  trust keys. A model publisher key cannot authorise a handler, and vice
+  versa.
+- **Capability intersection.** Effective capabilities are the intersection of
+  model manifest and handler manifest capabilities. The handler cannot
+  advertise capabilities the model did not declare. The runtime rejects any
+  `Invoke` request whose capability is not in the effective set.
+- **Metadata consistency.** The guest's `metadata()` return value must match
+  the signed manifest exactly (id, version, API version, capabilities). A
+  mismatch causes load failure.
+- **Wasmtime sandbox.** Handlers execute inside a Wasmtime component sandbox
+  with: no WASI imports (no filesystem, network, environment, stdio, or
+  process access), per-call fuel budget, epoch interruption for wall-clock
+  timeout, memory growth capped at 64 MiB, table growth capped at 10 000
+  elements, and I/O JSON capped at 1 MiB.
+- **Error containment.** Handler traps, timeouts, and invalid outputs are
+  mapped to stable IPC error codes (`handlerTrap`, `handlerTimeout`,
+  `handlerOutputTooLarge`, `handlerInvalidOutput`). The runtime process
+  remains healthy after a handler failure and can continue serving requests.
+- **No host path leakage.** Error messages returned to the IPC client do not
+  include host filesystem paths, backtraces, or internal runtime state.
+
+**Limitations to be aware of:**
+
+- The `wasm` feature is opt-in. Default builds of `rill-runtime` do not
+  include Wasmtime and cannot load `.rillhandler` packs.
+- Wasmtime bug or misconfiguration could theoretically compromise the
+  sandbox. Keep Wasmtime updated and monitor upstream security advisories.
+- The fuel and epoch limits are best-effort; a handler that finds a
+  sandbox escape in Wasmtime could bypass them. This is a trusted-platform
+  assumption, not a guarantee against zero-day exploits.
+- Handlers are loaded at startup and run for the lifetime of the process.
+  Hot replacement is not supported in 0.7.
 
 ## Dependency policy
 
