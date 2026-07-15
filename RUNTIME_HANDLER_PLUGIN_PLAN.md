@@ -40,7 +40,7 @@ RillML 0.6.0 已经具备以下可复用基础：
 | 签名 `.rillpack` | `crates/rill-runtime/src/package.rs` | 可复用固定文件集、哈希、签名和 trust store 设计 |
 | 严格逐行 JSON IPC | `crates/rill-runtime/src/bin/rill-runtime.rs` | 已有消息大小、API 版本和字段约束 |
 | 真实进程边界测试 | `crates/rill-runtime/tests/runtime_process.rs` | 可扩展为真实 WASM handler 测试 |
-| 多平台 runtime 发布 | `.github/workflows/release.yml` | 已覆盖 Linux、Windows、Intel/Apple Silicon macOS |
+| 多平台 runtime 发布 | `.github/workflows/pipeline.yml` | 已覆盖 Linux、Windows、Intel/Apple Silicon macOS |
 
 ### 2.2 当前尚未插件化的部分
 
@@ -454,8 +454,7 @@ Rill 只负责定义、签名和验证这些产物及兼容信息。选择更新
 | `crates/rill-runtime/src/bin/rill-pack.rs` | handler 打包/检查命令 |
 | `crates/rill-runtime/tests/` | 包安全、沙箱和真实进程集成测试 |
 | `scripts/` | release index 和资产验证支持 Handler |
-| `.github/workflows/ci.yml` | guest、沙箱、MSRV 和跨平台测试 |
-| `.github/workflows/release.yml` | handler SDK 与 example handler 发布 |
+| `.github/workflows/pipeline.yml` | guest、沙箱、MSRV、跨平台测试与 handler SDK/example handler 发布 |
 | `RUNTIME.md` | 正式运行与消费契约 |
 | `SECURITY.md` | 不可信 handler 威胁模型与响应策略 |
 
