@@ -329,11 +329,11 @@ mod tests {
         let mut drift_recorded = false;
         for _ in 0..100 {
             aware.learn(&[], 50.0).unwrap();
-            if let Some(last) = aware.events().last() {
-                if last.level == DriftLevel::Drift {
-                    drift_recorded = true;
-                    break;
-                }
+            if let Some(last) = aware.events().last()
+                && last.level == DriftLevel::Drift
+            {
+                drift_recorded = true;
+                break;
             }
         }
         assert!(drift_recorded, "a drift event should have been recorded");
@@ -357,11 +357,11 @@ mod tests {
         let mut seen_action = false;
         for _ in 0..200 {
             aware.learn(&[], 100.0).unwrap();
-            if let Some(action) = aware.last_action() {
-                if action == DriftAction::ReplaceWithBaseline {
-                    seen_action = true;
-                    break;
-                }
+            if let Some(action) = aware.last_action()
+                && action == DriftAction::ReplaceWithBaseline
+            {
+                seen_action = true;
+                break;
             }
         }
         assert!(
@@ -384,11 +384,11 @@ mod tests {
         let mut seen_action = false;
         for _ in 0..200 {
             aware.learn(&[], 100.0).unwrap();
-            if let Some(action) = aware.last_action() {
-                if action == DriftAction::IncreaseAdaptationRate {
-                    seen_action = true;
-                    break;
-                }
+            if let Some(action) = aware.last_action()
+                && action == DriftAction::IncreaseAdaptationRate
+            {
+                seen_action = true;
+                break;
             }
         }
         assert!(

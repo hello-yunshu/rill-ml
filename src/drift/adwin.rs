@@ -236,10 +236,10 @@ impl DriftDetector for Adwin {
         self.window.push_back(value);
         self.total += value;
         // Enforce the max window size by dropping the oldest element.
-        if self.window.len() > self.config.max_window {
-            if let Some(v) = self.window.pop_front() {
-                self.total -= v;
-            }
+        if self.window.len() > self.config.max_window
+            && let Some(v) = self.window.pop_front()
+        {
+            self.total -= v;
         }
         // Gate detection by minimum samples.
         if self.samples < self.config.min_samples || self.window.len() < 2 {

@@ -11,7 +11,7 @@
   <a href="https://crates.io/crates/rill-ml"><img src="https://img.shields.io/crates/v/rill-ml.svg" alt="crates.io"></a>
   <a href="https://docs.rs/rill-ml"><img src="https://docs.rs/rill-ml/badge.svg" alt="docs.rs"></a>
   <a href="LICENSE-MIT"><img src="https://img.shields.io/crates/l/rill-ml.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/rust-1.85%2B-orange.svg" alt="Rust 1.85+">
+  <img src="https://img.shields.io/badge/rust-1.94%2B-orange.svg" alt="Rust 1.94+">
 </p>
 
 <p align="center">
@@ -64,7 +64,7 @@ rill-ml = "0.7"
 rill-ml = { version = "0.7", features = ["serde"] }
 ```
 
-**环境要求：** Rust 1.85+（Edition 2024），无需 nightly。
+**环境要求：** Rust 1.94+（Edition 2024），无需 nightly。
 
 ## 快速开始
 
