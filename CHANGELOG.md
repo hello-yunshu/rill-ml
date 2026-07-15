@@ -15,6 +15,104 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-15
+
+### Added — Pluggable WASM handler architecture
+
+v0.7 transforms `rill-runtime` into a business-neutral general runtime that
+loads signed WASM handler components. Handlers implement specific capabilities
+via the WebAssembly Component Model; updating a handler no longer requires
+recompiling or replacing the `rill-runtime` binary.
+
+- **`rill-handler-api`** (`crates/rill-handler-api`): new crate defining the
+  versioned WIT handler contract (`invoke-handler` world). Exports
+  `HANDLER_API_VERSION = 1`. Handler authors depend on this crate for the
+  canonical ABI; the runtime uses it for host-side bindings.
+- **Handler package format** (`.rillhandler`): signed ZIP archive containing
+  `manifest.json`, `handler.wasm`, `checksums.json`, and
+  `META-INF/signature.ed25519`. Manifest declares handler id, version,
+  handler API version, minimum runtime version, capabilities, and module
+  SHA-256. Trust domain is separated from model packs — a model key cannot
+  authorise a handler.
+- **`rill-runtime::handler`** module: shared handler types
+  (`HandlerIdentity`, `HandlerLoadError`), `effective_capabilities()`
+  (intersection of model and handler capabilities), built-in
+  `LinearRegressionInvokeHandler` (moved from `server.rs`), and
+  `WasmInvokeHandler` (behind the `wasm` feature).
+- **`WasmInvokeHandler`** (`crates/rill-runtime/src/handler/wasm.rs`):
+  sandboxed WASM host adapter using Wasmtime 27. Enforces fuel budget,
+  epoch interruption, memory/table limits, and I/O size caps. No WASI
+  imports (no filesystem, network, environment, stdio, or process access).
+  Verifies guest `metadata()` matches signed manifest before
+  instantiation. Maps traps and timeouts to stable error codes.
+- **IPC API v2**: `RUNTIME_API_VERSION` raised to 2. V2 handshake includes
+  `handlerId`, `handlerVersion`, `handlerApiVersion`, and
+  `effectiveCapabilities`. V1 responses omit handler fields entirely — the
+  two wire schemas are separate types, not a single struct with `Option`
+  fields. The runtime serves both v1 and v2 clients based on the request's
+  `apiVersion`.
+- **`EngineResponse`** internal type: captures all response data including
+  handler identity; converted to `RuntimeResponse` (v1) or
+  `RuntimeResponseV2` (v2) at the IPC boundary.
+- **CLI handler options**: `rill-runtime serve` accepts `--handler
+  <path.rillhandler>`, `--handler-trust-key KEY=HEX`, and
+  `--builtin-handler linear-regression`. `--handler` and `--builtin-handler`
+  are mutually exclusive. Default behaviour (no handler specified) falls
+  back to built-in linear-regression with a deprecation warning.
+- **`rill-pack` handler commands**: `create-handler --manifest
+  handler-manifest.json --module handler.wasm --output example.rillhandler`
+  and `inspect-handler --handler example.rillhandler --key-id KEY --public-key-hex HEX`.
+- **Release index schema v2**: `RELEASE_INDEX_SCHEMA_VERSION` raised to 2.
+  `ReleaseArtifactKind` gains a `Handler` variant (platform-independent,
+  requires `handlerApiVersion` and `minRuntimeVersion`, no OS/arch fields).
+  `build-release-index.py` supports `--handler-id`, `--handler-version`,
+  and `--handler-min-runtime` arguments.
+- **Shared archive skeleton** (`crates/rill-runtime/src/archive.rs`):
+  common ZIP path validation, size limits, checksum verification, and
+  Ed25519 signature logic extracted from `package.rs`. Both model and
+  handler packs use the same safe-archive foundation with independent
+  manifests and error types.
+- **CI MSRV expansion**: MSRV 1.85 check now covers `rill-handler-api`,
+  `rill-runtime-protocol`, and `rill-runtime` (default features). The
+  `wasm` feature is tested on stable Rust across Linux, Windows, and
+  macOS.
+
+### Changed
+
+- `models/example-default/manifest.json`: `runtimeApiVersion` 1 → 2,
+  `minRuntimeVersion` 0.6.0 → 0.7.0, version 0.6.0 → 0.7.0.
+- `LinearRegressionInvokeHandler` moved from `server.rs` to
+  `handler/builtin.rs`; `LINEAR_REGRESSION_CAPABILITY` re-exported from
+  crate root.
+- `RuntimeEngine` now holds `handler_identity: Option<HandlerIdentity>`
+  and `effective_capabilities: Vec<String>`. Capability checking uses
+  effective capabilities when a handler is loaded.
+- `scripts/build-release-index.py`: `RUNTIME_API_VERSION` 1 → 2,
+  `RELEASE_INDEX_SCHEMA_VERSION` 1 → 2.
+- `scripts/update-model-release-index.py`: schema and API version bumped
+  to 2.
+- `scripts/verify-release-assets.py`: `*.rillhandler` added to local file
+  discovery glob patterns.
+- Release workflow publishes `rill-handler-api` to crates.io and includes
+  `*.rillhandler` in asset upload/download patterns.
+
+### Compatibility notes
+
+- IPC v1 clients (api_version=1) continue to work; responses omit handler
+  fields. V2 clients receive full handler identity in the handshake.
+- The built-in linear-regression handler remains available via
+  `--builtin-handler linear-regression` and as the default when no handler
+  is specified (with a deprecation warning).
+- `MODEL_PACK_FORMAT_VERSION` remains 1; existing `.rillpack` files are
+  forward-compatible.
+- `HANDLER_PACKAGE_FORMAT_VERSION = 1` and `HANDLER_API_VERSION = 1` are
+  introduced for the first time.
+- The `wasm` feature is opt-in (`--features wasm`); default builds of
+  `rill-runtime` do not pull in Wasmtime.
+- Wasmtime 27 is pinned with minimal features: `cranelift`,
+  `component-model`, `runtime`, `parallel-compilation`. No default
+  feature set is used.
+
 ## [0.6.0] - 2026-07-15
 
 ### Added — Platform and ecosystem expansion
@@ -414,7 +512,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.0
 [0.6.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.6.0
 [0.5.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.5.2
 [0.5.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.5.1

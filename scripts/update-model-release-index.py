@@ -51,14 +51,14 @@ def main() -> None:
             "kind": "model",
             "id": args.model_id,
             "version": args.version,
-            "runtimeApiVersion": 1,
+            "runtimeApiVersion": 2,
             "url": args.url,
             "sha256": hashlib.sha256(content).hexdigest(),
             "size": len(content),
         }
     )
     next_payload = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "channel": "stable",
         "generatedAt": args.generated_at,
         "publisherKeyId": args.publisher_key_id,

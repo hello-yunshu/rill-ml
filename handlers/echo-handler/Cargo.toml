@@ -1,0 +1,18 @@
+[package]
+name = "echo-handler"
+version = "0.7.0"
+edition = "2021"
+publish = false
+description = "Business-neutral echo handler for Rill runtime — returns input as output."
+
+[[bin]]
+name = "echo-handler"
+path = "src/main.rs"
+
+[dependencies]
+wit-bindgen = "0.29"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
