@@ -22,7 +22,7 @@
 
 RillML 提供可直接嵌入 Rust 原生应用的增量学习组件：在线统计、预处理器、线性/逻辑回归、评估指标、Pipeline、渐进式评估，以及基于 serde 的可选状态持久化。
 
-Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定和签名 `.rillpack` 模型包。宿主可以只依赖协议 crate，让 Runtime 与模型脱离主程序单独更新。详见 [`RUNTIME.md`](RUNTIME.md)。
+Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定、签名 `.rillpack` 模型包和签名 `.rillhandler` WASM handler 包。v0.7 起，runtime 在沙箱内加载经过签名验证的 WASM handler，更新 handler 不需要重新编译 runtime 二进制。宿主可以只依赖协议 crate，让 Runtime、模型和 handler 各自独立更新。详见 [`RUNTIME.md`](RUNTIME.md)。
 
 > RillML 受 [River](https://riverml.xyz/) 推广的在线学习工作流启发，是独立的 Rust 项目，与 River 无关联，目前不追求 API 或模型兼容性。
 
@@ -54,14 +54,14 @@ RillML 用纯安全 Rust 实现这一工作流，内存有界。
 
 ```toml
 [dependencies]
-rill-ml = "0.6"
+rill-ml = "0.7"
 ```
 
 需要序列化支持时启用 `serde` feature：
 
 ```toml
 [dependencies]
-rill-ml = { version = "0.6", features = ["serde"] }
+rill-ml = { version = "0.7", features = ["serde"] }
 ```
 
 **环境要求：** Rust 1.85+（Edition 2024），无需 nightly。
@@ -166,7 +166,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 `Snapshot<T>` 使用格式版本号包裹模型状态，并拒绝不兼容的版本。快照来源不可信或模型还有业务约束时，请使用 `into_model_with_validation()` 在启用恢复状态前执行应用级校验。完整的生产接入与故障回退建议见 [`RELIABILITY.md`](RELIABILITY.md)。
 
-## 模块总览（v0.6）
+## 模块总览（v0.7）
 
 | 类别 | 模块 |
 |---|---|
@@ -187,9 +187,9 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 **内存界限：** 非滚动统计量 O(1)；线性模型 O(d)；滚动统计量 O(window_size)；稀疏模型（FTRL）O(k)，k 为已见特征数；漂移检测器 O(1) 或 O(window_size)；LinUCB O(arm_count × d²)。
 
-## 生态与平台扩展（v0.6）
+## 生态与平台扩展（v0.7）
 
-v0.6 新增五个独立可发布的 crate，均位于 `crates/` 下，依赖 `rill-ml` 但不改变核心 API。核心库默认不引入 `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3`。
+v0.6 新增五个独立可发布的 crate，v0.7 新增 `rill-handler-api`。它们均位于 `crates/` 下，依赖 `rill-ml` 但不改变核心 API。核心库默认不引入 `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3`。
 
 | Crate | 说明 | 安装 |
 |---|---|---|
@@ -199,6 +199,9 @@ v0.6 新增五个独立可发布的 crate，均位于 `crates/` 下，依赖 `ri
 | `rillml-inspect` | 查看 `Snapshot` JSON、版本与校验的 CLI（非运行依赖） | `cargo install rillml-inspect` |
 | `rill-ml-wasm` | WebAssembly 绑定（`wasm32-unknown-unknown`），浏览器端在线学习 | `cargo add rill-ml-wasm` |
 | `rill-ml-python` | Python 绑定（PyO3 + Maturin），PyPI 包名 `rill-ml-python`，`import rill_ml` | `pip install rill-ml-python` |
+| `rill-handler-api` | 版本化 WIT handler ABI 契约（handler 作者使用） | `cargo add rill-handler-api` |
+| `rill-runtime-protocol` | 稳定、严格、带版本的 JSON IPC 类型 | `cargo add rill-runtime-protocol` |
+| `rill-runtime` | 加载签名模型包与签名 handler 的独立可执行 runtime | `cargo install rill-runtime` |
 
 ## 路线图
 
@@ -209,7 +212,8 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](
 - **v0.3** — 稀疏特征与高维数据：FeatureHasher、FTRL、朴素贝叶斯。
 - **v0.4** — 漂移检测：Page-Hinkley、ADWIN、KSWIN、自适应学习。
 - **v0.5** — 在线决策：多臂老虎机、上下文老虎机。
-- **v0.6** — 平台与生态：WASM、Python 绑定、Tokio Stream 适配。*（当前）*
+- **v0.6** — 平台与生态：WASM、Python 绑定、Tokio Stream 适配。
+- **v0.7** — 可插拔 WASM handler：签名 `.rillhandler` 包、Wasmtime 沙箱、IPC v2。*（当前）*
 - **v1.0** — 稳定的 API 和状态格式。
 
 ## 正确性与验证

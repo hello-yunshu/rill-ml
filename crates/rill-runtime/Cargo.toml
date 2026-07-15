@@ -19,17 +19,26 @@ path = "src/bin/rill-runtime.rs"
 name = "rill-pack"
 path = "src/bin/rill-pack.rs"
 
+[features]
+default = []
+# Enables the sandboxed WASM InvokeHandler. Requires wasmtime, which raises the
+# effective build-toolchain requirement; the core runtime stays WASM-free when
+# this feature is off.
+wasm = ["dep:wasmtime"]
+
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 ed25519-dalek.workspace = true
 hex.workspace = true
-rill-ml = { version = "0.6.0", path = "../..", features = ["serde"] }
-rill-runtime-protocol = { version = "0.6.0", path = "../rill-runtime-protocol" }
+rill-handler-api = { version = "0.7.0", path = "../rill-handler-api" }
+rill-ml = { version = "0.7.0", path = "../..", features = ["serde"] }
+rill-runtime-protocol = { version = "0.7.0", path = "../rill-runtime-protocol" }
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
+wasmtime = { workspace = true, optional = true }
 zip.workspace = true
 
 [dev-dependencies]

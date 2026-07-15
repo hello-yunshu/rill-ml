@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Polars DataFrame conversion helpers for RillML."
 
 [dependencies]
-rill-ml = { version = "0.6.0", path = "../.." }
+rill-ml = { version = "0.7.0", path = "../.." }
 polars = { workspace = true, features = ["dtype-full"] }
 thiserror = { workspace = true }
 

@@ -17,37 +17,37 @@ class ReleaseVersionTest(unittest.TestCase):
         self.root = pathlib.Path(self.temp_dir.name)
         (self.root / "models/example-default").mkdir(parents=True)
         (self.root / "crates/rill-ml-python").mkdir(parents=True)
-        self.write_sources("0.6.0")
+        self.write_sources("0.7.0")
         self.metadata = {
             "workspace_members": ["root", "runtime", "python"],
             "packages": [
                 {
                     "id": "root",
                     "name": "rill-ml",
-                    "version": "0.6.0",
+                    "version": "0.7.0",
                     "dependencies": [],
                 },
                 {
                     "id": "runtime",
                     "name": "rill-runtime",
-                    "version": "0.6.0",
+                    "version": "0.7.0",
                     "dependencies": [
                         {
                             "name": "rill-ml",
                             "path": str(self.root),
-                            "req": "^0.6.0",
+                            "req": "^0.7.0",
                         }
                     ],
                 },
                 {
                     "id": "python",
                     "name": "rill-ml-python",
-                    "version": "0.6.0",
+                    "version": "0.7.0",
                     "dependencies": [
                         {
                             "name": "rill-ml",
                             "path": str(self.root),
-                            "req": "^0.6.0",
+                            "req": "^0.7.0",
                         }
                     ],
                 },
@@ -72,7 +72,7 @@ class ReleaseVersionTest(unittest.TestCase):
         )
 
     def test_accepts_one_consistent_workspace_version(self) -> None:
-        self.assertEqual(validate_release(self.root, self.metadata), "0.6.0")
+        self.assertEqual(validate_release(self.root, self.metadata), "0.7.0")
 
     def test_rejects_workspace_version_disagreement(self) -> None:
         self.metadata["packages"][1]["version"] = "0.5.2"
@@ -81,7 +81,7 @@ class ReleaseVersionTest(unittest.TestCase):
 
     def test_rejects_stale_local_dependency_requirement(self) -> None:
         self.metadata["packages"][1]["dependencies"][0]["req"] = "^0.5.2"
-        with self.assertRaisesRegex(ValueError, "expected \^0.6.0"):
+        with self.assertRaisesRegex(ValueError, "expected \^0.7.0"):
             validate_release(self.root, self.metadata)
 
     def test_rejects_python_or_model_version_drift(self) -> None:

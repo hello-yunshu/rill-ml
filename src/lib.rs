@@ -48,6 +48,8 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[cfg(feature = "bandit")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bandit")))]
 pub mod bandit;
 pub mod diagnostics;
 pub mod drift;
