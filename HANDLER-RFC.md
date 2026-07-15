@@ -11,11 +11,11 @@
 | 决策项 | 选择 | 理由 |
 |---|---|---|
 | ABI 技术 | WebAssembly Component Model + WIT | 跨平台、沙箱化、语言无关 |
-| Host 运行时 | `wasmtime = "27"` (27.0.0+) | 兼容 Rust 1.85 MSRV（wasmtime 27.x MSRV = 1.80）；27.x 仍受安全维护 |
+| Host 运行时 | `wasmtime = "46"` (46.0.0+) | 兼容 Rust 1.94 MSRV（wasmtime 46.x MSRV = 1.94）；46.x 是最新 stable 版本线 |
 | Host 绑定生成 | `wasmtime::component::bindgen!` 宏 | 内置于 wasmtime，无需额外依赖 |
 | Guest 绑定生成 | `wit-bindgen` (handler 作者自选版本) | rill-handler-api 只提供 WIT，不锁定 guest 工具链 |
 | Guest 编译目标 | `wasm32-unknown-unknown` + `wasm-tools component new` | 无 WASI 依赖，组件最精简 |
-| MSRV 策略 | 核心库 1.85；`wasm` feature 1.85 | wasmtime 27.x MSRV = 1.80 ≤ 1.85 |
+| MSRV 策略 | 核心库 1.94；`wasm` feature 1.94 | wasmtime 46.x MSRV = 1.94 ≤ 1.94 |
 
 ## 2. WIT 世界定义
 

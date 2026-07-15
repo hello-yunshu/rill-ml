@@ -15,6 +15,19 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+### Changed — Security: wasmtime 27 → 46
+
+- Upgrade `wasmtime` from 27 to 46.0.1 (latest stable release track).
+  Wasmtime 27 was not on a supported release line and carried 15 unpatched
+  security advisories, including a Critical (CVSS 9.0) aarch64 sandbox
+  escape (CVE-2026-34971, RUSTSEC-2026-0096). Wasmtime 46 is the current
+  stable release track with all known advisories resolved.
+- Bump workspace MSRV from 1.85 to 1.94 (wasmtime 46 requires Rust 1.94).
+  Updated CI MSRV check, README, CONTRIBUTING, HANDLER-RFC, and
+  THIRD_PARTY_NOTICES accordingly.
+- No API changes required: the `rill-runtime` handler host code is
+  source-compatible with wasmtime 46.
+
 ## [0.7.0] - 2026-07-15
 
 ### Added — Pluggable WASM handler architecture

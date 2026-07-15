@@ -48,7 +48,7 @@ Every contribution must respect:
 
 Requirements:
 
-- Rust 1.85.0 or newer (MSRV is pinned to 1.85 for the `rill-ml` core crate).
+- Rust 1.94.0 or newer (MSRV is pinned to 1.94 for the `rill-ml` core crate).
   Ecosystem crates under `crates/` (`rill-ml-polars`, `rill-ml-python`,
   `rill-ml-arrow`) require the stable toolchain due to transitive dependencies.
 - `cargo`, `rustfmt`, `clippy` from the stable toolchain.

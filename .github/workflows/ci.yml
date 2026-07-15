@@ -69,28 +69,28 @@ jobs:
         run: cargo test --locked --workspace --doc --all-features --exclude rill-ml-python
 
   msrv:
-    name: MSRV (1.85) lib check
+    name: MSRV (1.94) lib check
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.85.0
+      - name: Install Rust 1.94.0
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.85.0
+          toolchain: 1.94.0
       - uses: Swatinem/rust-cache@v2
-      - name: cargo +1.85 check rill-ml --lib
-        run: cargo +1.85.0 check --locked --lib
-      - name: cargo +1.85 check rill-ml --lib --features serde
-        run: cargo +1.85.0 check --locked --lib --features serde
-      - name: cargo +1.85 check rill-handler-api
-        run: cargo +1.85.0 check --locked -p rill-handler-api
-      - name: cargo +1.85 check rill-runtime-protocol
-        run: cargo +1.85.0 check --locked -p rill-runtime-protocol
-      - name: cargo +1.85 check rill-runtime (default features)
-        run: cargo +1.85.0 check --locked -p rill-runtime
-      - name: cargo +1.85 check rill-runtime (wasm feature)
-        run: cargo +1.85.0 check --locked -p rill-runtime --features wasm
+      - name: cargo +1.94 check rill-ml --lib
+        run: cargo +1.94.0 check --locked --lib
+      - name: cargo +1.94 check rill-ml --lib --features serde
+        run: cargo +1.94.0 check --locked --lib --features serde
+      - name: cargo +1.94 check rill-handler-api
+        run: cargo +1.94.0 check --locked -p rill-handler-api
+      - name: cargo +1.94 check rill-runtime-protocol
+        run: cargo +1.94.0 check --locked -p rill-runtime-protocol
+      - name: cargo +1.94 check rill-runtime (default features)
+        run: cargo +1.94.0 check --locked -p rill-runtime
+      - name: cargo +1.94 check rill-runtime (wasm feature)
+        run: cargo +1.94.0 check --locked -p rill-runtime --features wasm
 
   doc:
     name: cargo doc

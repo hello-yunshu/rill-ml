@@ -37,15 +37,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         rolling_mean.update(temp)?;
         rolling_var.update(temp)?;
 
-        if let (Some(mean), Some(std)) = (rolling_mean.value(), rolling_var.std_dev()) {
-            if std > 1e-9 {
-                let z = (temp - mean).abs() / std;
-                if z > 3.0 && rolling_mean.len() >= window {
-                    anomalies += 1;
-                    println!(
-                        "  [t={i:3}] ANOMALY: temp={temp:.2}°C, mean={mean:.2}, std={std:.3}, z={z:.2}"
-                    );
-                }
+        if let (Some(mean), Some(std)) = (rolling_mean.value(), rolling_var.std_dev())
+            && std > 1e-9
+        {
+            let z = (temp - mean).abs() / std;
+            if z > 3.0 && rolling_mean.len() >= window {
+                anomalies += 1;
+                println!(
+                    "  [t={i:3}] ANOMALY: temp={temp:.2}°C, mean={mean:.2}, std={std:.3}, z={z:.2}"
+                );
             }
         }
     }
