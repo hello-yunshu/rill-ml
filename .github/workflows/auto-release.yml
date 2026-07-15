@@ -2,7 +2,7 @@ name: Auto Release
 
 on:
   workflow_run:
-    workflows: [CI]
+    workflows: [CI / Release]
     types: [completed]
     branches: [main]
 
@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          runs="$(gh run list --workflow release.yml --limit 50 --json displayTitle,status,conclusion)"
+          runs="$(gh run list --workflow pipeline.yml --limit 50 --json displayTitle,status,conclusion)"
           active="$(jq --arg title "Release $TAG" '[.[] | select(.displayTitle == $title and .status != "completed")] | length' <<<"$runs")"
           successful="$(jq --arg title "Release $TAG" '[.[] | select(.displayTitle == $title and .conclusion == "success")] | length' <<<"$runs")"
 
@@ -111,4 +111,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
-        run: gh workflow run release.yml --ref main -f tag="$TAG"
+        run: gh workflow run pipeline.yml --ref main -f tag="$TAG"

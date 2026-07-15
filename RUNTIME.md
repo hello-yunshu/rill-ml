@@ -112,7 +112,7 @@ cargo run -p rill-runtime --bin rill-pack -- inspect-handler \
 
 ## 正式发布
 
-`.github/workflows/release.yml` 在 `vX.Y.Z` 标签上执行完整的发布流程：
+`.github/workflows/pipeline.yml` 在 `workflow_dispatch`（由 `Auto Release` 在 `vX.Y.Z` 标签上触发）时执行完整的发布流程：
 
 1. `cargo package --dry-run` 验证 crate 可发布；
 2. 为 Linux、Windows、Intel macOS 和 Apple Silicon macOS 编译 `rill-runtime` 二进制；
