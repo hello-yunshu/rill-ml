@@ -542,7 +542,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.1
 [0.7.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.0
 [0.6.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.6.0
 [0.5.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.5.2
