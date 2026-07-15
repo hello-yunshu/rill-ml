@@ -1,0 +1,118 @@
+name: Auto Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: auto-release-main
+  cancel-in-progress: false
+
+jobs:
+  tag-and-dispatch:
+    name: Tag and dispatch release
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Confirm the successful CI commit is still main
+        id: freshness
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$current_sha" != "$EXPECTED_SHA" ]; then
+            echo "Skipping stale CI result for $EXPECTED_SHA; main is now $current_sha"
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.freshness.outputs.current == 'true'
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.freshness.outputs.current == 'true'
+
+      - name: Validate the release version
+        if: steps.freshness.outputs.current == 'true'
+        id: version
+        run: python3 scripts/release_version.py --github-output "$GITHUB_OUTPUT"
+
+      - name: Create tag or select a safe retry
+        if: steps.freshness.outputs.current == 'true'
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          runs="$(gh run list --workflow release.yml --branch "$TAG" --limit 20 --json status,conclusion)"
+          active="$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")"
+          successful="$(jq '[.[] | select(.conclusion == "success")] | length' <<<"$runs")"
+
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            tag_sha="$(git rev-list -n 1 "$TAG")"
+            if [ "$successful" -gt 0 ]; then
+              echo "$TAG already has a successful Release run"
+              echo "dispatch=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$active" -gt 0 ]; then
+              echo "$TAG already has an active Release run"
+              echo "dispatch=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$tag_sha" != "$TARGET_SHA" ]; then
+              echo "Refusing to publish unreleased $TAG at stale $tag_sha; current main is $TARGET_SHA" >&2
+              exit 1
+            fi
+            echo "Retrying Release for existing tag $TAG"
+            echo "dispatch=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+          if [ -n "$latest_tag" ]; then
+            python3 - "$VERSION" "${latest_tag#v}" <<'PY'
+          import sys
+
+          current = tuple(map(int, sys.argv[1].split(".")))
+          previous = tuple(map(int, sys.argv[2].split(".")))
+          if current <= previous:
+              raise SystemExit(
+                  f"release version {sys.argv[1]} must be newer than {sys.argv[2]}"
+              )
+          PY
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" "$TARGET_SHA" -m "Release $TAG"
+          git push origin "refs/tags/$TAG"
+          echo "Created $TAG at $TARGET_SHA"
+          echo "dispatch=true" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch Release on the version tag
+        if: steps.release.outputs.dispatch == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh workflow run release.yml --ref "$TAG"
