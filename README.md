@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/hello-yunshu/rill-ml/actions/workflows/ci.yml"><img src="https://github.com/hello-yunshu/rill-ml/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/hello-yunshu/rill-ml/actions/workflows/pipeline.yml"><img src="https://github.com/hello-yunshu/rill-ml/actions/workflows/pipeline.yml/badge.svg" alt="CI / Release"></a>
   <a href="https://crates.io/crates/rill-ml"><img src="https://img.shields.io/crates/v/rill-ml.svg" alt="crates.io"></a>
   <a href="https://docs.rs/rill-ml"><img src="https://docs.rs/rill-ml/badge.svg" alt="docs.rs"></a>
   <a href="LICENSE-MIT"><img src="https://img.shields.io/crates/l/rill-ml.svg" alt="License: MIT"></a>

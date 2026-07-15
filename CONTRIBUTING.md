@@ -69,7 +69,7 @@ cargo package --features serde
 ```
 
 Before pushing, please run the full release checklist locally (see
-`.github/workflows/ci.yml`). CI will run the same set on Linux, macOS, and
+`.github/workflows/pipeline.yml`). CI will run the same set on Linux, macOS, and
 Windows.
 
 ## 4. Adding a new module
@@ -149,12 +149,12 @@ tags by hand. To prepare a release:
    `CHANGELOG.md`.
 3. Push the completed change to `main`.
 
-After the `CI` workflow succeeds, `Auto Release` validates that every version
-source agrees, creates the missing annotated `vX.Y.Z` tag at the verified
-`main` commit, and dispatches `Release` on that tag. Existing tags are never
-moved. A successful or active release is treated as an idempotent no-op, while
-a failed release can be retried automatically with the current workflow while
-still checking out the original immutable version tag.
+After the `CI / Release` CI jobs succeed, `Auto Release` validates that every
+version source agrees, creates the missing annotated `vX.Y.Z` tag at the
+verified `main` commit, and dispatches `CI / Release` with the tag input.
+Existing tags are never moved. A successful or active release is treated as an
+idempotent no-op, while a failed release can be retried automatically with the
+current workflow while still checking out the original immutable version tag.
 
 ## 10. Licensing
 
