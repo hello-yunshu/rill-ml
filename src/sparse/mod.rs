@@ -66,11 +66,11 @@ impl SparseFeatures {
 
         let mut merged: Vec<(FeatureId, f64)> = Vec::with_capacity(values.len());
         for (id, val) in values {
-            if let Some(last) = merged.last_mut() {
-                if last.0 == id {
-                    last.1 = checked_finite_add(last.1, val, "sparse value")?;
-                    continue;
-                }
+            if let Some(last) = merged.last_mut()
+                && last.0 == id
+            {
+                last.1 = checked_finite_add(last.1, val, "sparse value")?;
+                continue;
             }
             merged.push((id, val));
         }
@@ -82,10 +82,10 @@ impl SparseFeatures {
     /// Append a single feature. The `id` must be strictly greater than the
     /// last inserted id.
     pub fn push(&mut self, id: FeatureId, value: f64) -> Result<(), RillError> {
-        if let Some(&(last_id, _)) = self.values.last() {
-            if id <= last_id {
-                return Err(RillError::UnsortedFeatureIds);
-            }
+        if let Some(&(last_id, _)) = self.values.last()
+            && id <= last_id
+        {
+            return Err(RillError::UnsortedFeatureIds);
         }
         if !value.is_finite() {
             return Err(RillError::NonFiniteValue {

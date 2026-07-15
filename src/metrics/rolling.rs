@@ -175,12 +175,11 @@ impl Metric for RollingAccuracy {
 
     fn update(&mut self, truth: bool, prediction: bool) -> Result<(), RillError> {
         let is_correct = truth == prediction;
-        if self.correct.len() == self.capacity {
-            if let Some(old) = self.correct.pop_front() {
-                if old {
-                    self.sum -= 1;
-                }
-            }
+        if self.correct.len() == self.capacity
+            && let Some(old) = self.correct.pop_front()
+            && old
+        {
+            self.sum -= 1;
         }
         self.correct.push_back(is_correct);
         if is_correct {

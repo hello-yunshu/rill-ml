@@ -137,7 +137,7 @@ Wasmtime and cannot load `.rillhandler` packs. When the feature is enabled:
 
 | Crate              | Version range | License        | Required by          |
 | ------------------ | ------------- | -------------- | -------------------- |
-| `wasmtime`         | ^27           | Apache-2.0 WITH LLVM-exception | sandboxed WASM component execution |
+| `wasmtime`         | ^46           | Apache-2.0 WITH LLVM-exception | sandboxed WASM component execution |
 
 Wasmtime's `Apache-2.0 WITH LLVM-exception` license is compatible with
 RillML's MIT license for both distribution and static/dynamic linking. The
