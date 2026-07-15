@@ -11,7 +11,7 @@ description = "WebAssembly bindings for RillML — browser-side online learning.
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rill-ml = { version = "0.7.0", path = "../..", features = ["serde"] }
+rill-ml = { version = "0.7.1", path = "../..", features = ["serde"] }
 wasm-bindgen = { workspace = true }
 js-sys = { workspace = true }
 serde = { workspace = true }
