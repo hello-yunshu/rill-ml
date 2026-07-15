@@ -82,6 +82,8 @@ example.rillhandler
 }
 ```
 
+`moduleSha256` 和 `moduleSize` 由 `rill-pack create-handler` 从实际 WASM 字节自动计算并注入，源 manifest 模板中可省略这两个字段。
+
 ### 3.2 校验要求
 
 - 固定文件白名单：`manifest.json`、`handler.wasm`、`checksums.json`、`META-INF/signature.ed25519`。
