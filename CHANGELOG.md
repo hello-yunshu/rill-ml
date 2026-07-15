@@ -15,6 +15,8 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-16
+
 ### Changed — Security: wasmtime 27 → 46
 
 - Upgrade `wasmtime` from 27 to 46.0.1 (latest stable release track).
@@ -27,6 +29,21 @@ with the Rust-specific convention that 0.x releases may break the public API.
   THIRD_PARTY_NOTICES accordingly.
 - No API changes required: the `rill-runtime` handler host code is
   source-compatible with wasmtime 46.
+
+### Fixed — Release pipeline
+
+- Merge `ci.yml` and `release.yml` into a single `pipeline.yml` following
+  the mira-mouse pattern. CI jobs run on push/PR; release jobs run on
+  `workflow_dispatch` (dispatched by Auto Release after CI succeeds).
+  The tag-push trigger is intentionally omitted to avoid duplicate runs.
+- Fix stable-index schema incompatibility that broke v0.7.0 release:
+  `verify-index` failures on legacy v1 schema are now tolerated with a
+  warning instead of failing the release.
+- Fix `rill-pack create-handler` to auto-compute `moduleSha256` and
+  `moduleSize` from the actual WASM module bytes. The source manifest
+  template no longer needs to pre-contain these fields.
+- Fix Python `SyntaxWarning` in `test_release_version.py` by using a raw
+  string for the regex escape sequence.
 
 ## [0.7.0] - 2026-07-15
 
