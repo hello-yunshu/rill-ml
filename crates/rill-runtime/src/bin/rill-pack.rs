@@ -137,16 +137,21 @@ fn run(cli: Cli) -> Result<(), CliError> {
             module,
             output,
         } => {
-            let manifest: HandlerPackManifest = serde_json::from_slice(&fs::read(manifest)?)?;
             let module = fs::read(&module)?;
-            // Verify the manifest's module digest matches the actual module.
+            // Compute moduleSha256 and moduleSize from the actual module bytes,
+            // then inject them into the manifest JSON. This lets the manifest
+            // template omit these fields (they can only be known after building
+            // the WASM module).
             let actual_digest = hex::encode(Sha256::digest(&module));
-            if actual_digest != manifest.module_sha256 {
-                eprintln!(
-                    "rill-pack: manifest moduleSha256 does not match the actual module digest"
-                );
-                std::process::exit(1);
+            let module_size = module.len() as u64;
+            let mut manifest_value: serde_json::Value =
+                serde_json::from_slice(&fs::read(manifest)?)?;
+            if let Some(obj) = manifest_value.as_object_mut() {
+                obj.insert("moduleSha256".into(), serde_json::Value::String(actual_digest));
+                obj.insert("moduleSize".into(), serde_json::Value::Number(module_size.into()));
             }
+            let manifest: HandlerPackManifest =
+                serde_json::from_value(manifest_value)?;
             let signing_key = signing_key_from_environment()?;
             let bytes = build_signed_handler_pack(&manifest, &module, &signing_key)?;
             write_output(&output, &bytes)?;
