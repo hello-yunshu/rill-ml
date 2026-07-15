@@ -138,7 +138,24 @@ migration note in `CHANGELOG.md`.
 - Fill in the pull request template (`.github/pull_request_template.md`).
 - Make sure CI is green before requesting review.
 
-## 9. Licensing
+## 9. Releases
+
+Releases are created automatically from `main`; do not create or push version
+tags by hand. To prepare a release:
+
+1. Update the root and workspace package versions, all local path dependency
+   requirements, the example model manifest, and the Python project version.
+2. Move the release notes out of `[Unreleased]` into a dated version section in
+   `CHANGELOG.md`.
+3. Push the completed change to `main`.
+
+After the `CI` workflow succeeds, `Auto Release` validates that every version
+source agrees, creates the missing annotated `vX.Y.Z` tag at the verified
+`main` commit, and dispatches `Release` on that tag. Existing tags are never
+moved. A successful or active release is treated as an idempotent no-op, while
+a failed release at the same commit can be retried automatically.
+
+## 10. Licensing
 
 By contributing, you agree that your contributions will be licensed under
 the MIT license, the same as the rest of RillML. Do not include
@@ -148,7 +165,7 @@ If you adapt code from another project, attribute it in
 `THIRD_PARTY_NOTICES.md` and ensure the source license permits inclusion under
 the MIT license.
 
-## 10. What we do not want
+## 11. What we do not want
 
 Please do not open PRs for:
 
@@ -165,7 +182,7 @@ Please do not open PRs for:
 
 These will be politely closed.
 
-## 11. Getting help
+## 12. Getting help
 
 Open a GitHub issue with the `question` label, or start a discussion in the
 relevant issue thread. Be specific: include the Rust version, the RillML
