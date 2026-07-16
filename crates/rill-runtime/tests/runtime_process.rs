@@ -1,4 +1,8 @@
-use std::{fs, io::Write, process::{Command, Stdio}};
+use std::{
+    fs,
+    io::Write,
+    process::{Command, Stdio},
+};
 
 use ed25519_dalek::SigningKey;
 use rill_runtime::{LINEAR_REGRESSION_CAPABILITY, build_signed_model_pack};
@@ -9,8 +13,6 @@ use rill_runtime_protocol::{
 
 // Imports only needed by the `wasm`-gated cross-process WASM handler test.
 #[cfg(feature = "wasm")]
-use std::path::PathBuf;
-#[cfg(feature = "wasm")]
 use rill_runtime::build_signed_handler_pack;
 #[cfg(feature = "wasm")]
 use rill_runtime_protocol::{
@@ -18,6 +20,8 @@ use rill_runtime_protocol::{
 };
 #[cfg(feature = "wasm")]
 use sha2::{Digest, Sha256};
+#[cfg(feature = "wasm")]
+use std::path::PathBuf;
 
 #[test]
 fn signed_pack_handshake_and_invoke_work_across_the_real_process_boundary() {
