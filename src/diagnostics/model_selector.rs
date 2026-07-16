@@ -29,7 +29,7 @@
 //! ```
 
 use crate::diagnostics::baseline_comparator::{BaselineComparator, ComparatorEntry};
-use crate::error::RillError;
+use crate::error::{RillError, checked_increment};
 
 /// Configuration for [`OnlineModelSelector`].
 #[derive(Debug, Clone)]
@@ -123,7 +123,8 @@ impl OnlineModelSelector {
     pub fn record(&mut self, index: usize, truth: f64, prediction: f64) -> Result<(), RillError> {
         self.comparator.record(index, truth, prediction)?;
         if self.current_best == Some(index) {
-            self.samples_since_switch += 1;
+            self.samples_since_switch =
+                checked_increment(self.samples_since_switch, "samples_since_switch")?;
         }
         Ok(())
     }

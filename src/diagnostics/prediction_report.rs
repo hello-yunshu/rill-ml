@@ -163,7 +163,7 @@ impl PredictionReporter {
         let error = (truth - prediction).abs();
         self.warmup.observe_sample(Some(error))?;
         self.summary.record_error(error)?;
-        self.summary.record_sample();
+        self.summary.record_sample()?;
         Ok(())
     }
 

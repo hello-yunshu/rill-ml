@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Apache Arrow conversion helpers for RillML."
 
 [dependencies]
-rill-ml = { version = "0.7.2", path = "../.." }
+rill-ml = { workspace = true }
 arrow = { workspace = true }
 thiserror = { workspace = true }
 

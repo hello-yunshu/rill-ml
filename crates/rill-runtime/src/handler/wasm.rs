@@ -20,7 +20,7 @@ use std::time::Duration;
 
 use serde_json::Value;
 use wasmtime::component::{Component, Linker};
-use wasmtime::{Config, Engine, ResourceLimiter, Store};
+use wasmtime::{Config, Engine, ResourceLimiter, Store, Trap};
 
 use crate::handler::HandlerLoadError;
 use crate::handler_package::LoadedHandlerPack;
@@ -36,19 +36,19 @@ mod invoke_handler {
 }
 
 /// Fuel budget for a single `configure` call.
-const CONFIGURE_FUEL: u64 = 10_000_000;
+pub const CONFIGURE_FUEL: u64 = 10_000_000;
 /// Fuel budget for a single `invoke` call.
-const INVOKE_FUEL: u64 = 1_000_000;
+pub const INVOKE_FUEL: u64 = 1_000_000;
 /// Maximum linear memory size per instance (64 MiB).
-const MAX_MEMORY_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_MEMORY_BYTES: usize = 64 * 1024 * 1024;
 /// Maximum table entries per instance.
-const MAX_TABLE_ELEMENTS: u32 = 10_000;
+pub const MAX_TABLE_ELEMENTS: u32 = 10_000;
 /// Maximum input/output JSON payload size (1 MiB, matches IPC limit).
-const MAX_IO_BYTES: usize = 1024 * 1024;
+pub const MAX_IO_BYTES: usize = 1024 * 1024;
 /// Epoch tick interval (1 second).
-const EPOCH_TICK_INTERVAL: Duration = Duration::from_secs(1);
+pub const EPOCH_TICK_INTERVAL: Duration = Duration::from_secs(1);
 /// Number of epoch ticks before interruption (5 seconds).
-const EPOCH_DEADLINE: u64 = 5;
+pub const EPOCH_DEADLINE: u64 = 5;
 
 /// Per-instance resource limiter enforcing memory and table caps.
 struct HostState;
@@ -238,12 +238,19 @@ impl InvokeHandlerTrait for WasmInvokeHandler {
         let result = bindings
             .call_invoke(store, capability, &input_bytes)
             .map_err(|e| {
-                let msg = e.to_string();
-                if msg.contains("epoch deadline") || msg.contains("out of fuel") {
-                    "handlerTimeout".to_string()
-                } else {
-                    format!("handlerTrap: {msg}")
+                // Map fuel exhaustion and epoch interruption to handlerTimeout.
+                // Wasmtime 46's Error Display wraps the trap in a WasmBacktrace
+                // context, so string matching on the Display is unreliable;
+                // downcast to the concrete Trap variant instead.
+                if let Some(trap) = e.downcast_ref::<Trap>()
+                    && matches!(trap, Trap::OutOfFuel | Trap::Interrupt)
+                {
+                    return "handlerTimeout".to_string();
                 }
+                // Avoid leaking the wasmtime Display (which may include a
+                // WASM backtrace) to IPC clients; log it host-side instead.
+                eprintln!("rill-runtime: handler trap: {e}");
+                "handlerTrap: wasm trap occurred".to_string()
             })?;
 
         match result {

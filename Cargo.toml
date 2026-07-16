@@ -1,6 +1,6 @@
 [package]
 name = "rill-ml"
-version = "0.7.2"
+version.workspace = true
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
@@ -27,16 +27,22 @@ members = [
 ]
 exclude = [
     "handlers/echo-handler",
+    "handlers/test-malicious-handler",
 ]
 
 [workspace.package]
-version = "0.7.2"
+version = "0.8.0"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
 repository = "https://github.com/hello-yunshu/rill-ml"
 
 [workspace.dependencies]
+# Internal workspace crates — version synced from [workspace.package].
+rill-handler-api = { version = "0.8.0", path = "crates/rill-handler-api" }
+rill-ml = { version = "0.8.0", path = "." }
+rill-runtime-protocol = { version = "0.8.0", path = "crates/rill-runtime-protocol" }
+# External dependencies.
 ed25519-dalek = "3.0.0"
 hex = "0.4"
 semver = { version = "1.0", features = ["serde"] }

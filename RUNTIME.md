@@ -108,14 +108,14 @@ cargo run -p rill-runtime --bin rill-pack -- inspect-handler \
   --public-key-hex PUBLIC_KEY_HEX
 ```
 
-调试版宿主应用可使用 `RILL_RUNTIME_PATH`、`RILL_MODEL_PACK_PATH` 和 `RILL_TRUST_KEY=key-id=public-key-hex` 指向本地构建；这些覆盖项只在 debug 构建中生效。
+宿主应用可自行实现调试覆盖逻辑（如通过环境变量指向本地构建的 `rill-runtime` 二进制和 `.rillpack` 模型包）；`rill-runtime` 本身不读取这些环境变量，所有路径和密钥均通过 CLI 参数显式传入。
 
 ## 正式发布
 
 `.github/workflows/pipeline.yml` 在 `workflow_dispatch`（由 `Auto Release` 在 `vX.Y.Z` 标签上触发）时执行完整的发布流程：
 
 1. `cargo package --dry-run` 验证 crate 可发布；
-2. 为 Linux、Windows、Intel macOS 和 Apple Silicon macOS 编译 `rill-runtime` 二进制；
+2. 为 Linux、Windows 和 Apple Silicon macOS 编译 `rill-runtime` 二进制；
 3. 签名模型包与稳定索引；
 4. 创建单个 GitHub Release，包含所有平台二进制、`.rillpack`、`.rillhandler` 和 `stable-index.json`。
 5. 将 `rill-handler-api`、`rill-runtime-protocol`、`rill-ml`、`rill-runtime` 等发布到 crates.io。

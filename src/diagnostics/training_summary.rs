@@ -5,7 +5,7 @@
 //!
 //! Space complexity: `O(1)`.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 use crate::stats::ExponentiallyWeightedMean;
 use crate::traits::OnlineStatistic;
 
@@ -36,7 +36,7 @@ impl Default for TrainingSummaryConfig {
 /// use rill_ml::diagnostics::TrainingSummary;
 ///
 /// let mut summary = TrainingSummary::default();
-/// summary.record_sample();
+/// summary.record_sample().unwrap();
 /// summary.record_error(0.5).unwrap();
 /// summary.set_baseline_error(0.8).unwrap();
 ///
@@ -72,13 +72,15 @@ impl TrainingSummary {
     }
 
     /// Record that a sample was processed.
-    pub fn record_sample(&mut self) {
-        self.total_samples += 1;
+    pub fn record_sample(&mut self) -> Result<(), RillError> {
+        self.total_samples = checked_increment(self.total_samples, "total_samples")?;
+        Ok(())
     }
 
     /// Record that an input was rejected (invalid, non-finite, etc.).
-    pub fn record_rejection(&mut self) {
-        self.rejected_samples += 1;
+    pub fn record_rejection(&mut self) -> Result<(), RillError> {
+        self.rejected_samples = checked_increment(self.rejected_samples, "rejected_samples")?;
+        Ok(())
     }
 
     /// Record an error from a prediction.
@@ -105,18 +107,21 @@ impl TrainingSummary {
     }
 
     /// Record that the active model was switched.
-    pub fn record_switch(&mut self) {
-        self.model_switches += 1;
+    pub fn record_switch(&mut self) -> Result<(), RillError> {
+        self.model_switches = checked_increment(self.model_switches, "model_switches")?;
+        Ok(())
     }
 
     /// Record that the model was reset.
-    pub fn record_reset(&mut self) {
-        self.reset_count += 1;
+    pub fn record_reset(&mut self) -> Result<(), RillError> {
+        self.reset_count = checked_increment(self.reset_count, "reset_count")?;
+        Ok(())
     }
 
     /// Record that a state load failed.
-    pub fn record_load_failure(&mut self) {
-        self.load_failures += 1;
+    pub fn record_load_failure(&mut self) -> Result<(), RillError> {
+        self.load_failures = checked_increment(self.load_failures, "load_failures")?;
+        Ok(())
     }
 
     /// Total samples processed.
@@ -242,15 +247,15 @@ mod tests {
     #[test]
     fn counts_tracked_correctly() {
         let mut s = TrainingSummary::default();
-        s.record_sample();
-        s.record_sample();
-        s.record_rejection();
-        s.record_switch();
-        s.record_switch();
-        s.record_reset();
-        s.record_load_failure();
-        s.record_load_failure();
-        s.record_load_failure();
+        s.record_sample().unwrap();
+        s.record_sample().unwrap();
+        s.record_rejection().unwrap();
+        s.record_switch().unwrap();
+        s.record_switch().unwrap();
+        s.record_reset().unwrap();
+        s.record_load_failure().unwrap();
+        s.record_load_failure().unwrap();
+        s.record_load_failure().unwrap();
         assert_eq!(s.total_samples(), 2);
         assert_eq!(s.rejected_samples(), 1);
         assert_eq!(s.model_switches(), 2);
@@ -261,13 +266,13 @@ mod tests {
     #[test]
     fn reset_clears_all() {
         let mut s = TrainingSummary::default();
-        s.record_sample();
+        s.record_sample().unwrap();
         s.record_error(1.0).unwrap();
         s.set_baseline_error(2.0).unwrap();
-        s.record_switch();
-        s.record_reset();
-        s.record_load_failure();
-        s.record_rejection();
+        s.record_switch().unwrap();
+        s.record_reset().unwrap();
+        s.record_load_failure().unwrap();
+        s.record_rejection().unwrap();
         s.reset();
         assert_eq!(s.total_samples(), 0);
         assert_eq!(s.rejected_samples(), 0);
@@ -323,12 +328,12 @@ mod tests {
     #[test]
     fn serde_roundtrip() {
         let mut s = TrainingSummary::default();
-        s.record_sample();
-        s.record_sample();
+        s.record_sample().unwrap();
+        s.record_sample().unwrap();
         s.record_error(2.0).unwrap();
         s.record_error(1.5).unwrap();
         s.set_baseline_error(3.0).unwrap();
-        s.record_switch();
+        s.record_switch().unwrap();
         let json = serde_json::to_string(&s).unwrap();
         let restored: TrainingSummary = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.total_samples(), 2);
