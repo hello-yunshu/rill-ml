@@ -22,7 +22,7 @@
 
 RillML 提供可直接嵌入 Rust 原生应用的增量学习组件：在线统计、预处理器、线性/逻辑回归、评估指标、Pipeline、渐进式评估，以及基于 serde 的可选状态持久化。
 
-Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定、签名 `.rillpack` 模型包和签名 `.rillhandler` WASM handler 包。v0.7 起，runtime 在沙箱内加载经过签名验证的 WASM handler，更新 handler 不需要重新编译 runtime 二进制。宿主可以只依赖协议 crate，让 Runtime、模型和 handler 各自独立更新。详见 [`RUNTIME.md`](RUNTIME.md)。
+Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定、签名 `.rillpack` 模型包和签名 `.rillhandler` WASM handler 包。v0.7 起，runtime 在沙箱内加载经过签名验证的 WASM handler，更新 handler 不需要重新编译 runtime 二进制。宿主可以只依赖协议 crate，让 Runtime、模型和 handler 各自独立更新。官方 macOS Runtime 仅发布 Apple Silicon（ARM64）版本，不提供 Intel 构建。详见 [`RUNTIME.md`](RUNTIME.md)。
 
 > RillML 受 [River](https://riverml.xyz/) 推广的在线学习工作流启发，是独立的 Rust 项目，与 River 无关联，目前不追求 API 或模型兼容性。
 
