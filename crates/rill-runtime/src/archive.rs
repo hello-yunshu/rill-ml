@@ -83,6 +83,7 @@ pub(crate) struct ArchiveLimits {
     pub max_files: usize,
     pub max_file_bytes: u64,
     pub max_total_bytes: u64,
+    pub max_compressed_total_bytes: u64,
     pub max_compression_ratio: u64,
 }
 
@@ -100,19 +101,23 @@ pub(crate) const DEFAULT_PATHS: PackPaths = PackPaths {
 };
 
 pub fn canonical_json(bytes: &[u8]) -> Result<Vec<u8>, ArchiveError> {
-    fn sort(value: Value) -> Value {
+    fn canonical(value: Value) -> Value {
         match value {
-            Value::Object(map) => Value::Object(
-                map.into_iter()
-                    .map(|(key, value)| (key, sort(value)))
-                    .collect(),
-            ),
-            Value::Array(items) => Value::Array(items.into_iter().map(sort).collect()),
+            Value::Object(map) => {
+                // Explicitly sort object keys via BTreeMap so canonicalisation
+                // does not depend on serde_json's feature flags (preserve_order).
+                let sorted: BTreeMap<String, Value> = map
+                    .into_iter()
+                    .map(|(key, value)| (key, canonical(value)))
+                    .collect();
+                Value::Object(sorted.into_iter().collect())
+            }
+            Value::Array(items) => Value::Array(items.into_iter().map(canonical).collect()),
             other => other,
         }
     }
     let value: Value = serde_json::from_slice(bytes)?;
-    Ok(serde_json::to_vec(&sort(value))?)
+    Ok(serde_json::to_vec(&canonical(value))?)
 }
 
 pub fn sign_release_index(
@@ -182,6 +187,7 @@ pub(crate) fn read_archive<R: Read + Seek>(
         return Err(ArchiveError::Limit("file count"));
     }
     let mut total = 0u64;
+    let mut compressed_total = 0u64;
     let mut files = BTreeMap::new();
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index)?;
@@ -205,6 +211,12 @@ pub(crate) fn read_archive<R: Read + Seek>(
             .ok_or(ArchiveError::Limit("total size"))?;
         if total > limits.max_total_bytes {
             return Err(ArchiveError::Limit("total size"));
+        }
+        compressed_total = compressed_total
+            .checked_add(compressed)
+            .ok_or(ArchiveError::Limit("compressed total size"))?;
+        if compressed_total > limits.max_compressed_total_bytes {
+            return Err(ArchiveError::Limit("compressed total size"));
         }
         let mut bytes = Vec::with_capacity(entry.size() as usize);
         entry.read_to_end(&mut bytes)?;

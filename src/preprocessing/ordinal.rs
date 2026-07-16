@@ -4,7 +4,7 @@
 //! to the mapping, `transform_strs` produces the integer index (as `f64`)
 //! of each category using the current mapping.
 
-use crate::error::RillError;
+use crate::error::{RillError, checked_increment};
 
 /// Online ordinal encoder for string features.
 ///
@@ -88,7 +88,7 @@ impl OrdinalEncoder {
         for &feat in features {
             self.fit_one(feat);
         }
-        self.samples_seen += 1;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 

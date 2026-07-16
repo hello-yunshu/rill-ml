@@ -33,13 +33,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "echo-handler"
-version = "0.8.0"
-dependencies = [
- "wit-bindgen",
-]
-
-[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -214,6 +207,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "test-malicious-handler"
+version = "0.8.0"
+dependencies = [
+ "wit-bindgen",
 ]
 
 [[package]]

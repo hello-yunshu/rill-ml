@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::error::RillError;
+use crate::error::{RillError, checked_increment};
 
 /// Online frequency encoder for string features.
 ///
@@ -74,10 +74,13 @@ impl FrequencyEncoder {
             return Err(RillError::EmptyFeatures);
         }
         for &feat in features {
-            *self.category_counts.entry(feat.to_string()).or_insert(0) += 1;
+            let count = self.category_counts.entry(feat.to_string()).or_insert(0);
+            *count = checked_increment(*count, "category_count")?;
         }
-        self.total += features.len() as u64;
-        self.samples_seen += 1;
+        self.total = self.total.checked_add(features.len() as u64).ok_or_else(|| {
+            RillError::InvalidState("total counter overflow".to_string())
+        })?;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 

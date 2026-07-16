@@ -12,8 +12,9 @@ fn version_outputs_version() {
     let output = bin().arg("version").output().unwrap();
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("rill-ml: 0.7.2"));
+    assert!(stdout.contains(&format!("rill-ml: {}", env!("CARGO_PKG_VERSION"))));
     assert!(stdout.contains("snapshot_format_version: 1"));
+    assert!(stdout.contains("msrv: 1.94"));
 }
 
 #[test]

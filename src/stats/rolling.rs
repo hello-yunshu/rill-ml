@@ -74,6 +74,9 @@ impl RollingMean {
             None
         } else {
             let sum: f64 = self.window.iter().sum();
+            if !sum.is_finite() {
+                return None;
+            }
             Some(sum / self.window.len() as f64)
         }
     }
@@ -151,6 +154,9 @@ impl RollingVariance {
             None
         } else {
             let sum: f64 = self.window.iter().sum();
+            if !sum.is_finite() {
+                return None;
+            }
             Some(sum / self.window.len() as f64)
         }
     }
@@ -172,6 +178,9 @@ impl RollingVariance {
         };
         let mean = self.mean()?;
         let ss = self.window.iter().map(|x| (x - mean).powi(2)).sum::<f64>();
+        if !ss.is_finite() {
+            return None;
+        }
         Some(ss / denom as f64)
     }
 

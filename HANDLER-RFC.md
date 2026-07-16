@@ -87,7 +87,7 @@ example.rillhandler
 ### 3.2 校验要求
 
 - 固定文件白名单：`manifest.json`、`handler.wasm`、`checksums.json`、`META-INF/signature.ed25519`。
-- 拒绝目录、额外文件、重复条目和路径穿越。
+- 拒绝额外文件、重复条目和路径穿越；目录条目（如 `META-INF/`）静默跳过，不视为文件。
 - 限制单文件 4 MiB、压缩后总大小 8 MiB、解压后总大小 16 MiB、压缩比 100:1。
 - manifest 使用 `deny_unknown_fields`，字符串、数组数量和长度均有上限。
 - 版本字段必须是合法 semver。
@@ -115,6 +115,7 @@ effective_capabilities = model_manifest.capabilities ∩ handler_manifest.capabi
 | Module 字节大小 | 4 MiB | handler.wasm 原始大小 |
 | 线性内存 | 64 MiB | 每个实例 |
 | Table 大小 | 10_000 entries | 每个实例 |
+| WASM 栈大小 | 1 MiB | 防止栈耗尽 trap |
 | configure fuel | 10_000_000 units | 独立预算 |
 | invoke fuel | 1_000_000 units | 每次调用独立 |
 | epoch deadline | 5 秒 | wall-clock 等价 |
@@ -142,17 +143,19 @@ effective_capabilities = model_manifest.capabilities ∩ handler_manifest.capabi
 
 0.7.0 runtime 同时接受 v1 和 v2 请求。v1 握手响应不包含 handler 身份字段；v2 握手响应包含 `handlerId`、`handlerVersion`、`handlerApiVersion` 和 `effectiveCapabilities`。两个 wire schema 分别保存 fixture。
 
+内置 handler（如 `--builtin-handler linear-regression`）不走 WIT ABI，握手响应中 `handlerApiVersion` 报告为 `0`，表示"不适用"。WASM handler 报告 `HANDLER_API_VERSION`（当前为 1）。
+
 ### 6.2 错误码
 
 | 错误码 | 含义 |
 |---|---|
-| `handlerLoadFailed` | handler 包加载、签名或版本校验失败 |
+| `handlerLoadFailed` | handler 包加载、签名或版本校验失败（启动时失败，进程退出；不作为 IPC 响应返回） |
 | `handlerTrap` | WASM 执行 trap |
 | `handlerTimeout` | fuel 或 epoch 耗尽 |
 | `handlerOutputTooLarge` | 输出超过上限 |
 | `handlerInvalidOutput` | 输出非 UTF-8 或非法 JSON |
-| `handlerCapabilityMismatch` | guest metadata 与签名 manifest 不一致 |
-| `handlerInternalError` | 其他宿主侧错误，不泄漏内部细节 |
+| `handlerCapabilityMismatch` | guest metadata 与签名 manifest 不一致（加载阶段触发，映射为 `handlerLoadFailed`） |
+| `handlerInternalError` | 其他宿主侧错误（含 handler 通过 WIT result 返回的错误），不泄漏内部细节 |
 
 ## 7. 信任域分离
 

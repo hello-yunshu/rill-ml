@@ -17,7 +17,8 @@ use rill_runtime::{
     package::{ModelPackError, load_model_pack},
 };
 use rill_runtime_protocol::{
-    MAX_MESSAGE_BYTES, RUNTIME_API_VERSION, RuntimeRequest, RuntimeResponse, RuntimeResponseV2,
+    MAX_MESSAGE_BYTES, MIN_RUNTIME_API_VERSION, RUNTIME_API_VERSION, RuntimeRequest,
+    RuntimeResponse, RuntimeResponseV2,
 };
 use thiserror::Error;
 
@@ -39,8 +40,9 @@ enum Command {
         #[arg(long)]
         pack: PathBuf,
         /// Trusted Ed25519 public key for model packs, as KEY_ID=64_HEX_CHARS.
-        /// May be repeated. `--trust-key` is a deprecated alias.
-        #[arg(long = "trust-key")]
+        /// May be repeated. `--model-trust-key` is the documented name;
+        /// `--trust-key` is a deprecated alias.
+        #[arg(long = "trust-key", alias = "model-trust-key")]
         trust_keys: Vec<String>,
         /// Trusted Ed25519 public key for handler packs, as KEY_ID=64_HEX_CHARS.
         /// May be repeated.
@@ -60,7 +62,7 @@ enum Command {
     InspectPack {
         #[arg(long)]
         pack: PathBuf,
-        #[arg(long = "trust-key", required = true)]
+        #[arg(long = "trust-key", alias = "model-trust-key", required = true)]
         trust_keys: Vec<String>,
     },
     /// Verify and print metadata for a signed handler package.
@@ -274,7 +276,7 @@ fn serve(engine: RuntimeEngine) -> Result<(), CliError> {
             }
             Err(_) => EngineResponseJson::V1(RuntimeResponse::Error {
                 request_id: String::new(),
-                api_version: RUNTIME_API_VERSION,
+                api_version: MIN_RUNTIME_API_VERSION,
                 code: "invalidJson".into(),
                 message: "request is not valid protocol JSON".into(),
                 retryable: false,

@@ -6,7 +6,7 @@
 //!
 //! Space complexity: `O(1)`.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 
 /// Lifecycle state of a model during warmup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,7 +148,7 @@ impl WarmupTracker {
             ensure_finite("error", e)?;
             self.recent_error = Some(e.abs());
         }
-        self.samples += 1;
+        self.samples = checked_increment(self.samples, "samples")?;
         Ok(())
     }
 

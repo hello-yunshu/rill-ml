@@ -6,7 +6,7 @@
 //! This transformer accepts NaN values in its input, unlike most other
 //! transformers.
 
-use crate::error::RillError;
+use crate::error::{RillError, checked_increment, ensure_finite};
 use crate::traits::Transformer;
 
 /// Adds a missing-value indicator for each feature.
@@ -64,6 +64,9 @@ impl Transformer for MissingIndicator {
         self.check_dimension(features)?;
         let mut out = Vec::with_capacity(features.len() * 2);
         for &v in features {
+            if !v.is_nan() {
+                ensure_finite("feature", v)?;
+            }
             out.push(v);
             out.push(if v.is_nan() { 1.0 } else { 0.0 });
         }
@@ -72,7 +75,12 @@ impl Transformer for MissingIndicator {
 
     fn update(&mut self, features: &[f64]) -> Result<(), RillError> {
         self.check_dimension(features)?;
-        self.samples_seen += 1;
+        for &v in features {
+            if !v.is_nan() {
+                ensure_finite("feature", v)?;
+            }
+        }
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 
