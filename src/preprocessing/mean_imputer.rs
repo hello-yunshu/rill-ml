@@ -86,7 +86,11 @@ impl Transformer for MeanImputer {
         let mut out = Vec::with_capacity(features.len());
         for (i, &x) in features.iter().enumerate() {
             if x.is_nan() {
-                out.push(if self.counts[i] == 0 { 0.0 } else { self.means[i] });
+                out.push(if self.counts[i] == 0 {
+                    0.0
+                } else {
+                    self.means[i]
+                });
             } else {
                 ensure_finite("feature", x)?;
                 out.push(x);
