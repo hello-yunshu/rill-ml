@@ -12,6 +12,14 @@ PUBLISHER = "test-publisher"
 
 
 class ReleaseIndexHelpersTest(unittest.TestCase):
+    def test_macos_runtime_release_is_arm64_only(self) -> None:
+        workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
+        release_index = (ROOT / "scripts/build-release-index.py").read_text(encoding="utf-8")
+        self.assertNotIn("x86_64-apple-darwin", workflow)
+        self.assertNotIn('("macos", "x86_64"', release_index)
+        self.assertIn("aarch64-apple-darwin", workflow)
+        self.assertIn('("macos", "aarch64"', release_index)
+
     def test_model_only_release_preserves_runtime_and_rejects_downgrade(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp = pathlib.Path(temp_name)
@@ -80,7 +88,6 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             version = "0.7.0"
             for name in (
                 f"rill-runtime-{version}-linux-x86_64",
-                f"rill-runtime-{version}-macos-x86_64",
                 f"rill-runtime-{version}-macos-aarch64",
                 f"rill-runtime-{version}-windows-x86_64.exe",
             ):
@@ -140,7 +147,14 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 item for item in payload["artifacts"] if item["kind"] == "runtime"
             ]
             self.assertEqual(models, [newer_model])
-            self.assertEqual(len(runtimes), 4)
+            self.assertEqual(
+                {(item["targetOs"], item["targetArch"]) for item in runtimes},
+                {
+                    ("linux", "x86_64"),
+                    ("macos", "aarch64"),
+                    ("windows", "x86_64"),
+                },
+            )
             self.assertTrue(all(item["version"] == version for item in runtimes))
 
     def test_verify_release_assets_accepts_matching_files_and_rejects_tampering(self) -> None:

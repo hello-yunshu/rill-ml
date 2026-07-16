@@ -15,6 +15,14 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-07-16
+
+### Changed
+
+- Stop publishing Intel macOS Runtime binaries. Official macOS releases and
+  the signed stable index now contain Apple Silicon (ARM64) only.
+- Keep Linux and Windows Runtime releases on x86_64.
+
 ## [0.7.1] - 2026-07-16
 
 ### Changed — Security: wasmtime 27 → 46
@@ -542,7 +550,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.2
 [0.7.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.1
 [0.7.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.0
 [0.6.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.6.0

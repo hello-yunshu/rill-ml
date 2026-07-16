@@ -12,7 +12,7 @@ name = "rill_ml_python"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rill-ml = { version = "0.7.1", path = "../..", features = ["serde"] }
+rill-ml = { version = "0.7.2", path = "../..", features = ["serde"] }
 pyo3 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

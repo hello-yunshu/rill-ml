@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "rillml.echo.handler",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "handlerApiVersion": 1,
-  "minRuntimeVersion": "0.7.1",
+  "minRuntimeVersion": "0.7.2",
   "publisherKeyId": "rillml-examples-2026-001",
   "capabilities": [
     "rillml.linearRegression.predict"
