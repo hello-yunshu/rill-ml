@@ -20,6 +20,7 @@ const MODEL_PACK_LIMITS: ArchiveLimits = ArchiveLimits {
     max_files: 8,
     max_file_bytes: 256 * 1024,
     max_total_bytes: 1024 * 1024,
+    max_compressed_total_bytes: 8 * 1024 * 1024,
     max_compression_ratio: 100,
 };
 
@@ -236,5 +237,41 @@ mod tests {
             signing.verifying_key(),
         )]));
         assert!(verify_release_index(&index, &trust).is_ok());
+    }
+
+    // ----- R-021: compatibility tests -----
+
+    #[test]
+    fn release_index_rejects_v1_schema() {
+        // A release index using the legacy v1 schema (schema_version=1) must be
+        // rejected. Only schema_version=2 (RELEASE_INDEX_SCHEMA_VERSION) is
+        // accepted by the current runtime.
+        use rill_runtime_protocol::{
+            RUNTIME_API_VERSION, RUNTIME_ARTIFACT_ID, ReleaseArtifact, ReleaseArtifactKind,
+            ReleaseIndexPayload,
+        };
+
+        let signing = SigningKey::from_bytes(&[42; 32]);
+        let payload = ReleaseIndexPayload {
+            schema_version: 1, // legacy v1 schema
+            channel: "stable".into(),
+            generated_at: "2026-07-15T00:00:00Z".into(),
+            publisher_key_id: "v1-schema-test".into(),
+            artifacts: vec![ReleaseArtifact {
+                kind: ReleaseArtifactKind::Runtime,
+                id: RUNTIME_ARTIFACT_ID.into(),
+                version: "0.6.0".into(),
+                runtime_api_version: RUNTIME_API_VERSION,
+                target_os: Some("macos".into()),
+                target_arch: Some("aarch64".into()),
+                handler_api_version: None,
+                min_runtime_version: None,
+                url: "https://example.invalid/rill-runtime".into(),
+                sha256: "ab".repeat(32),
+                size: 1024,
+            }],
+        };
+        // sign_release_index calls validate_release_payload which rejects v1.
+        assert!(sign_release_index(payload, &signing).is_err());
     }
 }

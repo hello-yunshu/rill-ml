@@ -14,7 +14,7 @@
 //! specific model or detector.
 
 use crate::drift::detector::DriftLevel;
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_finite_add, ensure_finite};
 
 // ---------------------------------------------------------------------------
 // TimeDecayedMean
@@ -100,8 +100,10 @@ impl TimeDecayedMean {
                 }
                 let dt = time - prev;
                 let factor = (-self.decay * dt).exp();
-                self.weighted_sum = factor * self.weighted_sum + value;
-                self.weight_total = factor * self.weight_total + 1.0;
+                self.weighted_sum =
+                    checked_finite_add(factor * self.weighted_sum, value, "weighted_sum")?;
+                self.weight_total =
+                    checked_finite_add(factor * self.weight_total, 1.0, "weight_total")?;
             }
         }
         self.last_time = Some(time);
@@ -344,6 +346,9 @@ impl FixedWindowBuffer {
             return None;
         }
         let sum: f64 = self.iter().sum();
+        if !sum.is_finite() {
+            return None;
+        }
         Some(sum / self.len as f64)
     }
 

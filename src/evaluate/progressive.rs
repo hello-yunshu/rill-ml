@@ -1,6 +1,6 @@
 //! Progressive evaluation implementation.
 
-use crate::error::RillError;
+use crate::error::{RillError, ensure_finite, ensure_finite_target};
 use crate::traits::{Metric, OnlineBinaryClassifier, OnlineRegressor};
 
 /// A single regression sample.
@@ -63,8 +63,12 @@ where
 {
     let mut steps = Vec::new();
     for (i, sample) in samples.into_iter().enumerate() {
+        // 0. validate inputs (defense-in-depth before predict)
+        ensure_finite_target(sample.target)?;
         // 1. predict (no state change)
         let prediction = model.predict(&sample.features)?;
+        // 1a. validate prediction before passing to metric
+        ensure_finite("prediction", prediction)?;
         // 2. update metric with truth and prediction
         metric.update(sample.target, prediction)?;
         // 3. learn from this sample
@@ -87,15 +91,11 @@ where
     M: OnlineBinaryClassifier,
     Met: Metric<Truth = bool, Prediction = bool>,
 {
-    let mut _steps = Vec::new();
-    for (i, sample) in samples.into_iter().enumerate() {
+    for sample in samples.into_iter() {
+        // prediction is bool for classifiers — no ensure_finite needed.
         let prediction = model.predict(&sample.features)?;
         metric.update(sample.target, prediction)?;
         model.learn(&sample.features, sample.target)?;
-        _steps.push(ProgressiveStep {
-            index: i,
-            metric_value: metric.value(),
-        });
     }
     Ok(metric.value())
 }

@@ -26,7 +26,7 @@
 use crate::drift::action::{DriftAction, DriftEvent};
 use crate::drift::detector::DriftDetector;
 use crate::drift::strategy::DriftStrategy;
-use crate::error::RillError;
+use crate::error::{RillError, checked_increment};
 use crate::traits::OnlineRegressor;
 
 /// Default maximum number of retained drift events.
@@ -156,7 +156,7 @@ where
         self.last_action = Some(action);
 
         self.model.learn(features, target)?;
-        self.samples_seen += 1;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 

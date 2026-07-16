@@ -1,12 +1,12 @@
 [package]
-name = "echo-handler"
+name = "test-malicious-handler"
 version = "0.8.0"
 edition = "2021"
 publish = false
-description = "Business-neutral echo handler for Rill runtime — returns input as output."
+description = "Malicious test handler for WASM sandbox attack tests — controllable via model JSON mode field."
 
 [[bin]]
-name = "echo-handler"
+name = "test-malicious-handler"
 path = "src/main.rs"
 
 [dependencies]

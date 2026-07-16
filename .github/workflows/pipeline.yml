@@ -175,10 +175,22 @@ jobs:
           wasm-tools component new \
             target/wasm32-unknown-unknown/release/echo-handler.wasm \
             -o ../../target/echo-handler.wasm
+      - name: Build malicious test handler component
+        run: |
+          cd handlers/test-malicious-handler
+          cargo build --release --target wasm32-unknown-unknown
+          wasm-tools component new \
+            target/wasm32-unknown-unknown/release/test-malicious-handler.wasm \
+            -o ../../target/test-malicious-handler.wasm
       - name: Run WASM handler integration tests
         env:
           ECHO_HANDLER_WASM: ${{ github.workspace }}/target/echo-handler.wasm
+          MALICIOUS_HANDLER_WASM: ${{ github.workspace }}/target/test-malicious-handler.wasm
         run: cargo test --locked -p rill-runtime --features wasm --test wasm_handler -- --include-ignored
+      - name: Run runtime process integration tests (with WASM)
+        env:
+          ECHO_HANDLER_WASM: ${{ github.workspace }}/target/echo-handler.wasm
+        run: cargo test --locked -p rill-runtime --features wasm --test runtime_process
 
   python-build:
     name: Python bindings build + pytest
