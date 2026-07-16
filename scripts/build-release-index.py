@@ -11,7 +11,6 @@ from pathlib import Path
 
 RUNTIMES = (
     ("linux", "x86_64", "rill-runtime-{version}-linux-x86_64"),
-    ("macos", "x86_64", "rill-runtime-{version}-macos-x86_64"),
     ("macos", "aarch64", "rill-runtime-{version}-macos-aarch64"),
     ("windows", "x86_64", "rill-runtime-{version}-windows-x86_64.exe"),
 )

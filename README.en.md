@@ -22,7 +22,7 @@
 
 RillML provides incremental learning primitives that can be embedded directly in native Rust applications: online statistics, preprocessors, linear/logistic regression, evaluation metrics, pipelines, progressive evaluation, and optional serde-based state persistence.
 
-The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, signed `.rillpack` model packages, and signed `.rillhandler` WASM handler packages. As of v0.7, the runtime loads signature-verified WASM handlers in a sandbox; updating a handler no longer requires recompiling the runtime binary. Hosts can compile only the protocol crate and update the runtime, models, and handlers independently from the main application. See [`RUNTIME.md`](RUNTIME.md) for the product and release boundary.
+The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, signed `.rillpack` model packages, and signed `.rillhandler` WASM handler packages. As of v0.7, the runtime loads signature-verified WASM handlers in a sandbox; updating a handler no longer requires recompiling the runtime binary. Hosts can compile only the protocol crate and update the runtime, models, and handlers independently from the main application. Official macOS Runtime releases support Apple Silicon (ARM64) only; no Intel build is provided. See [`RUNTIME.md`](RUNTIME.md) for the product and release boundary.
 
 > RillML is inspired by the online-learning workflow popularized by [River](https://riverml.xyz/). It is an independent Rust project and is not affiliated with or endorsed by River. It does not currently aim for API or model compatibility.
 

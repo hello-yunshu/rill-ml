@@ -241,11 +241,6 @@ jobs:
             target_arch: x86_64
             extension: .exe
           - runner: macos-14
-            rust_target: x86_64-apple-darwin
-            target_os: macos
-            target_arch: x86_64
-            extension: ""
-          - runner: macos-14
             rust_target: aarch64-apple-darwin
             target_os: macos
             target_arch: aarch64
