@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const RILL_ML_VERSION: &str = env!("CARGO_PKG_VERSION");
-const MSRV: &str = "1.85";
+const MSRV: &str = "1.94";
 
 #[derive(Parser)]
 #[command(

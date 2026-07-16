@@ -3,7 +3,7 @@
 //! Replaces `NaN` values with a fixed fill value. Non-NaN values are
 //! passed through unchanged. This imputer has no learnable state.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 use crate::traits::Transformer;
 
 /// Configuration for [`ConstantImputer`].
@@ -92,21 +92,26 @@ impl Transformer for ConstantImputer {
 
     fn transform(&self, features: &[f64]) -> Result<Vec<f64>, RillError> {
         self.check_dimension(features)?;
-        Ok(features
-            .iter()
-            .map(|&x| {
-                if x.is_nan() {
-                    self.config.fill_value
-                } else {
-                    x
-                }
-            })
-            .collect())
+        let mut out = Vec::with_capacity(features.len());
+        for &x in features {
+            if x.is_nan() {
+                out.push(self.config.fill_value);
+            } else {
+                ensure_finite("feature", x)?;
+                out.push(x);
+            }
+        }
+        Ok(out)
     }
 
     fn update(&mut self, features: &[f64]) -> Result<(), RillError> {
         self.check_dimension(features)?;
-        self.samples_seen += 1;
+        for &x in features {
+            if !x.is_nan() {
+                ensure_finite("feature", x)?;
+            }
+        }
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 

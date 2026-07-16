@@ -26,7 +26,7 @@
 //! itself uses `O(window_size)` scratch space for sorting.
 
 use crate::drift::detector::{DriftDetector, DriftLevel};
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 
 /// Configuration for [`Kswin`].
 #[derive(Debug, Clone)]
@@ -170,7 +170,7 @@ impl Default for Kswin {
 impl DriftDetector for Kswin {
     fn update(&mut self, value: f64) -> Result<DriftLevel, RillError> {
         ensure_finite("value", value)?;
-        self.samples += 1;
+        self.samples = checked_increment(self.samples, "samples")?;
         self.current_level = DriftLevel::None;
 
         // If the current window is full, rotate: current becomes the new

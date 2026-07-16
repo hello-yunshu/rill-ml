@@ -320,7 +320,7 @@ impl RuntimeEngine {
 }
 
 /// Maps a handler error message to a stable error code. Recognised codes are
-/// extracted from the message prefix; unknown errors map to `invokeFailed`.
+/// extracted from the message prefix; unknown errors map to `handlerInternalError`.
 fn map_invoke_error(message: &str) -> (&'static str, bool) {
     if message.starts_with("handlerTrap") {
         ("handlerTrap", false)
@@ -330,10 +330,13 @@ fn map_invoke_error(message: &str) -> (&'static str, bool) {
         ("handlerOutputTooLarge", false)
     } else if message.starts_with("handlerInvalidOutput") {
         ("handlerInvalidOutput", false)
-    } else if message.starts_with("handlerCapabilityMismatch") {
-        ("handlerCapabilityMismatch", false)
+    } else if message.starts_with("handlerInternalError") {
+        ("handlerInternalError", false)
+    } else if message.starts_with("handlerExecutionFailed") {
+        // Handler returned an error via the WIT result type.
+        ("handlerInternalError", false)
     } else {
-        ("invokeFailed", false)
+        ("handlerInternalError", false)
     }
 }
 
@@ -515,5 +518,64 @@ mod tests {
             response,
             EngineResponse::Result { output, .. } if output["prediction"] == 2.5
         ));
+    }
+
+    #[test]
+    fn map_invoke_error_recognizes_handler_trap() {
+        let (code, retryable) = map_invoke_error("handlerTrap: unreachable");
+        assert_eq!(code, "handlerTrap");
+        assert!(!retryable);
+    }
+
+    #[test]
+    fn map_invoke_error_recognizes_handler_timeout() {
+        let (code, retryable) = map_invoke_error("handlerTimeout: epoch deadline exceeded");
+        assert_eq!(code, "handlerTimeout");
+        assert!(retryable);
+    }
+
+    #[test]
+    fn map_invoke_error_recognizes_handler_output_too_large() {
+        let (code, retryable) = map_invoke_error("handlerOutputTooLarge: output exceeds 1 MiB");
+        assert_eq!(code, "handlerOutputTooLarge");
+        assert!(!retryable);
+    }
+
+    #[test]
+    fn map_invoke_error_recognizes_handler_invalid_output() {
+        let (code, retryable) =
+            map_invoke_error("handlerInvalidOutput: expected value at line 1 column 1");
+        assert_eq!(code, "handlerInvalidOutput");
+        assert!(!retryable);
+    }
+
+    #[test]
+    fn map_invoke_error_recognizes_handler_internal_error() {
+        let (code, retryable) = map_invoke_error("handlerInternalError: lock poisoned");
+        assert_eq!(code, "handlerInternalError");
+        assert!(!retryable);
+    }
+
+    #[test]
+    fn map_invoke_error_recognizes_handler_execution_failed() {
+        let (code, retryable) = map_invoke_error("handlerExecutionFailed: guest returned error");
+        assert_eq!(code, "handlerInternalError");
+        assert!(!retryable);
+    }
+
+    #[test]
+    fn map_invoke_error_maps_capability_mismatch_to_internal() {
+        // handlerCapabilityMismatch is a load-phase error (RFC §6.2) and is
+        // never produced by invoke(); it falls through to handlerInternalError.
+        let (code, retryable) = map_invoke_error("handlerCapabilityMismatch: cap not declared");
+        assert_eq!(code, "handlerInternalError");
+        assert!(!retryable);
+    }
+
+    #[test]
+    fn map_invoke_error_maps_unknown_to_internal_error() {
+        let (code, retryable) = map_invoke_error("unknown error");
+        assert_eq!(code, "handlerInternalError");
+        assert!(!retryable);
     }
 }

@@ -19,7 +19,7 @@
 //! assert_eq!(cmp.best_name(), Some("candidate"));
 //! ```
 
-use crate::error::RillError;
+use crate::error::{RillError, checked_increment};
 use crate::metrics::RollingMae;
 use crate::traits::Metric;
 
@@ -132,7 +132,7 @@ impl BaselineComparator {
             }
         })?;
         entry.rolling_mae.update(truth, prediction)?;
-        entry.total_samples += 1;
+        entry.total_samples = checked_increment(entry.total_samples, "total_samples")?;
         Ok(())
     }
 
@@ -165,7 +165,10 @@ impl BaselineComparator {
             }
             Some(new_idx) if Some(new_idx) == self.best_index => None,
             Some(new_idx) => {
-                self.switch_count += 1;
+                // saturating_add avoids overflow without changing the Option
+                // return signature (changing it would cascade to callers and
+                // doctests); switch_count is a diagnostic counter.
+                self.switch_count = self.switch_count.saturating_add(1);
                 let reason = match self.best_index {
                     None => SwitchReason::LowerError,
                     Some(old_idx) => match self.entries[old_idx].rolling_mae() {

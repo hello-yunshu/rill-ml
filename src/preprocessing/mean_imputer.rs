@@ -4,7 +4,7 @@
 //! values for each feature. Uses Welford's algorithm for numerical
 //! stability.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite};
 use crate::traits::Transformer;
 
 /// Replaces `NaN` values with the per-feature running mean.
@@ -62,11 +62,13 @@ impl MeanImputer {
     }
 
     /// Update the running mean for feature `idx` using Welford's algorithm.
-    fn update_mean(&mut self, idx: usize, value: f64) {
-        let n = self.counts[idx] + 1;
+    fn update_mean(&mut self, idx: usize, value: f64) -> Result<(), RillError> {
+        let n = checked_increment(self.counts[idx], "feature count")?;
         self.counts[idx] = n;
         let delta = value - self.means[idx];
-        self.means[idx] += delta / n as f64;
+        ensure_finite("mean delta", delta)?;
+        self.means[idx] = checked_finite_add(self.means[idx], delta / n as f64, "mean")?;
+        Ok(())
     }
 }
 
@@ -81,21 +83,16 @@ impl Transformer for MeanImputer {
 
     fn transform(&self, features: &[f64]) -> Result<Vec<f64>, RillError> {
         self.check_dimension(features)?;
-        Ok(features
-            .iter()
-            .enumerate()
-            .map(|(i, &x)| {
-                if x.is_nan() {
-                    if self.counts[i] == 0 {
-                        0.0
-                    } else {
-                        self.means[i]
-                    }
-                } else {
-                    x
-                }
-            })
-            .collect())
+        let mut out = Vec::with_capacity(features.len());
+        for (i, &x) in features.iter().enumerate() {
+            if x.is_nan() {
+                out.push(if self.counts[i] == 0 { 0.0 } else { self.means[i] });
+            } else {
+                ensure_finite("feature", x)?;
+                out.push(x);
+            }
+        }
+        Ok(out)
     }
 
     fn update(&mut self, features: &[f64]) -> Result<(), RillError> {
@@ -105,9 +102,9 @@ impl Transformer for MeanImputer {
                 continue;
             }
             ensure_finite("feature", x)?;
-            self.update_mean(i, x);
+            self.update_mean(i, x)?;
         }
-        self.samples_seen += 1;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 

@@ -1,0 +1,18 @@
+[package]
+name = "test-malicious-handler"
+version = "0.8.0"
+edition = "2021"
+publish = false
+description = "Malicious test handler for WASM sandbox attack tests — controllable via model JSON mode field."
+
+[[bin]]
+name = "test-malicious-handler"
+path = "src/main.rs"
+
+[dependencies]
+wit-bindgen = "0.29"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1

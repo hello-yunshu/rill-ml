@@ -25,7 +25,7 @@
 //!
 //! The intercept uses `lambda1 = 0` (no L1 regularization).
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 use crate::loss::log_loss::sigmoid;
 use crate::sparse::{FeatureId, SparseFeatures};
 use crate::traits::{SparseClassifier, SparseRegressor};
@@ -280,7 +280,7 @@ impl SparseRegressor for FtrlRegressor {
         let w_b = self.intercept.intercept_weight(&self.config);
         self.intercept.update(grad, w_b, &self.config);
 
-        self.samples_seen += 1;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 
@@ -397,7 +397,7 @@ impl SparseClassifier for FtrlClassifier {
         let w_b = self.intercept.intercept_weight(&self.config);
         self.intercept.update(grad, w_b, &self.config);
 
-        self.samples_seen += 1;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 

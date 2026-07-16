@@ -15,6 +15,60 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+
+## [0.8.0] - 2026-07-17
+
+### Added — Security test coverage
+
+- Handler package attack tests (`handler_package.rs`): 9 new tests covering
+  tampered manifest/module/checksums/signature, unknown publisher key,
+  directory entries, oversized files, compression bombs, and load-time
+  module digest mismatch.
+- WASM sandbox attack tests (`wasm_handler.rs`): 5 new tests covering
+  traps, oversized output, invalid JSON output, infinite-loop timeout via
+  epoch interruption, plus an echo-mode baseline. A new
+  `handlers/test-malicious-handler/` fixture (controllable via model JSON
+  `mode` field) supports these scenarios.
+- Compatibility tests: `handler_pack_rejects_runtime_too_old`,
+  `release_index_rejects_v1_schema`, `builtin_handler_deprecation_notice`,
+  and cross-process WASM handler handshake.
+
+### Changed — Version management centralisation
+
+- The workspace version is now a single source of truth in
+  `[workspace.package] version` of the root `Cargo.toml`. All workspace
+  crates inherit via `version.workspace = true`; internal dependencies
+  are declared once in `[workspace.dependencies]`.
+- Handler source files and integration tests use `env!("CARGO_PKG_VERSION")`
+  instead of hardcoded version strings.
+- New `scripts/sync_version.py` propagates the canonical version to every
+  static file (pyproject.toml, JSON manifests, excluded handler crates,
+  ROADMAP, SECURITY, CHANGELOG skeleton) in one command.
+
+### Fixed — Code quality (v2 comprehensive review findings)
+
+- `server.rs`: removed dead `handlerCapabilityMismatch` branch in
+  `map_invoke_error`; default fallback changed from `invokeFailed` to
+  `handlerInternalError`.
+- `wasm.rs`: trap classification now uses `downcast_ref::<Trap>()` instead
+  of string matching; IPC error messages sanitised to avoid leaking
+  wasmtime internals.
+- `archive.rs`: added `max_compressed_total_bytes` (8 MiB) to
+  `ArchiveLimits` to reject compression bombs.
+- `rill-runtime-protocol`: capability duplicate detection rewritten to use
+  `HashSet` (catches non-adjacent duplicates).
+- WIT types moved from inside the `world` to a package-level `interface`
+  block for cleaner ABI surface.
+- `rill-ml` core: all counters migrated to `checked_increment`; Welford
+  and on-demand computation paths use `checked_finite_add`/`ensure_finite`;
+  Naive Bayes probability clamped to `(EPSILON, 1-EPSILON)`.
+- `rillml-inspect`: MSRV constant updated to 1.94.
+- `RUNTIME.md`: removed non-existent debug env var documentation;
+  `--trust-key` now accepts `--model-trust-key` as an alias.
+- `HANDLER-RFC.md` §3.2/§5/§6.1/§6.2: documented directory-entry handling,
+  WASM stack size, built-in handler API version, and error mapping.
+- `ROADMAP.md`: added v0.7 section and marked v0.1–v0.5 as completed.
+
 ## [0.7.2] - 2026-07-16
 
 ### Changed
@@ -550,7 +604,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.8.0
 [0.7.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.2
 [0.7.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.1
 [0.7.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.0

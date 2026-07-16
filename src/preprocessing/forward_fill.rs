@@ -4,7 +4,7 @@
 //! each feature. If no value has been seen yet, `NaN` is replaced
 //! with `0.0`.
 
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 use crate::traits::Transformer;
 
 /// Replaces `NaN` values with the last observed non-NaN value.
@@ -66,17 +66,16 @@ impl Transformer for ForwardFill {
 
     fn transform(&self, features: &[f64]) -> Result<Vec<f64>, RillError> {
         self.check_dimension(features)?;
-        Ok(features
-            .iter()
-            .enumerate()
-            .map(|(i, &x)| {
-                if x.is_nan() {
-                    self.last_values[i].unwrap_or(0.0)
-                } else {
-                    x
-                }
-            })
-            .collect())
+        let mut out = Vec::with_capacity(features.len());
+        for (i, &x) in features.iter().enumerate() {
+            if x.is_nan() {
+                out.push(self.last_values[i].unwrap_or(0.0));
+            } else {
+                ensure_finite("feature", x)?;
+                out.push(x);
+            }
+        }
+        Ok(out)
     }
 
     fn update(&mut self, features: &[f64]) -> Result<(), RillError> {
@@ -88,7 +87,7 @@ impl Transformer for ForwardFill {
             ensure_finite("feature", x)?;
             self.last_values[i] = Some(x);
         }
-        self.samples_seen += 1;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 

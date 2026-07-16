@@ -22,7 +22,7 @@
 //! minimum, and a counter.
 
 use crate::drift::detector::{DriftDetector, DriftLevel};
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_increment, ensure_finite};
 
 /// Configuration for [`PageHinkley`].
 #[derive(Debug, Clone)]
@@ -185,7 +185,7 @@ impl Default for PageHinkley {
 impl DriftDetector for PageHinkley {
     fn update(&mut self, value: f64) -> Result<DriftLevel, RillError> {
         ensure_finite("value", value)?;
-        self.samples += 1;
+        self.samples = checked_increment(self.samples, "samples")?;
         // Incremental mean update.
         let delta = value - self.mean;
         self.mean += delta / self.samples as f64;

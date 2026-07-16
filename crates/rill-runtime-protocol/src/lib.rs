@@ -80,7 +80,11 @@ impl ModelPackManifest {
         {
             return Err("invalid capability string");
         }
-        if capabilities.windows(2).any(|w| w[0] == w[1]) {
+        let mut seen = std::collections::HashSet::new();
+        if !capabilities
+            .iter()
+            .all(|capability| seen.insert(capability.clone()))
+        {
             return Err("duplicate capability");
         }
         Ok(())

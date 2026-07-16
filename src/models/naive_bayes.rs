@@ -8,7 +8,7 @@
 //! All three implement [`OnlineBinaryClassifier`] for binary classification.
 //! Multi-class support may be added in a future version.
 
-use crate::error::{RillError, ensure_finite, validate_features};
+use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite, validate_features};
 use crate::loss::log_loss::sigmoid;
 use crate::traits::OnlineBinaryClassifier;
 
@@ -77,13 +77,16 @@ impl GaussianClassStats {
         }
     }
 
-    fn update_feature(&mut self, idx: usize, value: f64) {
-        let n = self.counts[idx] + 1;
+    fn update_feature(&mut self, idx: usize, value: f64) -> Result<(), RillError> {
+        let n = checked_increment(self.counts[idx], "feature count")?;
         self.counts[idx] = n;
         let delta = value - self.means[idx];
-        self.means[idx] += delta / n as f64;
+        ensure_finite("mean delta", delta)?;
+        self.means[idx] = checked_finite_add(self.means[idx], delta / n as f64, "mean")?;
         let delta2 = value - self.means[idx];
-        self.m2s[idx] += delta * delta2;
+        ensure_finite("mean delta2", delta2)?;
+        self.m2s[idx] = checked_finite_add(self.m2s[idx], delta * delta2, "m2")?;
+        Ok(())
     }
 
     fn variance(&self, idx: usize) -> f64 {
@@ -200,7 +203,7 @@ impl OnlineBinaryClassifier for GaussianNaiveBayes {
         let log_p_false = log_prior_false + log_likelihood_false;
 
         let log_odds = log_p_true - log_p_false;
-        Ok(sigmoid(log_odds))
+        Ok(sigmoid(log_odds).clamp(f64::EPSILON, 1.0 - f64::EPSILON))
     }
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {
@@ -211,10 +214,10 @@ impl OnlineBinaryClassifier for GaussianNaiveBayes {
             &mut self.class_false
         };
         for (i, &x) in features.iter().enumerate() {
-            stats.update_feature(i, x);
+            stats.update_feature(i, x)?;
         }
-        stats.class_count += 1;
-        self.samples_seen += 1;
+        stats.class_count = checked_increment(stats.class_count, "class_count")?;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 
@@ -323,7 +326,7 @@ impl OnlineBinaryClassifier for BernoulliNaiveBayes {
         let log_p_false = log_prior_false + log_likelihood_false;
 
         let log_odds = log_p_true - log_p_false;
-        Ok(sigmoid(log_odds))
+        Ok(sigmoid(log_odds).clamp(f64::EPSILON, 1.0 - f64::EPSILON))
     }
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {
@@ -331,19 +334,24 @@ impl OnlineBinaryClassifier for BernoulliNaiveBayes {
         if target {
             for (i, &x) in features.iter().enumerate() {
                 if x > 0.5 {
-                    self.feature_true_counts_true[i] += 1;
+                    self.feature_true_counts_true[i] =
+                        checked_increment(self.feature_true_counts_true[i], "feature_true_count")?;
                 }
             }
-            self.class_true_count += 1;
+            self.class_true_count = checked_increment(self.class_true_count, "class_true_count")?;
         } else {
             for (i, &x) in features.iter().enumerate() {
                 if x > 0.5 {
-                    self.feature_true_counts_false[i] += 1;
+                    self.feature_true_counts_false[i] = checked_increment(
+                        self.feature_true_counts_false[i],
+                        "feature_true_count",
+                    )?;
                 }
             }
-            self.class_false_count += 1;
+            self.class_false_count =
+                checked_increment(self.class_false_count, "class_false_count")?;
         }
-        self.samples_seen += 1;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 
@@ -454,25 +462,28 @@ impl OnlineBinaryClassifier for MultinomialNaiveBayes {
         let log_p_false = log_prior_false + log_likelihood_false;
 
         let log_odds = log_p_true - log_p_false;
-        Ok(sigmoid(log_odds))
+        Ok(sigmoid(log_odds).clamp(f64::EPSILON, 1.0 - f64::EPSILON))
     }
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {
         validate_non_negative(self.feature_count, features)?;
         if target {
             for (i, &x) in features.iter().enumerate() {
-                self.feature_sums_true[i] += x;
-                self.total_true += x;
+                self.feature_sums_true[i] =
+                    checked_finite_add(self.feature_sums_true[i], x, "feature_sum")?;
+                self.total_true = checked_finite_add(self.total_true, x, "total")?;
             }
-            self.class_true_count += 1;
+            self.class_true_count = checked_increment(self.class_true_count, "class_true_count")?;
         } else {
             for (i, &x) in features.iter().enumerate() {
-                self.feature_sums_false[i] += x;
-                self.total_false += x;
+                self.feature_sums_false[i] =
+                    checked_finite_add(self.feature_sums_false[i], x, "feature_sum")?;
+                self.total_false = checked_finite_add(self.total_false, x, "total")?;
             }
-            self.class_false_count += 1;
+            self.class_false_count =
+                checked_increment(self.class_false_count, "class_false_count")?;
         }
-        self.samples_seen += 1;
+        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
 

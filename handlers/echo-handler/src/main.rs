@@ -19,7 +19,7 @@ impl Guest for EchoHandler {
     fn metadata() -> HandlerMetadata {
         HandlerMetadata {
             id: "rillml.echo.handler".into(),
-            version: "0.7.2".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
             api_version: 1,
             capabilities: vec!["rillml.linearRegression.predict".into()],
         }

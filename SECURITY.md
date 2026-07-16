@@ -7,8 +7,8 @@ minor release receives security fixes. There is no separate LTS branch.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.7.x   | :white_check_mark: |
-| < 0.7   | :x:                |
+| 0.8.x   | :white_check_mark: |
+| < 0.8   | :x:                |
 
 Once RillML reaches `1.0`, a more detailed support table will be published
 here.
@@ -127,7 +127,7 @@ components. The sandbox is designed to minimise trust in handler code:
   with: no WASI imports (no filesystem, network, environment, stdio, or
   process access), per-call fuel budget, epoch interruption for wall-clock
   timeout, memory growth capped at 64 MiB, table growth capped at 10 000
-  elements, and I/O JSON capped at 1 MiB.
+  elements, WASM stack capped at 1 MiB, and I/O JSON capped at 1 MiB.
 - **Error containment.** Handler traps, timeouts, and invalid outputs are
   mapped to stable IPC error codes (`handlerTrap`, `handlerTimeout`,
   `handlerOutputTooLarge`, `handlerInvalidOutput`). The runtime process

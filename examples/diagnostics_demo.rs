@@ -85,7 +85,7 @@ fn main() {
 
         let linear_abs_err = (y - linear_pred).abs();
         mae.update(y, linear_pred).unwrap();
-        summary.record_sample();
+        summary.record_sample().unwrap();
         summary.record_error(linear_abs_err).unwrap();
 
         // Record both models' errors for the selector.
