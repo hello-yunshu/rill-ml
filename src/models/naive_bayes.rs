@@ -8,7 +8,9 @@
 //! All three implement [`OnlineBinaryClassifier`] for binary classification.
 //! Multi-class support may be added in a future version.
 
-use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite, validate_features};
+use crate::error::{
+    RillError, checked_finite_add, checked_increment, ensure_finite, validate_features,
+};
 use crate::loss::log_loss::sigmoid;
 use crate::traits::OnlineBinaryClassifier;
 
@@ -342,10 +344,8 @@ impl OnlineBinaryClassifier for BernoulliNaiveBayes {
         } else {
             for (i, &x) in features.iter().enumerate() {
                 if x > 0.5 {
-                    self.feature_true_counts_false[i] = checked_increment(
-                        self.feature_true_counts_false[i],
-                        "feature_true_count",
-                    )?;
+                    self.feature_true_counts_false[i] =
+                        checked_increment(self.feature_true_counts_false[i], "feature_true_count")?;
                 }
             }
             self.class_false_count =

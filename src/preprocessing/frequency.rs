@@ -77,9 +77,10 @@ impl FrequencyEncoder {
             let count = self.category_counts.entry(feat.to_string()).or_insert(0);
             *count = checked_increment(*count, "category_count")?;
         }
-        self.total = self.total.checked_add(features.len() as u64).ok_or_else(|| {
-            RillError::InvalidState("total counter overflow".to_string())
-        })?;
+        self.total = self
+            .total
+            .checked_add(features.len() as u64)
+            .ok_or_else(|| RillError::InvalidState("total counter overflow".to_string()))?;
         self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
         Ok(())
     }
