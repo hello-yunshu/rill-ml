@@ -117,7 +117,7 @@ effective_capabilities = model_manifest.capabilities ∩ handler_manifest.capabi
 | Table 大小 | 10_000 entries | 每个实例 |
 | WASM 栈大小 | 1 MiB | 防止栈耗尽 trap |
 | configure fuel | 10_000_000 units | 独立预算 |
-| invoke fuel | 1_000_000 units | 每次调用独立 |
+| invoke fuel | 100_000_000 units | 每次调用独立；5 秒 epoch deadline 仍是 wall-clock 上限 |
 | epoch deadline | 5 秒 | wall-clock 等价 |
 | 输入 JSON | 1 MiB | 与 IPC MAX_MESSAGE_BYTES 一致 |
 | 输出 JSON | 1 MiB | 与 IPC MAX_MESSAGE_BYTES 一致 |

@@ -215,7 +215,7 @@ fn wasm_handler_sandbox_limits_verified() {
 
     // Fuel budgets per call.
     assert_eq!(CONFIGURE_FUEL, 10_000_000);
-    assert_eq!(INVOKE_FUEL, 1_000_000);
+    assert_eq!(INVOKE_FUEL, 100_000_000);
     // Memory and table caps per instance.
     assert_eq!(MAX_MEMORY_BYTES, 64 * 1024 * 1024);
     assert_eq!(MAX_TABLE_ELEMENTS, 10_000);

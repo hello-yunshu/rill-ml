@@ -38,7 +38,13 @@ mod invoke_handler {
 /// Fuel budget for a single `configure` call.
 pub const CONFIGURE_FUEL: u64 = 10_000_000;
 /// Fuel budget for a single `invoke` call.
-pub const INVOKE_FUEL: u64 = 1_000_000;
+///
+/// Handler input and output are allowed to reach 1 MiB. The previous one-million
+/// unit budget could be exhausted by ordinary JSON decoding before a handler's
+/// algorithm ran (Mira's battery handler reproduced this with roughly 100
+/// samples). The epoch deadline remains the authoritative five-second wall-clock
+/// guard, while this larger deterministic budget lets valid bounded payloads run.
+pub const INVOKE_FUEL: u64 = 100_000_000;
 /// Maximum linear memory size per instance (64 MiB).
 pub const MAX_MEMORY_BYTES: usize = 64 * 1024 * 1024;
 /// Maximum table entries per instance.

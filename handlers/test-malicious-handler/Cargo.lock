@@ -211,7 +211,7 @@ dependencies = [
 
 [[package]]
 name = "test-malicious-handler"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "wit-bindgen",
 ]
