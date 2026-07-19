@@ -15,6 +15,14 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-07-19
+
+### Fixed
+
+- Raise the sandboxed handler `invoke` fuel budget so valid payloads near the
+  documented 1 MiB input limit can finish JSON decoding and execute. The
+  independent five-second epoch deadline, memory cap, table cap, and I/O limits
+  remain enforced.
 
 ## [0.8.0] - 2026-07-17
 
@@ -604,7 +612,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.8.1
 [0.8.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.8.0
 [0.7.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.2
 [0.7.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.1
