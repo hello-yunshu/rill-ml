@@ -129,4 +129,13 @@ cargo run -p rill-runtime --bin rill-pack -- inspect-handler \
 - `APPLE_CERTIFICATE_P12_BASE64`、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_SIGNING_IDENTITY`：macOS Developer ID 代码签名（未配置时 macOS 二进制照常构建，仅跳过 codesign）；
 - 模型 manifest、workspace 版本与标签版本必须完全一致。
 
+Mira 集成使用独立于示例发布和插件发布的密钥：
+
+- GitHub Secret：`MIRA_SIGNING_KEY_HEX`；
+- Key ID：`mira-rill-2026-001`；
+- Ed25519 公钥：`3d5ada931abc747610850f9e405fee637a3f445c0b4406eb96b41673814fc261`。
+
+该 Secret 供 Mira 的模型包与 `local-ai-bundle` 发布链使用；通用示例 release 仍使用
+`RILL_SIGNING_KEY_HEX`，避免两个信任域互相覆盖。
+
 仓库不会保存或生成生产私钥，也不会把未签名的示例文件冒充正式发布。
