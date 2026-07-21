@@ -324,7 +324,7 @@ jobs:
           output = pathlib.Path("dist") / f"rill-runtime-{version}-{os.environ['TARGET_OS']}-{os.environ['TARGET_ARCH']}{extension}"
           output.parent.mkdir(exist_ok=True)
           shutil.copyfile(source, output)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: runtime-${{ matrix.target_os }}-${{ matrix.target_arch }}
           path: dist/rill-runtime-*
