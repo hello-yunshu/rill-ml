@@ -7,8 +7,8 @@ minor release receives security fixes. There is no separate LTS branch.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.8.x   | :white_check_mark: |
-| < 0.8   | :x:                |
+| 0.9.x   | :white_check_mark: |
+| < 0.9   | :x:                |
 
 Once RillML reaches `1.0`, a more detailed support table will be published
 here.
