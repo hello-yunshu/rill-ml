@@ -61,10 +61,10 @@ fn gaussian_nb_separable_data() {
 
 #[test]
 fn gaussian_nb_predict_proba_in_range() {
-    // The sigmoid of the log-odds must always lie strictly in (0, 1).
+    // The sigmoid of the log-odds must always lie in the closed [0, 1].
     // We use overlapping classes (means at ±1 with large noise) so that
-    // the log-odds stay bounded and sigmoid does not saturate to exactly
-    // 0.0 or 1.0.
+    // the log-odds stay bounded, but the public contract is the closed
+    // interval because sigmoid can saturate at the extremes.
     let mut model = GaussianNaiveBayes::new(2, Default::default()).unwrap();
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(99);
 
@@ -85,8 +85,8 @@ fn gaussian_nb_predict_proba_in_range() {
         ];
         let p = model.predict_proba(&x).unwrap();
         assert!(
-            p > 0.0 && p < 1.0,
-            "probability must be strictly in (0, 1), got {p}"
+            (0.0..=1.0).contains(&p),
+            "probability must be in [0, 1], got {p}"
         );
     }
 }

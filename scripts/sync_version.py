@@ -193,6 +193,38 @@ def sync_changelog(changelog: pathlib.Path, version: str) -> int:
     return count
 
 
+def verify_readme_no_hardcoded_version(readme: pathlib.Path) -> int:
+    """Return the number of hardcoded ``rill-ml = "0.x"`` dependency lines.
+
+    The README installation examples use ``cargo add rill-ml`` so that the
+    version never drifts from ``[workspace.package].version``. This check
+    is a regression guard: if a future edit reintroduces a literal
+    ``rill-ml = "0.x"`` TOML dependency line, ``sync_version.py`` will
+    report it and the CI unittest fails.
+
+    Roadmap bullets such as ``- **v0.7** —`` are intentionally not matched
+    because they describe historical feature lines, not the current
+    install command.
+    """
+    text = readme.read_text(encoding="utf-8")
+    # Match two TOML dependency forms that drift from the canonical
+    # workspace version:
+    #   1. ``rill-ml = "0.7"`` / ``rill-ml = "0.7.0"`` / ``rill-ml = 0.7``
+    #   2. ``rill-ml = { version = "0.7", features = ["serde"] }``
+    # Roadmap bullets (``- **v0.7** —``) are not preceded by ``rill-ml =``
+    # and are therefore intentionally not matched.
+    simple = re.compile(r'(?m)^\s*rill-ml\s*=\s*"?0\.\d+(?:\.\d+)?"?')
+    inline_table = re.compile(
+        r'(?m)^\s*rill-ml\s*=\s*\{[^}]*\bversion\s*=\s*"0\.\d+(?:\.\d+)?"'
+    )
+    matched_lines: set[int] = set()
+    for match in simple.finditer(text):
+        matched_lines.add(match.start())
+    for match in inline_table.finditer(text):
+        matched_lines.add(match.start())
+    return len(matched_lines)
+
+
 # --------------------------------------------------------------------------- #
 #  Orchestration                                                              #
 # --------------------------------------------------------------------------- #
@@ -277,7 +309,30 @@ def main() -> int:
         print(f"  {label:50s} {status}")
         changed += count
 
+    # 8. Regression guard: README installation examples must use
+    # ``cargo add rill-ml`` and must not reintroduce a literal
+    # ``rill-ml = "0.x"`` TOML dependency line that can drift from the
+    # canonical workspace version.
+    readme_violations = 0
+    for readme in (root / "README.md", root / "README.en.md"):
+        found = verify_readme_no_hardcoded_version(readme)
+        if found:
+            readme_violations += found
+            print(
+                f"  {readme.name:50s} {found} hardcoded rill-ml version line(s) — "
+                "use `cargo add rill-ml` instead",
+                file=sys.stderr,
+            )
+        else:
+            print(f"  {readme.name:50s} ok")
+
     print(f"\nsync: {changed} field(s) updated for version {version}")
+    if readme_violations:
+        print(
+            f"sync: {readme_violations} README hardcoded version line(s) must be removed",
+            file=sys.stderr,
+        )
+        return 2
     print("sync: remember to fill in CHANGELOG.md release notes before releasing.")
     return 0
 

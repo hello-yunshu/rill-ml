@@ -35,8 +35,8 @@ use std::path::PathBuf;
 use ed25519_dalek::SigningKey;
 use ed25519_dalek::VerifyingKey;
 use rill_runtime::{
-    InvokeHandler, LoadedHandlerPack, TrustStore, WasmInvokeHandler, build_signed_handler_pack,
-    load_handler_pack,
+    InvokeErrorKind, InvokeHandler, LoadedHandlerPack, TrustStore, WasmInvokeHandler,
+    build_signed_handler_pack, load_handler_pack,
 };
 use rill_runtime_protocol::{
     HANDLER_API_VERSION, HANDLER_PACKAGE_FORMAT_VERSION, HandlerPackManifest,
@@ -138,10 +138,19 @@ fn echo_handler_rejects_unsupported_capability() {
     let result = handler.invoke("rillml.unknown.predict", &serde_json::json!({}));
     assert!(result.is_err());
     let error = result.unwrap_err();
+    // Unsupported capability is reported by the guest via the WIT
+    // `handler-error` `unsupported-capability` variant, which the host
+    // collapses to `ExecutionFailed` with the guest detail kept
+    // host-side only.
     assert!(
-        error.contains("handlerExecutionFailed") || error.contains("UnsupportedCapability"),
-        "unexpected error: {error}"
+        matches!(error.kind(), InvokeErrorKind::ExecutionFailed),
+        "expected ExecutionFailed, got: {:?}",
+        error.kind()
     );
+    assert_eq!(error.stable_code(), "handlerInternalError");
+    // The guest-supplied detail must not appear in the public message.
+    assert!(!error.public_message().contains("UnsupportedCapability"));
+    assert!(!error.public_message().contains("unsupported"));
 }
 
 #[test]
@@ -306,9 +315,16 @@ fn wasm_handler_trap_returns_handler_trap_error() {
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(
-        error.starts_with("handlerTrap"),
-        "expected handlerTrap, got: {error}"
+        matches!(error.kind(), InvokeErrorKind::Trap),
+        "expected Trap, got: {:?}",
+        error.kind()
     );
+    assert_eq!(error.stable_code(), "handlerTrap");
+    assert_eq!(error.public_message(), "handler trapped");
+    // The trap detail (which may include a wasmtime backtrace) must not
+    // appear in the public message or stable code.
+    assert!(!error.public_message().contains("unreachable"));
+    assert!(!error.stable_code().contains("unreachable"));
 }
 
 #[test]
@@ -326,9 +342,11 @@ fn wasm_handler_oversized_output_returns_output_too_large() {
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(
-        error.starts_with("handlerOutputTooLarge"),
-        "expected handlerOutputTooLarge, got: {error}"
+        matches!(error.kind(), InvokeErrorKind::OutputTooLarge),
+        "expected OutputTooLarge, got: {:?}",
+        error.kind()
     );
+    assert_eq!(error.stable_code(), "handlerOutputTooLarge");
 }
 
 #[test]
@@ -346,9 +364,11 @@ fn wasm_handler_invalid_json_output_returns_invalid_output() {
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(
-        error.starts_with("handlerInvalidOutput"),
-        "expected handlerInvalidOutput, got: {error}"
+        matches!(error.kind(), InvokeErrorKind::InvalidOutput),
+        "expected InvalidOutput, got: {:?}",
+        error.kind()
     );
+    assert_eq!(error.stable_code(), "handlerInvalidOutput");
 }
 
 #[test]
@@ -370,9 +390,12 @@ fn wasm_handler_infinite_loop_returns_timeout() {
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(
-        error.starts_with("handlerTimeout"),
-        "expected handlerTimeout, got: {error}"
+        matches!(error.kind(), InvokeErrorKind::Timeout),
+        "expected Timeout, got: {:?}",
+        error.kind()
     );
+    assert_eq!(error.stable_code(), "handlerTimeout");
+    assert!(error.retryable());
     // The epoch deadline is 5 seconds; the call must be interrupted within
     // a reasonable window after that (allow 10s for CI overhead).
     assert!(
@@ -398,4 +421,215 @@ fn wasm_handler_echo_mode_works_as_baseline() {
         .invoke("rillml.linearRegression.predict", &input)
         .unwrap();
     assert_eq!(output, input);
+}
+
+/// Verifies the WASM store remains usable after a non-trap error.
+///
+/// After `OutputTooLarge` (host-side size check on the returned bytes), the
+/// underlying Wasmtime `Store` is in a clean state and the same handler
+/// instance can be invoked again. The malicious handler's `oversized-output`
+/// mode caches the oversized buffer in a `thread_local` and consumes it on
+/// the first `invoke` call, so the second call returns `ExecutionFailed`
+/// (because the cache is empty). The important assertion is that the second
+/// call returns a typed error rather than panicking, hanging, or returning
+/// a permanent `Trap`.
+#[test]
+fn wasm_handler_remains_usable_after_output_too_large() {
+    let (loaded, _) = match prepare_malicious_handler() {
+        Some(v) => v,
+        None => return,
+    };
+
+    let model = serde_json::json!({"mode": "oversized-output"});
+    let handler = WasmInvokeHandler::new(&loaded, &model).unwrap();
+
+    // First invoke: oversized output → OutputTooLarge.
+    let result = handler.invoke("rillml.linearRegression.predict", &serde_json::json!({}));
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(matches!(error.kind(), InvokeErrorKind::OutputTooLarge));
+
+    // Second invoke: the thread_local cache is now empty, so the guest
+    // returns `ExecutionFailed`. The store is still usable — the call
+    // completes and returns a typed error rather than hanging or trapping.
+    let result = handler.invoke("rillml.linearRegression.predict", &serde_json::json!({}));
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(
+        matches!(error.kind(), InvokeErrorKind::ExecutionFailed),
+        "expected ExecutionFailed on second call, got: {:?}",
+        error.kind()
+    );
+}
+
+/// Verifies that one handler instance's failure does not affect another.
+///
+/// Each `WasmInvokeHandler` owns its own `Engine`, `Store`, and epoch
+/// ticker thread, so a malicious handler that traps or loops forever
+/// cannot poison the runtime for other handlers. This test creates a
+/// trap-mode handler, confirms it returns `Trap`, then creates a fresh
+/// echo-mode handler and confirms it works.
+#[test]
+fn wasm_handler_failure_does_not_affect_other_instances() {
+    let (loaded, _) = match prepare_malicious_handler() {
+        Some(v) => v,
+        None => return,
+    };
+
+    // First handler: traps on every invoke.
+    let trap_model = serde_json::json!({"mode": "trap"});
+    let trap_handler = WasmInvokeHandler::new(&loaded, &trap_model).unwrap();
+    let result = trap_handler.invoke("rillml.linearRegression.predict", &serde_json::json!({}));
+    assert!(matches!(result.unwrap_err().kind(), InvokeErrorKind::Trap));
+
+    // Second handler: echo mode. Must work despite the first handler's trap.
+    let echo_model = serde_json::json!({"mode": "echo"});
+    let echo_handler = WasmInvokeHandler::new(&loaded, &echo_model).unwrap();
+    let input = serde_json::json!({"features": [3.0, 4.0]});
+    let output = echo_handler
+        .invoke("rillml.linearRegression.predict", &input)
+        .unwrap();
+    assert_eq!(output, input);
+}
+
+/// Verifies that an infinite loop in `configure()` is bounded by the
+/// epoch deadline and returns a load error (instead of hanging forever).
+///
+/// The malicious handler's `configure-infinite-loop` mode calls
+/// `burn_forever()` inside `configure()`. The host sets an independent
+/// fuel budget and epoch deadline on the `configure()` stage (see
+/// `handler/wasm.rs` stage 3), so the call must be interrupted within a
+/// reasonable window of the 5-second deadline. Because `configure()`
+/// runs inside `WasmInvokeHandler::new`, the failure surfaces as a
+/// `HandlerLoadError::Init` rather than an `InvokeError`.
+#[test]
+fn wasm_handler_configure_infinite_loop_returns_timeout() {
+    let (loaded, _) = match prepare_malicious_handler() {
+        Some(v) => v,
+        None => return,
+    };
+
+    let model = serde_json::json!({"mode": "configure-infinite-loop"});
+    let start = std::time::Instant::now();
+    let result = WasmInvokeHandler::new(&loaded, &model);
+    let elapsed = start.elapsed();
+
+    assert!(
+        result.is_err(),
+        "configure-infinite-loop must fail handler load"
+    );
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, rill_runtime::HandlerLoadError::Init(ref msg)
+            if msg.contains("configure trap")),
+        "expected HandlerLoadError::Init mentioning configure trap, got: {err:?}"
+    );
+    // The epoch deadline is 5 seconds; the load must fail within a
+    // reasonable window of that (allow 15s for CI overhead).
+    assert!(
+        elapsed.as_secs() < 15,
+        "configure infinite loop took too long to interrupt: {elapsed:?}"
+    );
+}
+
+/// Verifies that a guest-supplied oversized error detail string is
+/// truncated by the host before being stored on `InvokeError`.
+///
+/// The malicious handler's `long-error-string` mode returns
+/// `HandlerError::ExecutionFailed` with a 16 KiB detail payload. The
+/// host's `InvokeError::with_detail` truncates the detail to
+/// `MAX_DETAIL_BYTES` (4 KiB) on a UTF-8 char boundary, bounding host
+/// memory and stderr noise. The stored detail must not exceed the limit.
+#[test]
+fn wasm_handler_long_error_string_is_truncated() {
+    use rill_runtime::InvokeError;
+    use rill_runtime::MAX_DETAIL_BYTES;
+
+    let (loaded, _) = match prepare_malicious_handler() {
+        Some(v) => v,
+        None => return,
+    };
+
+    let model = serde_json::json!({"mode": "long-error-string"});
+    let handler = WasmInvokeHandler::new(&loaded, &model).unwrap();
+
+    let result = handler.invoke("rillml.linearRegression.predict", &serde_json::json!({}));
+    assert!(result.is_err());
+    let error: InvokeError = result.unwrap_err();
+    assert!(
+        matches!(error.kind(), InvokeErrorKind::ExecutionFailed),
+        "expected ExecutionFailed, got: {:?}",
+        error.kind()
+    );
+    assert_eq!(error.stable_code(), "handlerInternalError");
+    // The guest attempted to exfiltrate 16 KiB; the host must have
+    // truncated the stored detail to <= MAX_DETAIL_BYTES.
+    let detail = error
+        .detail()
+        .expect("ExecutionFailed with detail must store host-only detail");
+    assert!(
+        detail.len() <= MAX_DETAIL_BYTES,
+        "detail length {} must not exceed MAX_DETAIL_BYTES {}",
+        detail.len(),
+        MAX_DETAIL_BYTES
+    );
+    // The host stores the guest error using its `Debug` representation
+    // (`HandlerError::ExecutionFailed("XXXX...")`). After truncation the
+    // detail must still start with the variant prefix and contain a large
+    // run of 'X' characters from the original 16 KiB payload, proving the
+    // guest-controlled string was captured but bounded. The truncation
+    // must land on a UTF-8 char boundary (all-'X' is ASCII, so any byte
+    // offset is a valid char boundary).
+    assert!(
+        detail.starts_with("HandlerError::ExecutionFailed(\""),
+        "detail must start with the Debug prefix, got: {detail:?}"
+    );
+    let x_count = detail.chars().filter(|c| *c == 'X').count();
+    assert!(
+        x_count >= MAX_DETAIL_BYTES - 64,
+        "expected at least {} 'X' characters from the guest payload, got {x_count}",
+        MAX_DETAIL_BYTES - 64
+    );
+    // The public message must be the fixed constant, not the payload.
+    assert_eq!(error.public_message(), "handler execution failed");
+    assert!(!error.public_message().contains("X"));
+}
+
+/// Verifies that a handler performing dense floating-point work that
+/// exhausts the invoke fuel budget is interrupted and returns a
+/// `Timeout` error.
+///
+/// The malicious handler's `fuel-exhaustion` mode performs real
+/// arithmetic in a tight loop (rather than an empty `wrapping_add`
+/// loop), exercising fuel accounting for numeric instructions. The
+/// epoch deadline remains the authoritative wall-clock guard, but fuel
+/// exhaustion alone (without an explicit `loop {}`) must also terminate
+/// the call.
+#[test]
+fn wasm_handler_fuel_exhaustion_returns_timeout() {
+    let (loaded, _) = match prepare_malicious_handler() {
+        Some(v) => v,
+        None => return,
+    };
+
+    let model = serde_json::json!({"mode": "fuel-exhaustion"});
+    let handler = WasmInvokeHandler::new(&loaded, &model).unwrap();
+
+    let start = std::time::Instant::now();
+    let result = handler.invoke("rillml.linearRegression.predict", &serde_json::json!({}));
+    let elapsed = start.elapsed();
+
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(
+        matches!(error.kind(), InvokeErrorKind::Timeout),
+        "expected Timeout for fuel exhaustion, got: {:?}",
+        error.kind()
+    );
+    assert_eq!(error.stable_code(), "handlerTimeout");
+    assert!(error.retryable());
+    assert!(
+        elapsed.as_secs() < 15,
+        "fuel exhaustion took too long to interrupt: {elapsed:?}"
+    );
 }
