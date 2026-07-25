@@ -243,6 +243,18 @@ impl FtrlParam {
     ) -> Result<(f64, f64), RillError> {
         let gradient_sq = gradient * gradient;
         ensure_finite("ftrl_gradient_squared", gradient_sq)?;
+        // Detect underflow: a non-zero gradient whose square underflows to
+        // zero. In that case `n_new == n_old` while `z` still advances by
+        // `gradient`, which can produce an unusable state (`n == 0, z != 0`)
+        // on cold-start features and a zero denominator in `weight` on the
+        // next prediction. Reject explicitly rather than silently committing
+        // a state that would make the next `predict()` fail.
+        if gradient != 0.0 && gradient_sq == 0.0 {
+            return Err(RillError::NonFiniteValue {
+                field: "ftrl_gradient_squared",
+                value: gradient_sq,
+            });
+        }
         let n_new = checked_finite_add(self.n, gradient_sq, "ftrl_n_new")?;
         let sigma = (n_new.sqrt() - self.n.sqrt()) / config.alpha;
         ensure_finite("ftrl_sigma", sigma)?;
@@ -254,7 +266,17 @@ impl FtrlParam {
         Ok((z_new, n_new))
     }
 
-    /// Validate that `z` is finite and `n` is finite and non-negative.
+    /// Validate that `z` is finite, `n` is finite and non-negative, and the
+    /// state can produce a finite weight on the next `predict()` call.
+    ///
+    /// The FTRL weight formula divides by `l2 + (beta + sqrt(n)) / alpha`.
+    /// When `n == 0` and `l2 == 0` and `beta == 0` the denominator is zero.
+    /// `intercept_weight` already short-circuits `n == 0` to `0.0`, but
+    /// `weight` does not. A state with `n == 0` and `z != 0` (where
+    /// `|z| > l1`) would therefore produce `±inf` on the next prediction.
+    /// Such a state can only arise from a non-zero gradient whose square
+    /// underflows to zero (handled in [`FtrlParam::next_updated`]) or from
+    /// a maliciously crafted serde payload; both must be rejected.
     #[cfg_attr(not(feature = "serde"), allow(dead_code))]
     fn validate(&self) -> Result<(), RillError> {
         ensure_finite("ftrl_z", self.z)?;
@@ -263,6 +285,13 @@ impl FtrlParam {
             return Err(RillError::InvalidState(format!(
                 "ftrl n must be non-negative, got {0}",
                 self.n
+            )));
+        }
+        if self.n == 0.0 && self.z != 0.0 {
+            return Err(RillError::InvalidState(format!(
+                "ftrl param has n=0 but z={0} (non-zero); this state cannot \
+                 produce a finite weight",
+                self.z
             )));
         }
         Ok(())
@@ -392,7 +421,7 @@ impl FtrlRegressor {
         let dot = compute_dot(&self.params, &self.config, features)?;
         let intercept = self.intercept.intercept_weight(&self.config);
         ensure_finite("ftrl_intercept", intercept)?;
-        Ok(dot + intercept)
+        checked_finite_add(dot, intercept, "ftrl_prediction")
     }
 }
 
@@ -491,13 +520,17 @@ impl SparseRegressor for FtrlRegressor {
         // Compute the next (z, n) for every feature without touching self.
         let mut updates: Vec<(FeatureId, f64, f64)> = Vec::with_capacity(features.len());
         for &(id, value) in features.values() {
-            let g = grad * value;
-            ensure_finite("ftrl_feature_gradient", g)?;
-
+            // Ignore policy must be evaluated before any arithmetic on the
+            // new feature's value. Otherwise an oversized new feature whose
+            // `grad * value` would overflow could fail the whole `learn()`
+            // call even though the feature is supposed to be skipped.
             let is_new = !self.params.contains_key(&id);
             if is_new && skip_new_features {
                 continue;
             }
+
+            let g = grad * value;
+            ensure_finite("ftrl_feature_gradient", g)?;
 
             let (new_z, new_n) = if let Some(param) = self.params.get(&id) {
                 let w = param.weight(&self.config);
@@ -507,6 +540,12 @@ impl SparseRegressor for FtrlRegressor {
                 let w = param.weight(&self.config);
                 param.next_updated(g, w, &self.config)?
             };
+            // Verify the next state produces a finite weight before
+            // committing. This catches any path that would leave the model
+            // in a state where the next `predict()` fails due to internal
+            // state (e.g. a zero denominator in the weight formula).
+            let next_w = FtrlParam { z: new_z, n: new_n }.weight(&self.config);
+            ensure_finite("ftrl_next_weight", next_w)?;
             updates.push((id, new_z, new_n));
         }
 
@@ -514,6 +553,13 @@ impl SparseRegressor for FtrlRegressor {
         let w_b = self.intercept.intercept_weight(&self.config);
         let (new_intercept_z, new_intercept_n) =
             self.intercept.next_updated(grad, w_b, &self.config)?;
+        // Verify the next intercept produces a finite weight too.
+        let next_intercept_w = FtrlParam {
+            z: new_intercept_z,
+            n: new_intercept_n,
+        }
+        .intercept_weight(&self.config);
+        ensure_finite("ftrl_next_intercept_weight", next_intercept_w)?;
 
         // Commit atomically. No failure path beyond this point.
         for (id, new_z, new_n) in updates {
@@ -612,8 +658,7 @@ impl FtrlClassifier {
         let dot = compute_dot(&self.params, &self.config, features)?;
         let intercept = self.intercept.intercept_weight(&self.config);
         ensure_finite("ftrl_intercept", intercept)?;
-        let logit = dot + intercept;
-        ensure_finite("ftrl_logit", logit)?;
+        let logit = checked_finite_add(dot, intercept, "ftrl_logit")?;
         Ok(sigmoid(logit))
     }
 }
@@ -704,13 +749,17 @@ impl SparseClassifier for FtrlClassifier {
 
         let mut updates: Vec<(FeatureId, f64, f64)> = Vec::with_capacity(features.len());
         for &(id, value) in features.values() {
-            let g = grad * value;
-            ensure_finite("ftrl_feature_gradient", g)?;
-
+            // Ignore policy must be evaluated before any arithmetic on the
+            // new feature's value. Otherwise an oversized new feature whose
+            // `grad * value` would overflow could fail the whole `learn()`
+            // call even though the feature is supposed to be skipped.
             let is_new = !self.params.contains_key(&id);
             if is_new && skip_new_features {
                 continue;
             }
+
+            let g = grad * value;
+            ensure_finite("ftrl_feature_gradient", g)?;
 
             let (new_z, new_n) = if let Some(param) = self.params.get(&id) {
                 let w = param.weight(&self.config);
@@ -720,12 +769,22 @@ impl SparseClassifier for FtrlClassifier {
                 let w = param.weight(&self.config);
                 param.next_updated(g, w, &self.config)?
             };
+            // Verify the next state produces a finite weight before committing.
+            let next_w = FtrlParam { z: new_z, n: new_n }.weight(&self.config);
+            ensure_finite("ftrl_next_weight", next_w)?;
             updates.push((id, new_z, new_n));
         }
 
         let w_b = self.intercept.intercept_weight(&self.config);
         let (new_intercept_z, new_intercept_n) =
             self.intercept.next_updated(grad, w_b, &self.config)?;
+        // Verify the next intercept produces a finite weight too.
+        let next_intercept_w = FtrlParam {
+            z: new_intercept_z,
+            n: new_intercept_n,
+        }
+        .intercept_weight(&self.config);
+        ensure_finite("ftrl_next_intercept_weight", next_intercept_w)?;
 
         for (id, new_z, new_n) in updates {
             let param = self.params.entry(id).or_default();
@@ -1812,5 +1871,218 @@ mod tests {
         let model: FtrlClassifier = serde_json::from_str(json).unwrap();
         assert!(model.config().max_features.is_none());
         assert_eq!(model.config().new_feature_policy, NewFeaturePolicy::Reject);
+    }
+
+    // -----------------------------------------------------------------
+    // Second-audit: FTRL underflow / zero-denominator / Ignore order
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn regressor_gradient_squared_underflow_is_atomic() {
+        // Cold start: prediction = 0, target = -1e-200 → grad = 1e-200.
+        // For feature 0 (value=1.0): g = 1e-200 (non-zero, finite).
+        // g^2 = 1e-400 underflows to 0.0. Without the explicit underflow
+        // check, n_new would stay at 0 while z advances, producing a state
+        // whose next predict() divides by zero.
+        let mut model = FtrlRegressor::new(FtrlConfig {
+            alpha: 1.0,
+            beta: 0.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0)]).unwrap();
+        let result = model.learn(&sf, -1e-200);
+        assert!(result.is_err(), "expected underflow error, got {result:?}");
+        assert_eq!(model.samples_seen(), 0);
+        assert_eq!(model.feature_count(), 0);
+        assert!(model.params.is_empty());
+        assert_eq!(model.intercept.z, 0.0);
+        assert_eq!(model.intercept.n, 0.0);
+    }
+
+    #[test]
+    fn classifier_gradient_squared_underflow_is_atomic() {
+        // Cold start: probability = 0.5, target = false (y=0), grad = 0.5.
+        // Feature 0 value = 1e-200: g = 0.5 * 1e-200 = 5e-201 (non-zero).
+        // g^2 = 2.5e-401 underflows to 0.0.
+        let mut model = FtrlClassifier::new(FtrlConfig {
+            alpha: 1.0,
+            beta: 0.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1e-200)]).unwrap();
+        let result = model.learn(&sf, false);
+        assert!(result.is_err(), "expected underflow error, got {result:?}");
+        assert_eq!(model.samples_seen(), 0);
+        assert_eq!(model.feature_count(), 0);
+    }
+
+    #[test]
+    fn regressor_boundary_config_predict_after_learn_always_finite() {
+        // beta=0, l2=0, l1=0 is the zero-denominator boundary. Every
+        // successful learn must keep the model in a state where predict
+        // returns a finite value.
+        let mut model = FtrlRegressor::new(FtrlConfig {
+            alpha: 1.0,
+            beta: 0.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(77);
+        for _ in 0..100 {
+            let x0 = rand::Rng::gen_range(&mut rng, -1.0..1.0);
+            let x1 = rand::Rng::gen_range(&mut rng, -1.0..1.0);
+            let y = 2.0 * x0 - x1;
+            let sf = SparseFeatures::from_sorted(vec![(0, x0), (1, x1)]).unwrap();
+            model.learn(&sf, y).unwrap();
+            let pred = model.predict(&sf);
+            assert!(
+                pred.is_ok(),
+                "predict failed after successful learn: {pred:?}"
+            );
+            assert!(
+                pred.unwrap().is_finite(),
+                "predict must return finite value after successful learn"
+            );
+        }
+    }
+
+    #[test]
+    fn classifier_boundary_config_predict_proba_after_learn_always_finite() {
+        let mut model = FtrlClassifier::new(FtrlConfig {
+            alpha: 1.0,
+            beta: 0.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(88);
+        for _ in 0..100 {
+            let x0 = rand::Rng::gen_range(&mut rng, -1.0..1.0);
+            let x1 = rand::Rng::gen_range(&mut rng, -1.0..1.0);
+            let y = x0 > 0.0;
+            let sf = SparseFeatures::from_sorted(vec![(0, x0), (1, x1)]).unwrap();
+            model.learn(&sf, y).unwrap();
+            let proba = model.predict_proba(&sf);
+            assert!(proba.is_ok(), "predict_proba failed after learn: {proba:?}");
+            let p = proba.unwrap();
+            assert!(p.is_finite(), "probability must be finite, got {p}");
+            assert!(
+                (0.0..=1.0).contains(&p),
+                "probability must be in [0,1], got {p}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_serde_rejects_n_zero_z_nonzero() {
+        // n=0, z=1.0: weight formula denominator = l2 + (beta + sqrt(0))/alpha.
+        // With beta=0, l2=0, alpha=1: denominator = 0 → weight = inf.
+        // validate() must reject this state.
+        let json = "{\"config\":{\"alpha\":1.0,\"beta\":0.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":1.0,\"n\":0.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let result: Result<FtrlRegressor, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "n=0 && z!=0 must be rejected");
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_serde_rejects_n_zero_z_nonzero() {
+        let json = "{\"config\":{\"alpha\":1.0,\"beta\":0.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":1.0,\"n\":0.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let result: Result<FtrlClassifier, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "n=0 && z!=0 must be rejected");
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_predict_dot_plus_intercept_overflow() {
+        // Craft a model where dot + intercept overflows f64.
+        // config: alpha=1, beta=0, l1=0, l2=0 → weight = -z / sqrt(n)
+        // z = -f64::MAX * 0.75, n = 1.0 → weight = f64::MAX * 0.75
+        // dot = weight * 1.0 = f64::MAX * 0.75
+        // intercept_weight = f64::MAX * 0.75
+        // dot + intercept = f64::MAX * 1.5 → overflow to inf.
+        let z = -f64::MAX * 0.75;
+        let json = format!(
+            "{{\"config\":{{\"alpha\":1.0,\"beta\":0.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"}},\"params\":{{\"0\":{{\"z\":{0},\"n\":1.0}}}},\"intercept\":{{\"z\":{0},\"n\":1.0}},\"samples_seen\":1}}",
+            z
+        );
+        let model: FtrlRegressor = serde_json::from_str(&json).unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0)]).unwrap();
+        let result = model.predict(&sf);
+        assert!(
+            result.is_err(),
+            "expected dot+intercept overflow error, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn regressor_ignore_skips_overflowing_new_feature() {
+        let mut model = FtrlRegressor::new(FtrlConfig {
+            alpha: 0.5,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: Some(1),
+            new_feature_policy: NewFeaturePolicy::Ignore,
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0)]).unwrap();
+        model.learn(&sf, 1.0).unwrap();
+        assert_eq!(model.feature_count(), 1);
+
+        // New feature 1 with huge value. grad is O(1), so
+        // g = grad * f64::MAX is finite, but g^2 overflows to inf.
+        // Under Ignore, the new feature must be skipped BEFORE the
+        // multiplication; otherwise the whole learn() fails.
+        let sf_mixed = SparseFeatures::from_sorted(vec![(0, 1.0), (1, f64::MAX)]).unwrap();
+        let result = model.learn(&sf_mixed, 1.0);
+        assert!(
+            result.is_ok(),
+            "Ignore must skip overflowing new feature, got {result:?}"
+        );
+        assert_eq!(model.feature_count(), 1);
+        assert!(!model.params.contains_key(&1));
+        assert_eq!(model.samples_seen(), 2);
+        assert!(model.predict(&sf).is_ok());
+    }
+
+    #[test]
+    fn classifier_ignore_skips_overflowing_new_feature() {
+        let mut model = FtrlClassifier::new(FtrlConfig {
+            alpha: 0.5,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: Some(1),
+            new_feature_policy: NewFeaturePolicy::Ignore,
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0)]).unwrap();
+        model.learn(&sf, true).unwrap();
+        assert_eq!(model.feature_count(), 1);
+
+        let sf_mixed = SparseFeatures::from_sorted(vec![(0, 1.0), (1, f64::MAX)]).unwrap();
+        let result = model.learn(&sf_mixed, true);
+        assert!(
+            result.is_ok(),
+            "Ignore must skip overflowing new feature, got {result:?}"
+        );
+        assert_eq!(model.feature_count(), 1);
+        assert!(!model.params.contains_key(&1));
+        assert_eq!(model.samples_seen(), 2);
+        assert!(model.predict_proba(&sf).is_ok());
     }
 }
