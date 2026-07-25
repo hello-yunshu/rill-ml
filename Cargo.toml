@@ -28,6 +28,7 @@ members = [
 exclude = [
     "handlers/echo-handler",
     "handlers/test-malicious-handler",
+    "handlers/test-metadata-loop-handler",
 ]
 
 [workspace.package]
