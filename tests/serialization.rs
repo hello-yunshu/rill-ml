@@ -241,6 +241,7 @@ fn ftrl_regressor_serialization_roundtrip() {
         beta: 0.5,
         l1: 0.1,
         l2: 0.2,
+        ..Default::default()
     })
     .unwrap();
     let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (3, 2.0)]).unwrap();
@@ -256,6 +257,7 @@ fn ftrl_classifier_serialization_roundtrip() {
         beta: 0.5,
         l1: 0.1,
         l2: 0.2,
+        ..Default::default()
     })
     .unwrap();
     let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (2, -1.0)]).unwrap();
