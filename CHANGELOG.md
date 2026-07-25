@@ -15,6 +15,15 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+
+## [0.9.0] - 2026-07-26
+
+This release lands the full code audit
+([`RILL_ML_TRAE_AUDIT_OPTIMIZATION_PROMPT.md`](RILL_ML_TRAE_AUDIT_OPTIMIZATION_PROMPT.md))
+across core correctness, the runtime trust boundary, release reliability,
+and documentation. Full report:
+[`docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`](docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md).
+
 ### Changed — Breaking: serde state format
 
 - `Precision`, `Recall`, `F1Score`: added `samples_seen: u64` field so
@@ -25,11 +34,116 @@ with the Rust-specific convention that 0.x releases may break the public API.
   re-initialise these metrics after upgrading.
 - `R2`: replaced `sum_truth` / `sum_sq_truth` fields with Welford-style
   `ss_res` / `mean_truth` / `m2_truth` / `count` to avoid catastrophic
-  cancellation on large-offset, small-variance data. Old serde state is
-  **rejected**; callers must re-initialise `R2` after upgrading.
+  cancellation on large-offset, small-variance data (e.g.
+  `y = 1_000_000_000_001/002/003`). Old serde state is **rejected**;
+  callers must re-initialise `R2` after upgrading.
 - `Metric` trait-level consistency tests added in `src/traits.rs` enforce
   that `N` successful `update` calls yield `samples_seen() == N` for every
   `Metric` implementation.
+
+### Added — Core ML and pre-processing
+
+- `FtrlConfig::max_features: Option<usize>` and
+  `NewFeaturePolicy::{Reject, Ignore}` bound dynamic feature growth.
+  New features in a single sample are pre-judged as a batch so a learn
+  call never partially inserts. `Reject` is failure-atomic; `Ignore`
+  updates only existing features. The default `None` preserves
+  backwards compatibility; the module docs warn about unbounded growth
+  on untrusted streams.
+- `StandardScaler::transform_into` reuses a caller-provided buffer and
+  fuses scale computation into a single pass. Public `transform()`
+  stays API-compatible. `debug_assert!` retains dev-only invariants.
+  Criterion bench covers `d = 8/32/128/1024`.
+- Trait docs and classifier docs document the unified closed `[0, 1]`
+  probability contract. `BinaryLogLoss` clips internally; `LogLoss`
+  validates the `[0, 1]` range.
+
+### Fixed — Core ML numerical safety
+
+- FTRL `learn` now computes the next param state via `next_updated`
+  before mutating any field. All intermediate products (gradient²,
+  sigma, z-delta, dot product, prediction) pass through `ensure_finite`
+  or `checked_finite_add`. `samples_seen` overflow is detected before
+  state mutation. Single-learn failure leaves params, intercept,
+  feature table, and counters unchanged.
+- `Precision`, `Recall`, `F1Score`, `R2`, and `Accuracy` counters use
+  `checked_increment`; overflow aborts the update without mutating
+  state. Reset clears every counter.
+- Serde deserialisers for `FtrlConfig`, `FtrlParam`, `FtrlRegressor`,
+  `FtrlClassifier`, `R2`, `Precision`, `Recall`, `F1Score` reject
+  non-finite values, negative accumulators, missing `samples_seen`,
+  and inconsistent counters.
+
+### Fixed — Runtime trust boundary
+
+- `InvokeError` replaces string-prefix parsing with a typed
+  `InvokeErrorKind` (`InvalidInput`, `UnsupportedCapability`,
+  `ExecutionFailed`, `Timeout`, `Trap`, `OutputTooLarge`,
+  `InvalidOutput`, `Internal`). The IPC client message is a fixed
+  string; the host-side `detail` is truncated to 4 KiB on a UTF-8
+  char boundary and never enters the message. Guest backtraces,
+  model bytes, paths, and env vars are no longer exposed. v1 and v2
+  wire codes are preserved.
+- `WasmInvokeHandler` starts the `EpochTicker` RAII guard immediately
+  after `Engine::new`, before `Component::new`, `metadata()`,
+  `configure()`, or `invoke()`. Each stage resets fuel and epoch
+  deadline independently. `Drop` signals the ticker thread and joins
+  it within one tick. Mutex poison is mapped to `InvokeError::Internal`
+  instead of panicking.
+- WASM sandbox resource model is explicit and tested: no WASI, 64 MiB
+  max memory, 10 000 max table elements, 1 MiB max I/O per call. The
+  `ResourceLimiter` enforces memory and table caps with four boundary
+  cases each. Docs accurately reflect "first version is serial call
+  only".
+
+### Fixed — Release reliability and supply chain
+
+- `auto-release.yml` delegates tag dispatch/skip/fail decisions to the
+  new `scripts/release_tag_policy.py`. Existing tags are immutable:
+  when `tag_sha` differs from the successful CI head SHA the run fails
+  loudly and asks the caller to bump the version. Tags are never moved.
+  Stale releases are not retried as if they were the current main.
+  11 Python tests cover every branch.
+- `pipeline.yml` `publish-python` now treats a missing
+  `MATURIN_PYPI_TOKEN` as a hard failure (Python bindings are part of
+  the official release per README §模块总览) and verifies the uploaded
+  version is visible on PyPI's JSON API within 60 s.
+- Release tools are pinned: `wasm-pack` and `wasm-tools` use
+  `cargo install --locked --version "^0.13"` / `"^1.0"`; `maturin`
+  and `pytest` are pinned in the new `scripts/requirements-dev.txt`;
+  the `rustsec/audit-check` Action is pinned to release commit
+  `69366f33c96575abad1ee0dba8212993eecbe998`. `RUNTIME.md` documents
+  the toolchain version sources.
+- `security.yml` now triggers on `src/**`, `crates/**`, `handlers/**`,
+  `scripts/**`, `models/**`, `.github/workflows/**`, `Cargo.toml`, and
+  `Cargo.lock`. CodeQL runs `rust, python, actions`. Permissions are
+  per-job minimum: default `contents: read`, CodeQL
+  `security-events: write`, RustSec `checks: write, issues: write`.
+- `archive.rs` replaces the integer-division compression-ratio check
+  with `compressed.checked_mul(ratio)` to prevent truncation and
+  wrap-around attacks. Four boundary tests cover exact boundary,
+  one byte over, zero compressed size, and overflowing product.
+- `scripts/build-release-index.py` and
+  `scripts/update-model-release-index.py` enforce HTTPS-only release
+  URLs, reject `file:`/`data:`/`javascript:`/`ftp:`/`blob:` schemes,
+  empty hosts, embedded credentials, and fragments. `localhost` is
+  rejected unless `RILL_ALLOW_LOCALHOST_URLS=1` is set explicitly.
+
+### Changed — Documentation and version consistency
+
+- README.md and README.en.md installation examples now use
+  `cargo add rill-ml` / `cargo add rill-ml --features serde` instead of
+  hardcoded `rill-ml = "0.x"` TOML lines, so the docs never drift from
+  the canonical workspace version. Hardcoded test counts are replaced
+  with a dynamic description pointing at `cargo test --workspace` and
+  the CI summary.
+- `scripts/sync_version.py` propagates the canonical
+  `[workspace.package].version` to every static file: pyproject.toml,
+  JSON manifests, excluded handler crates, ROADMAP status line,
+  SECURITY supported-versions table, CHANGELOG skeleton, and
+  `[workspace.dependencies]` internal version requirements. The script
+  is idempotent and guards against README hardcoded versions. 14
+  Python tests cover the simple and inline-table TOML forms.
 
 ## [0.8.1] - 2026-07-19
 
@@ -629,6 +743,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.8.1...HEAD
+[0.9.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.9.0
 [0.8.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.8.1
 [0.8.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.8.0
 [0.7.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.7.2
