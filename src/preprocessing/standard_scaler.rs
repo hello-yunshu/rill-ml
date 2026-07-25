@@ -116,7 +116,9 @@ impl StandardScaler {
     /// Validate all configuration and persisted-state invariants.
     ///
     /// This is run automatically during deserialization and before operations
-    /// that index per-feature state.
+    /// that index per-feature state. The hot path (`transform_into` /
+    /// `transform`) relies on the invariants established here and by the
+    /// private constructor, and only re-checks them under `debug_assert!`.
     pub fn validate(&self) -> Result<(), RillError> {
         if self.feature_count == 0 {
             return Err(RillError::EmptyFeatures);
@@ -150,6 +152,80 @@ impl StandardScaler {
         }
         Ok(())
     }
+
+    /// Transform `features` into the provided `output` buffer, reusing its
+    /// allocation instead of allocating a fresh `Vec` on every call.
+    ///
+    /// This is the hot-path entry point. Compared to [`transform`](Transformer::transform)
+    /// it avoids two temporary allocations (the `variances()` and `scales()`
+    /// vectors) by fusing the scale computation into the single output loop.
+    /// The trust-boundary checks (dimension validation and finite-output
+    /// enforcement) are preserved; the internal-state invariants established
+    /// by [`validate`](Self::validate) and the private constructor are only
+    /// re-checked under `debug_assert!` because they are guaranteed by the
+    /// private fields and the validated deserialization path.
+    ///
+    /// `output` is truncated to the feature count and then filled; callers
+    /// that reuse the same buffer across iterations avoid allocation
+    /// entirely after the first call.
+    pub fn transform_into(&self, features: &[f64], output: &mut Vec<f64>) -> Result<(), RillError> {
+        // Trust-boundary: dimension must match. This is the public input
+        // boundary and must always be enforced.
+        validate_features(self.feature_count, features)?;
+
+        // Internal invariants are guaranteed by the private constructor and
+        // the validated Deserialize impl; re-check only in debug builds so
+        // release-mode hot paths do not pay for repeated O(d) scans.
+        debug_assert!(
+            self.counts.len() == self.feature_count
+                && self.means.len() == self.feature_count
+                && self.m2s.len() == self.feature_count,
+            "standard scaler state lengths must match feature_count"
+        );
+        debug_assert!(
+            self.counts.windows(2).all(|pair| pair[0] == pair[1]),
+            "standard scaler feature counts must stay synchronized"
+        );
+        debug_assert!(
+            self.means.iter().all(|v| v.is_finite()) && self.m2s.iter().all(|v| v.is_finite()),
+            "standard scaler state must contain only finite values"
+        );
+
+        output.clear();
+        output.reserve(self.feature_count);
+
+        let iter = features
+            .iter()
+            .zip(&self.counts)
+            .zip(&self.means)
+            .zip(&self.m2s);
+        for (((&x, &n), &mean_storage), &m2) in iter {
+            // Population variance = m2 / n; if n == 0 the scale is 1.0 so
+            // the original value is returned unchanged.
+            let scale = if !self.config.with_std || n == 0 {
+                1.0
+            } else {
+                let variance = m2 / n as f64;
+                if variance < self.config.epsilon {
+                    1.0
+                } else {
+                    variance.sqrt()
+                }
+            };
+            let mean = if self.config.with_mean {
+                mean_storage
+            } else {
+                0.0
+            };
+            let transformed = (x - mean) / scale;
+            // Trust-boundary: output must be finite. This catches NaN/Inf
+            // introduced by adversarial input even when internal state is
+            // already validated.
+            ensure_finite("transformed feature", transformed)?;
+            output.push(transformed);
+        }
+        Ok(())
+    }
 }
 
 impl Transformer for StandardScaler {
@@ -162,24 +238,14 @@ impl Transformer for StandardScaler {
     }
 
     fn transform(&self, features: &[f64]) -> Result<Vec<f64>, RillError> {
+        // Validate the full state on the public Transformer entry point so
+        // a corrupted scaler (e.g. one built via unsafe or a future struct
+        // literal) cannot proceed. The hot path `transform_into` relies on
+        // the same invariants but only re-checks them under `debug_assert!`.
         self.validate()?;
-        validate_features(self.feature_count, features)?;
-        let scales = self.scales();
-        features
-            .iter()
-            .enumerate()
-            .map(|(i, &x)| {
-                let mean = if self.config.with_mean {
-                    self.means[i]
-                } else {
-                    0.0
-                };
-                let scale = if self.config.with_std { scales[i] } else { 1.0 };
-                let transformed = (x - mean) / scale;
-                ensure_finite("transformed feature", transformed)?;
-                Ok(transformed)
-            })
-            .collect()
+        let mut output = Vec::with_capacity(self.feature_count);
+        self.transform_into(features, &mut output)?;
+        Ok(output)
     }
 
     fn update(&mut self, features: &[f64]) -> Result<(), RillError> {
@@ -374,5 +440,72 @@ mod tests {
         s.reset();
         assert_eq!(s.counts[0], 0);
         assert_eq!(s.means()[0], 0.0);
+    }
+
+    #[test]
+    fn transform_into_matches_transform_output() {
+        let mut scaler = StandardScaler::new(4).unwrap();
+        // Feed a few samples so means/variances are non-trivial.
+        scaler.update(&[1.0, 10.0, 100.0, 1000.0]).unwrap();
+        scaler.update(&[3.0, 20.0, 300.0, 3000.0]).unwrap();
+        scaler.update(&[5.0, 30.0, 500.0, 5000.0]).unwrap();
+        let features = [2.0, 15.0, 200.0, 2000.0];
+        let via_transform = scaler.transform(&features).unwrap();
+        let mut via_into = Vec::new();
+        scaler.transform_into(&features, &mut via_into).unwrap();
+        assert_eq!(via_transform, via_into);
+    }
+
+    #[test]
+    fn transform_into_reuses_buffer_capacity() {
+        let mut scaler = StandardScaler::new(3).unwrap();
+        scaler.update(&[1.0, 2.0, 3.0]).unwrap();
+        scaler.update(&[4.0, 5.0, 6.0]).unwrap();
+        let features = [2.5, 3.5, 4.5];
+        let mut buffer = Vec::with_capacity(64);
+        // Prime the buffer with sentinel content to prove clear() is called.
+        buffer.extend_from_slice(&[-1.0, -2.0, -3.0, -4.0]);
+        scaler.transform_into(&features, &mut buffer).unwrap();
+        assert_eq!(buffer.len(), 3);
+        // Capacity must be preserved (no reallocation).
+        assert!(buffer.capacity() >= 64);
+        // Content must match the public transform() output.
+        assert_eq!(buffer, scaler.transform(&features).unwrap());
+    }
+
+    #[test]
+    fn transform_into_rejects_dimension_mismatch() {
+        let scaler = StandardScaler::new(3).unwrap();
+        let mut buffer = Vec::new();
+        assert!(scaler.transform_into(&[1.0, 2.0], &mut buffer).is_err());
+        // Buffer must remain empty after the dimension error.
+        assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn transform_into_rejects_non_finite_output() {
+        // with_std = false and a non-finite input must still be caught by
+        // the finite-output trust-boundary check.
+        let scaler = StandardScaler::with_config(
+            1,
+            StandardScalerConfig {
+                with_mean: false,
+                with_std: false,
+                epsilon: 1e-12,
+            },
+        )
+        .unwrap();
+        let mut buffer = Vec::new();
+        assert!(scaler.transform_into(&[f64::NAN], &mut buffer).is_err());
+    }
+
+    #[test]
+    fn transform_into_with_zero_state_returns_original() {
+        let scaler = StandardScaler::new(3).unwrap();
+        let features = [1.5, 2.5, 3.5];
+        let mut buffer = Vec::new();
+        scaler.transform_into(&features, &mut buffer).unwrap();
+        // count == 0 → mean = 0, scale = 1 → original values.
+        assert_eq!(buffer, vec![1.5, 2.5, 3.5]);
     }
 }

@@ -9,9 +9,143 @@ use serde_json::Value;
 use crate::handler::HandlerIdentity;
 use crate::package::LoadedModelPack;
 
+/// Typed invoke error.
+///
+/// Replaces the previous `Result<Value, String>` contract. The `kind`
+/// selects a stable IPC error code and a fixed public message; `detail`
+/// carries host-only diagnostic text (e.g. for stderr logs) and is **never**
+/// forwarded to IPC clients, so guests cannot exfiltrate arbitrary content
+/// through the error path.
+#[derive(Debug, Clone)]
+pub struct InvokeError {
+    kind: InvokeErrorKind,
+    detail: Option<String>,
+}
+
+/// Maximum byte length of the host-only `detail` string. Guests can fully
+/// control this payload via the WIT `handler-error` variant, so the host
+/// truncates it to bound memory and stderr noise. The limit is enforced
+/// on a UTF-8 char boundary so the stored string stays valid.
+pub const MAX_DETAIL_BYTES: usize = 4 * 1024;
+
+/// Stable categorisation of invoke failures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvokeErrorKind {
+    /// Host-side input serialisation or size check failed.
+    Internal,
+    /// Fuel budget or epoch deadline was hit. Retryable.
+    Timeout,
+    /// Wasmtime trap (unreachable, OOB, stack overflow, …).
+    Trap,
+    /// Handler output exceeded [`MAX_IO_BYTES`](crate::handler::wasm::MAX_IO_BYTES).
+    OutputTooLarge,
+    /// Handler output failed JSON deserialisation on the host side.
+    InvalidOutput,
+    /// Guest reported `invalid-model` / `invalid-input` /
+    /// `unsupported-capability` / `execution-failed` via the WIT
+    /// `handler-error` variant. The variant detail is stored in
+    /// [`InvokeError::detail`] for host logs only.
+    ExecutionFailed,
+}
+
+impl InvokeError {
+    /// Create a new typed error with no host detail.
+    pub const fn new(kind: InvokeErrorKind) -> Self {
+        Self { kind, detail: None }
+    }
+
+    /// Create a new typed error carrying host-only diagnostic text.
+    ///
+    /// `detail` is intended for `eprintln!` logs and **must not** be sent
+    /// to IPC clients. Guests can fully control this string via the WIT
+    /// `handler-error` payload, so it cannot be trusted for security
+    /// decisions. It is truncated to [`MAX_DETAIL_BYTES`] on a UTF-8 char
+    /// boundary so a malicious guest cannot grow host memory unboundedly
+    /// through the error path.
+    pub fn with_detail(kind: InvokeErrorKind, detail: impl Into<String>) -> Self {
+        Self {
+            kind,
+            detail: Some(truncate_to_bytes(detail.into(), MAX_DETAIL_BYTES)),
+        }
+    }
+
+    /// Error category.
+    pub const fn kind(&self) -> InvokeErrorKind {
+        self.kind
+    }
+
+    /// Host-only diagnostic text. Never sent to IPC clients.
+    pub fn detail(&self) -> Option<&str> {
+        self.detail.as_deref()
+    }
+
+    /// Stable IPC error code. Backwards-compatible with the v1/v2 wire
+    /// format produced by the previous `map_invoke_error` string matching.
+    pub const fn stable_code(&self) -> &'static str {
+        match self.kind {
+            InvokeErrorKind::Internal => "handlerInternalError",
+            InvokeErrorKind::Timeout => "handlerTimeout",
+            InvokeErrorKind::Trap => "handlerTrap",
+            InvokeErrorKind::OutputTooLarge => "handlerOutputTooLarge",
+            InvokeErrorKind::InvalidOutput => "handlerInvalidOutput",
+            // Guest-reported WIT `handler-error` variants all collapse to
+            // `handlerInternalError` on the wire, matching the previous
+            // `map_invoke_error` behaviour that mapped
+            // `handlerExecutionFailed: ...` to `handlerInternalError`.
+            InvokeErrorKind::ExecutionFailed => "handlerInternalError",
+        }
+    }
+
+    /// Fixed public message. Never contains guest-supplied content.
+    pub const fn public_message(&self) -> &'static str {
+        match self.kind {
+            InvokeErrorKind::Internal => "internal runtime error",
+            InvokeErrorKind::Timeout => "handler exceeded the wall-clock deadline",
+            InvokeErrorKind::Trap => "handler trapped",
+            InvokeErrorKind::OutputTooLarge => "handler output exceeded the size limit",
+            InvokeErrorKind::InvalidOutput => "handler output was not valid JSON",
+            InvokeErrorKind::ExecutionFailed => "handler execution failed",
+        }
+    }
+
+    /// Whether the caller may retry the same request on a fresh handler.
+    pub const fn retryable(&self) -> bool {
+        matches!(self.kind, InvokeErrorKind::Timeout)
+    }
+}
+
+impl std::fmt::Display for InvokeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.detail {
+            Some(detail) => write!(f, "{}: {}", self.stable_code(), detail),
+            None => f.write_str(self.stable_code()),
+        }
+    }
+}
+
+impl std::error::Error for InvokeError {}
+
+/// Truncate `s` to at most `max_bytes` on a UTF-8 char boundary.
+///
+/// `String::truncate` panics on a non-char boundary, so we walk backwards
+/// from `max_bytes` until `is_char_boundary` succeeds. The result is always
+/// valid UTF-8 and never longer than `max_bytes`.
+fn truncate_to_bytes(s: String, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    let mut truncated = s;
+    truncated.truncate(end);
+    truncated
+}
+
 /// Consumers can implement this trait to add business-specific invocation logic.
 pub trait InvokeHandler: Send + Sync + std::fmt::Debug {
-    fn invoke(&self, capability: &str, input: &Value) -> Result<Value, String>;
+    fn invoke(&self, capability: &str, input: &Value) -> Result<Value, InvokeError>;
 }
 
 /// Internal response type produced by [`RuntimeEngine`]. The IPC layer converts
@@ -278,9 +412,25 @@ impl RuntimeEngine {
                 };
                 match handler.invoke(&capability, &input) {
                     Ok(output) => EngineResponse::Result { request_id, output },
-                    Err(message) => {
-                        let (code, retryable) = map_invoke_error(&message);
-                        self.error(request_id, code, &message, retryable)
+                    Err(invoke_err) => {
+                        // Log host-side detail (if any) for debugging; the
+                        // IPC message is always the fixed public string so
+                        // guests cannot exfiltrate content via the error
+                        // payload.
+                        if let Some(detail) = invoke_err.detail() {
+                            eprintln!(
+                                "rill-runtime: invoke {} -> {} (detail: {})",
+                                capability,
+                                invoke_err.stable_code(),
+                                detail
+                            );
+                        }
+                        self.error(
+                            request_id,
+                            invoke_err.stable_code(),
+                            invoke_err.public_message(),
+                            invoke_err.retryable(),
+                        )
                     }
                 }
             }
@@ -316,27 +466,6 @@ impl RuntimeEngine {
             message: message.into(),
             retryable,
         }
-    }
-}
-
-/// Maps a handler error message to a stable error code. Recognised codes are
-/// extracted from the message prefix; unknown errors map to `handlerInternalError`.
-fn map_invoke_error(message: &str) -> (&'static str, bool) {
-    if message.starts_with("handlerTrap") {
-        ("handlerTrap", false)
-    } else if message.starts_with("handlerTimeout") {
-        ("handlerTimeout", true)
-    } else if message.starts_with("handlerOutputTooLarge") {
-        ("handlerOutputTooLarge", false)
-    } else if message.starts_with("handlerInvalidOutput") {
-        ("handlerInvalidOutput", false)
-    } else if message.starts_with("handlerInternalError") {
-        ("handlerInternalError", false)
-    } else if message.starts_with("handlerExecutionFailed") {
-        // Handler returned an error via the WIT result type.
-        ("handlerInternalError", false)
-    } else {
-        ("handlerInternalError", false)
     }
 }
 
@@ -521,61 +650,169 @@ mod tests {
     }
 
     #[test]
-    fn map_invoke_error_recognizes_handler_trap() {
-        let (code, retryable) = map_invoke_error("handlerTrap: unreachable");
-        assert_eq!(code, "handlerTrap");
-        assert!(!retryable);
+    fn invoke_error_stable_codes_match_wire_format() {
+        // Every kind must map to the exact IPC code expected by v1/v2
+        // clients, preserving backwards compatibility with the previous
+        // `map_invoke_error` string matching.
+        assert_eq!(
+            InvokeError::new(InvokeErrorKind::Trap).stable_code(),
+            "handlerTrap"
+        );
+        assert_eq!(
+            InvokeError::new(InvokeErrorKind::Timeout).stable_code(),
+            "handlerTimeout"
+        );
+        assert_eq!(
+            InvokeError::new(InvokeErrorKind::OutputTooLarge).stable_code(),
+            "handlerOutputTooLarge"
+        );
+        assert_eq!(
+            InvokeError::new(InvokeErrorKind::InvalidOutput).stable_code(),
+            "handlerInvalidOutput"
+        );
+        assert_eq!(
+            InvokeError::new(InvokeErrorKind::Internal).stable_code(),
+            "handlerInternalError"
+        );
+        // Guest-reported WIT handler-error variants collapse to
+        // handlerInternalError on the wire.
+        assert_eq!(
+            InvokeError::new(InvokeErrorKind::ExecutionFailed).stable_code(),
+            "handlerInternalError"
+        );
     }
 
     #[test]
-    fn map_invoke_error_recognizes_handler_timeout() {
-        let (code, retryable) = map_invoke_error("handlerTimeout: epoch deadline exceeded");
-        assert_eq!(code, "handlerTimeout");
-        assert!(retryable);
+    fn invoke_error_retryable_only_for_timeout() {
+        assert!(InvokeError::new(InvokeErrorKind::Timeout).retryable());
+        assert!(!InvokeError::new(InvokeErrorKind::Trap).retryable());
+        assert!(!InvokeError::new(InvokeErrorKind::OutputTooLarge).retryable());
+        assert!(!InvokeError::new(InvokeErrorKind::InvalidOutput).retryable());
+        assert!(!InvokeError::new(InvokeErrorKind::Internal).retryable());
+        assert!(!InvokeError::new(InvokeErrorKind::ExecutionFailed).retryable());
     }
 
     #[test]
-    fn map_invoke_error_recognizes_handler_output_too_large() {
-        let (code, retryable) = map_invoke_error("handlerOutputTooLarge: output exceeds 1 MiB");
-        assert_eq!(code, "handlerOutputTooLarge");
-        assert!(!retryable);
+    fn invoke_error_public_message_never_contains_detail() {
+        // Guest can fully control the detail string; the public message
+        // must always be the fixed constant.
+        let err = InvokeError::with_detail(
+            InvokeErrorKind::ExecutionFailed,
+            "SECRET-TOKEN-LEAK-ATTEMPT guest-controlled-payload",
+        );
+        assert_eq!(err.public_message(), "handler execution failed");
+        assert_eq!(err.stable_code(), "handlerInternalError");
+        assert_eq!(
+            err.detail(),
+            Some("SECRET-TOKEN-LEAK-ATTEMPT guest-controlled-payload")
+        );
+        // The Display impl is for host logs only; the IPC layer must
+        // never send `err.to_string()` to clients.
+        assert!(err.to_string().contains("SECRET-TOKEN-LEAK-ATTEMPT"));
+        // The public_message is what the IPC layer actually sends.
+        assert!(!err.public_message().contains("SECRET"));
     }
 
     #[test]
-    fn map_invoke_error_recognizes_handler_invalid_output() {
-        let (code, retryable) =
-            map_invoke_error("handlerInvalidOutput: expected value at line 1 column 1");
-        assert_eq!(code, "handlerInvalidOutput");
-        assert!(!retryable);
+    fn invoke_error_without_detail_has_no_detail() {
+        let err = InvokeError::new(InvokeErrorKind::Trap);
+        assert_eq!(err.kind(), InvokeErrorKind::Trap);
+        assert_eq!(err.detail(), None);
+        assert_eq!(err.stable_code(), "handlerTrap");
+        assert_eq!(err.to_string(), "handlerTrap");
     }
 
     #[test]
-    fn map_invoke_error_recognizes_handler_internal_error() {
-        let (code, retryable) = map_invoke_error("handlerInternalError: lock poisoned");
-        assert_eq!(code, "handlerInternalError");
-        assert!(!retryable);
+    fn invoke_error_detail_is_truncated_to_4kib_on_char_boundary() {
+        // A malicious guest tries to grow host memory via an oversized
+        // error payload. The host must truncate to MAX_DETAIL_BYTES on a
+        // UTF-8 char boundary.
+        let huge = "A".repeat(MAX_DETAIL_BYTES * 4);
+        let err = InvokeError::with_detail(InvokeErrorKind::ExecutionFailed, huge);
+        let detail = err.detail().expect("detail must be stored");
+        assert!(
+            detail.len() <= MAX_DETAIL_BYTES,
+            "detail length {} must not exceed {}",
+            detail.len(),
+            MAX_DETAIL_BYTES
+        );
+        // Truncation must land on a char boundary (the string is valid UTF-8
+        // by construction, but the test guards against a future unsafe path).
+        assert!(detail.chars().all(|c| c == 'A'));
     }
 
     #[test]
-    fn map_invoke_error_recognizes_handler_execution_failed() {
-        let (code, retryable) = map_invoke_error("handlerExecutionFailed: guest returned error");
-        assert_eq!(code, "handlerInternalError");
-        assert!(!retryable);
+    fn invoke_error_detail_truncation_respects_multibyte_chars() {
+        // Multi-byte UTF-8 must not be split mid-codepoint. Use 3-byte
+        // CJK characters so the MAX_DETAIL_BYTES boundary lands inside a
+        // character; the result must back up to the previous char boundary.
+        let emoji = "🌟".repeat(MAX_DETAIL_BYTES); // each '🌟' is 4 bytes
+        let err = InvokeError::with_detail(InvokeErrorKind::ExecutionFailed, emoji);
+        let detail = err.detail().expect("detail must be stored");
+        assert!(detail.len() <= MAX_DETAIL_BYTES);
+        // Every stored character must be a complete '🌟'.
+        for c in detail.chars() {
+            assert_eq!(c, '🌟');
+        }
+    }
+
+    /// Minimal handler that always returns the supplied error, for
+    /// exercising the engine's invoke error path without a WASM sandbox.
+    #[derive(Debug)]
+    struct FailingHandler {
+        err: InvokeError,
+    }
+
+    impl InvokeHandler for FailingHandler {
+        fn invoke(&self, _capability: &str, _input: &Value) -> Result<Value, InvokeError> {
+            Err(self.err.clone())
+        }
     }
 
     #[test]
-    fn map_invoke_error_maps_capability_mismatch_to_internal() {
-        // handlerCapabilityMismatch is a load-phase error (RFC §6.2) and is
-        // never produced by invoke(); it falls through to handlerInternalError.
-        let (code, retryable) = map_invoke_error("handlerCapabilityMismatch: cap not declared");
-        assert_eq!(code, "handlerInternalError");
-        assert!(!retryable);
-    }
-
-    #[test]
-    fn map_invoke_error_maps_unknown_to_internal_error() {
-        let (code, retryable) = map_invoke_error("unknown error");
-        assert_eq!(code, "handlerInternalError");
-        assert!(!retryable);
+    fn engine_invoke_error_does_not_leak_guest_detail_in_message() {
+        // A malicious guest tries to exfiltrate a token via the WIT
+        // handler-error payload. The IPC Error.message field must be
+        // the fixed public string, not the guest-supplied detail.
+        let err = InvokeError::with_detail(
+            InvokeErrorKind::ExecutionFailed,
+            "leak-attempt:SECRET-TOKEN",
+        );
+        let pack = LoadedModelPack {
+            manifest: ModelPackManifest {
+                format_version: MODEL_PACK_FORMAT_VERSION,
+                id: "rillml.example.default".into(),
+                version: "0.7.0".into(),
+                runtime_api_version: RUNTIME_API_VERSION,
+                min_runtime_version: "0.7.0".into(),
+                publisher_key_id: "test".into(),
+                capabilities: vec!["rillml.example".into()],
+            },
+            model: serde_json::json!({}),
+        };
+        let engine = RuntimeEngine::new(pack).with_invoke_handler(Arc::new(FailingHandler { err }));
+        let response = engine.handle(RuntimeRequest::Invoke {
+            request_id: "leak-test".into(),
+            api_version: RUNTIME_API_VERSION,
+            capability: "rillml.example".into(),
+            input: serde_json::json!({}),
+        });
+        match response {
+            EngineResponse::Error {
+                code,
+                message,
+                retryable,
+                ..
+            } => {
+                assert_eq!(code, "handlerInternalError");
+                assert_eq!(message, "handler execution failed");
+                assert!(!retryable);
+                // The guest-supplied detail must NOT appear anywhere in
+                // the IPC response fields.
+                assert!(!message.contains("SECRET"));
+                assert!(!message.contains("leak-attempt"));
+            }
+            _ => panic!("expected EngineResponse::Error"),
+        }
     }
 }

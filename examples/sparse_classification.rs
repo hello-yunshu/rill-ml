@@ -13,6 +13,7 @@ use rill_ml::loss::BinaryLogLoss;
 use rill_ml::metrics::{F1Score, LogLoss};
 use rill_ml::models::{
     FtrlClassifier, FtrlConfig, GaussianNaiveBayes, LogisticRegression, LogisticRegressionConfig,
+    NewFeaturePolicy,
 };
 use rill_ml::optim::{Optimizer, SgdConfig};
 use rill_ml::{Metric, OnlineBinaryClassifier, SparseClassifier};
@@ -139,6 +140,8 @@ fn main() {
         beta: 1.0,
         l1: 2.0,
         l2: 0.5,
+        max_features: None,
+        new_feature_policy: NewFeaturePolicy::default(),
     })
     .unwrap();
 

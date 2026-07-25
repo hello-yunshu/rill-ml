@@ -58,6 +58,7 @@ fn ftrl_regressor_converges_on_linear_data() {
         beta: 1.0,
         l1: 0.0,
         l2: 0.0,
+        ..Default::default()
     })
     .unwrap();
 
@@ -103,6 +104,7 @@ fn ftrl_regressor_comparable_to_linear_regression() {
         beta: 1.0,
         l1: 0.0,
         l2: 0.0,
+        ..Default::default()
     })
     .unwrap();
 
@@ -157,6 +159,7 @@ fn ftrl_regressor_l1_sparsity() {
         beta: 1.0,
         l1: 100.0,
         l2: 0.0,
+        ..Default::default()
     })
     .unwrap();
 
@@ -186,6 +189,7 @@ fn ftrl_regressor_dynamic_features() {
         beta: 1.0,
         l1: 0.0,
         l2: 0.0,
+        ..Default::default()
     })
     .unwrap();
 
@@ -228,6 +232,7 @@ fn ftrl_classifier_converges() {
         beta: 1.0,
         l1: 0.0,
         l2: 0.0,
+        ..Default::default()
     })
     .unwrap();
 
@@ -254,13 +259,16 @@ fn ftrl_classifier_converges() {
 
 #[test]
 fn ftrl_classifier_predict_proba_in_range() {
-    // The sigmoid output must always lie strictly in (0, 1), regardless
-    // of the magnitude of the input features.
+    // The sigmoid output must always lie in the closed [0, 1], regardless
+    // of the magnitude of the input features. Sigmoid can saturate at
+    // exactly 0.0 or 1.0 for extreme logits, so the public contract is
+    // the closed interval.
     let mut model = FtrlClassifier::new(FtrlConfig {
         alpha: 0.5,
         beta: 1.0,
         l1: 0.0,
         l2: 0.0,
+        ..Default::default()
     })
     .unwrap();
 
@@ -279,8 +287,8 @@ fn ftrl_classifier_predict_proba_in_range() {
         let sf = SparseFeatures::from_sorted(vec![(0, x1), (1, x2)]).unwrap();
         let p = model.predict_proba(&sf).unwrap();
         assert!(
-            p > 0.0 && p < 1.0,
-            "probability must be strictly in (0, 1), got {p}"
+            (0.0..=1.0).contains(&p),
+            "probability must be in [0, 1], got {p}"
         );
     }
 }
@@ -296,6 +304,7 @@ fn ftrl_with_feature_hasher() {
         beta: 1.0,
         l1: 0.0,
         l2: 0.0,
+        ..Default::default()
     })
     .unwrap();
 
@@ -354,6 +363,7 @@ fn ftrl_classifier_logloss_decreases() {
         beta: 1.0,
         l1: 0.0,
         l2: 0.0,
+        ..Default::default()
     })
     .unwrap();
 

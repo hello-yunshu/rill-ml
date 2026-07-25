@@ -24,12 +24,47 @@
 //! ```
 //!
 //! The intercept uses `lambda1 = 0` (no L1 regularization).
+//!
+//! # Failure atomicity
+//!
+//! [`FtrlRegressor::learn`] and [`FtrlClassifier::learn`] compute the next
+//! state for every affected entry before mutating any field. If any
+//! intermediate value is non-finite or the sample counter overflows, the
+//! call returns `Err` and the model state is unchanged.
+//!
+//! # Dynamic feature growth
+//!
+//! By default the feature table grows without bound. Long-running
+//! deployments handling untrusted streams should set
+//! [`FtrlConfig::max_features`] to a finite value and pick a
+//! [`NewFeaturePolicy`]. `None` preserves backwards compatibility but
+//! allows memory growth proportional to the number of distinct
+//! `FeatureId`s ever observed.
 
-use crate::error::{RillError, checked_increment, ensure_finite};
+use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite};
 use crate::loss::log_loss::sigmoid;
 use crate::sparse::{FeatureId, SparseFeatures};
 use crate::traits::{SparseClassifier, SparseRegressor};
 use std::collections::BTreeMap;
+
+/// Policy for handling new `FeatureId`s once [`FtrlConfig::max_features`]
+/// has been reached.
+///
+/// `max_features` only constrains feature insertion; features already in
+/// the model continue to train regardless of the policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum NewFeaturePolicy {
+    /// Reject the entire `learn` call with [`RillError::InvalidState`] when
+    /// adding the new features in the current sample would exceed
+    /// `max_features`. The call is failure-atomic: no state changes.
+    #[default]
+    Reject,
+    /// Keep training existing features but silently skip any new feature
+    /// that would exceed `max_features`. The sample counter still
+    /// advances and existing features still receive their gradient update.
+    Ignore,
+}
 
 /// Configuration for FTRL models.
 ///
@@ -37,7 +72,7 @@ use std::collections::BTreeMap;
 /// All fields must be finite; `alpha` must be strictly positive and the
 /// regularization parameters must be non-negative.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct FtrlConfig {
     /// Alpha: learning rate scaling. Must be `> 0`.
     pub alpha: f64,
@@ -47,6 +82,16 @@ pub struct FtrlConfig {
     pub l1: f64,
     /// L2 regularization strength. Must be `>= 0`.
     pub l2: f64,
+    /// Maximum number of distinct features the model will store.
+    ///
+    /// `None` (the default) allows unbounded growth, which is
+    /// backwards-compatible but unsafe for long-running services that
+    /// consume untrusted feature streams. Set to a finite value to
+    /// bound memory and trigger the [`NewFeaturePolicy`].
+    pub max_features: Option<usize>,
+    /// Policy applied when `max_features` is set and a new `FeatureId`
+    /// would exceed the cap.
+    pub new_feature_policy: NewFeaturePolicy,
 }
 
 impl Default for FtrlConfig {
@@ -56,41 +101,85 @@ impl Default for FtrlConfig {
             beta: 1.0,
             l1: 1.0,
             l2: 1.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         }
     }
 }
 
-/// Validate FTRL configuration parameters.
-fn validate_config(config: &FtrlConfig) -> Result<(), RillError> {
-    ensure_finite("alpha", config.alpha)?;
-    ensure_finite("beta", config.beta)?;
-    ensure_finite("l1", config.l1)?;
-    ensure_finite("l2", config.l2)?;
-    if config.alpha <= 0.0 {
-        return Err(RillError::InvalidParameter {
-            name: "alpha",
-            value: config.alpha,
-        });
+impl FtrlConfig {
+    /// Validate configuration parameters.
+    fn validate(&self) -> Result<(), RillError> {
+        ensure_finite("alpha", self.alpha)?;
+        ensure_finite("beta", self.beta)?;
+        ensure_finite("l1", self.l1)?;
+        ensure_finite("l2", self.l2)?;
+        if self.alpha <= 0.0 {
+            return Err(RillError::InvalidParameter {
+                name: "alpha",
+                value: self.alpha,
+            });
+        }
+        if self.beta < 0.0 {
+            return Err(RillError::InvalidParameter {
+                name: "beta",
+                value: self.beta,
+            });
+        }
+        if self.l1 < 0.0 {
+            return Err(RillError::InvalidParameter {
+                name: "l1",
+                value: self.l1,
+            });
+        }
+        if self.l2 < 0.0 {
+            return Err(RillError::InvalidParameter {
+                name: "l2",
+                value: self.l2,
+            });
+        }
+        if let Some(max_features) = self.max_features
+            && max_features == 0
+        {
+            return Err(RillError::InvalidParameter {
+                name: "max_features",
+                value: 0.0,
+            });
+        }
+        Ok(())
     }
-    if config.beta < 0.0 {
-        return Err(RillError::InvalidParameter {
-            name: "beta",
-            value: config.beta,
-        });
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for FtrlConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct FtrlConfigState {
+            alpha: f64,
+            beta: f64,
+            l1: f64,
+            l2: f64,
+            #[serde(default)]
+            max_features: Option<usize>,
+            #[serde(default)]
+            new_feature_policy: NewFeaturePolicy,
+        }
+
+        let state = FtrlConfigState::deserialize(deserializer)?;
+        let config = FtrlConfig {
+            alpha: state.alpha,
+            beta: state.beta,
+            l1: state.l1,
+            l2: state.l2,
+            max_features: state.max_features,
+            new_feature_policy: state.new_feature_policy,
+        };
+        config.validate().map_err(serde::de::Error::custom)?;
+        Ok(config)
     }
-    if config.l1 < 0.0 {
-        return Err(RillError::InvalidParameter {
-            name: "l1",
-            value: config.l1,
-        });
-    }
-    if config.l2 < 0.0 {
-        return Err(RillError::InvalidParameter {
-            name: "l2",
-            value: config.l2,
-        });
-    }
-    Ok(())
 }
 
 /// Per-feature FTRL state.
@@ -99,11 +188,11 @@ fn validate_config(config: &FtrlConfig) -> Result<(), RillError> {
 /// gradients `n`. The per-coordinate adaptive learning rate is derived from
 /// `n`: features seen more frequently get smaller steps.
 #[derive(Debug, Clone, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct FtrlParam {
     /// Sum of gradients (with sigma correction).
     z: f64,
-    /// Sum of squared gradients.
+    /// Sum of squared gradients. Must remain finite and non-negative.
     n: f64,
 }
 
@@ -136,25 +225,78 @@ impl FtrlParam {
         }
     }
 
-    /// Update with a gradient and the pre-computed current weight.
+    /// Compute the next `(z, n)` state after applying a gradient, without
+    /// mutating `self`.
     ///
     /// `sigma = (sqrt(n_new) - sqrt(n_old)) / alpha`
-    /// `z += g - sigma * w`
-    /// `n += g^2`
-    fn update(&mut self, gradient: f64, weight: f64, config: &FtrlConfig) {
-        let n_old = self.n;
-        let n_new = n_old + gradient * gradient;
-        let sigma = (n_new.sqrt() - n_old.sqrt()) / config.alpha;
-        self.z += gradient - sigma * weight;
-        self.n = n_new;
+    /// `z_new = z + g - sigma * w`
+    /// `n_new = n + g^2`
+    ///
+    /// Every intermediate result is checked for finiteness so a partial
+    /// overflow cannot poison state. The caller is responsible for
+    /// committing the returned values atomically.
+    fn next_updated(
+        &self,
+        gradient: f64,
+        weight: f64,
+        config: &FtrlConfig,
+    ) -> Result<(f64, f64), RillError> {
+        let gradient_sq = gradient * gradient;
+        ensure_finite("ftrl_gradient_squared", gradient_sq)?;
+        let n_new = checked_finite_add(self.n, gradient_sq, "ftrl_n_new")?;
+        let sigma = (n_new.sqrt() - self.n.sqrt()) / config.alpha;
+        ensure_finite("ftrl_sigma", sigma)?;
+        let sigma_w = sigma * weight;
+        ensure_finite("ftrl_sigma_weight", sigma_w)?;
+        let z_delta = gradient - sigma_w;
+        ensure_finite("ftrl_z_delta", z_delta)?;
+        let z_new = checked_finite_add(self.z, z_delta, "ftrl_z_new")?;
+        Ok((z_new, n_new))
+    }
+
+    /// Validate that `z` is finite and `n` is finite and non-negative.
+    #[cfg_attr(not(feature = "serde"), allow(dead_code))]
+    fn validate(&self) -> Result<(), RillError> {
+        ensure_finite("ftrl_z", self.z)?;
+        ensure_finite("ftrl_n", self.n)?;
+        if self.n < 0.0 {
+            return Err(RillError::InvalidState(format!(
+                "ftrl n must be non-negative, got {0}",
+                self.n
+            )));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for FtrlParam {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct FtrlParamState {
+            z: f64,
+            n: f64,
+        }
+
+        let state = FtrlParamState::deserialize(deserializer)?;
+        let param = FtrlParam {
+            z: state.z,
+            n: state.n,
+        };
+        param.validate().map_err(serde::de::Error::custom)?;
+        Ok(param)
     }
 }
 
 /// Compute the dot product `w · x` over sparse features.
 ///
 /// Iterates only over the features present in `features` (not all stored
-/// params), looking up each feature's current FTRL weight. Feature values
-/// are validated for finiteness.
+/// params), looking up each feature's current FTRL weight. Each
+/// contribution and the running sum are checked for finiteness so a
+/// single overflowing term cannot poison the prediction.
 fn compute_dot(
     params: &BTreeMap<FeatureId, FtrlParam>,
     config: &FtrlConfig,
@@ -167,7 +309,11 @@ fn compute_dot(
     for &(id, value) in features.values() {
         ensure_finite("sparse_value", value)?;
         if let Some(param) = params.get(&id) {
-            dot += param.weight(config) * value;
+            let w = param.weight(config);
+            ensure_finite("ftrl_weight", w)?;
+            let contribution = w * value;
+            ensure_finite("ftrl_dot_contribution", contribution)?;
+            dot = checked_finite_add(dot, contribution, "ftrl_dot")?;
         }
     }
     Ok(dot)
@@ -192,7 +338,7 @@ fn compute_dot(
 /// model.learn(&sf, 3.0).unwrap();
 /// ```
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct FtrlRegressor {
     config: FtrlConfig,
     params: BTreeMap<FeatureId, FtrlParam>,
@@ -205,7 +351,7 @@ impl FtrlRegressor {
     ///
     /// Returns an error if the configuration is invalid.
     pub fn new(config: FtrlConfig) -> Result<Self, RillError> {
-        validate_config(&config)?;
+        config.validate()?;
         Ok(Self {
             config,
             params: BTreeMap::new(),
@@ -244,7 +390,53 @@ impl FtrlRegressor {
     /// Compute the raw prediction `w · x + b` without updating state.
     fn predict_inner(&self, features: &SparseFeatures) -> Result<f64, RillError> {
         let dot = compute_dot(&self.params, &self.config, features)?;
-        Ok(dot + self.intercept.intercept_weight(&self.config))
+        let intercept = self.intercept.intercept_weight(&self.config);
+        ensure_finite("ftrl_intercept", intercept)?;
+        Ok(dot + intercept)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for FtrlRegressor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct FtrlRegressorState {
+            config: FtrlConfig,
+            params: BTreeMap<FeatureId, FtrlParam>,
+            intercept: FtrlParam,
+            samples_seen: u64,
+        }
+
+        let state = FtrlRegressorState::deserialize(deserializer)?;
+        let model = FtrlRegressor {
+            config: state.config,
+            params: state.params,
+            intercept: state.intercept,
+            samples_seen: state.samples_seen,
+        };
+        // config and each FtrlParam are already validated by their own
+        // Deserialize impls; only the top-level invariants remain.
+        model
+            .validate_invariants()
+            .map_err(serde::de::Error::custom)?;
+        Ok(model)
+    }
+}
+
+impl FtrlRegressor {
+    #[cfg_attr(not(feature = "serde"), allow(dead_code))]
+    fn validate_invariants(&self) -> Result<(), RillError> {
+        // config and individual params are validated at deserialization;
+        // nothing top-level to check beyond that.
+        self.config.validate()?;
+        self.intercept.validate()?;
+        for param in self.params.values() {
+            param.validate()?;
+        }
+        Ok(())
     }
 }
 
@@ -263,24 +455,76 @@ impl SparseRegressor for FtrlRegressor {
         }
         ensure_finite("target", target)?;
 
-        let prediction = self.predict_inner(features)?;
-        let grad = prediction - target;
+        // Reserve the sample counter first. If it overflows, no state changes.
+        let next_samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
 
-        // Update each feature's params. entry().or_default() creates new
-        // feature state on demand, supporting dynamic feature growth.
-        for &(id, value) in features.values() {
-            ensure_finite("sparse_value", value)?;
-            let g = grad * value;
-            let param = self.params.entry(id).or_default();
-            let w = param.weight(&self.config);
-            param.update(g, w, &self.config);
+        let prediction = self.predict_inner(features)?;
+        ensure_finite("ftrl_prediction", prediction)?;
+        let grad = prediction - target;
+        ensure_finite("ftrl_gradient", grad)?;
+
+        // Pre-judge the max_features policy. We never insert a subset of
+        // new features then fail: either all new features are accepted or
+        // (under Ignore) all new features are skipped.
+        let new_ids_count = features
+            .values()
+            .iter()
+            .filter(|(id, _)| !self.params.contains_key(id))
+            .count();
+        let mut skip_new_features = false;
+        if let Some(max_features) = self.config.max_features {
+            let projected = self.params.len().saturating_add(new_ids_count);
+            if projected > max_features {
+                match self.config.new_feature_policy {
+                    NewFeaturePolicy::Reject => {
+                        return Err(RillError::InvalidState(format!(
+                            "FTRL feature count {projected} exceeds max_features {max_features}"
+                        )));
+                    }
+                    NewFeaturePolicy::Ignore => {
+                        skip_new_features = true;
+                    }
+                }
+            }
         }
 
-        // Update intercept with no L1 regularization.
-        let w_b = self.intercept.intercept_weight(&self.config);
-        self.intercept.update(grad, w_b, &self.config);
+        // Compute the next (z, n) for every feature without touching self.
+        let mut updates: Vec<(FeatureId, f64, f64)> = Vec::with_capacity(features.len());
+        for &(id, value) in features.values() {
+            let g = grad * value;
+            ensure_finite("ftrl_feature_gradient", g)?;
 
-        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
+            let is_new = !self.params.contains_key(&id);
+            if is_new && skip_new_features {
+                continue;
+            }
+
+            let (new_z, new_n) = if let Some(param) = self.params.get(&id) {
+                let w = param.weight(&self.config);
+                param.next_updated(g, w, &self.config)?
+            } else {
+                let param = FtrlParam::default();
+                let w = param.weight(&self.config);
+                param.next_updated(g, w, &self.config)?
+            };
+            updates.push((id, new_z, new_n));
+        }
+
+        // Compute the next intercept state.
+        let w_b = self.intercept.intercept_weight(&self.config);
+        let (new_intercept_z, new_intercept_n) =
+            self.intercept.next_updated(grad, w_b, &self.config)?;
+
+        // Commit atomically. No failure path beyond this point.
+        for (id, new_z, new_n) in updates {
+            let param = self.params.entry(id).or_default();
+            param.z = new_z;
+            param.n = new_n;
+        }
+        self.intercept.z = new_intercept_z;
+        self.intercept.n = new_intercept_n;
+        self.samples_seen = next_samples_seen;
+
         Ok(())
     }
 
@@ -297,6 +541,10 @@ impl SparseRegressor for FtrlRegressor {
 /// w.r.t. the logit simplifies to `probability - target`, so each feature's
 /// gradient is `(probability - target) * x_i`.
 ///
+/// The returned probability lies in `[0, 1]`. Extreme logits can produce
+/// exactly `0.0` or `1.0` after `sigmoid`; downstream consumers such as
+/// [`crate::loss::log_loss::BinaryLogLoss`] clip internally.
+///
 /// # Examples
 ///
 /// ```
@@ -310,7 +558,7 @@ impl SparseRegressor for FtrlRegressor {
 /// model.learn(&sf, true).unwrap();
 /// ```
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct FtrlClassifier {
     config: FtrlConfig,
     params: BTreeMap<FeatureId, FtrlParam>,
@@ -323,7 +571,7 @@ impl FtrlClassifier {
     ///
     /// Returns an error if the configuration is invalid.
     pub fn new(config: FtrlConfig) -> Result<Self, RillError> {
-        validate_config(&config)?;
+        config.validate()?;
         Ok(Self {
             config,
             params: BTreeMap::new(),
@@ -362,8 +610,51 @@ impl FtrlClassifier {
     /// Compute the probability `sigmoid(w · x + b)` without updating state.
     fn predict_proba_inner(&self, features: &SparseFeatures) -> Result<f64, RillError> {
         let dot = compute_dot(&self.params, &self.config, features)?;
-        let logit = dot + self.intercept.intercept_weight(&self.config);
+        let intercept = self.intercept.intercept_weight(&self.config);
+        ensure_finite("ftrl_intercept", intercept)?;
+        let logit = dot + intercept;
+        ensure_finite("ftrl_logit", logit)?;
         Ok(sigmoid(logit))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for FtrlClassifier {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct FtrlClassifierState {
+            config: FtrlConfig,
+            params: BTreeMap<FeatureId, FtrlParam>,
+            intercept: FtrlParam,
+            samples_seen: u64,
+        }
+
+        let state = FtrlClassifierState::deserialize(deserializer)?;
+        let model = FtrlClassifier {
+            config: state.config,
+            params: state.params,
+            intercept: state.intercept,
+            samples_seen: state.samples_seen,
+        };
+        model
+            .validate_invariants()
+            .map_err(serde::de::Error::custom)?;
+        Ok(model)
+    }
+}
+
+impl FtrlClassifier {
+    #[cfg_attr(not(feature = "serde"), allow(dead_code))]
+    fn validate_invariants(&self) -> Result<(), RillError> {
+        self.config.validate()?;
+        self.intercept.validate()?;
+        for param in self.params.values() {
+            param.validate()?;
+        }
+        Ok(())
     }
 }
 
@@ -381,23 +672,70 @@ impl SparseClassifier for FtrlClassifier {
             return Err(RillError::EmptyFeatures);
         }
 
+        let next_samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
+
         let probability = self.predict_proba_inner(features)?;
+        ensure_finite("ftrl_probability", probability)?;
         let y = if target { 1.0 } else { 0.0 };
         let grad = probability - y;
+        ensure_finite("ftrl_gradient", grad)?;
 
-        for &(id, value) in features.values() {
-            ensure_finite("sparse_value", value)?;
-            let g = grad * value;
-            let param = self.params.entry(id).or_default();
-            let w = param.weight(&self.config);
-            param.update(g, w, &self.config);
+        let new_ids_count = features
+            .values()
+            .iter()
+            .filter(|(id, _)| !self.params.contains_key(id))
+            .count();
+        let mut skip_new_features = false;
+        if let Some(max_features) = self.config.max_features {
+            let projected = self.params.len().saturating_add(new_ids_count);
+            if projected > max_features {
+                match self.config.new_feature_policy {
+                    NewFeaturePolicy::Reject => {
+                        return Err(RillError::InvalidState(format!(
+                            "FTRL feature count {projected} exceeds max_features {max_features}"
+                        )));
+                    }
+                    NewFeaturePolicy::Ignore => {
+                        skip_new_features = true;
+                    }
+                }
+            }
         }
 
-        // Update intercept with no L1 regularization.
-        let w_b = self.intercept.intercept_weight(&self.config);
-        self.intercept.update(grad, w_b, &self.config);
+        let mut updates: Vec<(FeatureId, f64, f64)> = Vec::with_capacity(features.len());
+        for &(id, value) in features.values() {
+            let g = grad * value;
+            ensure_finite("ftrl_feature_gradient", g)?;
 
-        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
+            let is_new = !self.params.contains_key(&id);
+            if is_new && skip_new_features {
+                continue;
+            }
+
+            let (new_z, new_n) = if let Some(param) = self.params.get(&id) {
+                let w = param.weight(&self.config);
+                param.next_updated(g, w, &self.config)?
+            } else {
+                let param = FtrlParam::default();
+                let w = param.weight(&self.config);
+                param.next_updated(g, w, &self.config)?
+            };
+            updates.push((id, new_z, new_n));
+        }
+
+        let w_b = self.intercept.intercept_weight(&self.config);
+        let (new_intercept_z, new_intercept_n) =
+            self.intercept.next_updated(grad, w_b, &self.config)?;
+
+        for (id, new_z, new_n) in updates {
+            let param = self.params.entry(id).or_default();
+            param.z = new_z;
+            param.n = new_n;
+        }
+        self.intercept.z = new_intercept_z;
+        self.intercept.n = new_intercept_n;
+        self.samples_seen = next_samples_seen;
+
         Ok(())
     }
 
@@ -433,6 +771,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
@@ -469,6 +809,8 @@ mod tests {
             beta: 1.0,
             l1: 100.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
@@ -606,6 +948,13 @@ mod tests {
             })
             .is_err()
         );
+        assert!(
+            FtrlRegressor::new(FtrlConfig {
+                max_features: Some(0),
+                ..FtrlConfig::default()
+            })
+            .is_err()
+        );
     }
 
     #[test]
@@ -616,6 +965,8 @@ mod tests {
             beta: 0.5,
             l1: 0.5,
             l2: 0.5,
+            max_features: Some(100),
+            new_feature_policy: NewFeaturePolicy::Reject,
         })
         .unwrap();
         let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (3, 2.0)]).unwrap();
@@ -636,6 +987,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         // Learn feature 0 strongly, feature 1 barely.
@@ -660,6 +1013,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(99);
@@ -699,6 +1054,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let sf = SparseFeatures::from_sorted(vec![(0, 0.0)]).unwrap();
@@ -727,6 +1084,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
@@ -765,6 +1124,175 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
+    // FtrlRegressor: failure atomicity and overflow (ML-001/002)
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn regressor_overflow_does_not_mutate_state() {
+        // Finite inputs but intermediate `gradient * value` or
+        // `gradient^2` overflows. The whole learn call must fail and
+        // leave the model untouched.
+        let mut model = FtrlRegressor::new(FtrlConfig {
+            alpha: 0.1,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 1e200)]).unwrap();
+        let result = model.learn(&sf, 1e100);
+        assert!(result.is_err(), "expected overflow error, got {result:?}");
+        assert_eq!(model.samples_seen(), 0);
+        assert_eq!(model.feature_count(), 0);
+        assert!(model.params.is_empty());
+        assert_eq!(model.intercept.z, 0.0);
+        assert_eq!(model.intercept.n, 0.0);
+    }
+
+    #[test]
+    fn regressor_partial_update_is_atomic() {
+        // Two features in one sample. Feature 0 would succeed on its own,
+        // feature 1 overflows. Neither may be committed.
+        let mut model = FtrlRegressor::new(FtrlConfig {
+            alpha: 0.1,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 1e200)]).unwrap();
+        assert!(model.learn(&sf, 1e100).is_err());
+        // Feature 0 must NOT be inserted.
+        assert!(!model.params.contains_key(&0));
+        assert!(!model.params.contains_key(&1));
+        assert_eq!(model.samples_seen(), 0);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_samples_seen_overflow_is_atomic() {
+        let json = format!(
+            "{{\"config\":{{\"alpha\":0.1,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"}},\"params\":{{}},\"intercept\":{{\"z\":0.0,\"n\":0.0}},\"samples_seen\":{}}}",
+            u64::MAX
+        );
+        let mut model: FtrlRegressor = serde_json::from_str(&json).unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0)]).unwrap();
+        let result = model.learn(&sf, 1.0);
+        assert!(result.is_err(), "expected counter overflow");
+        assert_eq!(model.samples_seen(), u64::MAX);
+        assert_eq!(model.feature_count(), 0);
+        assert_eq!(model.intercept.z, 0.0);
+        assert_eq!(model.intercept.n, 0.0);
+    }
+
+    // -----------------------------------------------------------------
+    // FtrlRegressor: max_features boundary (ML-003)
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn regressor_max_features_reject_at_limit() {
+        let mut model = FtrlRegressor::new(FtrlConfig {
+            alpha: 0.5,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: Some(2),
+            new_feature_policy: NewFeaturePolicy::Reject,
+        })
+        .unwrap();
+        // Reach exactly the limit.
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 2.0)]).unwrap();
+        model.learn(&sf, 1.0).unwrap();
+        assert_eq!(model.feature_count(), 2);
+        // One more new feature: Reject must fail atomically.
+        let sf_new = SparseFeatures::from_sorted(vec![(2, 3.0)]).unwrap();
+        assert!(model.learn(&sf_new, 1.0).is_err());
+        assert_eq!(model.feature_count(), 2);
+        assert_eq!(model.samples_seen(), 1);
+        // Existing features still train.
+        let sf_existing = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 2.0)]).unwrap();
+        model.learn(&sf_existing, 1.0).unwrap();
+        assert_eq!(model.feature_count(), 2);
+        assert_eq!(model.samples_seen(), 2);
+    }
+
+    #[test]
+    fn regressor_max_features_ignore_skips_new() {
+        let mut model = FtrlRegressor::new(FtrlConfig {
+            alpha: 0.5,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: Some(2),
+            new_feature_policy: NewFeaturePolicy::Ignore,
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 2.0)]).unwrap();
+        model.learn(&sf, 1.0).unwrap();
+        // Sample with one existing and one new feature. Under Ignore the
+        // new feature is skipped, the existing one is updated, and the
+        // counter still advances.
+        let sf_mixed = SparseFeatures::from_sorted(vec![(0, 1.0), (2, 3.0)]).unwrap();
+        model.learn(&sf_mixed, 1.0).unwrap();
+        assert_eq!(model.feature_count(), 2);
+        assert!(!model.params.contains_key(&2));
+        assert_eq!(model.samples_seen(), 2);
+    }
+
+    #[test]
+    fn regressor_max_features_multi_new_prejudge() {
+        let mut model = FtrlRegressor::new(FtrlConfig {
+            alpha: 0.5,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: Some(2),
+            new_feature_policy: NewFeaturePolicy::Reject,
+        })
+        .unwrap();
+        // A single sample with three new features. Reject fails atomically
+        // without inserting any subset.
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 2.0), (2, 3.0)]).unwrap();
+        assert!(model.learn(&sf, 1.0).is_err());
+        assert_eq!(model.feature_count(), 0);
+        assert_eq!(model.samples_seen(), 0);
+    }
+
+    // -----------------------------------------------------------------
+    // FtrlRegressor: serde validation (ML-004)
+    // -----------------------------------------------------------------
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_serde_rejects_negative_n() {
+        let json = "{\"config\":{\"alpha\":0.1,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":1.0,\"n\":-1.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let result: Result<FtrlRegressor, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "negative n must be rejected");
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_serde_rejects_invalid_config() {
+        let json = "{\"config\":{\"alpha\":-1.0,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let result: Result<FtrlRegressor, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "invalid alpha must be rejected");
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_serde_accepts_missing_optional_fields() {
+        // Old state without max_features/new_feature_policy must still load.
+        let json = "{\"config\":{\"alpha\":0.1,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0},\"params\":{},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let model: FtrlRegressor = serde_json::from_str(json).unwrap();
+        assert!(model.config().max_features.is_none());
+        assert_eq!(model.config().new_feature_policy, NewFeaturePolicy::Reject);
+    }
+
+    // -----------------------------------------------------------------
     // FtrlClassifier tests
     // -----------------------------------------------------------------
 
@@ -784,6 +1312,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(3);
@@ -811,6 +1341,8 @@ mod tests {
             beta: 1.0,
             l1: 100.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(5);
@@ -933,6 +1465,8 @@ mod tests {
             beta: 0.5,
             l1: 0.1,
             l2: 0.2,
+            max_features: Some(100),
+            new_feature_policy: NewFeaturePolicy::Reject,
         })
         .unwrap();
         let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (2, -1.0)]).unwrap();
@@ -954,6 +1488,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(17);
@@ -964,7 +1500,10 @@ mod tests {
             let sf = SparseFeatures::from_sorted(vec![(0, x0), (1, x1)]).unwrap();
             model.learn(&sf, y).unwrap();
             let p = model.predict_proba(&sf).unwrap();
-            assert!(p > 0.0 && p < 1.0, "probability must be in (0,1), got {p}");
+            assert!(
+                (0.0..=1.0).contains(&p),
+                "probability must be in [0,1], got {p}"
+            );
         }
     }
 
@@ -989,6 +1528,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
 
@@ -1033,6 +1574,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 0.0001)]).unwrap();
@@ -1052,6 +1595,8 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(33);
@@ -1091,8 +1636,11 @@ mod tests {
             beta: 1.0,
             l1: 0.0,
             l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
         })
         .unwrap();
+        let loss_fn = crate::loss::log_loss::BinaryLogLoss::new();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(55);
         let mut first_loss = 0.0;
         let mut last_loss = 0.0;
@@ -1102,8 +1650,7 @@ mod tests {
             let y = x0 > 0.0;
             let sf = SparseFeatures::from_sorted(vec![(0, x0), (1, x1)]).unwrap();
             let p = model.predict_proba(&sf).unwrap();
-            let y_f = if y { 1.0 } else { 0.0 };
-            let loss = -(y_f * p.ln() + (1.0 - y_f) * (1.0 - p).ln());
+            let loss = loss_fn.loss(p, y);
             if i < 20 {
                 first_loss += loss;
             }
@@ -1113,5 +1660,157 @@ mod tests {
             model.learn(&sf, y).unwrap();
         }
         assert!(last_loss < first_loss, "log loss should decrease");
+    }
+
+    // -----------------------------------------------------------------
+    // FtrlClassifier: failure atomicity and overflow (ML-001/002)
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn classifier_overflow_does_not_mutate_state() {
+        let mut model = FtrlClassifier::new(FtrlConfig {
+            alpha: 0.1,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 1e300)]).unwrap();
+        // Cold-start probability is 0.5, grad = 0.5 - 0.0 = 0.5.
+        // g for feature 1 = 0.5 * 1e300 = 5e299 (finite), g^2 = 2.5e599 = inf.
+        let result = model.learn(&sf, false);
+        assert!(result.is_err(), "expected overflow error, got {result:?}");
+        assert_eq!(model.samples_seen(), 0);
+        assert_eq!(model.feature_count(), 0);
+        assert!(model.params.is_empty());
+        assert_eq!(model.intercept.z, 0.0);
+        assert_eq!(model.intercept.n, 0.0);
+    }
+
+    #[test]
+    fn classifier_partial_update_is_atomic() {
+        let mut model = FtrlClassifier::new(FtrlConfig {
+            alpha: 0.1,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 1e300)]).unwrap();
+        assert!(model.learn(&sf, false).is_err());
+        assert!(!model.params.contains_key(&0));
+        assert!(!model.params.contains_key(&1));
+        assert_eq!(model.samples_seen(), 0);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_samples_seen_overflow_is_atomic() {
+        let json = format!(
+            "{{\"config\":{{\"alpha\":0.1,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"}},\"params\":{{}},\"intercept\":{{\"z\":0.0,\"n\":0.0}},\"samples_seen\":{}}}",
+            u64::MAX
+        );
+        let mut model: FtrlClassifier = serde_json::from_str(&json).unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0)]).unwrap();
+        let result = model.learn(&sf, true);
+        assert!(result.is_err(), "expected counter overflow");
+        assert_eq!(model.samples_seen(), u64::MAX);
+        assert_eq!(model.feature_count(), 0);
+        assert_eq!(model.intercept.z, 0.0);
+        assert_eq!(model.intercept.n, 0.0);
+    }
+
+    // -----------------------------------------------------------------
+    // FtrlClassifier: max_features boundary (ML-003)
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn classifier_max_features_reject_at_limit() {
+        let mut model = FtrlClassifier::new(FtrlConfig {
+            alpha: 0.5,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: Some(2),
+            new_feature_policy: NewFeaturePolicy::Reject,
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 2.0)]).unwrap();
+        model.learn(&sf, true).unwrap();
+        assert_eq!(model.feature_count(), 2);
+        let sf_new = SparseFeatures::from_sorted(vec![(2, 3.0)]).unwrap();
+        assert!(model.learn(&sf_new, true).is_err());
+        assert_eq!(model.feature_count(), 2);
+        assert_eq!(model.samples_seen(), 1);
+    }
+
+    #[test]
+    fn classifier_max_features_ignore_skips_new() {
+        let mut model = FtrlClassifier::new(FtrlConfig {
+            alpha: 0.5,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: Some(2),
+            new_feature_policy: NewFeaturePolicy::Ignore,
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 2.0)]).unwrap();
+        model.learn(&sf, true).unwrap();
+        let sf_mixed = SparseFeatures::from_sorted(vec![(0, 1.0), (2, 3.0)]).unwrap();
+        model.learn(&sf_mixed, false).unwrap();
+        assert_eq!(model.feature_count(), 2);
+        assert!(!model.params.contains_key(&2));
+        assert_eq!(model.samples_seen(), 2);
+    }
+
+    #[test]
+    fn classifier_max_features_multi_new_prejudge() {
+        let mut model = FtrlClassifier::new(FtrlConfig {
+            alpha: 0.5,
+            beta: 1.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: Some(2),
+            new_feature_policy: NewFeaturePolicy::Reject,
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 2.0), (2, 3.0)]).unwrap();
+        assert!(model.learn(&sf, true).is_err());
+        assert_eq!(model.feature_count(), 0);
+        assert_eq!(model.samples_seen(), 0);
+    }
+
+    // -----------------------------------------------------------------
+    // FtrlClassifier: serde validation (ML-004)
+    // -----------------------------------------------------------------
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_serde_rejects_negative_n() {
+        let json = "{\"config\":{\"alpha\":0.1,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":1.0,\"n\":-1.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let result: Result<FtrlClassifier, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "negative n must be rejected");
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_serde_rejects_invalid_config() {
+        let json = "{\"config\":{\"alpha\":-1.0,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let result: Result<FtrlClassifier, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "invalid alpha must be rejected");
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_serde_accepts_missing_optional_fields() {
+        let json = "{\"config\":{\"alpha\":0.1,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0},\"params\":{},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let model: FtrlClassifier = serde_json::from_str(json).unwrap();
+        assert!(model.config().max_features.is_none());
+        assert_eq!(model.config().new_feature_policy, NewFeaturePolicy::Reject);
     }
 }

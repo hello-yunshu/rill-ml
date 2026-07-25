@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::package::LoadedModelPack;
-use crate::server::InvokeHandler;
+use crate::server::{InvokeError, InvokeErrorKind, InvokeHandler};
 
 pub const LINEAR_REGRESSION_CAPABILITY: &str = "rillml.linearRegression.predict";
 
@@ -60,21 +60,37 @@ impl LinearRegressionInvokeHandler {
 }
 
 impl InvokeHandler for LinearRegressionInvokeHandler {
-    fn invoke(&self, capability: &str, input: &Value) -> Result<Value, String> {
+    fn invoke(&self, capability: &str, input: &Value) -> Result<Value, InvokeError> {
         if capability != LINEAR_REGRESSION_CAPABILITY {
-            return Err("unsupported capability".into());
+            // Built-in handlers are selected by the runtime binary, not by
+            // guest-controlled capabilities, so an unknown capability here
+            // is a host-side misconfiguration. Map to Internal.
+            return Err(InvokeError::with_detail(
+                InvokeErrorKind::Internal,
+                format!("built-in handler received unsupported capability: {capability}"),
+            ));
         }
-        let input: LinearRegressionInput = serde_json::from_value(input.clone())
-            .map_err(|error| format!("invalid linear-regression input: {error}"))?;
+        let input: LinearRegressionInput = serde_json::from_value(input.clone()).map_err(|e| {
+            InvokeError::with_detail(
+                InvokeErrorKind::Internal,
+                format!("invalid linear-regression input: {e}"),
+            )
+        })?;
         if input.features.len() != self.weights.len() {
-            return Err(format!(
-                "expected {} features, received {}",
-                self.weights.len(),
-                input.features.len()
+            return Err(InvokeError::with_detail(
+                InvokeErrorKind::Internal,
+                format!(
+                    "expected {} features, received {}",
+                    self.weights.len(),
+                    input.features.len()
+                ),
             ));
         }
         if input.features.iter().any(|value| !value.is_finite()) {
-            return Err("linear-regression input values must be finite".into());
+            return Err(InvokeError::with_detail(
+                InvokeErrorKind::Internal,
+                "linear-regression input values must be finite",
+            ));
         }
         let prediction = self
             .weights
@@ -84,7 +100,12 @@ impl InvokeHandler for LinearRegressionInvokeHandler {
                 let next = sum + weight * feature;
                 next.is_finite().then_some(next)
             })
-            .ok_or_else(|| "linear-regression prediction overflowed".to_string())?;
+            .ok_or_else(|| {
+                InvokeError::with_detail(
+                    InvokeErrorKind::Internal,
+                    "linear-regression prediction overflowed",
+                )
+            })?;
         Ok(serde_json::json!({ "prediction": prediction }))
     }
 }
