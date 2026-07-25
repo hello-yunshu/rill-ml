@@ -145,6 +145,16 @@ impl StandardScaler {
                 "standard scaler state must contain only finite values".to_owned(),
             ));
         }
+        // ``m2s`` is the running sum of squared deviations from the mean
+        // (Welford M2). It is mathematically non-negative; a negative value
+        // indicates corruption or a maliciously crafted serde payload. The
+        // finite check above already rules out NaN/Infinity, so here we only
+        // need to reject strictly negative values.
+        if self.m2s.iter().any(|value| *value < 0.0) {
+            return Err(RillError::InvalidState(
+                "standard scaler m2s must be non-negative".to_owned(),
+            ));
+        }
         if self.counts.windows(2).any(|pair| pair[0] != pair[1]) {
             return Err(RillError::InvalidState(
                 "standard scaler feature counts must stay synchronized".to_owned(),
@@ -377,6 +387,23 @@ mod tests {
             "counts":[1],
             "means":[0.0],
             "m2s":[0.0]
+        }"#;
+        assert!(serde_json::from_str::<StandardScaler>(malformed).is_err());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_rejects_negative_m2() {
+        // Regression: a malicious or corrupted state with a negative Welford
+        // M2 must be rejected. ``m2`` is a sum of squared deviations and is
+        // mathematically non-negative; accepting a negative value would let
+        // an attacker poison the scaler with imaginary variances.
+        let malformed = r#"{
+            "feature_count":1,
+            "config":{"with_mean":true,"with_std":true,"epsilon":1e-12},
+            "counts":[2],
+            "means":[0.0],
+            "m2s":[-1.0]
         }"#;
         assert!(serde_json::from_str::<StandardScaler>(malformed).is_err());
     }
