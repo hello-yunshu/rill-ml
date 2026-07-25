@@ -205,7 +205,11 @@ impl OnlineBinaryClassifier for GaussianNaiveBayes {
         let log_p_false = log_prior_false + log_likelihood_false;
 
         let log_odds = log_p_true - log_p_false;
-        Ok(sigmoid(log_odds).clamp(f64::EPSILON, 1.0 - f64::EPSILON))
+        // Return the raw sigmoid so the output range is the closed [0, 1]
+        // documented on `OnlineBinaryClassifier`. Extreme logits (e.g.
+        // single-class training data) yield exactly 0.0 or 1.0; consumers
+        // that need an open interval (log-loss) clip internally.
+        Ok(sigmoid(log_odds))
     }
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {
@@ -328,7 +332,9 @@ impl OnlineBinaryClassifier for BernoulliNaiveBayes {
         let log_p_false = log_prior_false + log_likelihood_false;
 
         let log_odds = log_p_true - log_p_false;
-        Ok(sigmoid(log_odds).clamp(f64::EPSILON, 1.0 - f64::EPSILON))
+        // See `GaussianNaiveBayes::predict_proba`: return raw sigmoid so the
+        // output range matches the closed [0, 1] trait contract.
+        Ok(sigmoid(log_odds))
     }
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {
@@ -462,7 +468,9 @@ impl OnlineBinaryClassifier for MultinomialNaiveBayes {
         let log_p_false = log_prior_false + log_likelihood_false;
 
         let log_odds = log_p_true - log_p_false;
-        Ok(sigmoid(log_odds).clamp(f64::EPSILON, 1.0 - f64::EPSILON))
+        // See `GaussianNaiveBayes::predict_proba`: return raw sigmoid so the
+        // output range matches the closed [0, 1] trait contract.
+        Ok(sigmoid(log_odds))
     }
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {

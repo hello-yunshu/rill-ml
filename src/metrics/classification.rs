@@ -47,11 +47,47 @@ impl Metric for Accuracy {
 }
 
 /// Precision for the positive class.
+///
+/// `samples_seen()` reports the total number of successfully incorporated
+/// observations (including true negatives), not `TP + FP`. The confusion
+/// counts are kept separately so the metric remains computable.
 #[derive(Debug, Clone, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Precision {
     true_positive: u64,
     false_positive: u64,
+    /// Total observations successfully incorporated via `update`.
+    /// Restored from serde as-is; older states without this field are
+    /// rejected because the true-negative count cannot be reconstructed
+    /// from `TP`/`FP` alone.
+    samples_seen: u64,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Precision {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct PrecisionState {
+            true_positive: u64,
+            false_positive: u64,
+            samples_seen: u64,
+        }
+
+        let state = PrecisionState::deserialize(deserializer)?;
+        // Internal consistency: samples_seen must be at least the
+        // confusion counts, since every TP/FP contributes one observation.
+        if state.samples_seen < state.true_positive.saturating_add(state.false_positive) {
+            return Err(serde::de::Error::custom("precision samples_seen < tp + fp"));
+        }
+        Ok(Precision {
+            true_positive: state.true_positive,
+            false_positive: state.false_positive,
+            samples_seen: state.samples_seen,
+        })
+    }
 }
 
 impl Metric for Precision {
@@ -59,17 +95,20 @@ impl Metric for Precision {
     type Prediction = bool;
 
     fn update(&mut self, truth: bool, prediction: bool) -> Result<(), RillError> {
-        match (truth, prediction) {
-            (true, true) => {
-                self.true_positive =
-                    checked_increment(self.true_positive, "precision true positive")?
-            }
-            (false, true) => {
-                self.false_positive =
-                    checked_increment(self.false_positive, "precision false positive")?
-            }
-            _ => {}
-        }
+        let next_samples = checked_increment(self.samples_seen, "precision samples_seen")?;
+        let next_tp = if truth && prediction {
+            checked_increment(self.true_positive, "precision true positive")?
+        } else {
+            self.true_positive
+        };
+        let next_fp = if !truth && prediction {
+            checked_increment(self.false_positive, "precision false positive")?
+        } else {
+            self.false_positive
+        };
+        self.samples_seen = next_samples;
+        self.true_positive = next_tp;
+        self.false_positive = next_fp;
         Ok(())
     }
 
@@ -83,21 +122,51 @@ impl Metric for Precision {
     }
 
     fn samples_seen(&self) -> u64 {
-        self.true_positive.saturating_add(self.false_positive)
+        self.samples_seen
     }
 
     fn reset(&mut self) {
         self.true_positive = 0;
         self.false_positive = 0;
+        self.samples_seen = 0;
     }
 }
 
 /// Recall for the positive class.
+///
+/// `samples_seen()` reports the total number of successfully incorporated
+/// observations (including true negatives), not `TP + FN`.
 #[derive(Debug, Clone, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Recall {
     true_positive: u64,
     false_negative: u64,
+    samples_seen: u64,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Recall {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct RecallState {
+            true_positive: u64,
+            false_negative: u64,
+            samples_seen: u64,
+        }
+
+        let state = RecallState::deserialize(deserializer)?;
+        if state.samples_seen < state.true_positive.saturating_add(state.false_negative) {
+            return Err(serde::de::Error::custom("recall samples_seen < tp + fn"));
+        }
+        Ok(Recall {
+            true_positive: state.true_positive,
+            false_negative: state.false_negative,
+            samples_seen: state.samples_seen,
+        })
+    }
 }
 
 impl Metric for Recall {
@@ -105,16 +174,20 @@ impl Metric for Recall {
     type Prediction = bool;
 
     fn update(&mut self, truth: bool, prediction: bool) -> Result<(), RillError> {
-        match (truth, prediction) {
-            (true, true) => {
-                self.true_positive = checked_increment(self.true_positive, "recall true positive")?
-            }
-            (true, false) => {
-                self.false_negative =
-                    checked_increment(self.false_negative, "recall false negative")?
-            }
-            _ => {}
-        }
+        let next_samples = checked_increment(self.samples_seen, "recall samples_seen")?;
+        let next_tp = if truth && prediction {
+            checked_increment(self.true_positive, "recall true positive")?
+        } else {
+            self.true_positive
+        };
+        let next_fn = if truth && !prediction {
+            checked_increment(self.false_negative, "recall false negative")?
+        } else {
+            self.false_negative
+        };
+        self.samples_seen = next_samples;
+        self.true_positive = next_tp;
+        self.false_negative = next_fn;
         Ok(())
     }
 
@@ -128,22 +201,58 @@ impl Metric for Recall {
     }
 
     fn samples_seen(&self) -> u64 {
-        self.true_positive.saturating_add(self.false_negative)
+        self.samples_seen
     }
 
     fn reset(&mut self) {
         self.true_positive = 0;
         self.false_negative = 0;
+        self.samples_seen = 0;
     }
 }
 
 /// F1 score, the harmonic mean of precision and recall.
+///
+/// `samples_seen()` reports the total number of successfully incorporated
+/// observations (including true negatives), not `TP + FP + FN`.
 #[derive(Debug, Clone, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct F1Score {
     true_positive: u64,
     false_positive: u64,
     false_negative: u64,
+    samples_seen: u64,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for F1Score {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct F1State {
+            true_positive: u64,
+            false_positive: u64,
+            false_negative: u64,
+            samples_seen: u64,
+        }
+
+        let state = F1State::deserialize(deserializer)?;
+        let confusion = state
+            .true_positive
+            .saturating_add(state.false_positive)
+            .saturating_add(state.false_negative);
+        if state.samples_seen < confusion {
+            return Err(serde::de::Error::custom("f1 samples_seen < tp + fp + fn"));
+        }
+        Ok(F1Score {
+            true_positive: state.true_positive,
+            false_positive: state.false_positive,
+            false_negative: state.false_negative,
+            samples_seen: state.samples_seen,
+        })
+    }
 }
 
 impl Metric for F1Score {
@@ -151,18 +260,26 @@ impl Metric for F1Score {
     type Prediction = bool;
 
     fn update(&mut self, truth: bool, prediction: bool) -> Result<(), RillError> {
-        match (truth, prediction) {
-            (true, true) => {
-                self.true_positive = checked_increment(self.true_positive, "F1 true positive")?
-            }
-            (false, true) => {
-                self.false_positive = checked_increment(self.false_positive, "F1 false positive")?
-            }
-            (true, false) => {
-                self.false_negative = checked_increment(self.false_negative, "F1 false negative")?
-            }
-            _ => {}
-        }
+        let next_samples = checked_increment(self.samples_seen, "F1 samples_seen")?;
+        let next_tp = if truth && prediction {
+            checked_increment(self.true_positive, "F1 true positive")?
+        } else {
+            self.true_positive
+        };
+        let next_fp = if !truth && prediction {
+            checked_increment(self.false_positive, "F1 false positive")?
+        } else {
+            self.false_positive
+        };
+        let next_fn = if truth && !prediction {
+            checked_increment(self.false_negative, "F1 false negative")?
+        } else {
+            self.false_negative
+        };
+        self.samples_seen = next_samples;
+        self.true_positive = next_tp;
+        self.false_positive = next_fp;
+        self.false_negative = next_fn;
         Ok(())
     }
 
@@ -178,15 +295,14 @@ impl Metric for F1Score {
     }
 
     fn samples_seen(&self) -> u64 {
-        self.true_positive
-            .saturating_add(self.false_positive)
-            .saturating_add(self.false_negative)
+        self.samples_seen
     }
 
     fn reset(&mut self) {
         self.true_positive = 0;
         self.false_positive = 0;
         self.false_negative = 0;
+        self.samples_seen = 0;
     }
 }
 
@@ -326,5 +442,105 @@ mod tests {
         m.update(true, false).unwrap();
         m.update(false, false).unwrap();
         assert!(m.value().is_none());
+    }
+
+    // -----------------------------------------------------------------
+    // Metric::samples_seen() contract: every successful update must
+    // increment the count by exactly one, including true negatives.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn samples_seen_counts_all_observations() {
+        let mut p = Precision::default();
+        let mut r = Recall::default();
+        let mut f = F1Score::default();
+        let mut a = Accuracy::default();
+
+        // All four confusion-matrix cells.
+        let cases = [(true, true), (true, false), (false, true), (false, false)];
+        for (truth, pred) in cases {
+            p.update(truth, pred).unwrap();
+            r.update(truth, pred).unwrap();
+            f.update(truth, pred).unwrap();
+            a.update(truth, pred).unwrap();
+        }
+
+        assert_eq!(p.samples_seen(), 4);
+        assert_eq!(r.samples_seen(), 4);
+        assert_eq!(f.samples_seen(), 4);
+        assert_eq!(a.samples_seen(), 4);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn samples_seen_overflow_is_atomic() {
+        // Restore a near-overflow Precision via serde, then attempt one
+        // more update. The counter must overflow without mutating state.
+        let json = format!(
+            "{{\"true_positive\":1,\"false_positive\":1,\"samples_seen\":{}}}",
+            u64::MAX
+        );
+        let mut p: Precision = serde_json::from_str(&json).unwrap();
+        let result = p.update(true, true);
+        assert!(result.is_err(), "expected overflow");
+        assert_eq!(p.samples_seen(), u64::MAX);
+        assert_eq!(p.true_positive, 1);
+        assert_eq!(p.false_positive, 1);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn precision_serde_rejects_missing_samples_seen() {
+        // Old state without samples_seen must be rejected: true-negative
+        // count cannot be reconstructed from TP/FP alone.
+        let json = "{\"true_positive\":1,\"false_positive\":1}";
+        assert!(serde_json::from_str::<Precision>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn precision_serde_rejects_inconsistent_samples_seen() {
+        // samples_seen < tp + fp is internally inconsistent.
+        let json = "{\"true_positive\":5,\"false_positive\":5,\"samples_seen\":3}";
+        assert!(serde_json::from_str::<Precision>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn recall_serde_rejects_missing_samples_seen() {
+        let json = "{\"true_positive\":1,\"false_negative\":1}";
+        assert!(serde_json::from_str::<Recall>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn f1_serde_rejects_missing_samples_seen() {
+        let json = "{\"true_positive\":1,\"false_positive\":1,\"false_negative\":1}";
+        assert!(serde_json::from_str::<F1Score>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn metric_serde_roundtrip_preserves_samples_seen() {
+        let mut p = Precision::default();
+        for _ in 0..10 {
+            p.update(true, true).unwrap();
+        }
+        let json = serde_json::to_string(&p).unwrap();
+        let restored: Precision = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.samples_seen(), 10);
+        assert_eq!(restored.true_positive, 10);
+    }
+
+    #[test]
+    fn reset_clears_samples_seen() {
+        let mut p = Precision::default();
+        p.update(true, true).unwrap();
+        p.update(false, false).unwrap();
+        assert_eq!(p.samples_seen(), 2);
+        p.reset();
+        assert_eq!(p.samples_seen(), 0);
+        assert_eq!(p.true_positive, 0);
+        assert_eq!(p.false_positive, 0);
     }
 }
