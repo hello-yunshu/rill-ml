@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use rill_runtime_protocol::{
     MIN_RUNTIME_API_VERSION, RUNTIME_API_VERSION, RuntimeRequest, RuntimeResponse,
@@ -29,6 +29,13 @@ pub struct InvokeError {
 pub const MAX_DETAIL_BYTES: usize = 4 * 1024;
 
 /// Stable categorisation of invoke failures.
+///
+/// The four guest-reported variants (`InvalidModel`, `InvalidInput`,
+/// `UnsupportedCapability`, `ExecutionFailed`) correspond 1:1 to the
+/// WIT `handler-error` variants. They share the same stable IPC code
+/// (`handlerInternalError`) for backwards compatibility with v1/v2
+/// clients, but carry distinct fixed public messages and are
+/// distinguishable host-side for logging and diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvokeErrorKind {
     /// Host-side input serialisation or size check failed.
@@ -41,10 +48,21 @@ pub enum InvokeErrorKind {
     OutputTooLarge,
     /// Handler output failed JSON deserialisation on the host side.
     InvalidOutput,
-    /// Guest reported `invalid-model` / `invalid-input` /
-    /// `unsupported-capability` / `execution-failed` via the WIT
+    /// Guest reported `invalid-model` via the WIT `handler-error`
+    /// variant. The variant detail is stored in [`InvokeError::detail`]
+    /// for host logs only.
+    InvalidModel,
+    /// Guest reported `invalid-input` via the WIT `handler-error`
+    /// variant. The variant detail is stored in [`InvokeError::detail`]
+    /// for host logs only.
+    InvalidInput,
+    /// Guest reported `unsupported-capability` via the WIT
     /// `handler-error` variant. The variant detail is stored in
     /// [`InvokeError::detail`] for host logs only.
+    UnsupportedCapability,
+    /// Guest reported `execution-failed` via the WIT `handler-error`
+    /// variant. The variant detail is stored in [`InvokeError::detail`]
+    /// for host logs only.
     ExecutionFailed,
 }
 
@@ -81,6 +99,13 @@ impl InvokeError {
 
     /// Stable IPC error code. Backwards-compatible with the v1/v2 wire
     /// format produced by the previous `map_invoke_error` string matching.
+    ///
+    /// All four guest-reported WIT `handler-error` variants
+    /// (`invalid-model`, `invalid-input`, `unsupported-capability`,
+    /// `execution-failed`) collapse to `handlerInternalError` on the wire
+    /// to preserve compatibility with v1/v2 clients. The host still
+    /// distinguishes them internally via [`InvokeError::kind`] for
+    /// logging and diagnostics.
     pub const fn stable_code(&self) -> &'static str {
         match self.kind {
             InvokeErrorKind::Internal => "handlerInternalError",
@@ -92,7 +117,10 @@ impl InvokeError {
             // `handlerInternalError` on the wire, matching the previous
             // `map_invoke_error` behaviour that mapped
             // `handlerExecutionFailed: ...` to `handlerInternalError`.
-            InvokeErrorKind::ExecutionFailed => "handlerInternalError",
+            InvokeErrorKind::InvalidModel
+            | InvokeErrorKind::InvalidInput
+            | InvokeErrorKind::UnsupportedCapability
+            | InvokeErrorKind::ExecutionFailed => "handlerInternalError",
         }
     }
 
@@ -104,6 +132,9 @@ impl InvokeError {
             InvokeErrorKind::Trap => "handler trapped",
             InvokeErrorKind::OutputTooLarge => "handler output exceeded the size limit",
             InvokeErrorKind::InvalidOutput => "handler output was not valid JSON",
+            InvokeErrorKind::InvalidModel => "handler rejected the model configuration",
+            InvokeErrorKind::InvalidInput => "handler rejected the input",
+            InvokeErrorKind::UnsupportedCapability => "handler does not support the capability",
             InvokeErrorKind::ExecutionFailed => "handler execution failed",
         }
     }
@@ -141,6 +172,83 @@ fn truncate_to_bytes(s: String, max_bytes: usize) -> String {
     let mut truncated = s;
     truncated.truncate(end);
     truncated
+}
+
+/// Minimal host-side log sink for invoke diagnostics.
+///
+/// Production code uses [`StderrLogSink`]; tests inject
+/// [`CapturingLogSink`] to verify log content and bounds without capturing
+/// stderr. Keeping this trait tiny avoids pulling in a full logging
+/// framework while still making the runtime's only log call testable.
+///
+/// The sink receives a single pre-formatted message per invoke error. The
+/// message is constructed from the already-truncated
+/// [`InvokeError::detail`], so a malicious 16 KiB guest error payload can
+/// never produce a 16 KiB log line.
+pub trait HostLogSink: Send + Sync + std::fmt::Debug {
+    /// Emit a single log line. The implementation decides where it goes.
+    fn emit(&self, message: &str);
+}
+
+/// Default [`HostLogSink`] writing to stderr via `eprintln!`.
+#[derive(Debug, Default, Clone)]
+pub struct StderrLogSink;
+
+impl HostLogSink for StderrLogSink {
+    fn emit(&self, message: &str) {
+        eprintln!("{message}");
+    }
+}
+
+/// Test-only [`HostLogSink`] that captures every emitted message in a
+/// `Mutex<Vec<String>>`. Tests inspect the captured messages to verify
+/// log bounds, content, and deduplication without touching stderr.
+#[derive(Debug, Default)]
+pub struct CapturingLogSink {
+    messages: Mutex<Vec<String>>,
+}
+
+impl CapturingLogSink {
+    /// Create an empty capturing sink.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return a snapshot of all captured messages in emission order.
+    pub fn messages(&self) -> Vec<String> {
+        self.messages
+            .lock()
+            .expect("CapturingLogSink poisoned")
+            .clone()
+    }
+
+    /// Total byte length of all captured messages. Useful for asserting
+    /// that a 16 KiB guest error did not produce a 16 KiB log.
+    pub fn total_bytes(&self) -> usize {
+        self.messages
+            .lock()
+            .expect("CapturingLogSink poisoned")
+            .iter()
+            .map(String::len)
+            .sum()
+    }
+
+    /// Drop all captured messages.
+    pub fn clear(&self) {
+        self.messages
+            .lock()
+            .expect("CapturingLogSink poisoned")
+            .clear();
+    }
+}
+
+impl HostLogSink for CapturingLogSink {
+    fn emit(&self, message: &str) {
+        self.messages
+            .lock()
+            .expect("CapturingLogSink poisoned")
+            .push(message.to_string());
+    }
 }
 
 /// Consumers can implement this trait to add business-specific invocation logic.
@@ -304,6 +412,7 @@ pub struct RuntimeEngine {
     invoke_handler: Option<Arc<dyn InvokeHandler>>,
     handler_identity: Option<HandlerIdentity>,
     effective_capabilities: Vec<String>,
+    log_sink: Arc<dyn HostLogSink>,
 }
 
 impl RuntimeEngine {
@@ -313,11 +422,20 @@ impl RuntimeEngine {
             invoke_handler: None,
             handler_identity: None,
             effective_capabilities: Vec::new(),
+            log_sink: Arc::new(StderrLogSink),
         }
     }
 
     pub fn with_invoke_handler(mut self, handler: Arc<dyn InvokeHandler>) -> Self {
         self.invoke_handler = Some(handler);
+        self
+    }
+
+    /// Replace the default [`StderrLogSink`] with a custom sink. Tests
+    /// inject a [`CapturingLogSink`] to verify log bounds and content
+    /// without capturing stderr.
+    pub fn with_log_sink(mut self, sink: Arc<dyn HostLogSink>) -> Self {
+        self.log_sink = sink;
         self
     }
 
@@ -416,14 +534,19 @@ impl RuntimeEngine {
                         // Log host-side detail (if any) for debugging; the
                         // IPC message is always the fixed public string so
                         // guests cannot exfiltrate content via the error
-                        // payload.
+                        // payload. The detail is already truncated to
+                        // [`MAX_DETAIL_BYTES`] by [`InvokeError::with_detail`],
+                        // so a 16 KiB guest payload can never produce a
+                        // 16 KiB log line. This is the single log call for
+                        // invoke errors; the WASM adapter must not also
+                        // log the same error (see audit 5.2).
                         if let Some(detail) = invoke_err.detail() {
-                            eprintln!(
+                            self.log_sink.emit(&format!(
                                 "rill-runtime: invoke {} -> {} (detail: {})",
                                 capability,
                                 invoke_err.stable_code(),
                                 detail
-                            );
+                            ));
                         }
                         self.error(
                             request_id,
@@ -674,22 +797,67 @@ mod tests {
             InvokeError::new(InvokeErrorKind::Internal).stable_code(),
             "handlerInternalError"
         );
-        // Guest-reported WIT handler-error variants collapse to
-        // handlerInternalError on the wire.
-        assert_eq!(
-            InvokeError::new(InvokeErrorKind::ExecutionFailed).stable_code(),
-            "handlerInternalError"
-        );
+        // All four guest-reported WIT handler-error variants collapse to
+        // handlerInternalError on the wire, matching the previous
+        // `map_invoke_error` behaviour. The host distinguishes them
+        // internally via `kind()` for logging, but v1/v2 clients see
+        // the same code.
+        for kind in [
+            InvokeErrorKind::InvalidModel,
+            InvokeErrorKind::InvalidInput,
+            InvokeErrorKind::UnsupportedCapability,
+            InvokeErrorKind::ExecutionFailed,
+        ] {
+            assert_eq!(
+                InvokeError::new(kind).stable_code(),
+                "handlerInternalError",
+                "{kind:?} must map to handlerInternalError for v1/v2 compat"
+            );
+        }
     }
 
     #[test]
     fn invoke_error_retryable_only_for_timeout() {
         assert!(InvokeError::new(InvokeErrorKind::Timeout).retryable());
-        assert!(!InvokeError::new(InvokeErrorKind::Trap).retryable());
-        assert!(!InvokeError::new(InvokeErrorKind::OutputTooLarge).retryable());
-        assert!(!InvokeError::new(InvokeErrorKind::InvalidOutput).retryable());
-        assert!(!InvokeError::new(InvokeErrorKind::Internal).retryable());
-        assert!(!InvokeError::new(InvokeErrorKind::ExecutionFailed).retryable());
+        for kind in [
+            InvokeErrorKind::Trap,
+            InvokeErrorKind::OutputTooLarge,
+            InvokeErrorKind::InvalidOutput,
+            InvokeErrorKind::Internal,
+            InvokeErrorKind::InvalidModel,
+            InvokeErrorKind::InvalidInput,
+            InvokeErrorKind::UnsupportedCapability,
+            InvokeErrorKind::ExecutionFailed,
+        ] {
+            assert!(
+                !InvokeError::new(kind).retryable(),
+                "{kind:?} must not be retryable"
+            );
+        }
+    }
+
+    #[test]
+    fn invoke_error_guest_variants_have_distinct_public_messages() {
+        // Each guest variant carries a fixed public message that never
+        // contains guest-supplied content. The messages are distinct so
+        // operators can distinguish variants in host logs.
+        let messages = [
+            InvokeError::new(InvokeErrorKind::InvalidModel).public_message(),
+            InvokeError::new(InvokeErrorKind::InvalidInput).public_message(),
+            InvokeError::new(InvokeErrorKind::UnsupportedCapability).public_message(),
+            InvokeError::new(InvokeErrorKind::ExecutionFailed).public_message(),
+        ];
+        // All distinct.
+        for i in 0..messages.len() {
+            for j in (i + 1)..messages.len() {
+                assert_ne!(messages[i], messages[j], "public messages must be distinct");
+            }
+        }
+        // None contain guest content markers.
+        for msg in messages {
+            assert!(!msg.contains("detail"));
+            assert!(!msg.contains("guest"));
+        }
     }
 
     #[test]
@@ -790,7 +958,10 @@ mod tests {
             },
             model: serde_json::json!({}),
         };
-        let engine = RuntimeEngine::new(pack).with_invoke_handler(Arc::new(FailingHandler { err }));
+        let sink = Arc::new(CapturingLogSink::new());
+        let engine = RuntimeEngine::new(pack)
+            .with_invoke_handler(Arc::new(FailingHandler { err }))
+            .with_log_sink(sink.clone());
         let response = engine.handle(RuntimeRequest::Invoke {
             request_id: "leak-test".into(),
             api_version: RUNTIME_API_VERSION,
@@ -813,6 +984,201 @@ mod tests {
                 assert!(!message.contains("leak-attempt"));
             }
             _ => panic!("expected EngineResponse::Error"),
+        }
+        // The host log line does contain the (truncated) detail for
+        // operator diagnostics, but the detail is host-only — it never
+        // reaches the IPC `message` field. This assertion documents that
+        // the log sink received exactly one message referencing the
+        // secret, proving the detail was captured host-side.
+        let messages = sink.messages();
+        assert_eq!(
+            messages.len(),
+            1,
+            "the engine must log the invoke error exactly once"
+        );
+        assert!(messages[0].contains("SECRET-TOKEN"));
+    }
+
+    /// Verifies audit 5.2: a 16 KiB guest error payload must not produce
+    /// a 16 KiB log line. The host constructs `InvokeError::with_detail`
+    /// (which truncates to `MAX_DETAIL_BYTES`) before logging, so the
+    /// captured log message must be well under 16 KiB.
+    #[test]
+    fn engine_log_does_not_emit_oversized_guest_detail() {
+        let huge_detail = "X".repeat(MAX_DETAIL_BYTES * 4); // 16 KiB
+        let err = InvokeError::with_detail(InvokeErrorKind::ExecutionFailed, huge_detail);
+        let pack = LoadedModelPack {
+            manifest: ModelPackManifest {
+                format_version: MODEL_PACK_FORMAT_VERSION,
+                id: "rillml.example.default".into(),
+                version: "0.7.0".into(),
+                runtime_api_version: RUNTIME_API_VERSION,
+                min_runtime_version: "0.7.0".into(),
+                publisher_key_id: "test".into(),
+                capabilities: vec!["rillml.example".into()],
+            },
+            model: serde_json::json!({}),
+        };
+        let sink = Arc::new(CapturingLogSink::new());
+        let engine = RuntimeEngine::new(pack)
+            .with_invoke_handler(Arc::new(FailingHandler { err }))
+            .with_log_sink(sink.clone());
+        let _ = engine.handle(RuntimeRequest::Invoke {
+            request_id: "oversized".into(),
+            api_version: RUNTIME_API_VERSION,
+            capability: "rillml.example".into(),
+            input: serde_json::json!({}),
+        });
+        let messages = sink.messages();
+        assert_eq!(messages.len(), 1, "exactly one log line expected");
+        let log_line = &messages[0];
+        // The log line consists of a fixed prefix + the truncated detail.
+        // The detail is at most MAX_DETAIL_BYTES; the prefix is small.
+        // 16 KiB must never appear in the log.
+        assert!(
+            log_line.len() < MAX_DETAIL_BYTES * 2,
+            "log line length {} must be well under 2x MAX_DETAIL_BYTES ({}); \
+             a 16 KiB guest payload must not produce a 16 KiB log",
+            log_line.len(),
+            MAX_DETAIL_BYTES * 2
+        );
+        // The detail portion (after the prefix) must not exceed the cap.
+        assert!(
+            log_line.len() < MAX_DETAIL_BYTES + 256,
+            "log line length {} must be < MAX_DETAIL_BYTES + prefix overhead",
+            log_line.len()
+        );
+    }
+
+    /// Verifies audit 5.2: the same invoke error must not be logged
+    /// twice. The WASM adapter must not log the error if the engine
+    /// already logs it; this test uses a `FailingHandler` (no WASM
+    /// adapter) and confirms exactly one log line per invoke.
+    #[test]
+    fn engine_logs_invoke_error_exactly_once() {
+        let err = InvokeError::with_detail(
+            InvokeErrorKind::UnsupportedCapability,
+            "capability foo not supported",
+        );
+        let pack = LoadedModelPack {
+            manifest: ModelPackManifest {
+                format_version: MODEL_PACK_FORMAT_VERSION,
+                id: "rillml.example.default".into(),
+                version: "0.7.0".into(),
+                runtime_api_version: RUNTIME_API_VERSION,
+                min_runtime_version: "0.7.0".into(),
+                publisher_key_id: "test".into(),
+                capabilities: vec!["rillml.example".into()],
+            },
+            model: serde_json::json!({}),
+        };
+        let sink = Arc::new(CapturingLogSink::new());
+        let engine = RuntimeEngine::new(pack)
+            .with_invoke_handler(Arc::new(FailingHandler { err }))
+            .with_log_sink(sink.clone());
+        let _ = engine.handle(RuntimeRequest::Invoke {
+            request_id: "once".into(),
+            api_version: RUNTIME_API_VERSION,
+            capability: "rillml.example".into(),
+            input: serde_json::json!({}),
+        });
+        assert_eq!(
+            sink.messages().len(),
+            1,
+            "the engine must log the invoke error exactly once, not twice"
+        );
+    }
+
+    /// Verifies audit 5.2: a trap backtrace (which can be very long)
+    /// must be truncated before logging. The `FailingHandler` simulates
+    /// a trap with a long backtrace-like detail string.
+    #[test]
+    fn engine_log_traps_backtrace_is_truncated() {
+        let fake_backtrace = "trap: unreachable\n".repeat(1024); // ~17 KiB
+        let err = InvokeError::with_detail(InvokeErrorKind::Trap, fake_backtrace);
+        let pack = LoadedModelPack {
+            manifest: ModelPackManifest {
+                format_version: MODEL_PACK_FORMAT_VERSION,
+                id: "rillml.example.default".into(),
+                version: "0.7.0".into(),
+                runtime_api_version: RUNTIME_API_VERSION,
+                min_runtime_version: "0.7.0".into(),
+                publisher_key_id: "test".into(),
+                capabilities: vec!["rillml.example".into()],
+            },
+            model: serde_json::json!({}),
+        };
+        let sink = Arc::new(CapturingLogSink::new());
+        let engine = RuntimeEngine::new(pack)
+            .with_invoke_handler(Arc::new(FailingHandler { err }))
+            .with_log_sink(sink.clone());
+        let _ = engine.handle(RuntimeRequest::Invoke {
+            request_id: "trap-trunc".into(),
+            api_version: RUNTIME_API_VERSION,
+            capability: "rillml.example".into(),
+            input: serde_json::json!({}),
+        });
+        let messages = sink.messages();
+        assert_eq!(messages.len(), 1);
+        let log_line = &messages[0];
+        assert!(
+            log_line.len() < MAX_DETAIL_BYTES + 256,
+            "trap backtrace log must be truncated; got {} bytes",
+            log_line.len()
+        );
+    }
+
+    /// Verifies that all four guest WIT variants flow through the engine
+    /// with the correct `kind()` and fixed public message, while the
+    /// stable IPC code stays `handlerInternalError` for v1/v2 compat.
+    #[test]
+    fn engine_preserves_guest_variant_kind_for_all_wit_variants() {
+        for (kind, expected_message) in [
+            (
+                InvokeErrorKind::InvalidModel,
+                "handler rejected the model configuration",
+            ),
+            (InvokeErrorKind::InvalidInput, "handler rejected the input"),
+            (
+                InvokeErrorKind::UnsupportedCapability,
+                "handler does not support the capability",
+            ),
+            (InvokeErrorKind::ExecutionFailed, "handler execution failed"),
+        ] {
+            let err = InvokeError::with_detail(kind, "guest detail");
+            let pack = LoadedModelPack {
+                manifest: ModelPackManifest {
+                    format_version: MODEL_PACK_FORMAT_VERSION,
+                    id: "rillml.example.default".into(),
+                    version: "0.7.0".into(),
+                    runtime_api_version: RUNTIME_API_VERSION,
+                    min_runtime_version: "0.7.0".into(),
+                    publisher_key_id: "test".into(),
+                    capabilities: vec!["rillml.example".into()],
+                },
+                model: serde_json::json!({}),
+            };
+            let engine =
+                RuntimeEngine::new(pack).with_invoke_handler(Arc::new(FailingHandler { err }));
+            let response = engine.handle(RuntimeRequest::Invoke {
+                request_id: "variant".into(),
+                api_version: RUNTIME_API_VERSION,
+                capability: "rillml.example".into(),
+                input: serde_json::json!({}),
+            });
+            match response {
+                EngineResponse::Error { code, message, .. } => {
+                    assert_eq!(
+                        code, "handlerInternalError",
+                        "{kind:?}: stable code must stay handlerInternalError"
+                    );
+                    assert_eq!(
+                        message, expected_message,
+                        "{kind:?}: public message mismatch"
+                    );
+                }
+                _ => panic!("{kind:?}: expected EngineResponse::Error"),
+            }
         }
     }
 }

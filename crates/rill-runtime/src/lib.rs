@@ -21,5 +21,6 @@ pub use package::{
     LoadedModelPack, ModelPackError, ModelPackInspection, build_signed_model_pack, load_model_pack,
 };
 pub use server::{
-    EngineResponse, InvokeError, InvokeErrorKind, InvokeHandler, MAX_DETAIL_BYTES, RuntimeEngine,
+    CapturingLogSink, EngineResponse, HostLogSink, InvokeError, InvokeErrorKind, InvokeHandler,
+    MAX_DETAIL_BYTES, RuntimeEngine, StderrLogSink,
 };

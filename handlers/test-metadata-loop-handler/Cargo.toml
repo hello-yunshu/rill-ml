@@ -1,0 +1,18 @@
+[package]
+name = "test-metadata-loop-handler"
+version = "0.9.0"
+edition = "2021"
+publish = false
+description = "Test-only handler that loops forever in metadata() to verify the epoch deadline bounds the metadata stage."
+
+[[bin]]
+name = "test-metadata-loop-handler"
+path = "src/main.rs"
+
+[dependencies]
+wit-bindgen = "0.29"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1

@@ -229,8 +229,22 @@ impl WasmInvokeHandler {
             .call_configure(&mut store, &model_bytes)
             .map_err(|e| HandlerLoadError::Init(format!("configure trap: {e}")))?;
         if let Err(handler_error) = configure_result {
+            // Map each WIT variant to extract the guest-supplied detail
+            // string. The variant name is included in the load error for
+            // host-side diagnostics; the guest detail is truncated by
+            // the caller's formatting. This avoids leaking the Rust type
+            // name (`HandlerError::VariantName`) that the previous
+            // `{handler_error:?}` Debug format exposed.
+            let (variant, detail) = match handler_error {
+                invoke_handler::HandlerError::InvalidModel(s) => ("invalid-model", s),
+                invoke_handler::HandlerError::InvalidInput(s) => ("invalid-input", s),
+                invoke_handler::HandlerError::UnsupportedCapability(s) => {
+                    ("unsupported-capability", s)
+                }
+                invoke_handler::HandlerError::ExecutionFailed(s) => ("execution-failed", s),
+            };
             return Err(HandlerLoadError::Init(format!(
-                "configure rejected model: {handler_error:?}"
+                "configure rejected model ({variant}): {detail}"
             )));
         }
 
@@ -301,12 +315,12 @@ impl InvokeHandlerTrait for WasmInvokeHandler {
                 {
                     return InvokeError::new(InvokeErrorKind::Timeout);
                 }
-                // Avoid leaking the wasmtime Display (which may include a
-                // WASM backtrace) to IPC clients; log it host-side instead.
-                // The Display string is captured as host-only detail.
-                let detail = format!("{e}");
-                eprintln!("rill-runtime: handler trap: {detail}");
-                InvokeError::with_detail(InvokeErrorKind::Trap, detail)
+                // The wasmtime Display string may include a full WASM
+                // backtrace (guest-controlled). Construct `InvokeError`
+                // first — `with_detail` truncates to `MAX_DETAIL_BYTES` —
+                // and do NOT log here. The `RuntimeEngine` layer logs the
+                // already-truncated detail exactly once (see audit 5.2).
+                InvokeError::with_detail(InvokeErrorKind::Trap, format!("{e}"))
             })?;
 
         match result {
@@ -322,20 +336,29 @@ impl InvokeHandlerTrait for WasmInvokeHandler {
                 })
             }
             Err(handler_error) => {
-                // Guest reported a typed `handler-error` variant
-                // (`invalid-model` / `invalid-input` /
-                // `unsupported-capability` / `execution-failed`). The
-                // detail string is fully guest-controlled, so it must
-                // never reach IPC clients. We capture it as host-only
-                // detail for `eprintln!` diagnostics and collapse the
-                // variant to `handlerInternalError` on the wire (matching
-                // the previous `map_invoke_error` behaviour).
-                let detail = format!("{handler_error:?}");
-                eprintln!("rill-runtime: guest handler-error for {capability}: {detail}");
-                Err(InvokeError::with_detail(
-                    InvokeErrorKind::ExecutionFailed,
-                    detail,
-                ))
+                // Guest reported a typed `handler-error` variant. Map
+                // each WIT variant to the corresponding `InvokeErrorKind`
+                // and extract the inner detail string (which is fully
+                // guest-controlled). `InvokeError::with_detail` truncates
+                // the detail to `MAX_DETAIL_BYTES` on a UTF-8 char
+                // boundary. The adapter does NOT log the error — the
+                // `RuntimeEngine` layer logs the already-truncated detail
+                // exactly once (see audit 5.1 + 5.2).
+                let (kind, detail) = match handler_error {
+                    invoke_handler::HandlerError::InvalidModel(s) => {
+                        (InvokeErrorKind::InvalidModel, s)
+                    }
+                    invoke_handler::HandlerError::InvalidInput(s) => {
+                        (InvokeErrorKind::InvalidInput, s)
+                    }
+                    invoke_handler::HandlerError::UnsupportedCapability(s) => {
+                        (InvokeErrorKind::UnsupportedCapability, s)
+                    }
+                    invoke_handler::HandlerError::ExecutionFailed(s) => {
+                        (InvokeErrorKind::ExecutionFailed, s)
+                    }
+                };
+                Err(InvokeError::with_detail(kind, detail))
             }
         }
     }
