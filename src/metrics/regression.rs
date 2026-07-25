@@ -148,16 +148,54 @@ impl Metric for Rmse {
 
 /// R² (coefficient of determination).
 ///
-/// Computed online as `1 - SS_res / SS_tot`, where `SS_tot` uses the running
-/// mean of the truth. Returns `None` when fewer than 2 samples have been seen
-/// or when `SS_tot` is zero (constant truth).
+/// Uses Welford's online algorithm for the variance of the truth, avoiding
+/// the catastrophic cancellation that `sum(y²) - n · mean(y)²` suffers on
+/// large-offset, small-variance data. Returns `None` when fewer than 2
+/// samples have been seen or when the truth variance is zero (constant
+/// truth).
 #[derive(Debug, Clone, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct R2 {
     ss_res: f64,
-    sum_truth: f64,
-    sum_truth_sq: f64,
+    mean_truth: f64,
+    /// Running `M2 = sum((y_i - mean)^2)` from Welford's algorithm.
+    m2_truth: f64,
     count: u64,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for R2 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct R2State {
+            ss_res: f64,
+            mean_truth: f64,
+            m2_truth: f64,
+            count: u64,
+        }
+
+        let state = R2State::deserialize(deserializer)?;
+        if !state.ss_res.is_finite() {
+            return Err(serde::de::Error::custom("r2 ss_res must be finite"));
+        }
+        if !state.mean_truth.is_finite() {
+            return Err(serde::de::Error::custom("r2 mean_truth must be finite"));
+        }
+        if !state.m2_truth.is_finite() || state.m2_truth < 0.0 {
+            return Err(serde::de::Error::custom(
+                "r2 m2_truth must be finite and non-negative",
+            ));
+        }
+        Ok(R2 {
+            ss_res: state.ss_res,
+            mean_truth: state.mean_truth,
+            m2_truth: state.m2_truth,
+            count: state.count,
+        })
+    }
 }
 
 impl R2 {
@@ -165,8 +203,8 @@ impl R2 {
     pub const fn new() -> Self {
         Self {
             ss_res: 0.0,
-            sum_truth: 0.0,
-            sum_truth_sq: 0.0,
+            mean_truth: 0.0,
+            m2_truth: 0.0,
             count: 0,
         }
     }
@@ -182,19 +220,27 @@ impl Metric for R2 {
         let err = truth - prediction;
         ensure_finite("R2 error", err)?;
         let squared_error = err * err;
-        let squared_truth = truth * truth;
         ensure_finite("R2 squared error", squared_error)?;
-        ensure_finite("R2 squared truth", squared_truth)?;
-        let next_ss_res = checked_finite_add(self.ss_res, squared_error, "R2 residual sum")?;
-        let next_sum_truth = checked_finite_add(self.sum_truth, truth, "R2 truth sum")?;
-        let next_sum_truth_sq =
-            checked_finite_add(self.sum_truth_sq, squared_truth, "R2 squared truth sum")?;
-        let next_count = checked_increment(self.count, "R2 sample")?;
 
-        self.ss_res = next_ss_res;
-        self.sum_truth = next_sum_truth;
-        self.sum_truth_sq = next_sum_truth_sq;
+        // Welford update for the truth variance.
+        let next_count = checked_increment(self.count, "R2 sample")?;
+        let delta = truth - self.mean_truth;
+        ensure_finite("R2 welford delta", delta)?;
+        let next_mean = self.mean_truth + delta / next_count as f64;
+        ensure_finite("R2 welford mean", next_mean)?;
+        let delta2 = truth - next_mean;
+        ensure_finite("R2 welford delta2", delta2)?;
+        let m2_delta = delta * delta2;
+        ensure_finite("R2 welford m2_delta", m2_delta)?;
+        let next_m2 = checked_finite_add(self.m2_truth, m2_delta, "R2 m2_truth")?;
+
+        let next_ss_res = checked_finite_add(self.ss_res, squared_error, "R2 residual sum")?;
+
+        // Commit atomically.
         self.count = next_count;
+        self.mean_truth = next_mean;
+        self.m2_truth = next_m2;
+        self.ss_res = next_ss_res;
         Ok(())
     }
 
@@ -202,13 +248,12 @@ impl Metric for R2 {
         if self.count < 2 {
             return None;
         }
-        let n = self.count as f64;
-        let mean = self.sum_truth / n;
-        let ss_tot = self.sum_truth_sq - n * mean * mean;
-        if ss_tot.abs() < f64::EPSILON {
+        // M2 is the sum of squared deviations; treat floating-point noise
+        // that drives it slightly negative as zero (constant truth).
+        if self.m2_truth <= 0.0 {
             return None;
         }
-        Some(1.0 - self.ss_res / ss_tot)
+        Some(1.0 - self.ss_res / self.m2_truth)
     }
 
     fn samples_seen(&self) -> u64 {
@@ -217,8 +262,8 @@ impl Metric for R2 {
 
     fn reset(&mut self) {
         self.ss_res = 0.0;
-        self.sum_truth = 0.0;
-        self.sum_truth_sq = 0.0;
+        self.mean_truth = 0.0;
+        self.m2_truth = 0.0;
         self.count = 0;
     }
 }
@@ -298,6 +343,70 @@ mod tests {
         m.update(5.0, 3.0).unwrap();
         m.update(5.0, 4.0).unwrap();
         assert!(m.value().is_none());
+    }
+
+    #[test]
+    fn r2_welford_large_offset_small_variance() {
+        // Large offset, tiny variance: the old `sum(y²) - n · mean(y)²`
+        // formula lost all precision. Welford must remain accurate.
+        let truths = [
+            1_000_000_000_001.0,
+            1_000_000_000_002.0,
+            1_000_000_000_003.0,
+        ];
+        let mut m = R2::new();
+        for y in truths {
+            // Perfect prediction: R² should be 1.0.
+            m.update(y, y).unwrap();
+        }
+        assert!((m.value().unwrap() - 1.0).abs() < 1e-9);
+
+        // Predict the (known) mean every time: R² should be ~0.0.
+        let mean = truths.iter().sum::<f64>() / truths.len() as f64;
+        let mut m = R2::new();
+        for y in truths {
+            m.update(y, mean).unwrap();
+        }
+        assert!(m.value().unwrap().abs() < 1e-6);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn r2_partial_update_is_atomic() {
+        // Restore a counter near overflow; the Welford update must fail
+        // without mutating any state.
+        let json = format!(
+            "{{\"ss_res\":1.0,\"mean_truth\":1.0,\"m2_truth\":1.0,\"count\":{}}}",
+            u64::MAX
+        );
+        let mut m: R2 = serde_json::from_str(&json).unwrap();
+        let result = m.update(1.0, 1.0);
+        assert!(result.is_err(), "expected counter overflow");
+        assert_eq!(m.count, u64::MAX);
+        assert_eq!(m.ss_res, 1.0);
+        assert_eq!(m.mean_truth, 1.0);
+        assert_eq!(m.m2_truth, 1.0);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn r2_serde_rejects_negative_m2() {
+        let json = "{\"ss_res\":0.0,\"mean_truth\":0.0,\"m2_truth\":-1.0,\"count\":2}";
+        assert!(serde_json::from_str::<R2>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn r2_serde_roundtrip_preserves_state() {
+        let mut m = R2::new();
+        m.update(1.0, 1.0).unwrap();
+        m.update(2.0, 1.5).unwrap();
+        m.update(3.0, 2.5).unwrap();
+        let before = m.value();
+        let json = serde_json::to_string(&m).unwrap();
+        let restored: R2 = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.count, 3);
+        assert_eq!(restored.value(), before);
     }
 
     #[test]

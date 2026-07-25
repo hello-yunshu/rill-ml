@@ -150,7 +150,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --locked -p rill-ml-wasm --target wasm32-unknown-unknown
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        # Pinned to a compatible 0.x release. Avoids the unpinned
+        # ``curl | sh`` install path in the release chain.
+        run: cargo install wasm-pack --locked --version "^0.13"
       - name: wasm-pack test (--node)
         run: cd crates/rill-ml-wasm && wasm-pack test --node --release
 
@@ -166,7 +168,9 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Install wasm-tools
-        run: cargo install wasm-tools --locked
+        # Pinned to a compatible 1.x release for reproducible WASM component
+        # builds. Bump together with `wasm-tools` in CI when upgrading.
+        run: cargo install wasm-tools --locked --version "^1.0"
       - name: Build echo handler component
         run: |
           cd handlers/echo-handler
@@ -206,7 +210,10 @@ jobs:
           python3 -m venv .venv
           source .venv/bin/activate
           pip install --upgrade pip
-          pip install maturin pytest
+          # Pin maturin and pytest to a compatible major version so CI
+          # builds are reproducible. ``requirements-dev.txt`` is the source
+          # of truth for the Python build toolchain.
+          pip install -r scripts/requirements-dev.txt
           cd crates/rill-ml-python
           maturin develop --release
           pytest tests/ -v
@@ -455,7 +462,9 @@ jobs:
               --output "dist/example-default-${VERSION}.rillpack"
           fi
       - name: Install wasm-tools
-        run: cargo install wasm-tools --locked
+        # Pinned to match the CI build in the ``wasm-handler`` job. Keeps
+        # the release component build reproducible from the same source.
+        run: cargo install wasm-tools --locked --version "^1.0"
       - name: Build and sign echo handler package
         env:
           RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
@@ -572,14 +581,43 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: pip install maturin
+      - name: Install pinned Python build toolchain
+        run: pip install -r scripts/requirements-dev.txt
+      - name: Verify PyPI token is configured
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.MATURIN_PYPI_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MATURIN_PYPI_TOKEN:-}" ]; then
+            echo "::error::MATURIN_PYPI_TOKEN is not configured. Python bindings are part of the official release (see README §模块总览); a missing token must fail the release rather than silently skipping. Add the secret to the repository or remove this job if Python support is being dropped."
+            exit 1
+          fi
       - name: maturin publish
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.MATURIN_PYPI_TOKEN }}
         working-directory: crates/rill-ml-python
+        run: maturin publish --no-sdist
+      - name: Verify PyPI release is visible
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
         run: |
-          if [ -z "${MATURIN_PYPI_TOKEN:-}" ]; then
-            echo "MATURIN_PYPI_TOKEN not set — skipping PyPI publish"
-            exit 0
-          fi
-          maturin publish --no-sdist
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          # PyPI's JSON API may lag a few seconds behind the upload. Retry
+          # for up to a minute before reporting the publish as failed.
+          package="rill-ml-python"
+          for attempt in $(seq 1 12); do
+            if python3 -c "
+          import json, sys, urllib.request
+            url = 'https://pypi.org/pypi/${package}/${version}/json'
+            with urllib.request.urlopen(url, timeout=10) as response:
+                json.load(response)
+            "; then
+              echo "PyPI release ${package}==${version} is visible."
+              exit 0
+            fi
+            echo "PyPI release not visible yet (attempt $attempt/12); retrying in 5s..."
+            sleep 5
+          done
+          echo "::error::PyPI release ${package}==${version} was not visible after 60s. Investigate https://pypi.org/project/${package}/${version}/ before announcing the release."
+          exit 1

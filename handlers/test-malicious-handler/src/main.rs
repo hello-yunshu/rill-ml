@@ -2,13 +2,23 @@
 //!
 //! This handler implements the `invoke-handler` WIT world and accepts a
 //! `"mode"` field in the model JSON passed to `configure()`. The mode
-//! controls the handler's behavior during `invoke()`:
+//! controls the handler's behavior during `configure()` and `invoke()`:
 //!
 //! - `"echo"` (default): echo the input (baseline)
-//! - `"infinite-loop"`: loop forever (tests fuel/epoch exhaustion → handlerTimeout)
+//! - `"infinite-loop"`: loop forever in `invoke()` (tests epoch exhaustion → handlerTimeout)
+//! - `"configure-infinite-loop"`: loop forever in `configure()` (tests configure epoch deadline)
 //! - `"trap"`: execute `unreachable` (tests trap handling → handlerTrap)
 //! - `"oversized-output"`: return >1 MiB JSON (tests output size limit → handlerOutputTooLarge)
 //! - `"invalid-json"`: return invalid JSON bytes (tests output parsing → handlerInvalidOutput)
+//! - `"long-error-string"`: return `HandlerError::ExecutionFailed` with a >16 KiB
+//!   detail payload (tests host-side `MAX_DETAIL_BYTES` truncation)
+//! - `"fuel-exhaustion"`: perform dense floating-point work that burns through
+//!   the invoke fuel budget without an explicit infinite loop
+//!
+//! `metadata()` is always called before `configure()` and cannot read the
+//! model JSON, so a metadata-infinite-loop fixture cannot be triggered via
+//! the mode field. The host still protects `metadata()` with an independent
+//! fuel budget and epoch deadline (see `handler/wasm.rs` stage 2).
 //!
 //! This handler is a test fixture only and is never published. It is excluded
 //! from the workspace and built separately by CI before running sandbox tests.
@@ -38,9 +48,12 @@ fn get_mode() -> &'static str {
 fn parse_mode(model_json: &[u8]) -> &'static str {
     const MODES: &[(&[u8], &str)] = &[
         (b"\"mode\":\"infinite-loop\"", "infinite-loop"),
+        (b"\"mode\":\"configure-infinite-loop\"", "configure-infinite-loop"),
         (b"\"mode\":\"trap\"", "trap"),
         (b"\"mode\":\"oversized-output\"", "oversized-output"),
         (b"\"mode\":\"invalid-json\"", "invalid-json"),
+        (b"\"mode\":\"long-error-string\"", "long-error-string"),
+        (b"\"mode\":\"fuel-exhaustion\"", "fuel-exhaustion"),
         (b"\"mode\":\"echo\"", "echo"),
     ];
     for (pattern, name) in MODES {
@@ -52,6 +65,16 @@ fn parse_mode(model_json: &[u8]) -> &'static str {
         }
     }
     "echo"
+}
+
+/// Burn fuel/epoch until interrupted. `black_box` prevents the compiler
+/// from eliminating the loop.
+fn burn_forever() -> ! {
+    let mut i = 0u64;
+    loop {
+        i = i.wrapping_add(1);
+        std::hint::black_box(i);
+    }
 }
 
 struct MaliciousHandler;
@@ -69,6 +92,13 @@ impl Guest for MaliciousHandler {
     fn configure(model_json: Vec<u8>) -> Result<(), HandlerError> {
         let mode = parse_mode(&model_json);
         set_mode(mode);
+
+        // `configure-infinite-loop`: burn fuel/epoch in configure() to verify
+        // the host enforces an independent wall-clock deadline on this stage.
+        if mode == "configure-infinite-loop" {
+            burn_forever();
+        }
+
         // Pre-compute the oversized output during configure (10M fuel budget)
         // because invoke's 1M fuel budget is too small to construct >1 MiB of
         // data dynamically — even with Vec::resize (which compiles to the
@@ -93,14 +123,14 @@ impl Guest for MaliciousHandler {
         }
         match get_mode() {
             "echo" => Ok(input_json),
-            "infinite-loop" => {
-                // Burn fuel/epoch until interrupted. black_box prevents the
-                // compiler from eliminating the loop.
-                let mut i = 0u64;
-                loop {
-                    i = i.wrapping_add(1);
-                    std::hint::black_box(i);
-                }
+            "infinite-loop" => burn_forever(),
+            "configure-infinite-loop" => {
+                // configure() already burned through its deadline; an invoke
+                // call should not be reachable for this mode because handler
+                // construction fails first. Return ExecutionFailed defensively.
+                Err(HandlerError::ExecutionFailed(
+                    "configure-infinite-loop reached invoke".into(),
+                ))
             }
             "trap" => {
                 // Triggers a WASM trap for testing.
@@ -119,6 +149,29 @@ impl Guest for MaliciousHandler {
                 // Return bytes that are not valid JSON/UTF-8 to trigger the
                 // handlerInvalidOutput error path.
                 Ok(b"\xff\xfe\x00\x01 not valid json \x00".to_vec())
+            }
+            "long-error-string" => {
+                // Return an ExecutionFailed whose detail exceeds the host's
+                // MAX_DETAIL_BYTES (4 KiB). The host must truncate the detail
+                // before storing it so a malicious guest cannot grow host
+                // memory unboundedly through the error path. The detail
+                // payload is intentionally 16 KiB so truncation is exercised.
+                let detail = "X".repeat(16 * 1024);
+                Err(HandlerError::ExecutionFailed(detail))
+            }
+            "fuel-exhaustion" => {
+                // Perform dense but legitimate floating-point work that burns
+                // through the invoke fuel budget quickly. Unlike
+                // `infinite-loop`, this path performs real arithmetic rather
+                // than an empty `wrapping_add` loop, exercising the fuel
+                // accounting for numeric instructions.
+                let mut acc = 1.0f64;
+                let mut i = 0u64;
+                loop {
+                    i = i.wrapping_add(1);
+                    acc = acc * 1.0000001 + i as f64;
+                    std::hint::black_box(acc);
+                }
             }
             _ => Ok(input_json),
         }

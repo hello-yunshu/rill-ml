@@ -52,17 +52,17 @@ RillML implements this workflow in pure, safe Rust with bounded memory.
 
 ## Installation
 
-```toml
-[dependencies]
-rill-ml = "0.7"
+```bash
+cargo add rill-ml
 ```
 
 For serialization support, enable the `serde` feature:
 
-```toml
-[dependencies]
-rill-ml = { version = "0.7", features = ["serde"] }
+```bash
+cargo add rill-ml --features serde
 ```
+
+The version tracks `[workspace.package].version`; query the current release via `cargo metadata` or [`CHANGELOG.md`](CHANGELOG.md).
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
 
@@ -166,7 +166,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 `Snapshot<T>` wraps model state with a format version and rejects incompatible versions. For untrusted snapshots or application-specific model constraints, use `into_model_with_validation()` to validate restored state before activation. See [`RELIABILITY.md`](RELIABILITY.md) for the complete production integration and fallback guidance.
 
-## Module overview (v0.7)
+## Module overview
 
 | Category | Modules |
 |---|---|
@@ -187,7 +187,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 **Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count; drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
 
-## Ecosystem and platform extensions (v0.7)
+## Ecosystem and platform extensions
 
 v0.6 adds five independently publishable crates; v0.7 adds `rill-handler-api`. They live under `crates/` and depend on `rill-ml` without changing its public API. The core library does not pull in `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3` by default.
 
@@ -220,7 +220,7 @@ RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for th
 
 RillML is validated through multiple layers:
 
-- **562** unit tests + **130** integration tests + **40** doctests.
+- Unit, integration, and doctests cover core math, serialization round-trips, and boundary behaviour; current counts are visible in `cargo test --workspace` output and the CI summary.
 - Serialization round-trip tests for all stateful types.
 - `proptest` property-based tests with fixed seeds (`rand_chacha`).
 - Clippy with `-D warnings` in CI; rustfmt enforced.
