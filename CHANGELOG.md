@@ -15,6 +15,22 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+### Changed — Breaking: serde state format
+
+- `Precision`, `Recall`, `F1Score`: added `samples_seen: u64` field so
+  `samples_seen()` reports total observations (including true negatives)
+  instead of `TP+FP` / `TP+FN` / `TP+FP+FN`. Old serde state missing this
+  field is **rejected** because the true-negative count cannot be
+  reconstructed from confusion counts alone. Callers must retrain or
+  re-initialise these metrics after upgrading.
+- `R2`: replaced `sum_truth` / `sum_sq_truth` fields with Welford-style
+  `ss_res` / `mean_truth` / `m2_truth` / `count` to avoid catastrophic
+  cancellation on large-offset, small-variance data. Old serde state is
+  **rejected**; callers must re-initialise `R2` after upgrading.
+- `Metric` trait-level consistency tests added in `src/traits.rs` enforce
+  that `N` successful `update` calls yield `samples_seen() == N` for every
+  `Metric` implementation.
+
 ## [0.8.1] - 2026-07-19
 
 ### Fixed

@@ -139,3 +139,60 @@ Mira 集成使用独立于示例发布和插件发布的密钥：
 `RILL_SIGNING_KEY_HEX`，避免两个信任域互相覆盖。
 
 仓库不会保存或生成生产私钥，也不会把未签名的示例文件冒充正式发布。
+
+## 工具链版本来源
+
+RillML 与 Rill Runtime 的可复现构建依赖以下固定来源的工具链版本。任何升级都应通过 PR 显式 bump 并重跑 CI 验证。
+
+### Rust 工具链
+
+| 工具 | 来源 | 版本约束 | 说明 |
+|---|---|---|---|
+| `rustc` / `cargo` | `dtolnay/rust-toolchain` Action | stable（CI 默认） | 主构建工具链，跟随 Rust 官方 stable 通道 |
+| MSRV 校验 | `dtolnay/rust-toolchain` Action | `1.94.0` 固定 | 见 [pipeline.yml](.github/workflows/pipeline.yml) 的 `msrv` job |
+| Rust 缓存 | `Swatinem/rust-cache@v2` | major 固定 | 仅影响构建速度，不影响产物 |
+
+### WASM 工具链
+
+| 工具 | 来源 | 版本约束 | 说明 |
+|---|---|---|---|
+| `wasm-pack` | `cargo install --locked --version "^0.13"` | 0.13.x | 见 [pipeline.yml](.github/workflows/pipeline.yml) 的 `wasm` job；不使用 `curl \| sh` 安装 |
+| `wasm-tools` | `cargo install --locked --version "^1.0"` | 1.x | 见 [pipeline.yml](.github/workflows/pipeline.yml) 的 `wasm-handler` job；用于 WASM 组件包装 |
+| `wasm32-unknown-unknown` target | `dtolnay/rust-toolchain` Action | 跟随 stable | 由 `targets: wasm32-unknown-unknown` 字段安装 |
+
+### Python 工具链
+
+| 工具 | 来源 | 版本约束 | 说明 |
+|---|---|---|---|
+| `maturin` | [scripts/requirements-dev.txt](scripts/requirements-dev.txt) | `>=1.7,<2.0` | Python 绑定构建工具 |
+| `pytest` | [scripts/requirements-dev.txt](scripts/requirements-dev.txt) | `>=8,<9` | Python 测试运行器 |
+| `pip` | 系统 Python | 跟随 runner | 通过 `pip install -r scripts/requirements-dev.txt` 安装 |
+
+### GitHub Actions
+
+| Action | 固定方式 | 升级策略 |
+|---|---|---|
+| `actions/checkout` | major（`@v7`） | Dependabot 自动 PR |
+| `actions/upload-artifact` | major | Dependabot 自动 PR |
+| `actions/download-artifact` | major | Dependabot 自动 PR |
+| `dtolnay/rust-toolchain` | `stable` / `master` 分支 | 跟随 Rust 工具链 |
+| `Swatinem/rust-cache` | major（`@v2`） | Dependabot 自动 PR |
+| `github/codeql-action` | major | Dependabot 自动 PR |
+
+### 版本一致性校验
+
+发布前 CI 通过 [scripts/sync_version.py](scripts/sync_version.py) 校验以下位置的版本必须一致：
+
+- `Cargo.toml` 的 `[workspace.package].version`（唯一真实来源）；
+- 模型 manifest、handler manifest、Python `pyproject.toml`；
+- GitHub Release 标签 `vX.Y.Z`；
+- README 不再硬编码具体版本号，改用 `cargo add rill-ml` 形式。
+
+### 升级流程
+
+升级任何工具链版本时：
+
+1. 在 PR 中显式修改约束；
+2. 重跑完整 CI（`pipeline.yml`）；
+3. 若涉及 MSRV 变更，更新 `Cargo.toml` 的 `rust-version` 字段并在 CHANGELOG 说明；
+4. 若涉及 WASM/Python 工具，确认 [scripts/requirements-dev.txt](scripts/requirements-dev.txt) 与 workflow 中的 `cargo install` 版本同步。
