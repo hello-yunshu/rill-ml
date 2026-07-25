@@ -4,8 +4,10 @@
 #   - .github/workflows/pipeline.yml (python-build CI job)
 #   - .github/workflows/pipeline.yml (publish-python release job)
 #
-# Pin to compatible major versions. Bump deliberately and re-run CI before
-# trusting a new major version with the release pipeline.
+# Pin to exact versions for reproducible CI and release builds. Bump
+# deliberately and re-run CI before trusting a new version with the
+# release pipeline. Versions below are the latest compatible releases
+# verified by the existing CI ranges (maturin >=1.7,<2.0 and pytest >=8,<9).
 
-maturin>=1.7,<2.0
-pytest>=8,<9
+maturin==1.14.1
+pytest==8.4.2

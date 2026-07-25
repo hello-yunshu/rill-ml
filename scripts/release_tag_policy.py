@@ -81,6 +81,23 @@ def decide_release_tag(
                 "fail",
                 "tag exists but its SHA could not be resolved; refusing to retry",
             )
+        # Immutability check FIRST. A version tag that points at a different
+        # commit than the successful CI head must always be a hard failure,
+        # regardless of whether a Release run already succeeded or is still
+        # active for that tag. Returning ``skip`` here would silently hide a
+        # forgotten version bump: main has moved on, the old tag still points
+        # at the old SHA, and the bot would never alert the maintainer.
+        if tag_sha != target_sha:
+            return Decision(
+                "fail",
+                (
+                    f"version tag exists at {tag_sha} but the successful CI "
+                    f"head is {target_sha}; version tags are immutable and "
+                    "cannot be moved — bump the version number in Cargo.toml"
+                ),
+            )
+        # SHA matches: the tag is the immutable release point. Now consider
+        # the Release workflow state to decide whether to retry.
         if has_successful_release:
             return Decision(
                 "skip",
@@ -90,15 +107,6 @@ def decide_release_tag(
             return Decision(
                 "skip",
                 "tag already has an active Release run",
-            )
-        if tag_sha != target_sha:
-            return Decision(
-                "fail",
-                (
-                    f"version tag exists at {tag_sha} but the successful CI "
-                    f"head is {target_sha}; version tags are immutable and "
-                    "cannot be moved — bump the version number in Cargo.toml"
-                ),
             )
         return Decision(
             "dispatch",
