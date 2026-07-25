@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 RUNTIMES = (
@@ -18,6 +20,68 @@ RUNTIMES = (
 RUNTIME_API_VERSION = 2
 RELEASE_INDEX_SCHEMA_VERSION = 2
 HANDLER_API_VERSION = 1
+
+# Schemes that must never appear in a signed release-index URL. ``data:``,
+# ``file:``, ``javascript:`` and similar schemes can be used to trick a
+# downstream client into reading local files or executing inline payloads.
+FORBIDDEN_URL_SCHEMES = frozenset({"file", "data", "javascript", "ftp", "blob"})
+
+# Hostnames that resolve to the local machine. Production release indexes
+# must never point at localhost because downstream clients on other hosts
+# would fail to fetch the artifact (or worse, fetch a different artifact
+# served by a local process). A test or development environment can opt in
+# by setting ``RILL_ALLOW_LOCALHOST_URLS=1`` so that local fixture servers
+# can be used without weakening the production policy.
+LOCALHOST_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+
+
+def _localhost_allowed() -> bool:
+    """Return True if the environment explicitly allows localhost URLs.
+
+    Gated by the ``RILL_ALLOW_LOCALHOST_URLS`` environment variable so a
+    production release pipeline (which must not set this variable) never
+    silently accepts a localhost URL. Tests and local development set
+    ``RILL_ALLOW_LOCALHOST_URLS=1`` to exercise the URL builder against a
+    local fixture server.
+    """
+    return os.environ.get("RILL_ALLOW_LOCALHOST_URLS", "") == "1"
+
+
+def validate_release_url(url: str) -> None:
+    """Reject URLs that are not HTTPS with a non-empty host and no userinfo.
+
+    The release index is signed and distributed to downstream clients that
+    fetch artifacts based solely on the URL we record. A weak URL policy
+    would let a compromised publisher point the index at ``file:///`` or
+    ``http://`` endpoints. The policy is intentionally strict: HTTPS only,
+    no embedded credentials, a non-empty host, no dangerous schemes, and
+    no localhost hosts unless an explicit test/dev switch is set.
+    """
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme in FORBIDDEN_URL_SCHEMES:
+        raise SystemExit(f"forbidden URL scheme in release index: {url!r}")
+    if scheme != "https":
+        raise SystemExit(
+            f"release index URL must use https scheme, got {url!r} "
+            f"(scheme={parsed.scheme!r})"
+        )
+    if not parsed.hostname:
+        raise SystemExit(f"release index URL must have a non-empty host: {url!r}")
+    if parsed.username or parsed.password:
+        raise SystemExit(
+            f"release index URL must not contain embedded credentials: {url!r}"
+        )
+    if parsed.fragment:
+        # Fragments are not sent to the server and have no meaning for
+        # release asset downloads; reject them to keep URLs deterministic.
+        raise SystemExit(f"release index URL must not contain a fragment: {url!r}")
+    hostname = parsed.hostname.lower().strip("[]")
+    if hostname in LOCALHOST_HOSTS and not _localhost_allowed():
+        raise SystemExit(
+            f"release index URL must not point at localhost in production: {url!r} "
+            f"(set RILL_ALLOW_LOCALHOST_URLS=1 for test/dev)"
+        )
 
 
 def artifact(path: Path, **fields: object) -> dict[str, object]:
@@ -48,6 +112,8 @@ def main() -> None:
     artifacts: list[dict[str, object]] = []
     for target_os, target_arch, pattern in RUNTIMES:
         name = pattern.format(version=args.version)
+        url = f"{base_url}/{name}"
+        validate_release_url(url)
         artifacts.append(
             artifact(
                 args.release_dir / name,
@@ -57,7 +123,7 @@ def main() -> None:
                 runtimeApiVersion=RUNTIME_API_VERSION,
                 targetOs=target_os,
                 targetArch=target_arch,
-                url=f"{base_url}/{name}",
+                url=url,
             )
         )
 
@@ -71,9 +137,15 @@ def main() -> None:
             elif item["kind"] == "handler" and item["id"] == args.handler_id:
                 existing_handler = item
     if existing_model and semver_key(existing_model["version"]) > semver_key(args.version):
+        # Re-validate URLs from the prior index rather than trusting them
+        # blindly — a tampered existing index could otherwise smuggle a
+        # non-HTTPS URL through the merge.
+        validate_release_url(existing_model["url"])
         artifacts.append(existing_model)
     else:
         model_name = f"example-default-{args.version}.rillpack"
+        url = f"{base_url}/{model_name}"
+        validate_release_url(url)
         artifacts.append(
             artifact(
                 args.release_dir / model_name,
@@ -81,7 +153,7 @@ def main() -> None:
                 id="rillml.example.default",
                 version=args.version,
                 runtimeApiVersion=RUNTIME_API_VERSION,
-                url=f"{base_url}/{model_name}",
+                url=url,
             )
         )
 
@@ -90,8 +162,11 @@ def main() -> None:
     handler_name = f"echo-handler-{handler_version}.rillhandler"
     handler_path = args.release_dir / handler_name
     if existing_handler and semver_key(existing_handler["version"]) > semver_key(handler_version):
+        validate_release_url(existing_handler["url"])
         artifacts.append(existing_handler)
     elif handler_path.is_file():
+        url = f"{base_url}/{handler_name}"
+        validate_release_url(url)
         artifacts.append(
             artifact(
                 handler_path,
@@ -101,7 +176,7 @@ def main() -> None:
                 runtimeApiVersion=RUNTIME_API_VERSION,
                 handlerApiVersion=HANDLER_API_VERSION,
                 minRuntimeVersion=handler_min_runtime,
-                url=f"{base_url}/{handler_name}",
+                url=url,
             )
         )
 
