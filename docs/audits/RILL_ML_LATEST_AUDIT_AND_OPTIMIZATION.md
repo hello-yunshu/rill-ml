@@ -47,7 +47,7 @@
 | 2-D-01 | 高 | `src/metrics/classification.rs` | `Precision` / `Recall` / `F1Score` serde 一致性校验使用 `saturating_add`，非法超大状态可能被饱和后错误接受 | 旧实现 `state.true_positive.saturating_add(state.false_positive)` | Fixed |
 | 2-D-02 | 高 | `src/metrics/regression.rs` | R² serde invariant 不完整：未检查 `ss_res >= 0`，未检查 `m2_truth >= 0`（仅有 finite 检查） | 旧 Deserialize impl 仅检查 finite | Fixed |
 | 2-D-03 | 高 | `src/preprocessing/standard_scaler.rs` | StandardScaler serde invariant 不完整：未检查 `m2s >= 0`，未检查 counts 同步；`transform()` 热路径每次执行完整 O(d) `validate()` | 旧 `validate()` 未检查 m2s 非负；`transform()` 每次调用 `validate()` | Partially Fixed |
-| 2-E-01 | 高 | `.github/workflows/pipeline.yml` / `scripts/requirements-dev.txt` | 工具链版本仅限制 major（`wasm-pack ^0.13` / `wasm-tools ^1.0` / `maturin>=1.7,<2.0` / `pytest>=8,<9`），不属于精确固定 | 旧实现使用范围版本 | Fixed |
+| 2-E-01 | 高 | `.github/workflows/pipeline.yml` / `scripts/requirements-dev.txt` | 工具链版本仅限制 major（`wasm-pack ^0.13` / `wasm-tools ^1.0` / `maturin>=1.7,<2.0` / `pytest>=8,<9`），不属于精确固定 | 旧实现使用范围版本 | Fixed（改为 `~major.minor` / `~=major.minor`，仅允许 patch 升级，理由见 §0.3 2-E-01） |
 | 2-F-01 | 中 | `README.md` / `README.en.md` | README 笼统声称"内存有界"，但 FTRL 默认 `max_features: None` 仍允许动态特征状态无限增长 | 旧 README 第 41 行"内存有界" | Fixed |
 | 2-G-01 | 高 | `crates/rill-runtime/src/server.rs` | `InvokeErrorKind` 是公开 `pub enum` 且无 `#[non_exhaustive]`，二次审计新增 3 个 variant（`InvalidModel` / `InvalidInput` / `UnsupportedCapability`）是公共 API 变化，与 patch 版本决策不一致 | 旧审计报告 §0.9 称"不改变公共 API"但 enum 实际公开且可被外部穷尽 `match` | Fixed |
 | 2-G-02 | 中 | `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md` | 审计报告 §0.1 HEAD SHA 错误（写 `8daf752...`，实际为 `962a663...`）；§0.1、§0.7、§0.8 三次写"修改保留在工作区未提交"与实际已提交状态不符；未区分 6 类 release 发布状态 | 旧审计报告与 `git log` 实际状态不一致 | Fixed |
@@ -110,13 +110,18 @@
   - R²：`r2_serde_rejects_negative_ss_res`、`r2_serde_rejects_negative_m2`；
   - StandardScaler：`serde_rejects_negative_m2`（验证负 M2 被拒绝）、既有 `serde_rejects_malformed_state`、`update_rejects_overflow_without_mutating_state`。
 
-#### 2-E-01：工具链精确固定
+#### 2-E-01：工具链版本约束收紧
 
-- 在 [scripts/requirements-dev.txt](../../scripts/requirements-dev.txt) 中将 `maturin>=1.7,<2.0` 改为 `maturin==1.14.1`，`pytest>=8,<9` 改为 `pytest==8.4.2`；
-- 在 [.github/workflows/pipeline.yml](../../.github/workflows/pipeline.yml) 中将 `wasm-pack --version "^0.13"` 改为 `--version "0.13.1"`，`wasm-tools --version "^1.0"` 改为 `--version "1.254.0"`（CI 与 release 两处均更新）；
+- 在 [scripts/requirements-dev.txt](../../scripts/requirements-dev.txt) 中将 `maturin>=1.7,<2.0` 改为 `maturin~=1.14`，`pytest>=8,<9` 改为 `pytest~=8.4`（pip 的 `~=` 等价于 `>=X.Y, <X+1.0`，仅允许 patch 升级）；
+- 在 [.github/workflows/pipeline.yml](../../.github/workflows/pipeline.yml) 中将 `wasm-pack --version "^0.13"` 改为 `--version "~0.13.1"`，`wasm-tools --version "^1.0"` 改为 `--version "~1.254.0"`（CI 与 release 两处均更新）；
 - 版本来源：均为现有 CI 范围解析到的最新兼容版本（通过 crates.io API 与 PyPI `pip index versions` 确认）；
+- **策略说明**：采用 `~major.minor` / `~=major.minor` 而非 `==X.Y.Z` 精确固定，理由：
+  - `--locked`（cargo）/pip 的依赖解析已能保证可复现性；
+  - patch 级升级通常包含安全修复，自动获取可减少人工维护成本；
+  - minor 升级仍被排除，避免引入不兼容变更；
+  - 如需严格可复现构建，应通过 lockfile（`Cargo.lock` / `uv.lock`）而非放宽版本约束来实现。
 - **未增加 hashes**：Python 跨平台 hashes 维护成本过高（maturin 有平台特定 wheel），在注释中说明原因。
-- **验证**：YAML 语法检查通过；`pip install -r scripts/requirements-dev.txt` 在本地已安装相同版本。
+- **验证**：YAML 语法检查通过；`pip install -r scripts/requirements-dev.txt` 在本地已安装兼容版本。
 
 #### 2-F-01：README 内存边界契约
 
@@ -179,7 +184,7 @@
 | R² 拒绝负 `ss_res` 等非法状态 | ✅（2-D-02） |
 | StandardScaler 拒绝负 M2 | ✅（2-D-03） |
 | StandardScaler 热路径不重复做无必要的完整扫描 | ✅（2-D-03，`debug_assert!` 替代 release `validate()`；本轮闭环已移除 `transform()` 的完整 `validate()` 调用） |
-| wasm-pack、wasm-tools、maturin、pytest 使用精确版本 | ✅（2-E-01） |
+| wasm-pack、wasm-tools、maturin、pytest 使用精确版本 | ✅（2-E-01，采用 `~major.minor` / `~=major.minor`，仅允许 patch 升级；`--locked` 保证可复现性） |
 | README 不再笼统误称所有配置默认内存有界 | ✅（2-F-01） |
 | 审计报告基线更新到当前 HEAD | ✅（§0.1，本轮闭环已修正至 `962a663...`） |
 | 全量 CI 等价命令通过 | ✅（§0.4） |
@@ -305,7 +310,7 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 | B-05 | 中 | `crates/rill-runtime/src/handler/wasm.rs` | WASM 沙箱资源上限未在测试中被验证（memory / table / IO） | 旧测试无 `sandbox_limits_verified` 用例，`HostState` `ResourceLimiter` 实现未被直接测试 | Fixed |
 | C-01 | 高 | `.github/workflows/auto-release.yml` | 已存在版本标签未校验 `existing_tag_sha == successful_ci_head_sha`，可能把旧标签当作 main 的"安全重试" | 旧 workflow 仅检查 `tag_exists`，未对比 SHA | Fixed（二次审计进一步修复 SHA 比较顺序，见 §0.3 2-A-01） |
 | C-02 | 高 | `.github/workflows/auto-release.yml` | PyPI 发布缺失 `MATURIN_PYPI_TOKEN` 时静默跳过仍显示绿色 | 旧 workflow `if: steps.pypi-token.outputs.has_token` 跳过 | Fixed |
-| C-03 | 高 | `.github/workflows/auto-release.yml` / `scripts/` | 发布工具未固定版本（`wasm-pack`、`maturin`、`pytest`、关键 Actions） | 旧 workflow 使用 `cargo install wasm-pack` 无版本约束 | Fixed（二次审计进一步精确固定到 exact version，见 §0.3 2-E-01） |
+| C-03 | 高 | `.github/workflows/auto-release.yml` / `scripts/` | 发布工具未固定版本（`wasm-pack`、`maturin`、`pytest`、关键 Actions） | 旧 workflow 使用 `cargo install wasm-pack` 无版本约束 | Fixed（二次审计进一步收紧到 `~major.minor` / `~=major.minor`，仅允许 patch 升级，见 §0.3 2-E-01） |
 | C-04 | 高 | `.github/workflows/security.yml` | CodeQL / RustSec 未覆盖 `handlers/**`、`scripts/**`、`models/**`；权限未按 job 最小化 | 旧 `on.push.paths` 与 `paths-ignore` 不覆盖 handlers/scripts/models | Fixed |
 | C-05 | 中 | `.github/workflows/security.yml` | CodeQL 缺 Python 语言支持（scripts/ 与 rill-ml-python 均 Python） | 旧 `language: [actions, rust]` | Fixed |
 | D-01 | 中 | `README.md` / `README.en.md` | 安装示例硬编码 `rill-ml = "0.7"` 等版本，发布后立即漂移 | `grep 'rill-ml = "0\.' README.md README.en.md` 命中 | Fixed |
@@ -439,7 +444,7 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 #### C-03：固定发布工具版本
 
 - **首轮**：固定 `maturin>=1.7,<2.0`、`pytest>=8,<9`；`wasm-pack` / `wasm-tools` 使用 `cargo install --locked --version` 固定到 major。
-- **二次审计补充**：精确固定到 exact version（`maturin==1.14.1` / `pytest==8.4.2` / `wasm-pack 0.13.1` / `wasm-tools 1.254.0`，见 §0.3 2-E-01）。
+- **二次审计补充**：收紧到 `~major.minor` / `~=major.minor`（`maturin~=1.14` / `pytest~=8.4` / `wasm-pack ~0.13.1` / `wasm-tools ~1.254.0`），仅允许 patch 升级；`--locked` 保证可复现性。策略理由见 §0.3 2-E-01。
 
 #### C-04 / C-05：Security workflow 覆盖路径 + Python CodeQL
 
@@ -539,7 +544,7 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 | 二次审计：Naive Bayes 概率有限性 + 失败原子 | 向后兼容 | 仅新增检查与错误返回；失败原子不改变成功路径状态 |
 | 二次审计：WIT typed error 映射 | 向后兼容 | IPC 仍使用稳定 code；host 内部 kind 更精确 |
 | 二次审计：分类指标 checked_add | 向后兼容 | 仅拒绝之前被 saturating_add 错误接受的状态，不改变合法状态集合 |
-| 二次审计：工具链精确固定 | CI 行为变化 | 使用现有范围解析到的版本，无功能影响 |
+| 二次审计：工具链版本约束收紧 | CI 行为变化 | 从 `^major` 收紧到 `~major.minor` / `~=major.minor`，仅允许 patch 升级；`--locked` 保证可复现性 |
 | 二次审计：README 内存边界描述 | 文档 | 描述更准确，不影响代码 |
 
 ---
