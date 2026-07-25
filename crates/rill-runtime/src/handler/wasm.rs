@@ -24,7 +24,7 @@ use wasmtime::{Config, Engine, ResourceLimiter, Store, Trap};
 
 use crate::handler::HandlerLoadError;
 use crate::handler_package::LoadedHandlerPack;
-use crate::server::InvokeHandler as InvokeHandlerTrait;
+use crate::server::{InvokeError, InvokeErrorKind, InvokeHandler as InvokeHandlerTrait};
 
 // Generate host bindings from the canonical WIT world. The macro emits an
 // `invoke_handler` module containing the `InvokeHandler` instance struct.
@@ -84,6 +84,49 @@ struct WasmState {
     bindings: invoke_handler::InvokeHandler,
 }
 
+/// RAII guard for the background epoch-ticker thread.
+///
+/// The ticker must be running before any guest code is invoked so that
+/// `metadata()`, `configure()` and `invoke()` are all bounded by the
+/// epoch-deadline wall-clock timeout. Dropping the guard signals the thread
+/// to stop and joins it; if init fails, dropping this guard ensures no
+/// background thread is leaked.
+struct EpochTicker {
+    stop_flag: Arc<AtomicBool>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl EpochTicker {
+    /// Start the ticker. The thread sleeps for [`EPOCH_TICK_INTERVAL`] then
+    /// calls `engine.increment_epoch()` until [`Self::stop`] is called.
+    fn start(engine: Engine) -> Self {
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let engine_for_thread = engine;
+        let stop_for_thread = Arc::clone(&stop_flag);
+        let handle = std::thread::spawn(move || {
+            while !stop_for_thread.load(Ordering::Relaxed) {
+                std::thread::sleep(EPOCH_TICK_INTERVAL);
+                engine_for_thread.increment_epoch();
+            }
+        });
+        Self {
+            stop_flag,
+            handle: Some(handle),
+        }
+    }
+}
+
+impl Drop for EpochTicker {
+    fn drop(&mut self) {
+        self.stop_flag.store(true, Ordering::Relaxed);
+        if let Some(handle) = self.handle.take() {
+            // The thread sleeps for at most one tick before observing the
+            // stop flag, so join waits at most ~1 second.
+            let _ = handle.join();
+        }
+    }
+}
+
 /// Sandboxed WASM handler that implements [`InvokeHandler`].
 ///
 /// The handler holds a Wasmtime [`Engine`], a background epoch-ticker thread,
@@ -92,8 +135,7 @@ struct WasmState {
 /// invocation.
 pub struct WasmInvokeHandler {
     engine: Engine,
-    stop_flag: Arc<AtomicBool>,
-    epoch_thread: Option<std::thread::JoinHandle<()>>,
+    _ticker: EpochTicker,
     state: Mutex<WasmState>,
 }
 
@@ -103,6 +145,11 @@ impl WasmInvokeHandler {
     /// Verifies that guest `metadata()` matches the signed manifest, then calls
     /// `configure()` with the canonical model JSON. Returns an error if any
     /// step fails; no partial state is retained.
+    ///
+    /// The epoch ticker is started before component instantiation so that
+    /// `metadata()`, `configure()` and every later `invoke()` all run under
+    /// the same wall-clock deadline. Fuel is reset before each call so the
+    /// budgets do not pool across stages.
     pub fn new(pack: &LoadedHandlerPack, model_json: &Value) -> Result<Self, HandlerLoadError> {
         let mut config = Config::new();
         config.consume_fuel(true);
@@ -111,6 +158,11 @@ impl WasmInvokeHandler {
 
         let engine = Engine::new(&config)
             .map_err(|e| HandlerLoadError::Init(format!("engine creation failed: {e}")))?;
+        // Start the epoch ticker before any guest code runs. If a later
+        // step fails, the `EpochTicker` guard dropped at the end of this
+        // function (or by `?` propagation) stops the thread.
+        let ticker = EpochTicker::start(engine.clone());
+
         let component = Component::new(&engine, &pack.module)
             .map_err(|e| HandlerLoadError::Init(format!("component compilation failed: {e}")))?;
 
@@ -118,15 +170,20 @@ impl WasmInvokeHandler {
         let mut store = Store::new(&engine, HostState);
         store.limiter(|state| state as &mut dyn ResourceLimiter);
 
+        // Stage 1: component instantiation. Fresh fuel + deadline.
         store
             .set_fuel(CONFIGURE_FUEL)
-            .map_err(|e| HandlerLoadError::Init(format!("failed to set configure fuel: {e}")))?;
+            .map_err(|e| HandlerLoadError::Init(format!("failed to set instantiate fuel: {e}")))?;
         store.set_epoch_deadline(EPOCH_DEADLINE);
-
         let bindings = invoke_handler::InvokeHandler::instantiate(&mut store, &component, &linker)
             .map_err(|e| HandlerLoadError::Init(format!("instantiation failed: {e}")))?;
 
-        // Verify guest metadata matches the signed manifest.
+        // Stage 2: metadata(). Fresh fuel + deadline so it cannot inherit
+        // leftover fuel from instantiation.
+        store
+            .set_fuel(CONFIGURE_FUEL)
+            .map_err(|e| HandlerLoadError::Init(format!("failed to set metadata fuel: {e}")))?;
+        store.set_epoch_deadline(EPOCH_DEADLINE);
         let metadata = bindings
             .call_metadata(&mut store)
             .map_err(|e| HandlerLoadError::Init(format!("metadata trap: {e}")))?;
@@ -158,12 +215,16 @@ impl WasmInvokeHandler {
             ));
         }
 
-        // Call configure with canonical model JSON.
+        // Stage 3: configure(). Fresh fuel + deadline.
         let model_bytes = serde_json::to_vec(model_json)
             .map_err(|e| HandlerLoadError::Init(format!("model serialization failed: {e}")))?;
         if model_bytes.len() > MAX_IO_BYTES {
             return Err(HandlerLoadError::Init("model JSON exceeds limit".into()));
         }
+        store
+            .set_fuel(CONFIGURE_FUEL)
+            .map_err(|e| HandlerLoadError::Init(format!("failed to set configure fuel: {e}")))?;
+        store.set_epoch_deadline(EPOCH_DEADLINE);
         let configure_result = bindings
             .call_configure(&mut store, &model_bytes)
             .map_err(|e| HandlerLoadError::Init(format!("configure trap: {e}")))?;
@@ -173,21 +234,9 @@ impl WasmInvokeHandler {
             )));
         }
 
-        // Start epoch ticker thread.
-        let stop_flag = Arc::new(AtomicBool::new(false));
-        let engine_for_thread = engine.clone();
-        let stop_for_thread = Arc::clone(&stop_flag);
-        let epoch_thread = std::thread::spawn(move || {
-            while !stop_for_thread.load(Ordering::Relaxed) {
-                std::thread::sleep(EPOCH_TICK_INTERVAL);
-                engine_for_thread.increment_epoch();
-            }
-        });
-
         Ok(Self {
             engine,
-            stop_flag,
-            epoch_thread: Some(epoch_thread),
+            _ticker: ticker,
             state: Mutex::new(WasmState { store, bindings }),
         })
     }
@@ -199,43 +248,42 @@ impl WasmInvokeHandler {
     }
 }
 
-impl Drop for WasmInvokeHandler {
-    fn drop(&mut self) {
-        self.stop_flag.store(true, Ordering::Relaxed);
-        if let Some(thread) = self.epoch_thread.take() {
-            let _ = thread.join();
-        }
-    }
-}
-
 impl std::fmt::Debug for WasmInvokeHandler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WasmInvokeHandler")
             .field(
-                "epoch_thread_running",
-                &!self.stop_flag.load(Ordering::Relaxed),
+                "epoch_ticker_running",
+                &!self._ticker.stop_flag.load(Ordering::Relaxed),
             )
             .finish_non_exhaustive()
     }
 }
 
 impl InvokeHandlerTrait for WasmInvokeHandler {
-    fn invoke(&self, capability: &str, input: &Value) -> Result<Value, String> {
-        let input_bytes = serde_json::to_vec(input)
-            .map_err(|e| format!("handlerInternalError: input serialization: {e}"))?;
+    fn invoke(&self, capability: &str, input: &Value) -> Result<Value, InvokeError> {
+        let input_bytes = serde_json::to_vec(input).map_err(|e| {
+            InvokeError::with_detail(
+                InvokeErrorKind::Internal,
+                format!("input serialization failed: {e}"),
+            )
+        })?;
         if input_bytes.len() > MAX_IO_BYTES {
-            return Err("handlerInternalError: input exceeds limit".into());
+            return Err(InvokeError::new(InvokeErrorKind::Internal));
         }
 
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| "handlerInternalError: lock poisoned".to_string())?;
+        let mut state = self.state.lock().map_err(|_| {
+            // A poisoned mutex indicates a panic in a previous call; the
+            // handler is no longer usable. Surface this as an internal
+            // error rather than crashing the runtime.
+            InvokeError::with_detail(InvokeErrorKind::Internal, "handler state mutex poisoned")
+        })?;
 
-        state
-            .store
-            .set_fuel(INVOKE_FUEL)
-            .map_err(|e| format!("handlerInternalError: failed to set invoke fuel: {e}"))?;
+        state.store.set_fuel(INVOKE_FUEL).map_err(|e| {
+            InvokeError::with_detail(
+                InvokeErrorKind::Internal,
+                format!("failed to set invoke fuel: {e}"),
+            )
+        })?;
         state.store.set_epoch_deadline(EPOCH_DEADLINE);
 
         // Destructure to avoid simultaneous immutable borrow of `bindings` and
@@ -251,26 +299,129 @@ impl InvokeHandlerTrait for WasmInvokeHandler {
                 if let Some(trap) = e.downcast_ref::<Trap>()
                     && matches!(trap, Trap::OutOfFuel | Trap::Interrupt)
                 {
-                    return "handlerTimeout".to_string();
+                    return InvokeError::new(InvokeErrorKind::Timeout);
                 }
                 // Avoid leaking the wasmtime Display (which may include a
                 // WASM backtrace) to IPC clients; log it host-side instead.
-                eprintln!("rill-runtime: handler trap: {e}");
-                "handlerTrap: wasm trap occurred".to_string()
+                // The Display string is captured as host-only detail.
+                let detail = format!("{e}");
+                eprintln!("rill-runtime: handler trap: {detail}");
+                InvokeError::with_detail(InvokeErrorKind::Trap, detail)
             })?;
 
         match result {
             Ok(output_bytes) => {
                 if output_bytes.len() > MAX_IO_BYTES {
-                    return Err("handlerOutputTooLarge".into());
+                    return Err(InvokeError::new(InvokeErrorKind::OutputTooLarge));
                 }
-                serde_json::from_slice(&output_bytes)
-                    .map_err(|e| format!("handlerInvalidOutput: {e}"))
+                serde_json::from_slice(&output_bytes).map_err(|e| {
+                    InvokeError::with_detail(
+                        InvokeErrorKind::InvalidOutput,
+                        format!("host-side JSON deserialisation failed: {e}"),
+                    )
+                })
             }
             Err(handler_error) => {
-                let msg = format!("{handler_error:?}");
-                Err(format!("handlerExecutionFailed: {msg}"))
+                // Guest reported a typed `handler-error` variant
+                // (`invalid-model` / `invalid-input` /
+                // `unsupported-capability` / `execution-failed`). The
+                // detail string is fully guest-controlled, so it must
+                // never reach IPC clients. We capture it as host-only
+                // detail for `eprintln!` diagnostics and collapse the
+                // variant to `handlerInternalError` on the wire (matching
+                // the previous `map_invoke_error` behaviour).
+                let detail = format!("{handler_error:?}");
+                eprintln!("rill-runtime: guest handler-error for {capability}: {detail}");
+                Err(InvokeError::with_detail(
+                    InvokeErrorKind::ExecutionFailed,
+                    detail,
+                ))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for the `ResourceLimiter` implementation on `HostState`.
+    //!
+    //! The sandbox caps linear memory and table growth (see `MAX_MEMORY_BYTES`
+    //! and `MAX_TABLE_ELEMENTS`). These tests verify the limiter directly so
+    //! that a future refactor that weakens the caps is caught without
+    //! requiring a malicious WASM component that tries to grow memory/table
+    //! past the limits (which would be hard to author portably).
+
+    use super::*;
+
+    #[test]
+    fn memory_limiter_accepts_growth_within_max() {
+        let mut state = HostState;
+        // Growth to exactly the cap is allowed.
+        assert!(
+            state
+                .memory_growing(0, MAX_MEMORY_BYTES, None)
+                .expect("memory_growing must not error")
+        );
+        // Growth below the cap is allowed.
+        assert!(
+            state
+                .memory_growing(0, MAX_MEMORY_BYTES - 1, None)
+                .expect("memory_growing must not error")
+        );
+    }
+
+    #[test]
+    fn memory_limiter_rejects_growth_exceeding_max() {
+        let mut state = HostState;
+        // Growth one byte beyond the cap is rejected.
+        assert!(
+            !state
+                .memory_growing(MAX_MEMORY_BYTES - 1, MAX_MEMORY_BYTES + 1, None)
+                .expect("memory_growing must not error")
+        );
+        // Growth far beyond the cap is rejected.
+        assert!(
+            !state
+                .memory_growing(0, MAX_MEMORY_BYTES * 2, None)
+                .expect("memory_growing must not error")
+        );
+    }
+
+    #[test]
+    fn table_limiter_accepts_growth_within_max() {
+        let mut state = HostState;
+        // Growth to exactly the cap is allowed.
+        assert!(
+            state
+                .table_growing(0, MAX_TABLE_ELEMENTS as usize, None)
+                .expect("table_growing must not error")
+        );
+        // Growth below the cap is allowed.
+        assert!(
+            state
+                .table_growing(0, (MAX_TABLE_ELEMENTS - 1) as usize, None)
+                .expect("table_growing must not error")
+        );
+    }
+
+    #[test]
+    fn table_limiter_rejects_growth_exceeding_max() {
+        let mut state = HostState;
+        // Growth one element beyond the cap is rejected.
+        assert!(
+            !state
+                .table_growing(
+                    (MAX_TABLE_ELEMENTS - 1) as usize,
+                    (MAX_TABLE_ELEMENTS + 1) as usize,
+                    None
+                )
+                .expect("table_growing must not error")
+        );
+        // Growth far beyond the cap is rejected.
+        assert!(
+            !state
+                .table_growing(0, (MAX_TABLE_ELEMENTS * 2) as usize, None)
+                .expect("table_growing must not error")
+        );
     }
 }
