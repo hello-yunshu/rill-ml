@@ -255,6 +255,7 @@ impl FtrlParam {
     }
 
     /// Validate that `z` is finite and `n` is finite and non-negative.
+    #[cfg_attr(not(feature = "serde"), allow(dead_code))]
     fn validate(&self) -> Result<(), RillError> {
         ensure_finite("ftrl_z", self.z)?;
         ensure_finite("ftrl_n", self.n)?;
@@ -426,6 +427,7 @@ impl<'de> serde::Deserialize<'de> for FtrlRegressor {
 }
 
 impl FtrlRegressor {
+    #[cfg_attr(not(feature = "serde"), allow(dead_code))]
     fn validate_invariants(&self) -> Result<(), RillError> {
         // config and individual params are validated at deserialization;
         // nothing top-level to check beyond that.
@@ -645,6 +647,7 @@ impl<'de> serde::Deserialize<'de> for FtrlClassifier {
 }
 
 impl FtrlClassifier {
+    #[cfg_attr(not(feature = "serde"), allow(dead_code))]
     fn validate_invariants(&self) -> Result<(), RillError> {
         self.config.validate()?;
         self.intercept.validate()?;
