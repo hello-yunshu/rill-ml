@@ -41,6 +41,30 @@ fn validate_config(config: &NaiveBayesConfig) -> Result<(), RillError> {
     Ok(())
 }
 
+/// Validate that a log-domain value is admissible.
+///
+/// `-Infinity` is allowed (it represents probability 0 for an impossible
+/// event, e.g. a class with zero training samples). `NaN` and
+/// `+Infinity` are rejected because they indicate an arithmetic breakdown
+/// (such as `-Infinity - (-Infinity)`) that would propagate into the final
+/// probability as `NaN`.
+fn ensure_log_domain(field: &'static str, value: f64) -> Result<(), RillError> {
+    if value.is_nan() || (value.is_infinite() && value > 0.0) {
+        return Err(RillError::NonFiniteValue { field, value });
+    }
+    Ok(())
+}
+
+/// Add two log-domain values, rejecting `NaN` and `+Infinity` results.
+///
+/// `-Infinity` is preserved (probability 0 + anything = probability 0),
+/// matching [`ensure_log_domain`].
+fn checked_log_add(current: f64, delta: f64, field: &'static str) -> Result<f64, RillError> {
+    let value = current + delta;
+    ensure_log_domain(field, value)?;
+    Ok(value)
+}
+
 /// Validate that features are finite and non-negative (for Bernoulli/Multinomial).
 fn validate_non_negative(feature_count: usize, features: &[f64]) -> Result<(), RillError> {
     validate_features(feature_count, features)?;
@@ -77,18 +101,6 @@ impl GaussianClassStats {
             m2s: vec![0.0; feature_count],
             class_count: 0,
         }
-    }
-
-    fn update_feature(&mut self, idx: usize, value: f64) -> Result<(), RillError> {
-        let n = checked_increment(self.counts[idx], "feature count")?;
-        self.counts[idx] = n;
-        let delta = value - self.means[idx];
-        ensure_finite("mean delta", delta)?;
-        self.means[idx] = checked_finite_add(self.means[idx], delta / n as f64, "mean")?;
-        let delta2 = value - self.means[idx];
-        ensure_finite("mean delta2", delta2)?;
-        self.m2s[idx] = checked_finite_add(self.m2s[idx], delta * delta2, "m2")?;
-        Ok(())
     }
 
     fn variance(&self, idx: usize) -> f64 {
@@ -159,6 +171,11 @@ impl GaussianNaiveBayes {
     }
 
     /// Gaussian log probability density function.
+    ///
+    /// Returns `0.0` when `variance <= 0.0` (constant or unseen feature),
+    /// otherwise the standard Gaussian log-density. The result is always
+    /// in `(-∞, 0]` for admissible inputs; callers still validate it via
+    /// [`ensure_log_domain`] to catch `NaN` from malicious state.
     fn gaussian_log_pdf(x: f64, mean: f64, variance: f64) -> f64 {
         if variance <= 0.0 {
             return 0.0;
@@ -189,41 +206,100 @@ impl OnlineBinaryClassifier for GaussianNaiveBayes {
         let total = count_true + count_false;
 
         let log_prior_true = (count_true / total).ln();
+        ensure_log_domain("nb_gaussian_log_prior_true", log_prior_true)?;
         let log_prior_false = (count_false / total).ln();
+        ensure_log_domain("nb_gaussian_log_prior_false", log_prior_false)?;
 
         let mut log_likelihood_true = 0.0;
         let mut log_likelihood_false = 0.0;
 
         for (i, &x) in features.iter().enumerate() {
-            log_likelihood_true +=
+            let ll_true =
                 Self::gaussian_log_pdf(x, self.class_true.means[i], self.class_true.variance(i));
-            log_likelihood_false +=
+            ensure_log_domain("nb_gaussian_log_likelihood_true", ll_true)?;
+            log_likelihood_true = checked_log_add(
+                log_likelihood_true,
+                ll_true,
+                "nb_gaussian_log_likelihood_true",
+            )?;
+            let ll_false =
                 Self::gaussian_log_pdf(x, self.class_false.means[i], self.class_false.variance(i));
+            ensure_log_domain("nb_gaussian_log_likelihood_false", ll_false)?;
+            log_likelihood_false = checked_log_add(
+                log_likelihood_false,
+                ll_false,
+                "nb_gaussian_log_likelihood_false",
+            )?;
         }
 
-        let log_p_true = log_prior_true + log_likelihood_true;
-        let log_p_false = log_prior_false + log_likelihood_false;
+        let log_p_true = checked_log_add(
+            log_prior_true,
+            log_likelihood_true,
+            "nb_gaussian_log_p_true",
+        )?;
+        let log_p_false = checked_log_add(
+            log_prior_false,
+            log_likelihood_false,
+            "nb_gaussian_log_p_false",
+        )?;
 
         let log_odds = log_p_true - log_p_false;
-        // Return the raw sigmoid so the output range is the closed [0, 1]
-        // documented on `OnlineBinaryClassifier`. Extreme logits (e.g.
-        // single-class training data) yield exactly 0.0 or 1.0; consumers
-        // that need an open interval (log-loss) clip internally.
-        Ok(sigmoid(log_odds))
+        // `log_odds` may be `±Infinity` (one class dominates) — sigmoid maps
+        // those to 0.0 or 1.0, which is valid per the closed `[0, 1]` trait
+        // contract. Only `NaN` (both sides `-Infinity`) is unrecoverable.
+        if log_odds.is_nan() {
+            return Err(RillError::NonFiniteValue {
+                field: "nb_gaussian_log_odds",
+                value: log_odds,
+            });
+        }
+
+        let probability = sigmoid(log_odds);
+        ensure_finite("nb_gaussian_probability", probability)?;
+        if !(0.0..=1.0).contains(&probability) {
+            return Err(RillError::InvalidProbability(probability));
+        }
+        Ok(probability)
     }
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {
         validate_features(self.feature_count, features)?;
+
+        // Phase 1: compute the next per-feature state without mutating self.
+        // If any feature overflows or produces a non-finite value, the
+        // caller's `Err` leaves the model untouched.
+        let stats = if target {
+            &self.class_true
+        } else {
+            &self.class_false
+        };
+        let mut next_states: Vec<(usize, u64, f64, f64)> = Vec::with_capacity(features.len());
+        for (i, &x) in features.iter().enumerate() {
+            let n = checked_increment(stats.counts[i], "feature count")?;
+            let delta = x - stats.means[i];
+            ensure_finite("mean delta", delta)?;
+            let new_mean = checked_finite_add(stats.means[i], delta / n as f64, "mean")?;
+            let delta2 = x - new_mean;
+            ensure_finite("mean delta2", delta2)?;
+            let new_m2 = checked_finite_add(stats.m2s[i], delta * delta2, "m2")?;
+            next_states.push((i, n, new_mean, new_m2));
+        }
+        let new_class_count = checked_increment(stats.class_count, "class_count")?;
+        let new_samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
+
+        // Phase 2: commit atomically.
         let stats = if target {
             &mut self.class_true
         } else {
             &mut self.class_false
         };
-        for (i, &x) in features.iter().enumerate() {
-            stats.update_feature(i, x)?;
+        for (i, n, new_mean, new_m2) in next_states {
+            stats.counts[i] = n;
+            stats.means[i] = new_mean;
+            stats.m2s[i] = new_m2;
         }
-        stats.class_count = checked_increment(stats.class_count, "class_count")?;
-        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
+        stats.class_count = new_class_count;
+        self.samples_seen = new_samples_seen;
         Ok(())
     }
 
@@ -314,7 +390,9 @@ impl OnlineBinaryClassifier for BernoulliNaiveBayes {
         let total = count_true + count_false;
 
         let log_prior_true = (count_true / total).ln();
+        ensure_log_domain("nb_bernoulli_log_prior_true", log_prior_true)?;
         let log_prior_false = (count_false / total).ln();
+        ensure_log_domain("nb_bernoulli_log_prior_false", log_prior_false)?;
 
         let mut log_likelihood_true = 0.0;
         let mut log_likelihood_false = 0.0;
@@ -324,40 +402,84 @@ impl OnlineBinaryClassifier for BernoulliNaiveBayes {
                 / (count_true + 2.0 * self.config.alpha);
             let p_false = (self.feature_true_counts_false[i] as f64 + self.config.alpha)
                 / (count_false + 2.0 * self.config.alpha);
-            log_likelihood_true += Self::log_bernoulli(x, p_true);
-            log_likelihood_false += Self::log_bernoulli(x, p_false);
+            let ll_true = Self::log_bernoulli(x, p_true);
+            ensure_log_domain("nb_bernoulli_log_likelihood_true", ll_true)?;
+            log_likelihood_true = checked_log_add(
+                log_likelihood_true,
+                ll_true,
+                "nb_bernoulli_log_likelihood_true",
+            )?;
+            let ll_false = Self::log_bernoulli(x, p_false);
+            ensure_log_domain("nb_bernoulli_log_likelihood_false", ll_false)?;
+            log_likelihood_false = checked_log_add(
+                log_likelihood_false,
+                ll_false,
+                "nb_bernoulli_log_likelihood_false",
+            )?;
         }
 
-        let log_p_true = log_prior_true + log_likelihood_true;
-        let log_p_false = log_prior_false + log_likelihood_false;
+        let log_p_true = checked_log_add(
+            log_prior_true,
+            log_likelihood_true,
+            "nb_bernoulli_log_p_true",
+        )?;
+        let log_p_false = checked_log_add(
+            log_prior_false,
+            log_likelihood_false,
+            "nb_bernoulli_log_p_false",
+        )?;
 
         let log_odds = log_p_true - log_p_false;
-        // See `GaussianNaiveBayes::predict_proba`: return raw sigmoid so the
-        // output range matches the closed [0, 1] trait contract.
-        Ok(sigmoid(log_odds))
+        // See `GaussianNaiveBayes::predict_proba`: `±Infinity` is valid
+        // (sigmoid maps to 0/1), only `NaN` is unrecoverable.
+        if log_odds.is_nan() {
+            return Err(RillError::NonFiniteValue {
+                field: "nb_bernoulli_log_odds",
+                value: log_odds,
+            });
+        }
+
+        let probability = sigmoid(log_odds);
+        ensure_finite("nb_bernoulli_probability", probability)?;
+        if !(0.0..=1.0).contains(&probability) {
+            return Err(RillError::InvalidProbability(probability));
+        }
+        Ok(probability)
     }
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {
         validate_non_negative(self.feature_count, features)?;
-        if target {
-            for (i, &x) in features.iter().enumerate() {
-                if x > 0.5 {
-                    self.feature_true_counts_true[i] =
-                        checked_increment(self.feature_true_counts_true[i], "feature_true_count")?;
-                }
-            }
-            self.class_true_count = checked_increment(self.class_true_count, "class_true_count")?;
+
+        // Phase 1: compute the next per-feature counts without mutating self.
+        // If any counter overflows, the caller's `Err` leaves the model
+        // untouched.
+        let mut next_feature_counts = if target {
+            self.feature_true_counts_true.clone()
         } else {
-            for (i, &x) in features.iter().enumerate() {
-                if x > 0.5 {
-                    self.feature_true_counts_false[i] =
-                        checked_increment(self.feature_true_counts_false[i], "feature_true_count")?;
-                }
+            self.feature_true_counts_false.clone()
+        };
+        for (i, &x) in features.iter().enumerate() {
+            if x > 0.5 {
+                next_feature_counts[i] =
+                    checked_increment(next_feature_counts[i], "feature_true_count")?;
             }
-            self.class_false_count =
-                checked_increment(self.class_false_count, "class_false_count")?;
         }
-        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
+        let next_class_count = if target {
+            checked_increment(self.class_true_count, "class_true_count")?
+        } else {
+            checked_increment(self.class_false_count, "class_false_count")?
+        };
+        let next_samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
+
+        // Phase 2: commit atomically.
+        if target {
+            self.feature_true_counts_true = next_feature_counts;
+            self.class_true_count = next_class_count;
+        } else {
+            self.feature_true_counts_false = next_feature_counts;
+            self.class_false_count = next_class_count;
+        }
+        self.samples_seen = next_samples_seen;
         Ok(())
     }
 
@@ -449,7 +571,9 @@ impl OnlineBinaryClassifier for MultinomialNaiveBayes {
         let total = count_true + count_false;
 
         let log_prior_true = (count_true / total).ln();
+        ensure_log_domain("nb_multinomial_log_prior_true", log_prior_true)?;
         let log_prior_false = (count_false / total).ln();
+        ensure_log_domain("nb_multinomial_log_prior_false", log_prior_false)?;
 
         let denom_true = self.total_true + self.config.alpha * self.feature_count as f64;
         let denom_false = self.total_false + self.config.alpha * self.feature_count as f64;
@@ -460,38 +584,89 @@ impl OnlineBinaryClassifier for MultinomialNaiveBayes {
         for (i, &x) in features.iter().enumerate() {
             let p_true = (self.feature_sums_true[i] + self.config.alpha) / denom_true;
             let p_false = (self.feature_sums_false[i] + self.config.alpha) / denom_false;
-            log_likelihood_true += x * p_true.ln();
-            log_likelihood_false += x * p_false.ln();
+            let ll_true = x * p_true.ln();
+            ensure_log_domain("nb_multinomial_log_likelihood_true", ll_true)?;
+            log_likelihood_true = checked_log_add(
+                log_likelihood_true,
+                ll_true,
+                "nb_multinomial_log_likelihood_true",
+            )?;
+            let ll_false = x * p_false.ln();
+            ensure_log_domain("nb_multinomial_log_likelihood_false", ll_false)?;
+            log_likelihood_false = checked_log_add(
+                log_likelihood_false,
+                ll_false,
+                "nb_multinomial_log_likelihood_false",
+            )?;
         }
 
-        let log_p_true = log_prior_true + log_likelihood_true;
-        let log_p_false = log_prior_false + log_likelihood_false;
+        let log_p_true = checked_log_add(
+            log_prior_true,
+            log_likelihood_true,
+            "nb_multinomial_log_p_true",
+        )?;
+        let log_p_false = checked_log_add(
+            log_prior_false,
+            log_likelihood_false,
+            "nb_multinomial_log_p_false",
+        )?;
 
         let log_odds = log_p_true - log_p_false;
-        // See `GaussianNaiveBayes::predict_proba`: return raw sigmoid so the
-        // output range matches the closed [0, 1] trait contract.
-        Ok(sigmoid(log_odds))
+        // See `GaussianNaiveBayes::predict_proba`: `±Infinity` is valid
+        // (sigmoid maps to 0/1), only `NaN` is unrecoverable.
+        if log_odds.is_nan() {
+            return Err(RillError::NonFiniteValue {
+                field: "nb_multinomial_log_odds",
+                value: log_odds,
+            });
+        }
+
+        let probability = sigmoid(log_odds);
+        ensure_finite("nb_multinomial_probability", probability)?;
+        if !(0.0..=1.0).contains(&probability) {
+            return Err(RillError::InvalidProbability(probability));
+        }
+        Ok(probability)
     }
 
     fn learn(&mut self, features: &[f64], target: bool) -> Result<(), RillError> {
         validate_non_negative(self.feature_count, features)?;
-        if target {
-            for (i, &x) in features.iter().enumerate() {
-                self.feature_sums_true[i] =
-                    checked_finite_add(self.feature_sums_true[i], x, "feature_sum")?;
-                self.total_true = checked_finite_add(self.total_true, x, "total")?;
-            }
-            self.class_true_count = checked_increment(self.class_true_count, "class_true_count")?;
+
+        // Phase 1: compute the next per-feature sums and total without
+        // mutating self. If any sum overflows, the caller's `Err` leaves the
+        // model untouched.
+        let mut next_feature_sums = if target {
+            self.feature_sums_true.clone()
         } else {
-            for (i, &x) in features.iter().enumerate() {
-                self.feature_sums_false[i] =
-                    checked_finite_add(self.feature_sums_false[i], x, "feature_sum")?;
-                self.total_false = checked_finite_add(self.total_false, x, "total")?;
-            }
-            self.class_false_count =
-                checked_increment(self.class_false_count, "class_false_count")?;
+            self.feature_sums_false.clone()
+        };
+        let mut next_total = if target {
+            self.total_true
+        } else {
+            self.total_false
+        };
+        for (i, &x) in features.iter().enumerate() {
+            next_feature_sums[i] = checked_finite_add(next_feature_sums[i], x, "feature_sum")?;
+            next_total = checked_finite_add(next_total, x, "total")?;
         }
-        self.samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
+        let next_class_count = if target {
+            checked_increment(self.class_true_count, "class_true_count")?
+        } else {
+            checked_increment(self.class_false_count, "class_false_count")?
+        };
+        let next_samples_seen = checked_increment(self.samples_seen, "samples_seen")?;
+
+        // Phase 2: commit atomically.
+        if target {
+            self.feature_sums_true = next_feature_sums;
+            self.total_true = next_total;
+            self.class_true_count = next_class_count;
+        } else {
+            self.feature_sums_false = next_feature_sums;
+            self.total_false = next_total;
+            self.class_false_count = next_class_count;
+        }
+        self.samples_seen = next_samples_seen;
         Ok(())
     }
 
@@ -899,5 +1074,249 @@ mod tests {
         model.learn(&[0.0, 0.0, 0.0], false).unwrap();
         let p = model.predict_proba(&[0.0, 0.0, 0.0]).unwrap();
         assert!((p - 0.5).abs() < 1e-12, "p = {p}");
+    }
+
+    // ====================
+    // 4.4: probability finiteness
+    // ====================
+
+    #[test]
+    fn gaussian_predict_proba_rejects_extreme_features_causing_nan_log_odds() {
+        // Train a balanced two-class model where both classes have small but
+        // non-zero variance. Predicting with an extreme finite feature makes
+        // both log-likelihoods underflow to -Infinity, which would yield
+        // `log_odds = -Inf - (-Inf) = NaN` without the finiteness guard.
+        let mut model = GaussianNaiveBayes::new(1, Default::default()).unwrap();
+        model.learn(&[1.0], true).unwrap();
+        model.learn(&[2.0], true).unwrap();
+        model.learn(&[1.0], false).unwrap();
+        model.learn(&[2.0], false).unwrap();
+        let result = model.predict_proba(&[1e200]);
+        assert!(result.is_err(), "expected Err for NaN log_odds, got Ok");
+    }
+
+    #[test]
+    fn bernoulli_predict_proba_rejects_extreme_features_causing_nan_log_odds() {
+        // Train both classes so the feature is "present" most of the time,
+        // giving p > 0.5 for both. `log_bernoulli(x, p)` simplifies to
+        // `x * ln(p/(1-p)) + ln(1-p)`; with p > 0.5 the slope is positive,
+        // so a huge `x` drives both log-likelihoods to +Infinity.
+        // `log_odds = +Inf - (+Inf) = NaN` must be rejected.
+        let mut model = BernoulliNaiveBayes::new(1, Default::default()).unwrap();
+        for _ in 0..10 {
+            model.learn(&[1.0], true).unwrap();
+            model.learn(&[1.0], false).unwrap();
+        }
+        let result = model.predict_proba(&[1e308]);
+        assert!(result.is_err(), "expected Err for NaN log_odds, got Ok");
+    }
+
+    #[test]
+    fn multinomial_predict_proba_rejects_extreme_features_causing_nan_log_odds() {
+        // Train with large totals so the Laplace-smoothed p for the
+        // zero-sum feature is ≈ 1/total (very small). With x = 1e308,
+        // `x * ln(p)` overflows to -Infinity for both classes, making
+        // log_odds = -Inf - (-Inf) = NaN.
+        let mut model = MultinomialNaiveBayes::new(2, Default::default()).unwrap();
+        model.learn(&[1e10, 0.0], true).unwrap();
+        model.learn(&[0.0, 1e10], false).unwrap();
+        let result = model.predict_proba(&[1e308, 1e308]);
+        assert!(result.is_err(), "expected Err for NaN log_odds, got Ok");
+    }
+
+    #[test]
+    fn gaussian_single_class_predict_proba_returns_0_or_1() {
+        let mut model = GaussianNaiveBayes::new(2, Default::default()).unwrap();
+        model.learn(&[1.0, 2.0], true).unwrap();
+        model.learn(&[1.5, 2.5], true).unwrap();
+        let p = model.predict_proba(&[1.0, 2.0]).unwrap();
+        assert!((p - 1.0).abs() < 1e-12, "p = {p}");
+    }
+
+    #[test]
+    fn bernoulli_single_class_predict_proba_returns_0_or_1() {
+        let mut model = BernoulliNaiveBayes::new(2, Default::default()).unwrap();
+        model.learn(&[1.0, 0.0], true).unwrap();
+        model.learn(&[0.0, 1.0], true).unwrap();
+        let p = model.predict_proba(&[1.0, 0.0]).unwrap();
+        assert!((p - 1.0).abs() < 1e-12, "p = {p}");
+    }
+
+    #[test]
+    fn multinomial_single_class_predict_proba_returns_0_or_1() {
+        let mut model = MultinomialNaiveBayes::new(2, Default::default()).unwrap();
+        model.learn(&[1.0, 0.0], true).unwrap();
+        model.learn(&[0.0, 1.0], true).unwrap();
+        let p = model.predict_proba(&[1.0, 0.0]).unwrap();
+        assert!((p - 1.0).abs() < 1e-12, "p = {p}");
+    }
+
+    #[test]
+    fn gaussian_predict_proba_does_not_modify_state_on_error() {
+        let mut model = GaussianNaiveBayes::new(1, Default::default()).unwrap();
+        model.learn(&[1.0], true).unwrap();
+        model.learn(&[2.0], true).unwrap();
+        model.learn(&[1.0], false).unwrap();
+        model.learn(&[2.0], false).unwrap();
+        let before = model.samples_seen();
+        let _ = model.predict_proba(&[1e200]);
+        assert_eq!(model.samples_seen(), before);
+    }
+
+    // ====================
+    // 4.5: failure atomicity
+    // ====================
+
+    #[test]
+    fn gaussian_learn_failure_leaves_state_unchanged() {
+        // Train one sample so feature 1 has non-zero mean; the second
+        // learn call computes a huge m2 for feature 1 (overflow to Inf),
+        // but feature 0's next state is valid. The old code would commit
+        // feature 0 before feature 1 fails; the new code must reject the
+        // entire call.
+        let mut model = GaussianNaiveBayes::new(2, Default::default()).unwrap();
+        model.learn(&[1.0, 1.0], true).unwrap();
+        let before_samples = model.samples_seen();
+        let before_class_count = model.class_true.class_count;
+
+        let result = model.learn(&[2.0, 1e200], true);
+        assert!(result.is_err(), "expected overflow error");
+
+        // State must be unchanged.
+        assert_eq!(model.samples_seen(), before_samples);
+        assert_eq!(model.class_true.class_count, before_class_count);
+        assert_eq!(model.class_true.counts, vec![1, 1]);
+        assert_eq!(model.class_true.means, vec![1.0, 1.0]);
+        assert_eq!(model.class_true.m2s, vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn gaussian_learn_succeeds_after_failed_attempt() {
+        let mut model = GaussianNaiveBayes::new(2, Default::default()).unwrap();
+        model.learn(&[1.0, 1.0], true).unwrap();
+        // Failed call (overflow) must not corrupt state.
+        let _ = model.learn(&[2.0, 1e200], true);
+        // Subsequent valid call must work.
+        model.learn(&[2.0, 3.0], true).unwrap();
+        assert_eq!(model.samples_seen(), 2);
+    }
+
+    #[test]
+    fn multinomial_learn_failure_leaves_state_unchanged() {
+        // With a fresh model, learn([1e308, 1e308]) causes total to overflow
+        // to Inf on the second feature. The old code commits feature 0 and
+        // the first feature's contribution to total before failing; the new
+        // code must reject the entire call.
+        let mut model = MultinomialNaiveBayes::new(2, Default::default()).unwrap();
+        let before_samples = model.samples_seen();
+
+        let result = model.learn(&[1e308, 1e308], true);
+        assert!(result.is_err(), "expected overflow error");
+
+        // State must be unchanged.
+        assert_eq!(model.samples_seen(), before_samples);
+        assert_eq!(model.class_true_count, 0);
+        assert_eq!(model.feature_sums_true, vec![0.0, 0.0]);
+        assert_eq!(model.total_true, 0.0);
+    }
+
+    #[test]
+    fn multinomial_learn_succeeds_after_failed_attempt() {
+        let mut model = MultinomialNaiveBayes::new(2, Default::default()).unwrap();
+        let _ = model.learn(&[1e308, 1e308], true);
+        // Subsequent valid call must work.
+        model.learn(&[1.0, 2.0], true).unwrap();
+        assert_eq!(model.samples_seen(), 1);
+        assert_eq!(model.feature_sums_true, vec![1.0, 2.0]);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn bernoulli_learn_failure_leaves_state_unchanged() {
+        // Construct a model where feature 1's count is at u64::MAX via serde.
+        // A learn call that tries to increment both features must fail on
+        // feature 1 without modifying feature 0.
+        let json = r#"{
+            "feature_count": 2,
+            "config": {"alpha": 1.0},
+            "feature_true_counts_false": [0, 0],
+            "feature_true_counts_true": [0, 18446744073709551615],
+            "class_false_count": 0,
+            "class_true_count": 1,
+            "samples_seen": 1
+        }"#;
+        let mut model: BernoulliNaiveBayes = serde_json::from_str(json).unwrap();
+        let before_samples = model.samples_seen();
+
+        let result = model.learn(&[1.0, 1.0], true);
+        assert!(result.is_err(), "expected counter overflow");
+
+        // State must be unchanged.
+        assert_eq!(model.samples_seen(), before_samples);
+        assert_eq!(model.feature_true_counts_true, vec![0u64, u64::MAX]);
+        assert_eq!(model.class_true_count, 1);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn gaussian_learn_failure_on_class_count_overflow_leaves_state_unchanged() {
+        // Construct a model where class_count is at u64::MAX via serde.
+        // A successful feature update followed by class_count overflow must
+        // not commit the feature updates.
+        let json = r#"{
+            "feature_count": 1,
+            "config": {"alpha": 1.0},
+            "class_false": {
+                "counts": [0],
+                "means": [0.0],
+                "m2s": [0.0],
+                "class_count": 0
+            },
+            "class_true": {
+                "counts": [1],
+                "means": [5.0],
+                "m2s": [0.0],
+                "class_count": 18446744073709551615
+            },
+            "samples_seen": 1
+        }"#;
+        let mut model: GaussianNaiveBayes = serde_json::from_str(json).unwrap();
+        let before_samples = model.samples_seen();
+
+        let result = model.learn(&[6.0], true);
+        assert!(result.is_err(), "expected class_count overflow");
+
+        // State must be unchanged — feature 0's next state was computed but
+        // not committed because class_count overflowed.
+        assert_eq!(model.samples_seen(), before_samples);
+        assert_eq!(model.class_true.counts, vec![1]);
+        assert_eq!(model.class_true.means, vec![5.0]);
+        assert_eq!(model.class_true.m2s, vec![0.0]);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn multinomial_learn_failure_on_class_count_overflow_leaves_state_unchanged() {
+        let json = r#"{
+            "feature_count": 1,
+            "config": {"alpha": 1.0},
+            "feature_sums_false": [0.0],
+            "feature_sums_true": [5.0],
+            "total_false": 0.0,
+            "total_true": 5.0,
+            "class_false_count": 0,
+            "class_true_count": 18446744073709551615,
+            "samples_seen": 1
+        }"#;
+        let mut model: MultinomialNaiveBayes = serde_json::from_str(json).unwrap();
+        let before_samples = model.samples_seen();
+
+        let result = model.learn(&[3.0], true);
+        assert!(result.is_err(), "expected class_count overflow");
+
+        assert_eq!(model.samples_seen(), before_samples);
+        assert_eq!(model.feature_sums_true, vec![5.0]);
+        assert_eq!(model.total_true, 5.0);
+        assert_eq!(model.class_true_count, u64::MAX);
     }
 }
