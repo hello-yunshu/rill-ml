@@ -248,11 +248,12 @@ impl Transformer for StandardScaler {
     }
 
     fn transform(&self, features: &[f64]) -> Result<Vec<f64>, RillError> {
-        // Validate the full state on the public Transformer entry point so
-        // a corrupted scaler (e.g. one built via unsafe or a future struct
-        // literal) cannot proceed. The hot path `transform_into` relies on
-        // the same invariants but only re-checks them under `debug_assert!`.
-        self.validate()?;
+        // Hot path: rely on the invariants established by the private
+        // constructor and the validated Deserialize impl (private fields
+        // cannot be set to an inconsistent state from outside the crate).
+        // Only input dimension and output finiteness are checked on the
+        // release path; full state scanning is left to `validate()` and
+        // `debug_assert!` inside `transform_into`.
         let mut output = Vec::with_capacity(self.feature_count);
         self.transform_into(features, &mut output)?;
         Ok(output)
