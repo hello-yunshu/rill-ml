@@ -139,16 +139,17 @@ fn echo_handler_rejects_unsupported_capability() {
     assert!(result.is_err());
     let error = result.unwrap_err();
     // Unsupported capability is reported by the guest via the WIT
-    // `handler-error` `unsupported-capability` variant, which the host
-    // collapses to `ExecutionFailed` with the guest detail kept
-    // host-side only.
+    // `handler-error` `unsupported-capability` variant. The host maps
+    // this 1:1 to `InvokeErrorKind::UnsupportedCapability` (audit 5.1)
+    // while keeping the guest detail host-side only. The stable IPC
+    // code stays `handlerInternalError` for v1/v2 backwards compat.
     assert!(
-        matches!(error.kind(), InvokeErrorKind::ExecutionFailed),
-        "expected ExecutionFailed, got: {:?}",
+        matches!(error.kind(), InvokeErrorKind::UnsupportedCapability),
+        "expected UnsupportedCapability, got: {:?}",
         error.kind()
     );
     assert_eq!(error.stable_code(), "handlerInternalError");
-    // The guest-supplied detail must not appear in the public message.
+    // The fixed public message must not contain guest-supplied content.
     assert!(!error.public_message().contains("UnsupportedCapability"));
     assert!(!error.public_message().contains("unsupported"));
 }
@@ -532,6 +533,180 @@ fn wasm_handler_configure_infinite_loop_returns_timeout() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Metadata infinite-loop fixture (audit 5.3).
+//
+// The mode-driven malicious handler cannot test a `metadata()` infinite
+// loop because `metadata()` is called before `configure()` and cannot
+// read the model JSON. A dedicated test-only handler
+// (`handlers/test-metadata-loop-handler/`) always loops forever in
+// `metadata()`. These tests verify the host's epoch deadline bounds the
+// metadata stage, the ticker thread is cleaned up, and subsequent
+// handlers still work.
+// ---------------------------------------------------------------------------
+
+/// Returns the metadata-loop handler WASM component path, or `None` if
+/// not available.
+fn metadata_loop_handler_component() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("METADATA_LOOP_HANDLER_WASM") {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    let workspace_target = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/test-metadata-loop-handler.wasm");
+    if workspace_target.exists() {
+        return Some(workspace_target);
+    }
+    None
+}
+
+/// Build a signed `.rillhandler` pack from the metadata-loop handler
+/// component. The manifest id matches the guest's `metadata()` return
+/// value — but since `metadata()` loops forever, the host never reaches
+/// the metadata-mismatch check. The manifest is still needed to build a
+/// valid signed pack.
+fn build_metadata_loop_handler_pack(module: &[u8], signing: &SigningKey) -> Vec<u8> {
+    let manifest = HandlerPackManifest {
+        format_version: HANDLER_PACKAGE_FORMAT_VERSION,
+        id: "rillml.test.metadata-loop".into(),
+        version: env!("CARGO_PKG_VERSION").into(),
+        handler_api_version: HANDLER_API_VERSION,
+        min_runtime_version: env!("CARGO_PKG_VERSION").into(),
+        publisher_key_id: "wasm-test-key".into(),
+        capabilities: vec!["rillml.linearRegression.predict".into()],
+        module_sha256: hex::encode(Sha256::digest(module)),
+        module_size: module.len() as u64,
+    };
+    build_signed_handler_pack(&manifest, module, signing).unwrap()
+}
+
+fn load_metadata_loop_handler_pack(
+    pack_bytes: &[u8],
+    verifying: &VerifyingKey,
+) -> LoadedHandlerPack {
+    let trust = TrustStore(BTreeMap::from([("wasm-test-key".into(), *verifying)]));
+    let (loaded, _) = load_handler_pack(std::io::Cursor::new(pack_bytes), &trust).unwrap();
+    loaded
+}
+
+/// Helper to read the metadata-loop handler component, build a pack, and
+/// load it. Returns `None` (skip) if the component is not available.
+fn prepare_metadata_loop_handler() -> Option<LoadedHandlerPack> {
+    let component = match metadata_loop_handler_component() {
+        Some(path) => fs::read(&path).unwrap(),
+        None => {
+            eprintln!(
+                "skipping: metadata-loop handler component not built (set METADATA_LOOP_HANDLER_WASM)"
+            );
+            return None;
+        }
+    };
+    let signing = SigningKey::from_bytes(&[9; 32]);
+    let pack_bytes = build_metadata_loop_handler_pack(&component, &signing);
+    Some(load_metadata_loop_handler_pack(
+        &pack_bytes,
+        &signing.verifying_key(),
+    ))
+}
+
+/// Verifies that an infinite loop in `metadata()` is bounded by the
+/// epoch deadline and returns a load error (instead of hanging forever).
+///
+/// The metadata-loop handler always calls `burn_forever()` inside
+/// `metadata()`. The host sets an independent fuel budget and epoch
+/// deadline on the `metadata()` stage (see `handler/wasm.rs` stage 2),
+/// so the call must be interrupted within a reasonable window of the
+/// 5-second deadline. Because `metadata()` runs inside
+/// `WasmInvokeHandler::new`, the failure surfaces as a
+/// `HandlerLoadError::Init` rather than an `InvokeError`.
+#[test]
+fn wasm_handler_metadata_infinite_loop_returns_load_error() {
+    let loaded = match prepare_metadata_loop_handler() {
+        Some(v) => v,
+        None => return,
+    };
+
+    let model = serde_json::json!({});
+    let start = std::time::Instant::now();
+    let result = WasmInvokeHandler::new(&loaded, &model);
+    let elapsed = start.elapsed();
+
+    assert!(
+        result.is_err(),
+        "metadata-infinite-loop must fail handler load"
+    );
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, rill_runtime::HandlerLoadError::Init(ref msg)
+            if msg.contains("metadata trap")),
+        "expected HandlerLoadError::Init mentioning metadata trap, got: {err:?}"
+    );
+    // The epoch deadline is 5 seconds; the load must fail within a
+    // reasonable window of that (allow 15s for CI overhead).
+    assert!(
+        elapsed.as_secs() < 15,
+        "metadata infinite loop took too long to interrupt: {elapsed:?}"
+    );
+}
+
+/// Verifies that after a metadata-loop handler fails to load, the epoch
+/// ticker thread is cleaned up and a subsequent normal handler still
+/// works. This catches resource leaks (e.g. a leaked ticker thread that
+/// keeps incrementing the engine epoch and interferes with later
+/// handlers).
+#[test]
+fn metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers() {
+    let metadata_loaded = match prepare_metadata_loop_handler() {
+        Some(v) => v,
+        None => return,
+    };
+
+    // Step 1: the metadata-loop handler must fail to load. The
+    // `WasmInvokeHandler::new` call returns `Err`, and the
+    // `EpochTicker` guard inside the failed constructor is dropped,
+    // which signals the background thread to stop and joins it.
+    let start = std::time::Instant::now();
+    let result = WasmInvokeHandler::new(&metadata_loaded, &serde_json::json!({}));
+    let elapsed = start.elapsed();
+    assert!(result.is_err(), "metadata-loop handler must fail to load");
+    assert!(
+        elapsed.as_secs() < 15,
+        "metadata-loop load must be bounded by epoch deadline: {elapsed:?}"
+    );
+    // The failed handler is dropped here (it was never constructed
+    // successfully, so only temporary state is dropped). The ticker
+    // thread must have been joined by the `EpochTicker` Drop impl.
+
+    // Step 2: a fresh normal (echo) handler must still load and invoke
+    // correctly, proving the metadata-loop failure did not leak a
+    // thread or leave the runtime in a bad state.
+    let echo_component = match echo_handler_component() {
+        Some(path) => fs::read(&path).unwrap(),
+        None => {
+            eprintln!("skipping: echo handler component not built (set ECHO_HANDLER_WASM)");
+            return;
+        }
+    };
+    let signing = SigningKey::from_bytes(&[7; 32]);
+    let pack_bytes = build_echo_pack(&echo_component, &signing);
+    let (echo_loaded, _) = load_echo_pack(&pack_bytes, &signing.verifying_key());
+
+    let model = serde_json::json!({"kind": "linearRegression", "weights": [0.5], "intercept": 0.0});
+    let echo_handler = WasmInvokeHandler::new(&echo_loaded, &model)
+        .expect("echo handler must load after metadata-loop failure");
+
+    let input = serde_json::json!({"features": [1.0, 2.0]});
+    let output = echo_handler
+        .invoke("rillml.linearRegression.predict", &input)
+        .expect("echo handler must still invoke correctly");
+    assert_eq!(
+        output, input,
+        "echo handler must return the input unchanged"
+    );
+}
+
 /// Verifies that a guest-supplied oversized error detail string is
 /// truncated by the host before being stored on `InvokeError`.
 ///
@@ -573,16 +748,14 @@ fn wasm_handler_long_error_string_is_truncated() {
         detail.len(),
         MAX_DETAIL_BYTES
     );
-    // The host stores the guest error using its `Debug` representation
-    // (`HandlerError::ExecutionFailed("XXXX...")`). After truncation the
-    // detail must still start with the variant prefix and contain a large
-    // run of 'X' characters from the original 16 KiB payload, proving the
-    // guest-controlled string was captured but bounded. The truncation
-    // must land on a UTF-8 char boundary (all-'X' is ASCII, so any byte
-    // offset is a valid char boundary).
+    // After audit 5.1, the host extracts the inner guest string directly
+    // (not the `Debug` representation), so the stored detail is the raw
+    // 'X' payload without the `HandlerError::ExecutionFailed("...")`
+    // prefix. The truncation must land on a UTF-8 char boundary
+    // (all-'X' is ASCII, so any byte offset is a valid char boundary).
     assert!(
-        detail.starts_with("HandlerError::ExecutionFailed(\""),
-        "detail must start with the Debug prefix, got: {detail:?}"
+        detail.chars().all(|c| c == 'X'),
+        "detail must be the raw guest 'X' payload, got: {detail:?}"
     );
     let x_count = detail.chars().filter(|c| *c == 'X').count();
     assert!(
