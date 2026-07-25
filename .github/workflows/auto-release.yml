@@ -68,26 +68,41 @@ jobs:
           active="$(jq --arg title "Release $TAG" '[.[] | select(.displayTitle == $title and .status != "completed")] | length' <<<"$runs")"
           successful="$(jq --arg title "Release $TAG" '[.[] | select(.displayTitle == $title and .conclusion == "success")] | length' <<<"$runs")"
 
+          tag_exists=false
+          tag_sha=""
           if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            tag_exists=true
             tag_sha="$(git rev-list -n 1 "$TAG")"
-            if [ "$successful" -gt 0 ]; then
-              echo "$TAG already has a successful Release run"
-              echo "dispatch=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if [ "$active" -gt 0 ]; then
-              echo "$TAG already has an active Release run"
-              echo "dispatch=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "Retrying immutable $TAG at $tag_sha with the current Release workflow"
-            echo "dispatch=true" >> "$GITHUB_OUTPUT"
-            exit 0
           fi
 
-          latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
-          if [ -n "$latest_tag" ]; then
-            python3 - "$VERSION" "${latest_tag#v}" <<'PY'
+          policy_args=(
+            "--target-sha" "$TARGET_SHA"
+            "--github-output" "$GITHUB_OUTPUT"
+          )
+          if [ "$tag_exists" = "true" ]; then
+            policy_args+=("--tag-exists" "--tag-sha" "$tag_sha")
+          fi
+          if [ "$successful" -gt 0 ]; then
+            policy_args+=("--has-successful-release")
+          fi
+          if [ "$active" -gt 0 ]; then
+            policy_args+=("--has-active-release")
+          fi
+
+          # The policy helper decides dispatch/skip/fail and writes
+          # ``dispatch=<bool>`` to ``$GITHUB_OUTPUT``. Its logic is unit-tested
+          # in ``scripts/tests/test_release_tag_policy.py``; this shell block
+          # only gathers the inputs and performs the tag creation when allowed.
+          python3 scripts/release_tag_policy.py "${policy_args[@]}"
+          decision_exit=$?
+          if [ "$decision_exit" -ne 0 ]; then
+            exit "$decision_exit"
+          fi
+
+          if [ "$tag_exists" = "false" ]; then
+            latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+            if [ -n "$latest_tag" ]; then
+              python3 - "$VERSION" "${latest_tag#v}" <<'PY'
           import sys
 
           current = tuple(map(int, sys.argv[1].split(".")))
@@ -97,14 +112,14 @@ jobs:
                   f"release version {sys.argv[1]} must be newer than {sys.argv[2]}"
               )
           PY
-          fi
+            fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" "$TARGET_SHA" -m "Release $TAG"
-          git push origin "refs/tags/$TAG"
-          echo "Created $TAG at $TARGET_SHA"
-          echo "dispatch=true" >> "$GITHUB_OUTPUT"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" "$TARGET_SHA" -m "Release $TAG"
+            git push origin "refs/tags/$TAG"
+            echo "Created $TAG at $TARGET_SHA"
+          fi
 
       - name: Dispatch Release on the version tag
         if: steps.release.outputs.dispatch == 'true'

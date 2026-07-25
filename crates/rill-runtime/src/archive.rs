@@ -203,8 +203,20 @@ pub(crate) fn read_archive<R: Read + Seek>(
             return Err(ArchiveError::Limit("file size"));
         }
         let compressed = entry.compressed_size();
-        if compressed > 0 && entry.size() / compressed > limits.max_compression_ratio {
-            return Err(ArchiveError::Limit("compression ratio"));
+        // Use checked multiplication instead of integer division so the
+        // comparison is exact: ``size / compressed`` truncates and would
+        // accept an entry whose true ratio is just above the limit
+        // (e.g. size=10, compressed=3, limit=3 → 10/3=3, accepted even
+        // though 10 > 3*3). ``size > compressed * ratio`` avoids both the
+        // truncation and any floating-point rounding, and the checked
+        // product guards against u64 overflow on adversarial inputs.
+        if compressed > 0 {
+            let cap = compressed
+                .checked_mul(limits.max_compression_ratio)
+                .ok_or(ArchiveError::Limit("compression ratio"))?;
+            if entry.size() > cap {
+                return Err(ArchiveError::Limit("compression ratio"));
+            }
         }
         total = total
             .checked_add(entry.size())
@@ -338,4 +350,183 @@ fn validate_path(name: &str) -> Result<(), ArchiveError> {
         return Err(ArchiveError::UnsafePath(name.into()));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// CRC-32 of `data` (matching the value stored in each ZIP local header
+    /// and central-directory record).
+    fn crc32(data: &[u8]) -> u32 {
+        let mut crc: u32 = 0xFFFFFFFF;
+        for &byte in data {
+            crc ^= byte as u32;
+            for _ in 0..8 {
+                crc = (crc >> 1) ^ (0xEDB88320 & (0u32.wrapping_sub(crc & 1)));
+            }
+        }
+        !crc
+    }
+
+    /// Build a minimal stored (uncompressed) ZIP archive whose single entry
+    /// reports `uncompressed_size` and `compressed_size` independently in
+    /// both the local file header and the central directory.
+    ///
+    /// The zip crate's `ZipWriter` always sets both fields to `data.len()`,
+    /// which makes it impossible to exercise the compression-ratio check.
+    /// Writing the bytes by hand lets the tests pretend the entry compressed
+    /// to a different size than its payload.
+    fn build_zip_with_sizes(
+        name: &str,
+        data: &[u8],
+        uncompressed_size: u32,
+        compressed_size: u32,
+    ) -> Vec<u8> {
+        let crc = crc32(data);
+        let mut buf = Vec::new();
+        let local_offset = 0u32;
+
+        // Local file header.
+        buf.extend_from_slice(&[0x50, 0x4b, 0x03, 0x04]);
+        buf.extend_from_slice(&20u16.to_le_bytes()); // version needed
+        buf.extend_from_slice(&0u16.to_le_bytes()); // flags
+        buf.extend_from_slice(&0u16.to_le_bytes()); // method = stored
+        buf.extend_from_slice(&0u16.to_le_bytes()); // mod time
+        buf.extend_from_slice(&0u16.to_le_bytes()); // mod date
+        buf.extend_from_slice(&crc.to_le_bytes());
+        buf.extend_from_slice(&compressed_size.to_le_bytes());
+        buf.extend_from_slice(&uncompressed_size.to_le_bytes());
+        buf.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes()); // extra length
+        buf.extend_from_slice(name.as_bytes());
+        buf.extend_from_slice(data);
+
+        let cd_start = buf.len() as u32;
+
+        // Central directory file header.
+        buf.extend_from_slice(&[0x50, 0x4b, 0x01, 0x02]);
+        buf.extend_from_slice(&20u16.to_le_bytes()); // version made by
+        buf.extend_from_slice(&20u16.to_le_bytes()); // version needed
+        buf.extend_from_slice(&0u16.to_le_bytes()); // flags
+        buf.extend_from_slice(&0u16.to_le_bytes()); // method
+        buf.extend_from_slice(&0u16.to_le_bytes()); // mod time
+        buf.extend_from_slice(&0u16.to_le_bytes()); // mod date
+        buf.extend_from_slice(&crc.to_le_bytes());
+        buf.extend_from_slice(&compressed_size.to_le_bytes());
+        buf.extend_from_slice(&uncompressed_size.to_le_bytes());
+        buf.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes()); // extra length
+        buf.extend_from_slice(&0u16.to_le_bytes()); // comment length
+        buf.extend_from_slice(&0u16.to_le_bytes()); // disk number
+        buf.extend_from_slice(&0u16.to_le_bytes()); // internal attrs
+        buf.extend_from_slice(&0u32.to_le_bytes()); // external attrs
+        buf.extend_from_slice(&local_offset.to_le_bytes());
+        buf.extend_from_slice(name.as_bytes());
+
+        let cd_size = buf.len() as u32 - cd_start;
+
+        // End of central directory record.
+        buf.extend_from_slice(&[0x50, 0x4b, 0x05, 0x06]);
+        buf.extend_from_slice(&0u16.to_le_bytes()); // disk number
+        buf.extend_from_slice(&0u16.to_le_bytes()); // disk with CD
+        buf.extend_from_slice(&1u16.to_le_bytes()); // entries on this disk
+        buf.extend_from_slice(&1u16.to_le_bytes()); // total entries
+        buf.extend_from_slice(&cd_size.to_le_bytes());
+        buf.extend_from_slice(&cd_start.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes()); // comment length
+
+        buf
+    }
+
+    fn limits_with_ratio(ratio: u64) -> ArchiveLimits {
+        ArchiveLimits {
+            max_files: 10,
+            max_file_bytes: 1024 * 1024,
+            max_total_bytes: 1024 * 1024,
+            max_compressed_total_bytes: 1024 * 1024,
+            max_compression_ratio: ratio,
+        }
+    }
+
+    #[test]
+    fn compression_ratio_accepts_exact_boundary() {
+        // size = compressed * ratio exactly. The previous integer-division
+        // implementation accepted this case, and the new checked-multiplication
+        // implementation must continue to accept it so the limit remains the
+        // boundary, not `ratio - 1`.
+        //
+        // For stored (uncompressed) entries the zip crate reads
+        // `compressed_size` bytes from the local header, so the data buffer
+        // must be exactly that long. `uncompressed_size` is reported
+        // independently by `entry.size()` and is what the ratio check uses.
+        let data = b"0123456789"; // 10 bytes
+        let zip = build_zip_with_sizes("payload.bin", data, 1000, 10);
+        let files = read_archive(
+            std::io::Cursor::new(&zip),
+            &["payload.bin"],
+            limits_with_ratio(100),
+        )
+        .expect("exact boundary must be accepted");
+        assert_eq!(files.get("payload.bin").map(Vec::as_slice), Some(&data[..]));
+    }
+
+    #[test]
+    fn compression_ratio_rejects_one_byte_over_boundary() {
+        // Regression for the integer-division truncation bug: with the old
+        // `size / compressed > ratio` check, size=1001/compressed=10/ratio=100
+        // evaluated to `100 > 100` = false and was accepted even though the
+        // true ratio is 100.1. The new check must reject it.
+        let data = b"0123456789"; // 10 bytes
+        let zip = build_zip_with_sizes("payload.bin", data, 1001, 10);
+        let result = read_archive(
+            std::io::Cursor::new(&zip),
+            &["payload.bin"],
+            limits_with_ratio(100),
+        );
+        assert!(
+            matches!(result, Err(ArchiveError::Limit("compression ratio"))),
+            "expected compression-ratio rejection, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn compression_ratio_skips_zero_compressed_size() {
+        // A zero compressed_size must not divide by zero or trigger the
+        // ratio check. The entry is accepted (the size limit still applies).
+        let zip = build_zip_with_sizes("payload.bin", b"", 0, 0);
+        let files = read_archive(
+            std::io::Cursor::new(&zip),
+            &["payload.bin"],
+            limits_with_ratio(100),
+        )
+        .expect("zero-size entry must be accepted");
+        assert!(files.get("payload.bin").map(Vec::is_empty).unwrap_or(false));
+    }
+
+    #[test]
+    fn compression_ratio_rejects_overflowing_product() {
+        // Adversarial compressed_size * ratio that overflows u64 must be
+        // rejected via checked_mul rather than wrapping around to a small
+        // value that would let the attack through.
+        //
+        // compressed_size = 2 (data buffer is 2 bytes), ratio = u64::MAX.
+        // 2 * u64::MAX overflows u64; without checked_mul the wrapping
+        // product would be u64::MAX - 1, and `entry.size() > u64::MAX - 1`
+        // would be false for any small size, letting the attack through.
+        let data = b"xy"; // 2 bytes
+        let zip = build_zip_with_sizes("payload.bin", data, 2, 2);
+        let limits = ArchiveLimits {
+            max_files: 10,
+            max_file_bytes: 1024 * 1024,
+            max_total_bytes: 1024 * 1024,
+            max_compressed_total_bytes: 1024 * 1024,
+            max_compression_ratio: u64::MAX,
+        };
+        let result = read_archive(std::io::Cursor::new(&zip), &["payload.bin"], limits);
+        assert!(
+            matches!(result, Err(ArchiveError::Limit("compression ratio"))),
+            "expected overflow rejection, got: {result:?}"
+        );
+    }
 }

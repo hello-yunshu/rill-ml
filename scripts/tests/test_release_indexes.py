@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import hashlib
 import json
+import os
 import pathlib
 import subprocess
 import sys
 import tempfile
 import unittest
+from typing import Optional
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -204,6 +208,8 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
         model: pathlib.Path,
         version: str,
         output: pathlib.Path,
+        *,
+        url: Optional[str] = None,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
@@ -218,7 +224,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 "--version",
                 version,
                 "--url",
-                f"https://example.invalid/model-{version}",
+                url if url is not None else f"https://example.invalid/model-{version}",
                 "--publisher-key-id",
                 PUBLISHER,
                 "--generated-at",
@@ -250,6 +256,320 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             text=True,
             check=False,
         )
+
+    def test_build_release_index_rejects_existing_index_with_forbidden_url(self) -> None:
+        # When merging an existing index, URLs from the prior index must be
+        # re-validated. A tampered prior index with a forbidden scheme must
+        # not survive the merge into the new payload.
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            version = "0.7.0"
+            for name in (
+                f"rill-runtime-{version}-linux-x86_64",
+                f"rill-runtime-{version}-macos-aarch64",
+                f"rill-runtime-{version}-windows-x86_64.exe",
+                f"example-default-{version}.rillpack",
+            ):
+                (temp / name).write_bytes(name.encode())
+            # Existing index with a forbidden-URL model that is "newer" so
+            # the merge path tries to retain it.
+            existing = temp / "existing.json"
+            existing.write_text(
+                json.dumps(
+                    {
+                        "payload": {
+                            "schemaVersion": 2,
+                            "channel": "stable",
+                            "generatedAt": "2026-07-13T00:00:00Z",
+                            "publisherKeyId": PUBLISHER,
+                            "artifacts": [
+                                {
+                                    "kind": "model",
+                                    "id": "rillml.example.default",
+                                    "version": "0.9.0",
+                                    "runtimeApiVersion": 2,
+                                    "url": "file:///etc/passwd",
+                                    "sha256": "00" * 32,
+                                    "size": 1,
+                                }
+                            ],
+                        },
+                        "signature": "verified before helper invocation",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = temp / "payload.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/build-release-index.py"),
+                    "--release-dir",
+                    str(temp),
+                    "--version",
+                    version,
+                    "--tag",
+                    f"v{version}",
+                    "--repository",
+                    "example/rill-ml",
+                    "--publisher-key-id",
+                    PUBLISHER,
+                    "--generated-at",
+                    "2026-07-13T01:00:00Z",
+                    "--existing-index",
+                    str(existing),
+                    "--output",
+                    str(output),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0, result.stderr)
+            self.assertIn("forbidden URL scheme", result.stderr)
+
+    def test_update_model_release_rejects_non_https_url(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            model = temp / "model.rillpack"
+            model.write_bytes(b"signed-model-v0.7.0")
+            runtime = {
+                "kind": "runtime",
+                "id": "rill-runtime",
+                "version": "0.5.0",
+                "runtimeApiVersion": 2,
+                "targetOs": "macos",
+                "targetArch": "aarch64",
+                "url": "https://example.invalid/runtime",
+                "sha256": "00" * 32,
+                "size": 1,
+            }
+            current = temp / "stable-index.json"
+            current.write_text(
+                json.dumps(
+                    {
+                        "payload": {
+                            "schemaVersion": 2,
+                            "channel": "stable",
+                            "generatedAt": "2026-07-13T00:00:00Z",
+                            "publisherKeyId": PUBLISHER,
+                            "artifacts": [runtime],
+                        },
+                        "signature": "verified before helper invocation",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = temp / "next-payload.json"
+
+            for bad_url, expected_fragment in (
+                ("file:///etc/passwd", "forbidden URL scheme"),
+                ("data:text/plain,evil", "forbidden URL scheme"),
+                ("javascript:alert(1)", "forbidden URL scheme"),
+                ("http://example.invalid/model", "https scheme"),
+                ("https://user:pass@example.invalid/model", "credentials"),
+                ("https:///model", "non-empty host"),
+                ("https://example.invalid/model#fragment", "fragment"),
+            ):
+                result = self.run_model_update(current, model, "0.7.0", output, url=bad_url)
+                self.assertNotEqual(
+                    result.returncode,
+                    0,
+                    f"expected URL {bad_url!r} to be rejected; stderr: {result.stderr}",
+                )
+                self.assertIn(
+                    expected_fragment,
+                    result.stderr,
+                    f"URL {bad_url!r} rejected but error missing {expected_fragment!r}: {result.stderr}",
+                )
+
+    def test_update_model_release_rejects_retained_forbidden_url(self) -> None:
+        # A previously-signed index with a forbidden URL should not survive
+        # re-validation when the next model-only update runs.
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            model = temp / "model.rillpack"
+            model.write_bytes(b"signed-model-v0.7.0")
+            runtime = {
+                "kind": "runtime",
+                "id": "rill-runtime",
+                "version": "0.5.0",
+                "runtimeApiVersion": 2,
+                "targetOs": "macos",
+                "targetArch": "aarch64",
+                "url": "file:///etc/passwd",  # forbidden
+                "sha256": "00" * 32,
+                "size": 1,
+            }
+            current = temp / "stable-index.json"
+            current.write_text(
+                json.dumps(
+                    {
+                        "payload": {
+                            "schemaVersion": 2,
+                            "channel": "stable",
+                            "generatedAt": "2026-07-13T00:00:00Z",
+                            "publisherKeyId": PUBLISHER,
+                            "artifacts": [runtime],
+                        },
+                        "signature": "verified before helper invocation",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = temp / "next-payload.json"
+            result = self.run_model_update(
+                current, model, "0.7.0", output, url="https://example.invalid/model-0.7.0"
+            )
+            self.assertNotEqual(result.returncode, 0, result.stderr)
+            self.assertIn("forbidden URL scheme", result.stderr)
+
+    def test_update_model_release_rejects_localhost_in_production(self) -> None:
+        # localhost URLs must be rejected by default so a production
+        # release index can never point a downstream client at the local
+        # machine. The ``RILL_ALLOW_LOCALHOST_URLS`` opt-in is exercised
+        # by ``test_update_model_release_allows_localhost_in_test_mode``.
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            model = temp / "model.rillpack"
+            model.write_bytes(b"signed-model-v0.7.0")
+            runtime = {
+                "kind": "runtime",
+                "id": "rill-runtime",
+                "version": "0.5.0",
+                "runtimeApiVersion": 2,
+                "targetOs": "macos",
+                "targetArch": "aarch64",
+                "url": "https://example.invalid/runtime",
+                "sha256": "00" * 32,
+                "size": 1,
+            }
+            current = temp / "stable-index.json"
+            current.write_text(
+                json.dumps(
+                    {
+                        "payload": {
+                            "schemaVersion": 2,
+                            "channel": "stable",
+                            "generatedAt": "2026-07-13T00:00:00Z",
+                            "publisherKeyId": PUBLISHER,
+                            "artifacts": [runtime],
+                        },
+                        "signature": "verified before helper invocation",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = temp / "next-payload.json"
+            # Ensure no inherited env var leaks across tests.
+            env = {k: v for k, v in os.environ.items() if k != "RILL_ALLOW_LOCALHOST_URLS"}
+            for localhost_url in (
+                "https://localhost/model-0.7.0",
+                "https://127.0.0.1/model-0.7.0",
+                "https://[::1]/model-0.7.0",
+            ):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(ROOT / "scripts/update-model-release-index.py"),
+                        "--signed-index",
+                        str(current),
+                        "--model",
+                        str(model),
+                        "--model-id",
+                        "rillml.example.default",
+                        "--version",
+                        "0.7.0",
+                        "--url",
+                        localhost_url,
+                        "--publisher-key-id",
+                        PUBLISHER,
+                        "--generated-at",
+                        "2026-07-13T01:00:00Z",
+                        "--output",
+                        str(output),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    env=env,
+                )
+                self.assertNotEqual(
+                    result.returncode,
+                    0,
+                    f"expected localhost URL {localhost_url!r} to be rejected; stderr: {result.stderr}",
+                )
+                self.assertIn("must not point at localhost", result.stderr)
+
+    def test_update_model_release_allows_localhost_in_test_mode(self) -> None:
+        # Setting RILL_ALLOW_LOCALHOST_URLS=1 opts in to localhost URLs so
+        # tests and local development can point the index at a fixture
+        # server. Production pipelines must never set this variable.
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            model = temp / "model.rillpack"
+            model.write_bytes(b"signed-model-v0.7.0")
+            runtime = {
+                "kind": "runtime",
+                "id": "rill-runtime",
+                "version": "0.5.0",
+                "runtimeApiVersion": 2,
+                "targetOs": "macos",
+                "targetArch": "aarch64",
+                "url": "https://example.invalid/runtime",
+                "sha256": "00" * 32,
+                "size": 1,
+            }
+            current = temp / "stable-index.json"
+            current.write_text(
+                json.dumps(
+                    {
+                        "payload": {
+                            "schemaVersion": 2,
+                            "channel": "stable",
+                            "generatedAt": "2026-07-13T00:00:00Z",
+                            "publisherKeyId": PUBLISHER,
+                            "artifacts": [runtime],
+                        },
+                        "signature": "verified before helper invocation",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = temp / "next-payload.json"
+            env = dict(os.environ)
+            env["RILL_ALLOW_LOCALHOST_URLS"] = "1"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/update-model-release-index.py"),
+                    "--signed-index",
+                    str(current),
+                    "--model",
+                    str(model),
+                    "--model-id",
+                    "rillml.example.default",
+                    "--version",
+                    "0.7.0",
+                    "--url",
+                    "https://localhost:8443/model-0.7.0",
+                    "--publisher-key-id",
+                    PUBLISHER,
+                    "--generated-at",
+                    "2026-07-13T01:00:00Z",
+                    "--output",
+                    str(output),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            models = [item for item in payload["artifacts"] if item["kind"] == "model"]
+            self.assertEqual(len(models), 1)
+            self.assertEqual(models[0]["url"], "https://localhost:8443/model-0.7.0")
 
 
 if __name__ == "__main__":
