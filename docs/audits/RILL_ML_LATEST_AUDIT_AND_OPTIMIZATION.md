@@ -13,17 +13,18 @@
 | 二次审计日期 | 2026-07-26 |
 | 仓库 | hello-yunshu/rill-ml |
 | 分支 | `main` |
-| 当前 HEAD SHA | `8daf752b2c3717c768c04117cf44e66a2a525339` |
-| 与远端 `origin/main` 关系 | 本地 HEAD 已合并 release/0.9.0；二次审计修改保留在工作区未提交 |
-| 当前版本 | `0.9.0` |
+| 二次审计起始基线（origin/main） | `8daf752b2c3717c768c04117cf44e66a2a525339`（即上一轮首轮审计合并后的 main） |
+| 二次审计最终 HEAD SHA | `962a66374845af627791b76b6e87069974b5b970`（含闭环修正提交） |
+| 与远端 `origin/main` 关系 | 本地 `main` 领先 `origin/main` 共 7 个未推送提交（含 6 个二次审计修复提交 + 1 个本轮闭环修正提交） |
+| 当前版本 | `0.9.0`（建议 patch 至 `0.9.1`） |
 | 上一轮审计基线 | 首轮审计以 `e00f631` 为基线，修复后合并为 `e6a5953`/`209ffcd`/`d0b97ce`/`2ccb9e3`/`abc12f3`，版本提升至 `0.9.0`（`eccd918`），最终合并入 main（`8daf752`） |
 | 二次审计触发提示词 | `RILL_ML_TRAE_SECOND_AUDIT_COMPLETION_PROMPT.md` |
 | Rust 工具链 | `cargo 1.95.0`（workspace MSRV 1.94）；MSRV 1.94.0 检查已本地执行 |
 
 二次审计前已确认：
 
-- `git status` 显示首轮审计修复已全部提交，工作区仅含本轮新改动；
-- `git log --oneline -10` 显示最新提交为 `8daf752 Merge pull request #11 from hello-yunshu/release/0.9.0`；
+- `git status` 显示首轮审计修复已全部提交，工作区干净（仅有未跟踪的提示词文件 `RILL_ML_TRAE_SECOND_AUDIT_COMPLETION_PROMPT.md`）；
+- `git log --oneline origin/main..HEAD` 显示本地领先 7 个未推送提交，对应提示词第十二节建议的 6 个逻辑提交 + 1 个本轮闭环修正提交；
 - 未对用户已有改动执行任何 `reset --hard`、`clean`、强制切分支或覆盖操作；
 - 全部结论以本次最新代码为准。
 
@@ -45,11 +46,13 @@
 | 2-C-03 | 高 | `handlers/test-metadata-loop-handler/` | 缺真实 `metadata()` 无限循环 fixture；首轮审计因 WIT 契约限制标记为不可行，但未尝试独立 test-only handler | 首轮报告 §3.2 B-04 明确未覆盖 | Fixed |
 | 2-D-01 | 高 | `src/metrics/classification.rs` | `Precision` / `Recall` / `F1Score` serde 一致性校验使用 `saturating_add`，非法超大状态可能被饱和后错误接受 | 旧实现 `state.true_positive.saturating_add(state.false_positive)` | Fixed |
 | 2-D-02 | 高 | `src/metrics/regression.rs` | R² serde invariant 不完整：未检查 `ss_res >= 0`，未检查 `m2_truth >= 0`（仅有 finite 检查） | 旧 Deserialize impl 仅检查 finite | Fixed |
-| 2-D-03 | 高 | `src/preprocessing/standard_scaler.rs` | StandardScaler serde invariant 不完整：未检查 `m2s >= 0`，未检查 counts 同步；`transform()` 热路径每次执行完整 O(d) `validate()` | 旧 `validate()` 未检查 m2s 非负；`transform()` 每次调用 `validate()` | Fixed |
+| 2-D-03 | 高 | `src/preprocessing/standard_scaler.rs` | StandardScaler serde invariant 不完整：未检查 `m2s >= 0`，未检查 counts 同步；`transform()` 热路径每次执行完整 O(d) `validate()` | 旧 `validate()` 未检查 m2s 非负；`transform()` 每次调用 `validate()` | Partially Fixed |
 | 2-E-01 | 高 | `.github/workflows/pipeline.yml` / `scripts/requirements-dev.txt` | 工具链版本仅限制 major（`wasm-pack ^0.13` / `wasm-tools ^1.0` / `maturin>=1.7,<2.0` / `pytest>=8,<9`），不属于精确固定 | 旧实现使用范围版本 | Fixed |
 | 2-F-01 | 中 | `README.md` / `README.en.md` | README 笼统声称"内存有界"，但 FTRL 默认 `max_features: None` 仍允许动态特征状态无限增长 | 旧 README 第 41 行"内存有界" | Fixed |
+| 2-G-01 | 高 | `crates/rill-runtime/src/server.rs` | `InvokeErrorKind` 是公开 `pub enum` 且无 `#[non_exhaustive]`，二次审计新增 3 个 variant（`InvalidModel` / `InvalidInput` / `UnsupportedCapability`）是公共 API 变化，与 patch 版本决策不一致 | 旧审计报告 §0.9 称"不改变公共 API"但 enum 实际公开且可被外部穷尽 `match` | Fixed |
+| 2-G-02 | 中 | `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md` | 审计报告 §0.1 HEAD SHA 错误（写 `8daf752...`，实际为 `962a663...`）；§0.1、§0.7、§0.8 三次写"修改保留在工作区未提交"与实际已提交状态不符；未区分 6 类 release 发布状态 | 旧审计报告与 `git log` 实际状态不一致 | Fixed |
 
-二次审计总计：**15 项 Confirmed 并 Fixed，0 项 Rejected / Deferred / Regression / Already Fixed**。
+二次审计总计：**15 项 Confirmed，13 项 Fixed，1 项 Partially Fixed（2-D-03），0 项 Rejected / Deferred / Regression / Already Fixed**。1 项 2-G 系列为审计报告闭环修正（2-G-01 / 2-G-02）。
 
 ### 0.3 二次审计修复说明
 
@@ -69,7 +72,7 @@
 - **2-A-03 Ignore 顺序**：在特征循环前预扫描新特征，若 `new_feature_policy == Ignore` 且加入会超过 `max_features`，跳过该新特征的所有运算（不计算梯度、不创建参数），已有特征正常更新。
 - **2-A-04 serde**：`FtrlRegressor` / `FtrlClassifier` 的 `validate()` 新增 `n == 0 && z != 0` 检查，拒绝零分母恶意状态。
 - **2-A-05 最终加法**：`predict_inner` / `predict_proba_inner` 使用 `checked_finite_add(dot, intercept, "ftrl prediction")` 检查最终加法。
-- **测试覆盖**：`ftrl_gradient_squared_underflow_is_rejected`、`ftrl_zero_denominator_state_rejected_by_serde`、`ftrl_ignore_policy_skips_new_feature_before_arithmetic`、`ftrl_prediction_addition_overflow_is_caught`、`ftrl_regressor_can_predict_after_successful_learn`、`ftrl_classifier_can_predict_proba_after_successful_learn`。
+- **测试覆盖**：`regressor_gradient_squared_underflow_is_atomic`、`classifier_gradient_squared_underflow_is_atomic`、`regressor_serde_rejects_n_zero_z_nonzero`、`classifier_serde_rejects_n_zero_z_nonzero`、`regressor_ignore_skips_overflowing_new_feature`、`classifier_ignore_skips_overflowing_new_feature`、`regressor_predict_dot_plus_intercept_overflow`、`regressor_boundary_config_predict_after_learn_always_finite`、`classifier_boundary_config_predict_proba_after_learn_always_finite`（每个场景为回归器/分类器分别写测试，覆盖更全面）。
 
 #### 2-B-01 ~ 2-B-02：Naive Bayes 概率有限性与失败原子
 
@@ -78,7 +81,7 @@
   - Gaussian：先计算 `next_feature_sums` / `next_feature_sums_sq` / `next_means` / `next_variances` / `next_class_count` / `next_samples_seen`，全部成功后提交；
   - Bernoulli：先计算 `next_feature_counts` / `next_class_count` / `next_samples_seen`；
   - Multinomial：先计算 `next_feature_sums` / `next_total` / `next_class_count` / `next_samples_seen`。
-- **测试覆盖**：`gaussian_nb_predict_proba_never_returns_nan`、`bernoulli_nb_predict_proba_never_returns_nan`、`multinomial_nb_predict_proba_never_returns_nan`、`gaussian_nb_partial_update_is_atomic`、`bernoulli_nb_partial_update_is_atomic`、`multinomial_nb_partial_update_is_atomic`、`nb_predict_proba_does_not_mutate_state`。
+- **测试覆盖**：`gaussian_predict_proba_rejects_extreme_features_causing_nan_log_odds`、`bernoulli_predict_proba_rejects_extreme_features_causing_nan_log_odds`、`multinomial_predict_proba_rejects_extreme_features_causing_nan_log_odds`、`gaussian_learn_failure_leaves_state_unchanged`、`bernoulli_learn_failure_leaves_state_unchanged`、`multinomial_learn_failure_leaves_state_unchanged`、`gaussian_predict_proba_does_not_modify_state_on_error`（加上既有的 `gaussian_predict_does_not_update_state` / `bernoulli_predict_does_not_update_state` / `multinomial_predict_does_not_update_state`）。
 
 #### 2-C-01 ~ 2-C-03：Runtime typed error 与 metadata loop fixture
 
@@ -98,14 +101,14 @@
 
 - **2-D-01 分类指标 checked_add**：在 [src/metrics/classification.rs](../../src/metrics/classification.rs) 中将 `Precision` / `Recall` / `F1Score` 的 serde 一致性校验从 `saturating_add` 改为 `checked_add`，溢出时返回 `serde::de::Error::custom(...)` 拒绝状态。F1 的链式加法（`tp + fp + fn`）每一步都使用 `checked_add`，避免第一步饱和后隐藏溢出。
 - **2-D-02 R² serde invariant**：在 [src/metrics/regression.rs](../../src/metrics/regression.rs) 的 R² `Deserialize` impl 中新增 `ss_res >= 0` 检查（拒绝负残差平方和）、`m2_truth >= 0` 检查（拒绝负 M2）、`mean_truth` finite 检查。
-- **2-D-03 StandardScaler invariant + 热路径**：在 [src/preprocessing/standard_scaler.rs](../../src/preprocessing/standard_scaler.rs) 中：
-  - `validate()` 新增 `m2s` 非负检查、counts 同步检查、state 长度匹配检查；
-  - `transform_into()` 热路径仅在 `debug_assert!` 中检查内部不变量（state 长度、counts 同步、state 有限性），release 路径只保留信任边界检查（维度校验 + 输出有限性）；
-  - `Transformer::transform()` 公共入口仍调用 `validate()`，但委托 `transform_into()` 执行实际计算。
+- **2-D-03 StandardScaler invariant + 热路径**（**Partially Fixed**）：在 [src/preprocessing/standard_scaler.rs](../../src/preprocessing/standard_scaler.rs) 中：
+  - `validate()` 新增 `m2s` 非负检查、counts 同步检查、state 长度匹配检查（**Fixed**）；
+  - `transform_into()` 热路径仅在 `debug_assert!` 中检查内部不变量（state 长度、counts 同步、state 有限性），release 路径只保留信任边界检查（维度校验 + 输出有限性）（**Fixed**）；
+  - `Transformer::transform()` 公共入口在二次审计首轮仍调用完整 `validate()`；本轮闭环修正后已移除该调用，直接委托 `transform_into()`，使 `transform()` 与 `transform_into()` 共享单次循环热路径（**Fixed in closeout**）。
 - **测试覆盖**：
   - 分类指标：`precision_serde_rejects_tp_fp_overflow`、`recall_serde_rejects_tp_fn_overflow`、`f1_serde_rejects_tp_fp_overflow`、`f1_serde_rejects_tp_fp_fn_overflow`、`metric_serde_accepts_max_boundary`、`recall_serde_rejects_inconsistent_samples_seen`、`f1_serde_rejects_inconsistent_samples_seen` 共 7 个新用例；
-  - R²：`r2_serde_rejects_negative_ss_res`、`r2_serde_rejects_negative_m2_truth`；
-  - StandardScaler：`serde_rejects_malformed_state`、`update_rejects_overflow_without_mutating_state`。
+  - R²：`r2_serde_rejects_negative_ss_res`、`r2_serde_rejects_negative_m2`；
+  - StandardScaler：`serde_rejects_negative_m2`（验证负 M2 被拒绝）、既有 `serde_rejects_malformed_state`、`update_rejects_overflow_without_mutating_state`。
 
 #### 2-E-01：工具链精确固定
 
@@ -175,61 +178,64 @@
 | Precision / Recall / F1 serde 加法溢出被拒绝 | ✅（2-D-01） |
 | R² 拒绝负 `ss_res` 等非法状态 | ✅（2-D-02） |
 | StandardScaler 拒绝负 M2 | ✅（2-D-03） |
-| StandardScaler 热路径不重复做无必要的完整扫描 | ✅（2-D-03，`debug_assert!` 替代 release `validate()`） |
+| StandardScaler 热路径不重复做无必要的完整扫描 | ✅（2-D-03，`debug_assert!` 替代 release `validate()`；本轮闭环已移除 `transform()` 的完整 `validate()` 调用） |
 | wasm-pack、wasm-tools、maturin、pytest 使用精确版本 | ✅（2-E-01） |
 | README 不再笼统误称所有配置默认内存有界 | ✅（2-F-01） |
-| 审计报告基线更新到当前 HEAD | ✅（§0.1） |
+| 审计报告基线更新到当前 HEAD | ✅（§0.1，本轮闭环已修正至 `962a663...`） |
 | 全量 CI 等价命令通过 | ✅（§0.4） |
 | 没有覆盖用户改动 | ✅ |
 | 没有无关大重构 | ✅ |
 
 ### 0.7 二次审计工作区状态
 
+二次审计修复已全部提交到本地 `main` 分支，工作区干净（仅有一个未跟踪的提示词文件 `RILL_ML_TRAE_SECOND_AUDIT_COMPLETION_PROMPT.md`）：
+
 ```
- M .github/workflows/pipeline.yml
- M Cargo.toml
- M README.en.md
- M README.md
- M crates/rill-runtime/src/handler/wasm.rs
- M crates/rill-runtime/src/lib.rs
- M crates/rill-runtime/src/server.rs
- M crates/rill-runtime/tests/wasm_handler.rs
- M scripts/release_tag_policy.py
- M scripts/requirements-dev.txt
- M scripts/tests/test_release_tag_policy.py
- M src/metrics/classification.rs
- M src/metrics/regression.rs
- M src/models/ftrl.rs
- M src/models/naive_bayes.rs
- M src/preprocessing/standard_scaler.rs
+$ git status --short
 ?? RILL_ML_TRAE_SECOND_AUDIT_COMPLETION_PROMPT.md
-?? handlers/test-metadata-loop-handler/
 ```
 
-变更统计：16 个文件修改、1 个新目录加入；`git diff --stat HEAD` 显示 `+1596 / -167` 行。
+变更统计：16 个源文件修改、1 个新目录（`handlers/test-metadata-loop-handler/`）加入；累计 `+1596 / -167` 行（不含本轮闭环修正）。
 
-### 0.8 二次审计提交组织建议
+### 0.8 二次审计提交组织
 
-按提示词第十二节，建议拆为 6 个逻辑提交（当前审计保留在工作区未提交，等待用户确认后提交）：
+按提示词第十二节，已拆为 6 个逻辑提交 + 1 个本轮闭环修正提交，全部提交到本地 `main`（领先 `origin/main` 7 个提交）：
 
-1. **core/ftrl-boundaries**：`src/models/ftrl.rs`（下溢 / zero denominator / Ignore 顺序 / 最终加法 / serde invariant / 测试）
-2. **core/naive-bayes-atomicity**：`src/models/naive_bayes.rs`（三种 NB 失败原子 + 概率有限性 + 测试）
-3. **core/state-validation**：`src/metrics/classification.rs`（checked_add）+ `src/metrics/regression.rs`（R² invariant）+ `src/preprocessing/standard_scaler.rs`（M2 validation + 热路径）+ 测试
-4. **runtime/typed-error-boundary**：`crates/rill-runtime/src/server.rs` / `handler/wasm.rs` / `lib.rs` / `tests/wasm_handler.rs` + `handlers/test-metadata-loop-handler/`（WIT 映射 + 日志截断 + metadata loop fixture + 测试）
-5. **release/reproducibility**：`scripts/release_tag_policy.py` / `scripts/tests/test_release_tag_policy.py` / `scripts/requirements-dev.txt` / `.github/workflows/pipeline.yml` / `Cargo.toml`（tag SHA 顺序 + 精确工具版本 + workspace exclude）
-6. **docs/audit-closeout**：`README.md` / `README.en.md` / `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`（README 内存边界 + 审计报告）
+```
+962a663 docs(audit): close out second audit with accurate README and report
+03347ef fix(release): reproducible toolchain and immutable tag SHA ordering
+2b6341e fix(runtime): typed WIT error mapping, log truncation, metadata-loop fixture
+b81d8f3 fix(core/state-validation): reject overflow and negative sums of squares in serde
+fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atomicity
+3a4eb6b fix(core/ftrl): close boundary gaps in underflow, Ignore policy, serde, and prediction addition
+8daf752 Merge pull request #11 from hello-yunshu/release/0.9.0  ← origin/main
+```
+
+本轮闭环修正提交（commit 7）将合入上述 6 个提交对应的逻辑分组：
+
+1. **core/ftrl-boundaries**（commit 1, `3a4eb6b`）：`src/models/ftrl.rs`
+2. **core/naive-bayes-atomicity**（commit 2, `fd85601`）：`src/models/naive_bayes.rs`
+3. **core/state-validation**（commit 3, `b81d8f3`）：`src/metrics/classification.rs` + `src/metrics/regression.rs` + `src/preprocessing/standard_scaler.rs`
+4. **runtime/typed-error-boundary**（commit 4, `2b6341e`）：`crates/rill-runtime/src/server.rs` / `handler/wasm.rs` / `lib.rs` / `tests/wasm_handler.rs` + `handlers/test-metadata-loop-handler/`
+5. **release/reproducibility**（commit 5, `03347ef`）：`scripts/release_tag_policy.py` / `scripts/tests/test_release_tag_policy.py` / `scripts/requirements-dev.txt` / `.github/workflows/pipeline.yml` / `Cargo.toml`
+6. **docs/audit-closeout**（commit 6, `962a663`）：`README.md` / `README.en.md` / `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`
+7. **closeout/audit-corrections**（commit 7, 本轮闭环）：`crates/rill-runtime/src/server.rs`（`#[non_exhaustive]`）+ `src/preprocessing/standard_scaler.rs`（`transform()` 热路径）+ `CHANGELOG.md`（`[Unreleased]`）+ `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`（基线与状态修正）
 
 ### 0.9 二次审计版本决策
 
 二次审计的所有修复均属于：
 
 - 内部错误修复（FTRL 边界、NB 原子性、状态校验）；
-- 不改变公共 API；
 - 不改变 serde 合法状态格式（分类指标的 checked_add 仅拒绝之前被 saturating_add 错误接受的状态，不改变合法状态集合）；
-- 不改变 IPC code（`InvokeErrorKind` 新增 variant 仅在 host 内部使用，IPC 仍使用稳定 code）；
+- 不改变 IPC 稳定 code（`InvokeErrorKind::stable_code()` 仍返回 `handlerInternalError` / `handlerTimeout` / `handlerTrap` / `handlerOutputTooLarge` / `handlerInvalidOutput`，v1/v2 wire format 不变）；
 - 不改变默认配置行为（FTRL `max_features: None` 保持不变）。
 
-因此**建议 patch 版本提升至 `0.9.1`**，无需 minor。
+关于公共 API 的精确说明：
+
+- `InvokeErrorKind` 是 `pub enum`，二次审计新增 3 个 variant（`InvalidModel` / `InvalidInput` / `UnsupportedCapability`）。**本轮闭环已为该 enum 添加 `#[non_exhaustive]` 标注**，使外部穷尽 `match` 必须保留 `_` 通配符 arm，从而保证未来新增 variant 不破坏下游编译。在 `#[non_exhaustive]` 保护下，新增 variant 不构成破坏性 API 变化，因此仍可保持 patch 版本。
+- `StandardScaler::transform()` 移除完整 `validate()` 调用属于性能优化，不改变公共方法签名或行为契约（合法状态下的输出不变）。
+
+因此**建议 patch 版本提升至 `0.9.1`**，无需 minor。`CHANGELOG.md` 的 `[Unreleased]` 部分已记录全部修复条目。
 
 ### 0.10 二次审计元信息
 
@@ -237,6 +243,24 @@
 - 审计执行：Trae Agent（GLM-5.2）
 - 验证命令：见 §0.4
 - 文档位置：`docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`
+
+### 0.11 Release 发布状态区分
+
+按提示词 §9 要求，下表区分 6 类发布渠道的当前状态。二次审计修复尚未推送到任何渠道；下表描述的是当前 `0.9.0` 已发布状态与 `0.9.1` 待发布状态的对照。
+
+| 渠道 | 0.9.0 状态 | 0.9.1 状态（待发布） | 备注 |
+|---|---|---|---|
+| 代码 CI（`pipeline.yml`） | ✅ 通过（`origin/main` = `8daf752`） | ⏳ 待推送后由 CI 验证 | 本地已运行 §0.4 全部等价命令，退出码全 0 |
+| Git tag `v0.9.0` | ✅ 已存在并指向 `eccd918` | N/A | `release_tag_policy.py` 已加固 SHA 不可变检查 |
+| GitHub Release `v0.9.0` | ✅ 已发布 | ⏳ 待 `0.9.1` tag 推送后由 `auto-release.yml` 自动创建 | 二次审计未触碰 GitHub Release 资产 |
+| crates.io（`rill-ml` / `rill-runtime` 等） | ⏳ 未发布（仍为 0.x 实验阶段，未上传 crates.io） | ⏳ 不在本次发布范围 | 首轮审计亦未发布到 crates.io |
+| PyPI（`rill-ml-python`） | ⏳ 未发布（仍为 0.x 实验阶段） | ⏳ 不在本次发布范围 | `crates/rill-ml-python` 仍为开发中 |
+| Signed stable index | ⏳ 未实现 | ⏳ 不在本次发布范围 | 首轮审计 §3.5 标记为 Deferred |
+
+**关键说明**：
+- 二次审计所有修复（commits `3a4eb6b` ~ `962a663` + 本轮闭环修正）目前仅在本地 `main`，**尚未 push 到 `origin/main`**，因此 CI 尚未运行。
+- 推送后由 GitHub Actions `pipeline.yml` 自动触发等价验证；若全部通过，再创建 `v0.9.1` tag 触发 `auto-release.yml` 自动发布 GitHub Release。
+- crates.io / PyPI / signed stable index 三项在 0.x 阶段均未启用，本次不涉及。
 
 ---
 
