@@ -178,8 +178,10 @@ impl<'de> serde::Deserialize<'de> for R2 {
         }
 
         let state = R2State::deserialize(deserializer)?;
-        if !state.ss_res.is_finite() {
-            return Err(serde::de::Error::custom("r2 ss_res must be finite"));
+        if !state.ss_res.is_finite() || state.ss_res < 0.0 {
+            return Err(serde::de::Error::custom(
+                "r2 ss_res must be finite and non-negative",
+            ));
         }
         if !state.mean_truth.is_finite() {
             return Err(serde::de::Error::custom("r2 mean_truth must be finite"));
@@ -392,6 +394,16 @@ mod tests {
     #[cfg(feature = "serde")]
     fn r2_serde_rejects_negative_m2() {
         let json = "{\"ss_res\":0.0,\"mean_truth\":0.0,\"m2_truth\":-1.0,\"count\":2}";
+        assert!(serde_json::from_str::<R2>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn r2_serde_rejects_negative_ss_res() {
+        // Regression: a malicious or corrupted state with negative residual
+        // sum of squares must be rejected. ``ss_res`` is a sum of squares and
+        // cannot be negative outside of floating-point corruption.
+        let json = "{\"ss_res\":-0.5,\"mean_truth\":0.0,\"m2_truth\":1.0,\"count\":2}";
         assert!(serde_json::from_str::<R2>(json).is_err());
     }
 
