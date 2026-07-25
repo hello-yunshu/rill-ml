@@ -48,8 +48,8 @@ pub enum RillError {
         value: f64,
     },
 
-    /// A probability outside `(0, 1)` was provided.
-    #[error("invalid probability: {0} (must be in (0, 1))")]
+    /// A probability outside `[0, 1]` was provided.
+    #[error("invalid probability: {0} (must be in [0, 1])")]
     InvalidProbability(f64),
 
     /// Not enough data has been observed to compute the requested quantity.
