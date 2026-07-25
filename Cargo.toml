@@ -116,6 +116,10 @@ harness = false
 name = "online_models"
 harness = false
 
+[[bench]]
+name = "standard_scaler"
+harness = false
+
 [profile.bench]
 lto = true
 codegen-units = 1
