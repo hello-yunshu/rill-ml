@@ -38,7 +38,7 @@ Online learning takes a different approach: **process one sample at a time, pred
 - **Privacy-sensitive scenarios** — data should not leave the device.
 - **Real-time systems** — predictions needed before the next sample arrives.
 
-RillML implements this workflow in pure, safe Rust with bounded memory.
+RillML implements this workflow in pure, safe Rust; fixed-dimension algorithms use bounded state, while dynamic-feature algorithms such as FTRL require `max_features` to be set for bounded state.
 
 ## Suitable scenarios
 
@@ -185,7 +185,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 | Drift detection | PageHinkley, Adwin, Kswin, DriftAwareModel, DriftAction, DriftStrategy, TimeDecayedMean, LearningRateScheduler, FixedWindowBuffer |
 | Online decision-making | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb, ArmStats |
 
-**Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count; drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
+**Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count (unbounded by default; set `max_features` to bound); drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
 
 ## Ecosystem and platform extensions
 
