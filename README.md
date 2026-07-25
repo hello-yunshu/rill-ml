@@ -38,7 +38,7 @@ Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定、签�
 - **隐私敏感场景** — 数据不应离开设备。
 - **实时系统** — 需要在下一条样本到达前给出预测。
 
-RillML 用纯安全 Rust 实现这一工作流，内存有界。
+RillML 用纯安全 Rust 实现这一工作流；固定维度算法使用有界状态，FTRL 等动态特征算法需设置 `max_features` 才能保证状态有界。
 
 ## 适用场景
 
@@ -185,7 +185,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 | 漂移检测 | PageHinkley, Adwin, Kswin, DriftAwareModel, DriftAction, DriftStrategy, TimeDecayedMean, LearningRateScheduler, FixedWindowBuffer |
 | 在线决策 | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb, ArmStats |
 
-**内存界限：** 非滚动统计量 O(1)；线性模型 O(d)；滚动统计量 O(window_size)；稀疏模型（FTRL）O(k)，k 为已见特征数；漂移检测器 O(1) 或 O(window_size)；LinUCB O(arm_count × d²)。
+**内存界限：** 非滚动统计量 O(1)；线性模型 O(d)；滚动统计量 O(window_size)；稀疏模型（FTRL）O(k)，k 为已见特征数（默认无上限，需设置 `max_features` 才能有界）；漂移检测器 O(1) 或 O(window_size)；LinUCB O(arm_count × d²)。
 
 ## 生态与平台扩展
 
