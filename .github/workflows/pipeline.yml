@@ -150,10 +150,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --locked -p rill-ml-wasm --target wasm32-unknown-unknown
       - name: Install wasm-pack
-        # Pinned to an exact version for reproducible CI builds. Avoids
-        # the unpinned ``curl | sh`` install path in the release chain.
-        # Bump deliberately and re-run CI before upgrading.
-        run: cargo install wasm-pack --locked --version "0.13.1"
+        # Pinned to a compatible minor release (~0.13.1 allows patch
+        # upgrades only) and combined with ``--locked`` for reproducible
+        # CI builds. Avoids the unpinned ``curl | sh`` install path in
+        # the release chain. Patch upgrades are allowed so security fixes
+        # land without a manual bump; review Dependabot alerts before
+        # trusting a new minor version with the release pipeline.
+        run: cargo install wasm-pack --locked --version "~0.13.1"
       - name: wasm-pack test (--node)
         run: cd crates/rill-ml-wasm && wasm-pack test --node --release
 
@@ -169,10 +172,12 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Install wasm-tools
-        # Pinned to an exact version for reproducible WASM component
-        # builds. Bump together with the release job's wasm-tools pin
-        # when upgrading.
-        run: cargo install wasm-tools --locked --version "1.254.0"
+        # Pinned to a compatible minor release (~1.254.0 allows patch
+        # upgrades only) and combined with ``--locked`` for reproducible
+        # WASM component builds. Bump together with the release job's
+        # wasm-tools pin when upgrading. Patch upgrades are allowed so
+        # security fixes land without a manual bump.
+        run: cargo install wasm-tools --locked --version "~1.254.0"
       - name: Build echo handler component
         run: |
           cd handlers/echo-handler
@@ -220,9 +225,9 @@ jobs:
           python3 -m venv .venv
           source .venv/bin/activate
           pip install --upgrade pip
-          # Install the pinned Python build toolchain.
+          # Install the Python build toolchain.
           # ``requirements-dev.txt`` is the source of truth for the
-          # exact maturin and pytest versions used by CI and release.
+          # maturin and pytest version constraints used by CI and release.
           pip install -r scripts/requirements-dev.txt
           cd crates/rill-ml-python
           maturin develop --release
@@ -474,7 +479,9 @@ jobs:
       - name: Install wasm-tools
         # Pinned to match the CI build in the ``wasm-handler`` job. Keeps
         # the release component build reproducible from the same source.
-        run: cargo install wasm-tools --locked --version "1.254.0"
+        # ``~1.254.0`` allows patch upgrades only; ``--locked`` pins the
+        # transitive dependencies so the build is still reproducible.
+        run: cargo install wasm-tools --locked --version "~1.254.0"
       - name: Build and sign echo handler package
         env:
           RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
