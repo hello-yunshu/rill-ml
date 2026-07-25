@@ -1,0 +1,11 @@
+# Python build/test toolchain for RillML.
+#
+# Used by:
+#   - .github/workflows/pipeline.yml (python-build CI job)
+#   - .github/workflows/pipeline.yml (publish-python release job)
+#
+# Pin to compatible major versions. Bump deliberately and re-run CI before
+# trusting a new major version with the release pipeline.
+
+maturin>=1.7,<2.0
+pytest>=8,<9
