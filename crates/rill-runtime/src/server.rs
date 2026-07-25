@@ -36,7 +36,14 @@ pub const MAX_DETAIL_BYTES: usize = 4 * 1024;
 /// (`handlerInternalError`) for backwards compatibility with v1/v2
 /// clients, but carry distinct fixed public messages and are
 /// distinguishable host-side for logging and diagnostics.
+///
+/// Marked `#[non_exhaustive]` so future variants (e.g. for new WIT
+/// `handler-error` entries or host-side failure modes) can be added
+/// without breaking downstream exhaustive `match` arms. This preserves
+/// the patch-level version guarantee even though the enum is part of
+/// the crate's public API surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum InvokeErrorKind {
     /// Host-side input serialisation or size check failed.
     Internal,

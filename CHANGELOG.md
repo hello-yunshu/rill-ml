@@ -15,6 +15,74 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+### Changed — Non-breaking
+
+- `StandardScaler::transform()` no longer runs a full `O(d)` `validate()`
+  scan on each call. Internal state invariants are now guaranteed by the
+  private constructor and the validated `Deserialize` impl, and re-checked
+  only under `debug_assert!` inside `transform_into()`. The release path
+  keeps only input dimension and output finiteness checks.
+- `InvokeErrorKind` is now marked `#[non_exhaustive]` so future variants
+  (e.g. for new WIT `handler-error` entries or host-side failure modes)
+  can be added without breaking downstream exhaustive `match` arms. The
+  stable IPC error codes (`handlerInternalError`, `handlerTimeout`, etc.)
+  are unchanged.
+
+### Fixed
+
+- `FtrlRegressor` / `FtrlClassifier`: reject non-zero gradients whose
+  square underflows to zero, which previously produced `n_new == 0 &&
+  z_new != 0` states with a zero-denominator weight. Validate the
+  next-state weight is finite before committing `learn()`. Pre-judge the
+  `Ignore` policy for new features that would exceed `max_features` so
+  `grad * value` overflow on an ignored feature cannot fail the call.
+  Reject serde payloads in the `n == 0 && z != 0` malicious state. Use
+  `checked_finite_add` for the final `dot + intercept` addition.
+- `GaussianNaiveBayes` / `BernoulliNaiveBayes` / `MultinomialNaiveBayes`:
+  `predict_proba` now rejects `NaN` log-odds (`-Infinity - -Infinity`)
+  by returning `Err(NonFiniteValue)`. Each `learn()` computes the entire
+  next state before committing; any `checked_increment` failure leaves
+  the model completely unchanged — no partial commits.
+- `Precision` / `Recall` / `F1Score`: serde consistency checks now use
+  `checked_add` instead of `saturating_add`, so `u64` overflow is
+  rejected rather than silently saturated. F1's chained `tp + fp + fn`
+  is checked at every step.
+- `R2`: serde invariant now rejects negative `ss_res` and negative
+  `m2_truth` in addition to the existing finite checks.
+- `StandardScaler`: serde invariant now rejects negative `m2s`
+  (Welford M2 is mathematically non-negative) and unsynchronised
+  feature counts. State length mismatches are explicitly rejected.
+- `release_tag_policy.py`: compare `tag_sha` against `target_sha`
+  BEFORE checking successful/active release state. A stale tag pointing
+  at an old SHA but with an existing successful Release run is now a
+  hard fail regardless of Release state, instead of being silently
+  skipped.
+- `handler/wasm.rs`: removed the `eprintln!` that printed the full
+  guest-controlled detail before `InvokeError::with_detail()` could
+  truncate it. Introduced a `HostLogSink` trait so tests can capture host
+  log output. Detail is truncated to 4 KiB on a UTF-8 character boundary
+  before any host log emission, and the IPC message never carries the
+  detail. Each invoke error is logged exactly once.
+- `InvokeErrorKind`: expanded from a single `ExecutionFailed` variant to
+  a typed enum with `InvalidModel`, `InvalidInput`,
+  `UnsupportedCapability`, `ExecutionFailed`, `Timeout`, `Trap`,
+  `OutputTooLarge`, `InvalidOutput`, and `Internal`. Each WIT
+  `handler-error` variant is now mapped directly to its corresponding
+  kind, replacing the previous Debug-string sniffing that collapsed
+  every variant into `ExecutionFailed`.
+- New test-only `test-metadata-loop-handler` WASM component whose
+  `metadata()` loops forever. The CI `wasm-handler` job builds it as a
+  WASM component and feeds it to integration tests that verify the
+  epoch deadline fires and no ticker thread leaks.
+- `pipeline.yml`: pinned `wasm-pack` to `0.13.1`, `wasm-tools` to
+  `1.254.0`, `maturin` to `1.14.1`, and `pytest` to `8.4.2` (was
+  `^major` ranges). CI and release pipelines use the same versions.
+- `README.md` / `README.en.md`: replaced the generic "bounded memory"
+  claim with an accurate statement that fixed-dimension algorithms use
+  bounded state, while dynamic-feature algorithms such as FTRL require
+  `max_features` to be set for bounded state. The `max_features: None`
+  default is unchanged.
+
 
 ## [0.9.0] - 2026-07-26
 
