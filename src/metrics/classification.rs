@@ -79,7 +79,13 @@ impl<'de> serde::Deserialize<'de> for Precision {
         let state = PrecisionState::deserialize(deserializer)?;
         // Internal consistency: samples_seen must be at least the
         // confusion counts, since every TP/FP contributes one observation.
-        if state.samples_seen < state.true_positive.saturating_add(state.false_positive) {
+        // Use checked_add (not saturating_add) so an illegal huge state
+        // cannot be silently accepted after saturation.
+        let confusion = state
+            .true_positive
+            .checked_add(state.false_positive)
+            .ok_or_else(|| serde::de::Error::custom("precision tp + fp overflow"))?;
+        if state.samples_seen < confusion {
             return Err(serde::de::Error::custom("precision samples_seen < tp + fp"));
         }
         Ok(Precision {
@@ -158,7 +164,13 @@ impl<'de> serde::Deserialize<'de> for Recall {
         }
 
         let state = RecallState::deserialize(deserializer)?;
-        if state.samples_seen < state.true_positive.saturating_add(state.false_negative) {
+        // Use checked_add (not saturating_add) so an illegal huge state
+        // cannot be silently accepted after saturation.
+        let confusion = state
+            .true_positive
+            .checked_add(state.false_negative)
+            .ok_or_else(|| serde::de::Error::custom("recall tp + fn overflow"))?;
+        if state.samples_seen < confusion {
             return Err(serde::de::Error::custom("recall samples_seen < tp + fn"));
         }
         Ok(Recall {
@@ -239,10 +251,17 @@ impl<'de> serde::Deserialize<'de> for F1Score {
         }
 
         let state = F1State::deserialize(deserializer)?;
-        let confusion = state
+        // Use checked_add (not saturating_add) so an illegal huge state
+        // cannot be silently accepted after saturation. The chained add
+        // (tp + fp + fn) must be checked at every step; saturating_add
+        // could hide overflow at the first add and produce a wrong sum.
+        let tp_fp = state
             .true_positive
-            .saturating_add(state.false_positive)
-            .saturating_add(state.false_negative);
+            .checked_add(state.false_positive)
+            .ok_or_else(|| serde::de::Error::custom("f1 tp + fp overflow"))?;
+        let confusion = tp_fp
+            .checked_add(state.false_negative)
+            .ok_or_else(|| serde::de::Error::custom("f1 tp + fp + fn overflow"))?;
         if state.samples_seen < confusion {
             return Err(serde::de::Error::custom("f1 samples_seen < tp + fp + fn"));
         }
@@ -542,5 +561,110 @@ mod tests {
         assert_eq!(p.samples_seen(), 0);
         assert_eq!(p.true_positive, 0);
         assert_eq!(p.false_positive, 0);
+    }
+
+    // -----------------------------------------------------------------
+    // serde overflow rejection: checked_add must reject illegal huge
+    // states instead of silently saturating them to u64::MAX.
+    // -----------------------------------------------------------------
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn precision_serde_rejects_tp_fp_overflow() {
+        // TP + FP overflows u64; saturating_add would hide this and
+        // compare against u64::MAX, wrongly rejecting only because
+        // samples_seen < u64::MAX rather than because of overflow.
+        let json = format!(
+            "{{\"true_positive\":{},\"false_positive\":{},\"samples_seen\":{}}}",
+            u64::MAX,
+            1u64,
+            u64::MAX
+        );
+        assert!(serde_json::from_str::<Precision>(&json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn recall_serde_rejects_tp_fn_overflow() {
+        let json = format!(
+            "{{\"true_positive\":{},\"false_negative\":{},\"samples_seen\":{}}}",
+            u64::MAX,
+            1u64,
+            u64::MAX
+        );
+        assert!(serde_json::from_str::<Recall>(&json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn f1_serde_rejects_tp_fp_overflow() {
+        // First add (tp + fp) overflows.
+        let json = format!(
+            "{{\"true_positive\":{},\"false_positive\":{},\"false_negative\":0,\"samples_seen\":{}}}",
+            u64::MAX,
+            1u64,
+            u64::MAX
+        );
+        assert!(serde_json::from_str::<F1Score>(&json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn f1_serde_rejects_tp_fp_fn_overflow() {
+        // tp + fp = u64::MAX (does not overflow), then + 1 overflows.
+        let json = format!(
+            "{{\"true_positive\":{},\"false_positive\":0,\"false_negative\":{},\"samples_seen\":{}}}",
+            u64::MAX,
+            1u64,
+            u64::MAX
+        );
+        assert!(serde_json::from_str::<F1Score>(&json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn metric_serde_accepts_max_boundary() {
+        // samples_seen == u64::MAX with TP = u64::MAX, FP/FN = 0 is the
+        // largest legal boundary state and must be accepted.
+        let p_json = format!(
+            "{{\"true_positive\":{},\"false_positive\":0,\"samples_seen\":{}}}",
+            u64::MAX,
+            u64::MAX
+        );
+        let p: Precision = serde_json::from_str(&p_json).unwrap();
+        assert_eq!(p.samples_seen(), u64::MAX);
+
+        let r_json = format!(
+            "{{\"true_positive\":{},\"false_negative\":0,\"samples_seen\":{}}}",
+            u64::MAX,
+            u64::MAX
+        );
+        let r: Recall = serde_json::from_str(&r_json).unwrap();
+        assert_eq!(r.samples_seen(), u64::MAX);
+
+        let f_json = format!(
+            "{{\"true_positive\":{},\"false_positive\":0,\"false_negative\":0,\"samples_seen\":{}}}",
+            u64::MAX,
+            u64::MAX
+        );
+        let f: F1Score = serde_json::from_str(&f_json).unwrap();
+        assert_eq!(f.samples_seen(), u64::MAX);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn recall_serde_rejects_inconsistent_samples_seen() {
+        // samples_seen < tp + fn is internally inconsistent.
+        let json = "{\"true_positive\":5,\"false_negative\":5,\"samples_seen\":3}";
+        assert!(serde_json::from_str::<Recall>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn f1_serde_rejects_inconsistent_samples_seen() {
+        // samples_seen < tp + fp + fn is internally inconsistent.
+        let json =
+            "{\"true_positive\":2,\"false_positive\":2,\"false_negative\":2,\"samples_seen\":3}";
+        assert!(serde_json::from_str::<F1Score>(json).is_err());
     }
 }
