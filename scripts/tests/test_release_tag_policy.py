@@ -64,6 +64,36 @@ class ReleaseTagPolicyTest(unittest.TestCase):
         self.assertIn("oldsha", decision.reason)
         self.assertIn("newsha", decision.reason)
 
+    def test_existing_tag_with_different_sha_fails_even_with_successful_release(self) -> None:
+        # Regression: a stale tag with a successful Release run must NOT be
+        # silently skipped. The immutability check has to win so the
+        # maintainer is alerted to bump the version.
+        decision = policy.decide_release_tag(
+            tag_exists=True,
+            tag_sha="oldsha",
+            target_sha="newsha",
+            has_successful_release=True,
+            has_active_release=False,
+        )
+        self.assertEqual(decision.action, "fail")
+        self.assertIn("immutable", decision.reason)
+        self.assertIn("oldsha", decision.reason)
+        self.assertIn("newsha", decision.reason)
+
+    def test_existing_tag_with_different_sha_fails_even_with_active_release(self) -> None:
+        # Same regression guard as above, but for an in-flight Release run.
+        decision = policy.decide_release_tag(
+            tag_exists=True,
+            tag_sha="oldsha",
+            target_sha="newsha",
+            has_successful_release=False,
+            has_active_release=True,
+        )
+        self.assertEqual(decision.action, "fail")
+        self.assertIn("immutable", decision.reason)
+        self.assertIn("oldsha", decision.reason)
+        self.assertIn("newsha", decision.reason)
+
     def test_existing_tag_with_successful_release_skips(self) -> None:
         decision = policy.decide_release_tag(
             tag_exists=True,
