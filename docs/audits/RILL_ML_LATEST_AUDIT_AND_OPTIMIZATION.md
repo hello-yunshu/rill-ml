@@ -559,8 +559,8 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 | 仓库 | hello-yunshu/rill-ml |
 | 分支 | `main` |
 | 四次审计起始基线（origin/main） | `617f39fea0179a9a6ef0ecf41ac3bd0985f81cde`（即三次审计最终闭环后的 main） |
-| 四次审计最终 HEAD SHA | `f1f24e0643eb529b5f4623eeb9115cf87f455b82`（含 35 项最终验收报告，见 §0.13.11） |
-| 与远端 `origin/main` 关系 | 起始时本地 HEAD == `origin/main` == `617f39f`（同步）；四次审计修复以 4 个提交入库并全部推送，最终 `origin/main` == `f1f24e0`（同步） |
+| 四次审计最终 HEAD SHA | `0f9923af881345869596eb85859ee4d45b498e7c`（含 35 项最终验收报告 §0.13.11 与重新发布说明 §0.13.12；`v0.10.0` tag 重新指向此 SHA） |
+| 与远端 `origin/main` 关系 | 起始时本地 HEAD == `origin/main` == `617f39f`（同步）；四次审计修复以 4 个提交入库并全部推送，最终 `origin/main` == `0f9923a`（同步） |
 | 当前版本 | `0.10.0`（本轮无版本提升；详见 §0.13.5） |
 | 上一轮审计基线 | 三次审计起始 `9791c5f`，最终 `617f39f`，版本 `0.10.0`（见 §0.12.1） |
 | 四次审计触发提示词 | `RILL_ML_TRAE_FOURTH_STAGE_FINAL_ACCEPTANCE_PROMPT.md` |
@@ -735,11 +735,11 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 
 **关键说明**：
 
-- 四次审计所有修复已按 3 个提交入库（见 §0.13.10）并推送到 `origin/main`，最终 HEAD = `origin/main` = `88c9545`；
+- 四次审计所有修复已按 4 个提交入库（见 §0.13.10）并推送到 `origin/main`，最终 HEAD = `origin/main` = `0f9923a`；
 - GitHub Actions 三项必要 workflow（CI / Release、Security、Docs）全部成功（详见 §0.13.7.1）；
 - `Auto Release` workflow 失败是 `release_tag_policy.py` 不可变 tag 策略的正确行为：`v0.10.0` 已存在于 `617f39f`，新 HEAD `88c9545` 无法复用同一 tag，提示词明确禁止本轮版本提升与移动 `v0.10.0`，因此该失败为预期行为，非代码错误（详见 §0.13.7.2）；
-- 本次不提前创建新 tag，不提前发布；若需发布本轮修复，需先提升版本号（如 `0.10.1`）由 `auto-release.yml` 自动创建新 tag；
-- crates.io / PyPI / signed stable index 三项在 0.x 阶段均未启用，本次不涉及。
+- **后续用户授权重新发布**：四次审计最终验收闭环后，用户明确指示「删除原 v0.10.0，重新发布」，`v0.10.0` tag 与 GitHub Release 已按用户指示重新发布到 `0f9923a`，详见 §0.13.12；
+- crates.io / signed stable index 两项在 0.x 阶段均未启用；PyPI 因文件名重用策略无法重新上传同一版本，详见 §0.13.12.3。
 
 #### 0.13.7.1 CI 结果详情（commit `88c9545`）
 
@@ -806,6 +806,8 @@ version tags are immutable and cannot be moved — bump the version number in Ca
 - §0.13.5 版本决策："本轮无版本提升"。
 
 因此该失败为预期行为，非代码错误。若需发布本轮修复，需先提升版本号（如 `0.10.1`），由 `auto-release.yml` 自动创建新 tag 触发 release。本次按提示词要求不提前提升版本。
+
+> **后续操作（2026-07-26 16:40 UTC+8）**：用户在四次审计最终验收闭环完成后，明确指示「删除原 v0.10.0，重新发布」。该操作推翻了上方「不可变 tag 策略」决策，按用户指令执行了重新发布，详见 §0.13.12。
 
 ### 0.13.8 四次审计实际解析到的工具版本
 
@@ -931,6 +933,95 @@ version tags are immutable and cannot be moved — bump the version number in Ca
 | **合计** | **35** | **35** | **0** |
 
 四次审计最终验收结论：**35 项验收全部通过，0 项失败**。四次审计最终验收闭环完成，最终 HEAD `f1f24e0` 已推送到 `origin/main`，CI 三项必要 workflow（CI/Release、Security、Docs）全部成功，Auto Release 失败为不可变 tag 策略的预期行为。
+
+### 0.13.12 四次审计后 v0.10.0 重新发布（2026-07-26）
+
+> 本节记录四次审计最终验收闭环之后，按用户明确指示「删除原 v0.10.0，重新发布」执行的操作与结果。该操作推翻了 §0.13.5 / §0.13.7.2 的「不可变 tag 策略」决策，由用户作为仓库所有者直接授权执行。
+
+#### 0.13.12.1 重新发布操作步骤
+
+| # | 步骤 | 命令 / 操作 | 结果 |
+|---|---|---|---|
+| 1 | 删除 GitHub Release v0.10.0 及其远程 tag | `gh release delete v0.10.0 --yes --cleanup-tag` | Release 与远程 tag 均删除 |
+| 2 | 删除本地 tag v0.10.0 | （`--cleanup-tag` 已同步删除本地 tag） | 本地 tag 不存在 |
+| 3 | 在新 HEAD 创建 tag v0.10.0 | `git tag -a v0.10.0 0f9923a -m "Release v0.10.0 (re-published from fourth-stage acceptance HEAD)"` | tag 创建成功 |
+| 4 | 推送 tag 到 origin | `git push origin refs/tags/v0.10.0` | 远程 tag 指向 `0f9923a` |
+| 5 | 手动 dispatch pipeline.yml 触发 release jobs | `gh workflow run pipeline.yml --ref main -f tag=v0.10.0` | Run ID `30211246673` |
+| 6 | 等待 release workflow 完成 | 见 §0.13.12.2 job 结果 | Sign and publish success |
+
+#### 0.13.12.2 Release workflow 结果（run ID `30211246673`）
+
+| Job | 结论 |
+|---|---|
+| cargo package dry-run | ✅ success |
+| Runtime linux x86_64 | ✅ success |
+| Runtime macos aarch64 | ✅ success |
+| Runtime windows x86_64 | ✅ success |
+| Sign and publish | ✅ success |
+| Publish Python bindings to PyPI | ❌ failure（见 §0.13.12.3） |
+
+#### 0.13.12.3 PyPI 上传失败说明
+
+`Publish Python bindings to PyPI` 失败，错误信息：
+
+```
+400 File already exists ('rill_ml_python-0.10.0-cp312-cp312-manylinux_2_34_x86_64.whl',
+with blake2_256 hash '761735ef43ccea97636dfd593559cc08c0f62ae326823e18f96011561f1ffc20').
+See https://pypi.org/help/#file-name-reuse for more information.
+```
+
+这是 PyPI 文件名重用策略的预期行为，非代码错误：
+
+- PyPI 一旦上传文件，**无法通过删除 release 或项目来重用同一文件名**；
+- 即使 GitHub Release 被删除重建，PyPI 上的 `rill_ml_python-0.10.0-cp312-cp312-manylinux_2_34_x86_64.whl` 永久占用；
+- 若需重新发布 Python 绑定到 PyPI，必须提升版本号（如 `0.10.1`）；
+- 本次 GitHub Release（runtime 二进制 + handler + pack + stable-index）已成功重建，不受 PyPI 失败影响；
+- GitHub Release 资产完整，详见 §0.13.12.4。
+
+#### 0.13.12.4 新 GitHub Release v0.10.0 资产
+
+新 Release 创建于 `2026-07-26T16:47:46Z`，tag `v0.10.0` 指向 `0f9923af881345869596eb85859ee4d45b498e7c`，共 6 个资产：
+
+| Asset | 大小（bytes） |
+|---|---|
+| `echo-handler-0.10.0.rillhandler` | 8835 |
+| `example-default-0.10.0.rillpack` | 924 |
+| `rill-runtime-0.10.0-linux-x86_64` | 19035744 |
+| `rill-runtime-0.10.0-macos-aarch64` | 13901040 |
+| `rill-runtime-0.10.0-windows-x86_64.exe` | 14405120 |
+| `stable-index.json` | 2418 |
+
+与原 Release 相比，runtime 二进制大小略有变化（19035904→19035744 / 13900080→13901040 / 14405632→14405120），反映四次审计 4 个提交的代码变更。
+
+#### 0.13.12.5 重新发布后的 tag 状态
+
+| Tag | 旧 SHA（重新发布前） | 新 SHA（重新发布后） | 备注 |
+|---|---|---|---|
+| `v0.9.0` | `8daf752b2c3717c768c04117cf44e66a2a525339` | `8daf752b2c3717c768c04117cf44e66a2a525339` | 未触碰 |
+| `v0.10.0` | `617f39fea0179a9a6ef0ecf41ac3bd0985f81cde` | `0f9923af881345869596eb85859ee4d45b498e7c` | 重新发布，指向四次审计最终 HEAD |
+
+#### 0.13.12.6 重新发布对 §0.13.11 验收项的影响
+
+重新发布后，§0.13.11 验收报告中的部分项目状态发生变化：
+
+| 验收项 | 重新发布前状态 | 重新发布后状态 |
+|---|---|---|
+| #31 Auto Release 失败为预期行为（不可变 tag 策略） | ✅（预期） | ❌（用户授权推翻，重新发布执行成功） |
+| #32 不提前创建新 tag、不移动 `v0.10.0` | ✅ | ❌（按用户指示移动 `v0.10.0` 到 `0f9923a`） |
+| #33 不触碰既有 `v0.9.0` / `v0.10.0` tag 与 GitHub Release 资产 | ✅ | ⚠️（`v0.9.0` 未触碰；`v0.10.0` tag 与 Release 按用户指示重新发布） |
+
+其余 32 项验收不受重新发布影响，仍然有效。
+
+#### 0.13.12.7 重新发布合规性说明
+
+本节重新发布操作严格在用户明确授权后执行：
+
+- 用户指令：「删除原v0.10.0，重新发布」（明确、直接、无歧义）；
+- 执行前已通过 AskUserQuestion 向用户确认意图，用户选择「继续，删除并重新发布」；
+- 操作仅涉及 tag 与 Release 资产，未修改任何源代码、Cargo.toml 版本号、CHANGELOG；
+- `v0.9.0` tag 与 Release 未被触碰；
+- 操作完整记录于本节，保留审计可追溯性；
+- 重新发布后的 `v0.10.0` 包含四次审计全部 4 个修复提交，是四次审计最终验收闭环的完整产物。
 
 ---
 
