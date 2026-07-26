@@ -338,7 +338,17 @@ impl GaussianNaiveBayes {
         }
         self.class_false.validate_invariants()?;
         self.class_true.validate_invariants()?;
-        if self.class_false.class_count + self.class_true.class_count != self.samples_seen {
+        let total_class = self
+            .class_false
+            .class_count
+            .checked_add(self.class_true.class_count)
+            .ok_or_else(|| {
+                RillError::InvalidState(format!(
+                    "gaussian class_false({}) + class_true({}) overflow",
+                    self.class_false.class_count, self.class_true.class_count
+                ))
+            })?;
+        if total_class != self.samples_seen {
             return Err(RillError::InvalidState(format!(
                 "gaussian samples_seen={} != class_false({}) + class_true({})",
                 self.samples_seen, self.class_false.class_count, self.class_true.class_count
@@ -579,10 +589,17 @@ impl BernoulliNaiveBayes {
                 "bernoulli feature count vector length != feature_count".to_owned(),
             ));
         }
-        if self.class_false_count + self.class_true_count != self.samples_seen {
+        if let Some(total) = self.class_false_count.checked_add(self.class_true_count) {
+            if total != self.samples_seen {
+                return Err(RillError::InvalidState(format!(
+                    "bernoulli samples_seen={} != class_false({}) + class_true({})",
+                    self.samples_seen, self.class_false_count, self.class_true_count
+                )));
+            }
+        } else {
             return Err(RillError::InvalidState(format!(
-                "bernoulli samples_seen={} != class_false({}) + class_true({})",
-                self.samples_seen, self.class_false_count, self.class_true_count
+                "bernoulli class_false({}) + class_true({}) overflow",
+                self.class_false_count, self.class_true_count
             )));
         }
         for &c in &self.feature_true_counts_false {
@@ -870,10 +887,17 @@ impl MultinomialNaiveBayes {
                 self.total_true
             )));
         }
-        if self.class_false_count + self.class_true_count != self.samples_seen {
+        if let Some(total) = self.class_false_count.checked_add(self.class_true_count) {
+            if total != self.samples_seen {
+                return Err(RillError::InvalidState(format!(
+                    "multinomial samples_seen={} != class_false({}) + class_true({})",
+                    self.samples_seen, self.class_false_count, self.class_true_count
+                )));
+            }
+        } else {
             return Err(RillError::InvalidState(format!(
-                "multinomial samples_seen={} != class_false({}) + class_true({})",
-                self.samples_seen, self.class_false_count, self.class_true_count
+                "multinomial class_false({}) + class_true({}) overflow",
+                self.class_false_count, self.class_true_count
             )));
         }
         // Cache consistency: sum(feature_sums_*) must match total_* within
@@ -2186,6 +2210,75 @@ mod tests {
         assert!(
             result.is_err(),
             "feature vector length mismatch must be rejected"
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn gaussian_serde_rejects_class_count_overflow() {
+        // Two class counts near u64::MAX must not panic on addition;
+        // the validator must reject via checked_add overflow path.
+        let json = r#"{
+            "feature_count": 1,
+            "config": {"alpha": 1.0},
+            "class_false": {
+                "counts": [1],
+                "means": [0.0],
+                "m2s": [0.0],
+                "class_count": 18446744073709551615
+            },
+            "class_true": {
+                "counts": [1],
+                "means": [0.0],
+                "m2s": [0.0],
+                "class_count": 18446744073709551615
+            },
+            "samples_seen": 18446744073709551614
+        }"#;
+        let result: Result<GaussianNaiveBayes, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "u64 overflow on class_count sum must be rejected, not panic"
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn bernoulli_serde_rejects_class_count_overflow() {
+        let json = r#"{
+            "feature_count": 1,
+            "config": {"alpha": 1.0},
+            "feature_true_counts_false": [1],
+            "feature_true_counts_true": [1],
+            "class_false_count": 18446744073709551615,
+            "class_true_count": 18446744073709551615,
+            "samples_seen": 18446744073709551614
+        }"#;
+        let result: Result<BernoulliNaiveBayes, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "u64 overflow on class_count sum must be rejected, not panic"
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn multinomial_serde_rejects_class_count_overflow() {
+        let json = r#"{
+            "feature_count": 1,
+            "config": {"alpha": 1.0},
+            "feature_sums_false": [1.0],
+            "feature_sums_true": [1.0],
+            "total_false": 1.0,
+            "total_true": 1.0,
+            "class_false_count": 18446744073709551615,
+            "class_true_count": 18446744073709551615,
+            "samples_seen": 18446744073709551614
+        }"#;
+        let result: Result<MultinomialNaiveBayes, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "u64 overflow on class_count sum must be rejected, not panic"
         );
     }
 
