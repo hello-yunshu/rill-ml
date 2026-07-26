@@ -718,11 +718,11 @@ jobs:
           package="rill-ml-python"
           for attempt in $(seq 1 12); do
             if python3 -c "
-          import json, sys, urllib.request
-            url = 'https://pypi.org/pypi/${package}/${version}/json'
-            with urllib.request.urlopen(url, timeout=10) as response:
-                json.load(response)
-            "; then
+          import json, urllib.request
+          url = 'https://pypi.org/pypi/${package}/${version}/json'
+          with urllib.request.urlopen(url, timeout=10) as response:
+              json.load(response)
+          "; then
               echo "PyPI release ${package}==${version} is visible."
               exit 0
             fi
