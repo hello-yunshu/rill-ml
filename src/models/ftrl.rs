@@ -225,6 +225,103 @@ impl FtrlParam {
         }
     }
 
+    /// Compute the FTRL feature weight with explicit config-aware safety
+    /// checks.
+    ///
+    /// Unlike [`weight`](Self::weight), this method verifies every
+    /// intermediate quantity (numerator, denominator, quotient) and rejects
+    /// states where the config + param combination would produce a
+    /// non-finite or non-computable weight. It is intended for the serde
+    /// trust boundary and may also be used by the predict path.
+    ///
+    /// # Contract
+    ///
+    /// - `z` finite, `n` finite and `>= 0`.
+    /// - L1 soft-thresholding path (`|z| <= l1`) returns `Ok(0.0)`.
+    /// - Denominator must be finite and non-zero; a zero denominator
+    ///   (e.g. `l2 = 0`, `beta = 0`, `sqrt(n) / alpha` underflows to 0)
+    ///   is rejected explicitly rather than discovered via the final
+    ///   quotient.
+    /// - The final quotient must be finite.
+    #[cfg_attr(not(feature = "serde"), allow(dead_code))]
+    fn weight_checked(&self, config: &FtrlConfig) -> Result<f64, RillError> {
+        ensure_finite("ftrl_z", self.z)?;
+        ensure_finite("ftrl_n", self.n)?;
+        if self.n < 0.0 {
+            return Err(RillError::InvalidState(format!(
+                "ftrl n must be non-negative, got {}",
+                self.n
+            )));
+        }
+        // L1 soft-thresholding: |z| <= l1 → weight is 0.
+        if self.z.abs() <= config.l1 {
+            return Ok(0.0);
+        }
+        let sign = self.z.signum();
+        let numerator = -(self.z - sign * config.l1);
+        ensure_finite("ftrl_weight_numerator", numerator)?;
+        let sqrt_n = self.n.sqrt();
+        ensure_finite("ftrl_weight_sqrt_n", sqrt_n)?;
+        let denominator = config.l2 + (config.beta + sqrt_n) / config.alpha;
+        ensure_finite("ftrl_weight_denominator", denominator)?;
+        if denominator == 0.0 {
+            return Err(RillError::InvalidState(format!(
+                "ftrl weight denominator is zero (z={}, n={}, alpha={}, beta={}, l1={}, l2={})",
+                self.z, self.n, config.alpha, config.beta, config.l1, config.l2
+            )));
+        }
+        let weight = numerator / denominator;
+        ensure_finite("ftrl_weight", weight)?;
+        Ok(weight)
+    }
+
+    /// Compute the intercept weight with explicit config-aware safety
+    /// checks.
+    ///
+    /// See [`weight_checked`](Self::weight_checked) for the rationale. The
+    /// intercept uses `l1 = 0` (no L1 regularization) and short-circuits
+    /// the cold-start case `n == 0, z == 0` to `Ok(0.0)`. A state with
+    /// `n == 0` but `z != 0` is rejected because it cannot produce a
+    /// finite intercept weight.
+    #[cfg_attr(not(feature = "serde"), allow(dead_code))]
+    fn intercept_weight_checked(&self, config: &FtrlConfig) -> Result<f64, RillError> {
+        ensure_finite("ftrl_z", self.z)?;
+        ensure_finite("ftrl_n", self.n)?;
+        if self.n < 0.0 {
+            return Err(RillError::InvalidState(format!(
+                "ftrl n must be non-negative, got {}",
+                self.n
+            )));
+        }
+        // Cold start: n == 0. intercept_weight short-circuits to 0 only
+        // when z == 0 as well; a non-zero z with n == 0 indicates a
+        // corrupted or malicious state.
+        if self.n == 0.0 {
+            if self.z != 0.0 {
+                return Err(RillError::InvalidState(format!(
+                    "ftrl intercept has n=0 but z={} (non-zero); cannot produce a finite weight",
+                    self.z
+                )));
+            }
+            return Ok(0.0);
+        }
+        let numerator = -self.z;
+        ensure_finite("ftrl_intercept_numerator", numerator)?;
+        let sqrt_n = self.n.sqrt();
+        ensure_finite("ftrl_intercept_sqrt_n", sqrt_n)?;
+        let denominator = config.l2 + (config.beta + sqrt_n) / config.alpha;
+        ensure_finite("ftrl_intercept_denominator", denominator)?;
+        if denominator == 0.0 {
+            return Err(RillError::InvalidState(format!(
+                "ftrl intercept denominator is zero (z={}, n={}, alpha={}, beta={}, l2={})",
+                self.z, self.n, config.alpha, config.beta, config.l2
+            )));
+        }
+        let weight = numerator / denominator;
+        ensure_finite("ftrl_intercept_weight", weight)?;
+        Ok(weight)
+    }
+
     /// Compute the next `(z, n)` state after applying a gradient, without
     /// mutating `self`.
     ///
@@ -459,12 +556,22 @@ impl FtrlRegressor {
     #[cfg_attr(not(feature = "serde"), allow(dead_code))]
     fn validate_invariants(&self) -> Result<(), RillError> {
         // config and individual params are validated at deserialization;
-        // nothing top-level to check beyond that.
+        // here we additionally verify that the config + param combination
+        // produces a finite, computable weight for every feature and the
+        // intercept. This catches states that pass the basic z/n checks
+        // but would still yield a zero-denominator or infinite weight
+        // (e.g. very large alpha with tiny n, beta=0, l2=0).
         self.config.validate()?;
-        self.intercept.validate()?;
-        for param in self.params.values() {
+        for (id, param) in &self.params {
             param.validate()?;
+            param
+                .weight_checked(&self.config)
+                .map_err(|e| RillError::InvalidState(format!("ftrl feature {id} weight: {e}")))?;
         }
+        self.intercept.validate()?;
+        self.intercept
+            .intercept_weight_checked(&self.config)
+            .map_err(|e| RillError::InvalidState(format!("ftrl intercept weight: {e}")))?;
         Ok(())
     }
 }
@@ -694,11 +801,18 @@ impl<'de> serde::Deserialize<'de> for FtrlClassifier {
 impl FtrlClassifier {
     #[cfg_attr(not(feature = "serde"), allow(dead_code))]
     fn validate_invariants(&self) -> Result<(), RillError> {
+        // See FtrlRegressor::validate_invariants for rationale.
         self.config.validate()?;
-        self.intercept.validate()?;
-        for param in self.params.values() {
+        for (id, param) in &self.params {
             param.validate()?;
+            param
+                .weight_checked(&self.config)
+                .map_err(|e| RillError::InvalidState(format!("ftrl feature {id} weight: {e}")))?;
         }
+        self.intercept.validate()?;
+        self.intercept
+            .intercept_weight_checked(&self.config)
+            .map_err(|e| RillError::InvalidState(format!("ftrl intercept weight: {e}")))?;
         Ok(())
     }
 }
@@ -2084,5 +2198,119 @@ mod tests {
         assert!(!model.params.contains_key(&1));
         assert_eq!(model.samples_seen(), 2);
         assert!(model.predict_proba(&sf).is_ok());
+    }
+
+    // -----------------------------------------------------------------
+    // §6.2: FTRL config-aware serde validation
+    // -----------------------------------------------------------------
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_serde_rejects_config_dependent_zero_denominator() {
+        // alpha = f64::MAX, beta = 0, l2 = 0, l1 = 0, n = 1e-300, z = 1.0.
+        // sqrt(n) = 1e-150; denominator = (0 + 1e-150) / f64::MAX underflows
+        // to 0.0. The basic validate() passes (n > 0, z finite) but
+        // weight_checked must reject the zero denominator explicitly.
+        let json = "{\"config\":{\"alpha\":1.7976931348623157e308,\"beta\":0.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":1.0,\"n\":1e-300}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let result: Result<FtrlRegressor, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "config-dependent zero denominator must be rejected"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_serde_rejects_config_dependent_zero_denominator() {
+        let json = "{\"config\":{\"alpha\":1.7976931348623157e308,\"beta\":0.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":1.0,\"n\":1e-300}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":0}";
+        let result: Result<FtrlClassifier, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "config-dependent zero denominator must be rejected"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_serde_rejects_intercept_zero_denominator() {
+        // Same dangerous config, but the malicious state is in the
+        // intercept rather than a feature param.
+        let json = "{\"config\":{\"alpha\":1.7976931348623157e308,\"beta\":0.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{},\"intercept\":{\"z\":1.0,\"n\":1e-300},\"samples_seen\":0}";
+        let result: Result<FtrlRegressor, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "intercept zero denominator must be rejected"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_serde_rejects_intercept_zero_denominator() {
+        let json = "{\"config\":{\"alpha\":1.7976931348623157e308,\"beta\":0.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{},\"intercept\":{\"z\":1.0,\"n\":1e-300},\"samples_seen\":0}";
+        let result: Result<FtrlClassifier, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "intercept zero denominator must be rejected"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_valid_boundary_state_roundtrips() {
+        // Boundary config (beta=0, l2=0) with legitimately trained state
+        // must round-trip through serde without being rejected by the new
+        // config-aware checks.
+        let mut model = FtrlRegressor::new(FtrlConfig {
+            alpha: 1.0,
+            beta: 0.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 2.0)]).unwrap();
+        model.learn(&sf, 3.0).unwrap();
+        model.learn(&sf, 5.0).unwrap();
+        let json = serde_json::to_string(&model).unwrap();
+        let restored: FtrlRegressor = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.samples_seen(), model.samples_seen());
+        assert_eq!(restored.feature_count(), model.feature_count());
+        let p1 = model.predict(&sf).unwrap();
+        let p2 = restored.predict(&sf).unwrap();
+        assert!((p1 - p2).abs() < 1e-12);
+        // weights() must not produce Infinity on the restored model.
+        for (_, w) in restored.weights() {
+            assert!(w.is_finite(), "restored weight must be finite, got {w}");
+        }
+        assert!(restored.intercept().is_finite());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_valid_boundary_state_roundtrips() {
+        let mut model = FtrlClassifier::new(FtrlConfig {
+            alpha: 1.0,
+            beta: 0.0,
+            l1: 0.0,
+            l2: 0.0,
+            max_features: None,
+            new_feature_policy: NewFeaturePolicy::default(),
+        })
+        .unwrap();
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 2.0)]).unwrap();
+        model.learn(&sf, true).unwrap();
+        model.learn(&sf, false).unwrap();
+        let json = serde_json::to_string(&model).unwrap();
+        let restored: FtrlClassifier = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.samples_seen(), model.samples_seen());
+        assert_eq!(restored.feature_count(), model.feature_count());
+        let p1 = model.predict_proba(&sf).unwrap();
+        let p2 = restored.predict_proba(&sf).unwrap();
+        assert!((p1 - p2).abs() < 1e-12);
+        for (_, w) in restored.weights() {
+            assert!(w.is_finite(), "restored weight must be finite, got {w}");
+        }
+        assert!(restored.intercept().is_finite());
     }
 }
