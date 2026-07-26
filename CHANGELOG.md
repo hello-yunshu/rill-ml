@@ -15,14 +15,41 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
-This section documents the fourth-stage final acceptance closeout
-([`RILL_ML_TRAE_FOURTH_STAGE_FINAL_ACCEPTANCE_PROMPT.md`](RILL_ML_TRAE_FOURTH_STAGE_FINAL_ACCEPTANCE_PROMPT.md)).
-It only addresses the four confirmed remaining issues; no project redesign,
-no large-scale refactor, no reversal of already-correct work. No version
-bump: the only public-API change is the removal of a `#[doc(hidden)]` test
-accessor that was explicitly described as test-only in 0.10.0.
+This section is intentionally empty after the 0.12.0 release. New
+changes will be added here as they land on `main`.
 
-### Fixed — Core ML serde trust boundary
+## [0.12.0] - 2026-07-27
+
+This release closes the fifth-stage release-consistency and final
+acceptance work
+([`RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md`](RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md))
+on top of the 0.10.0 baseline. It bundles the four fourth-stage
+final-acceptance fixes (which were never published through a clean
+release channel) together with the fifth-stage release-consistency
+work that makes the ticker lifecycle tests actually execute in CI,
+adds a real public-API leak check, and re-publishes the project so
+that GitHub and PyPI carry the same code at the same version.
+
+### Changed — Breaking
+
+- The `#[doc(hidden)] pub fn active_epoch_ticker_count()` accessor that
+  briefly existed in `0.10.0` has been removed. `#[doc(hidden)]` does
+  not make an item private — it only hides it from rendered docs — so
+  the accessor was a public API. The replacement is a `#[cfg(test)]`
+  private `fn` inside `handler::wasm::tests`, which internal unit tests
+  can reach through `super::*` but external crates (and the published
+  crate) cannot see. Downstream code that mistakenly imported the
+  accessor must delete the import; there is no replacement. Per the
+  project's stated 0.x SemVer convention (public API may change
+  between minor versions), this deletion is a minor bump.
+- Project's own version numbers continue to follow the repository
+  rule: they must not contain the digits `4` or `11`. `0.11.0` is
+  therefore skipped; the next version after `0.10.0` is `0.12.0`.
+  This rule applies only to project release tags / `Cargo.toml`
+  version / installer filenames; third-party dependency versions are
+  unaffected.
+
+### Fixed — Core ML serde trust boundary (fourth-stage)
 
 - `FtrlRegressor` / `FtrlClassifier` (`src/models/ftrl.rs`): the top-level
   `validate_invariants()` now rejects deserialised state where
@@ -36,7 +63,7 @@ accessor that was explicitly described as test-only in 0.10.0.
   config-aware `weight_checked` / `intercept_weight_checked` validation
   is unchanged.
 
-### Fixed — Runtime ticker lifecycle test-only instrumentation
+### Fixed — Runtime ticker lifecycle test-only instrumentation (fourth-stage)
 
 - `handler/wasm.rs` / `tests/wasm_handler.rs`: the ticker lifecycle probe
   has been migrated out of the production public API. The 0.10.0 design
@@ -47,7 +74,7 @@ accessor that was explicitly described as test-only in 0.10.0.
   `AtomicUsize` and its `fetch_add` / `fetch_sub` ops also ran in the
   production ticker hot path.
 
-  The new design:
+  The 0.12.0 design:
   - Gates `ACTIVE_EPOCH_TICKERS`, the `fetch_add` / `fetch_sub` ops in
     `EpochTicker::start`, and the `active_epoch_ticker_count` accessor
     behind `#[cfg(test)]`. The counter does not exist in release builds,
@@ -59,18 +86,68 @@ accessor that was explicitly described as test-only in 0.10.0.
     `normal_handler_drop_restores_active_ticker_count`) into the
     library's internal `#[cfg(test)] mod tests` in `src/handler/wasm.rs`,
     which reaches private items directly through `super::*`.
-  - Adds `ticker_probe_is_not_in_public_api` as a source-level assertion
-    that the probe is `#[cfg(test)]`-gated and the accessor is private.
-  - Updates `tests/wasm_handler.rs` to drop the now-private accessor
-    calls and the `wait_for_active_ticker_count` helper. The file-wide
-    `WASM_TEST_LOCK` is retained as a conservative serialisation guard
-    for WASM component loading.
+  - Renames the previous `ticker_probe_is_not_in_public_api` test to
+    `ticker_probe_is_available_to_internal_tests` to accurately describe
+    what it asserts. The actual public-API leak check now lives in CI.
 
   The production ticker hot path now performs zero atomic operations for
   instrumentation. Timeout, fuel, epoch, and resource limits are
   unchanged, and `WasmInvokeHandler`'s external behaviour is unchanged.
 
-### Fixed — Audit report accuracy
+### Fixed — CI execution of ticker lifecycle tests (fifth-stage)
+
+- `.github/workflows/pipeline.yml`: the dedicated `wasm-handler` job
+  builds the WASM fixtures but previously only ran the *integration*
+  tests (`--test wasm_handler` / `--test runtime_process`). The
+  internal `#[cfg(test)] mod tests` inside `handler/wasm.rs` — which
+  directly observe the test-only `ACTIVE_EPOCH_TICKERS` counter — were
+  silently skipped because they live behind `--lib` and the integration
+  test runs did not propagate the fixture env vars to them. A new
+  `Run internal WASM ticker lifecycle tests` step runs the three
+  lifecycle tests explicitly with `--exact --nocapture` so each test
+  name appears verbatim in the CI log.
+- A new `RILL_RUN_WASM_FIXTURE_TESTS=1` env var is the explicit
+  execution gate. When set, fixture absence panics instead of
+  printing "skipping" and returning success. The dedicated
+  `wasm-handler` CI job sets this var after building the fixtures;
+  the regular workspace `cargo test` job (which does not build the
+  fixtures) still skips gracefully.
+
+### Fixed — Strengthened metadata-loop lifecycle test (fifth-stage)
+
+- `crates/rill-runtime/src/handler/wasm.rs`: the
+  `metadata_loop_failure_restores_active_ticker_count` test now spawns
+  the constructor in a worker thread so the main thread can observe
+  `count == baseline + 1` *during* construction. The previous
+  synchronous flow could pass even if the ticker never started: by the
+  time `WasmInvokeHandler::new()` returned `Err`, the constructor had
+  already joined the ticker thread, leaving the counter at baseline.
+  The strengthened flow is `baseline → spawn worker → observe
+  baseline + 1 → worker returns Err → observe baseline`, which directly
+  proves the ticker was started and then joined on failure. The test
+  does not need `LoadedHandlerPack` to be `Clone` — it wraps the pack
+  in `Arc<LoadedHandlerPack>` and shares the `Arc` with the worker.
+
+### Fixed — Real public-API leak check (fifth-stage)
+
+- `.github/workflows/pipeline.yml`: a new `Verify ticker probe is
+  absent from public API docs` step runs `cargo doc --locked -p
+  rill-runtime --features wasm --no-deps` and `grep`s the rendered
+  rustdoc for `active_epoch_ticker_count` / `ACTIVE_EPOCH_TICKERS`.
+  A match fails the build, so a future refactor that re-exposes the
+  test probe as `pub` cannot slip through CI.
+
+### Fixed — Release consistency (fifth-stage)
+
+- `0.10.0` on GitHub and `0.10.0` on PyPI referenced different code
+  states: the original PyPI upload predated the fourth-stage fixes; the
+  GitHub `v0.10.0` tag was later re-created at the fourth-stage HEAD
+  (`0f9923a`); PyPI rejected the re-upload because the wheel filename
+  was already taken. `0.12.0` resolves the inconsistency — the new
+  tag, GitHub Release, PyPI wheel, CHANGELOG section, and signed
+  stable-index all correspond to the same commit.
+
+### Fixed — Audit report accuracy (fourth-stage + fifth-stage)
 
 - `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`: corrected the
   Multinomial tolerance description to match the actual code constants
@@ -78,7 +155,13 @@ accessor that was explicitly described as test-only in 0.10.0.
   (the previous text claimed both were `1e-9`). Added §0.13 fourth-stage
   acceptance closeout with an independent 4-issue problem table, current
   HEAD / `origin/main` SHA, ahead/behind status, actual locally-resolved
-  tool versions, and CI verification status.
+  tool versions, and CI verification status. §0.14 records the
+  fifth-stage 8-issue problem table, the new ticker CI execution flow,
+  the strengthened metadata-loop test, the real public-API rustdoc
+  check, and the release-consistency closeout. The historical §0.13.11
+  35-item report is explicitly marked as a fourth-stage pre-re-publish
+  snapshot whose acceptance items #31 / #32 / #33 were invalidated by
+  the user-authorized `v0.10.0` re-publish.
 
 ## [0.10.0] - 2026-07-26
 
@@ -168,11 +251,11 @@ exhaustive `match` arms and therefore require a minor bump.
 
 ### Fixed — Runtime ticker lifecycle observability
 
-> **Fourth-stage update**: the `#[doc(hidden)] pub` accessor described
-> below leaked a test probe into the public API. It has been removed
-> and the probe migrated to `#[cfg(test)]`-only internal
-> instrumentation. See the `[Unreleased]` section above for the
-> fourth-stage fix.
+> **Fourth-stage update (superseded by 0.12.0)**: the
+> `#[doc(hidden)] pub` accessor described below leaked a test probe
+> into the public API. It has been removed and the probe migrated to
+> `#[cfg(test)]`-only internal instrumentation. See the `[0.12.0]`
+> section above for the full fourth-stage and fifth-stage closeout.
 
 - `handler/wasm.rs` / `tests/wasm_handler.rs`: added a test-only
   `active_epoch_ticker_count()` accessor backed by an
@@ -952,7 +1035,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.10.0...v0.12.0
 [0.10.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.10.0
 [0.9.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.9.0
 [0.8.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.8.1
