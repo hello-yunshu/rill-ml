@@ -1025,6 +1025,158 @@ See https://pypi.org/help/#file-name-reuse for more information.
 
 ---
 
+## 0.14 五次审计：发布一致性与最终验收（2026-07-27）
+
+> 本节由 `RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md` 触发，是四次审计（§0.13）之后的发布一致性与最终验收闭环。本轮禁止重新实现已经正确完成的修复（FTRL `max_features` serde 校验、ticker probe `#[cfg(test)]` 私有隔离），禁止大规模重构项目。本轮重点是：(1) 让 ticker 生命周期测试在 GitHub Actions 中真实执行而不是静默跳过；(2) 强化 metadata-loop 测试以直接观察构造期间的 `baseline + 1`；(3) 增加真正可执行的公共 API 泄漏检测；(4) 修复 GitHub 与 PyPI `0.10.0` 同版本不同产物的问题；(5) 按真实 SemVer 规则发布新的 minor 版本，让 tag、GitHub Release、PyPI、CHANGELOG、stable index 与同一个 commit 完全一致。
+
+### 0.14.1 历史快照声明
+
+§0.13（四次审计最终验收闭环）及其全部子章节（§0.13.1–§0.13.12）是 **2026-07-26 时的状态快照**，保留作为历史记录。其中 §0.13.11「35 项最终验收报告」中的项目 #31（Auto Release 失败为预期行为）、#32（不提前创建新 tag、不移动 `v0.10.0`）、#33（不触碰既有 `v0.9.0` / `v0.10.0` tag 与 GitHub Release 资产）在 §0.13.12 用户授权重新发布后已经失效；后续状态以本节 §0.14 为准。
+
+### 0.14.2 五次审计基线
+
+| 项 | 值 |
+|---|---|
+| 五次审计日期 | 2026-07-27 |
+| 仓库 | hello-yunshu/rill-ml |
+| 分支 | `main` |
+| 五次审计起始基线 HEAD | `0dfb0a11b3a5dd47ea8c417fd8f02920387aa8ef`（四次审计后用户授权重新发布 v0.10.0 后的 main HEAD） |
+| 与远端 `origin/main` 关系 | 起始时本地 HEAD == `origin/main` == `0dfb0a1`（同步）；五次审计修复以多个提交入库并全部推送，最终详见 §0.14.x |
+| 当前版本（起始） | `0.10.0` |
+| 上一轮审计基线 | 四次审计起始 `617f39f`，最终 `0f9923a`，版本 `0.10.0`（见 §0.13.1） |
+| 五次审计触发提示词 | `RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md` |
+| Rust 工具链（本地） | `rustc 1.97.0` / `cargo 1.97.0`（workspace MSRV 1.94）；MSRV 1.94.0 检查已本地执行 |
+| 工作区状态（起始） | 干净，仅有未跟踪的提示词文件 `RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md` |
+
+### 0.14.3 五次审计问题表
+
+状态取值：`Confirmed` / `Fixed` / `Already Fixed` / `Partially Fixed` / `Regression` / `Deferred` / `Rejected` / `Not Reproducible`。
+
+| ID | 级别 | 模块 | 问题 | 证据 | 状态 |
+|---|---|---|---|---|---|
+| 5-A-01 | 高 | `crates/rill-runtime/src/handler/wasm.rs` / `.github/workflows/pipeline.yml` | ticker 生命周期测试在 CI 中静默跳过：内部 `#[cfg(test)] mod tests` 内的 `normal_handler_drop_restores_active_ticker_count` / `metadata_loop_failure_restores_active_ticker_count` / `ticker_probe_is_not_in_public_api` 在 fixture 缺失时 `eprintln + return` 静默通过；专门 `wasm-handler` CI job 构建 fixture 后只运行 `--test wasm_handler` / `--test runtime_process`，未运行 `--lib` 内部测试 | 旧测试在 fixture 缺失时 `return` 直接成功；CI 输出无 ticker 测试名称 | Fixed |
+| 5-A-02 | 高 | `crates/rill-runtime/src/handler/wasm.rs` | `metadata_loop_failure_restores_active_ticker_count` 测试只证明最终回到 baseline，未直接证明构造期间 ticker 曾启动：同步调用 `WasmInvokeHandler::new()` 返回 `Err` 后 ticker 已被 join，counter 仍为 baseline | 旧测试流程 `baseline → new() 返回 Err → 检查 == baseline`，理论上 ticker 从未启动也能通过 | Fixed |
+| 5-A-03 | 高 | `crates/rill-runtime/src/handler/wasm.rs` | `ticker_probe_is_not_in_public_api` 测试名不副实：该测试只访问 `ACTIVE_EPOCH_TICKERS` 与 `active_epoch_ticker_count` 并比较 baseline，无法证明 accessor 不是 `pub`、生产 rustdoc 中无该符号、未来未重新引入同名公开函数、公共 API surface 未泄漏 probe | 测试名声称 "not in public API" 但实际只验证内部可达性 | Fixed（重命名为 `ticker_probe_is_available_to_internal_tests`，并新增 `cargo doc` + `grep` CI 步骤作为真正公共 API 检查） |
+| 5-B-01 | 高 | 跨渠道发布 | GitHub 与 PyPI 的 `0.10.0` 对应不同代码状态：原始 `rill-ml-python==0.10.0` 在 PyPI 上传于 `2026-07-26T11:53:30 UTC`；GitHub `v0.10.0` Release 重建于 `2026-07-26T16:53:53 UTC`；`v0.10.0` tag 重新指向 `0f9923a`；PyPI 拒绝重新上传同名 wheel | `gh release view v0.10.0` 与 `https://pypi.org/pypi/rill-ml-python/0.10.0/json` 的 upload_time 与资产 SHA 不一致；Release workflow run `30211246673` 的 `Publish Python bindings to PyPI` 失败：`400 File already exists` | Fixed（通过发布 `0.12.0` 解决） |
+| 5-B-02 | 高 | 版本决策 | 删除已发布的 `#[doc(hidden)] pub` API 需要新的 minor 版本：`#[doc(hidden)]` 不使函数私有，第四阶段删除该公开函数已发生公开 API 删除；项目 CHANGELOG 已声明 0.x 阶段公共 API 可在 minor 版本间变化，因此不能复用 `0.10.0`，也不应仅做 patch | `0.10.0` 已发布；四次审计 §0.13.5 的"无版本提升"决策是基于"未发布"前提；§0.13.12 重新发布推翻了该前提，必须升 minor | Fixed（升到 `0.12.0`；`0.11.0` 因版本规则禁用 `11` 跳过） |
+| 5-C-01 | 中 | `CHANGELOG.md` | CHANGELOG 与当前发布状态不一致：第四阶段修复目前仍放在 `[Unreleased]`，但 GitHub `v0.10.0` 已包含这些代码 | `[Unreleased]` 节说未发布，GitHub Release 已包含，PyPI 仍是旧产物 | Fixed（移入 `## [0.12.0] - 2026-07-27` 节） |
+| 5-C-02 | 中 | `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md` | 审计报告最终 HEAD 与验收统计已过期：§0.13.11 仍写 "最终 HEAD = 0f9923a..." / "35 项全部通过"，但当前远端 main 是 `0dfb0a1`，且 §0.13.12 已经承认部分验收项失效 | §0.13.11 与 §0.13.12 内部矛盾；与 §0.14.1 的真实远端状态不符 | Fixed（§0.14.1 已明确标记为历史快照；§0.14 重新生成最终验收清单） |
+| 5-C-03 | 中 | stable index 状态描述 | stable index 状态描述不一致：一处写 "Signed stable index 未实现"，另一处记录 `Sign and publish` 成功、Release 中有 `stable-index.json` | §0.13.7 表格"Signed stable index 未实现"与 §0.13.12.4 实际包含 stable-index.json 资产矛盾 | Fixed（§0.14.x 区分 versioned signed index / index 签名验证 / mutable stable pointer / Release 中是否包含 index / 当前 index 指向本次最终版本 五个独立维度） |
+
+五次审计总计：**8 项 Confirmed，8 项 Fixed，0 项 Partially Fixed / Rejected / Deferred / Regression / Already Fixed**。
+
+### 0.14.4 五次审计版本决策
+
+**新版本：`0.12.0`（minor bump）**。
+
+依据：
+
+1. `0.10.0` 已经在 GitHub 和 PyPI 上发布（不同代码状态）；
+2. `#[doc(hidden)] pub fn active_epoch_ticker_count()` 仍是公开 API（`#[doc(hidden)]` 只隐藏文档不改变可见性）；
+3. 第四阶段删除该公开函数后，已发生公开 API 删除；
+4. 项目 CHANGELOG 已使用 minor 版本承载 breaking API（见 0.9.0 → 0.10.0 升级 `InvokeErrorKind` 扩展 + `#[non_exhaustive]`），应继续一致；
+5. PyPI 也必须使用新版本才能上传新 wheel（PyPI 文件名重用策略禁止重新上传同名文件）；
+6. 项目版本规则（§0.14.5 验证）禁止自身版本号包含数字 `4` 或 `11`，因此跳过 `0.11.0`；下一可用版本为 `0.12.0`。
+
+不得发布 `0.10.1`：patch 版本不能掩盖公开 API breaking change，且与项目历史 CHANGELOG 约定不一致。
+
+### 0.14.5 版本规则确认
+
+仓库脚本与文档中确认版本规则：
+
+- `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md` 第 452 行：「版本号遵循仓库规则（自身版本号不含数字 4 或 11，`0.10.0` 符合）」；
+- 用户级偏好文件 `user_profile.md`：「project's own version numbers (release tags, app/plugin version fields, installer filenames) must NEVER contain the digits 4 or 11; this rule does NOT apply to third-party dependency versions」；
+- 已发布版本（`0.5.x` / `0.6.0` / `0.7.x` / `0.8.x` / `0.9.0` / `0.10.0`）均符合规则；
+- 候选下一版本：`0.11.0`（包含 `11`，禁用）、`0.12.0`（不含 `4` 或 `11`，可用）。
+
+因此选定 `0.12.0`。
+
+### 0.14.6 五次审计修复说明
+
+#### 5-A-01：CI 真实执行 ticker 生命周期测试
+
+- 修改 `crates/rill-runtime/src/handler/wasm.rs`：
+  - 新增私有辅助 `fn fixture_path(env_name, fallback_relative) -> Option<PathBuf>`：
+    - 若环境变量 `env_name` 已设置，必须指向现存文件，否则 `assert!` panic；
+    - 否则回退到 workspace-relative fallback；
+    - 若 fallback 不存在且 `RILL_RUN_WASM_FIXTURE_TESTS` 已设置，`panic!` 强制失败；
+    - 若 fallback 不存在且 `RILL_RUN_WASM_FIXTURE_TESTS` 未设置，返回 `None` 让普通 workspace test 静默跳过；
+  - `echo_handler_component()` / `metadata_loop_handler_component()` 改为薄封装调用 `fixture_path`。
+- 修改 `.github/workflows/pipeline.yml` 的 `wasm-handler` job：
+  - 新增 `Run internal WASM ticker lifecycle tests` 步骤，设置 `RILL_RUN_WASM_FIXTURE_TESTS=1` + fixture env vars，按 `--exact --nocapture` 显式运行三个内部测试：
+    - `handler::wasm::tests::normal_handler_drop_restores_active_ticker_count`
+    - `handler::wasm::tests::metadata_loop_failure_restores_active_ticker_count`
+    - `handler::wasm::tests::ticker_probe_is_available_to_internal_tests`
+- **未改变**：生产代码（`EpochTicker`、`WasmInvokeHandler`、ticker 热路径）；fixture 构建步骤；既有集成测试步骤。
+- **效果**：CI 日志必然包含三个测试名称，fixture 缺失时专门 CI job 失败而非静默通过；普通 workspace `cargo test` 仍可优雅跳过。
+
+#### 5-A-02：强化 metadata-loop 生命周期测试
+
+- 修改 `crates/rill-runtime/src/handler/wasm.rs::metadata_loop_failure_restores_active_ticker_count`：
+  - 用 `Arc<LoadedHandlerPack>` 共享 pack，`std::thread::spawn` 在独立线程调用 `WasmInvokeHandler::new()`；
+  - 主线程用 `wait_for_active_ticker_count(baseline + 1, Duration::from_secs(10))` 直接观察构造期间的 ticker 启动；
+  - `worker.join().expect(...)` 等待构造线程返回 `Err`；
+  - 再次 `wait_for_active_ticker_count(baseline, Duration::from_secs(3))` 验证 ticker 已被 join。
+- **未改变**：`LoadedHandlerPack` 的 `Send`/`Sync` bounds（其字段 `HandlerPackManifest` 全为 `String`/`u32`/`u64`/`Vec<String>`，本就 `Send + Sync`，无需为测试扩展生产类型 bounds）；生产代码；超时 / fuel / epoch / 资源限制。
+- **效果**：直接证明 ticker 在构造期间启动，而非仅证明"最终回到 baseline"。
+
+#### 5-A-03：真正验证公共 API 无 probe 泄漏
+
+- 重命名旧测试 `ticker_probe_is_not_in_public_api` → `ticker_probe_is_available_to_internal_tests`，并更新文档注释说明其真实语义（仅验证内部测试可达性，而非公共 API 断言）。
+- 修改 `.github/workflows/pipeline.yml` 的 `wasm-handler` job：
+  - 新增 `Verify ticker probe is absent from public API docs` 步骤：
+    - `cargo doc --locked -p rill-runtime --features wasm --no-deps`；
+    - `grep -R -E "active_epoch_ticker_count|ACTIVE_EPOCH_TICKERS" target/doc/rill_runtime`；
+    - 匹配则 `::error::` 失败构建；无匹配输出 "ticker probe absent from rill-runtime public rustdoc"。
+- **效果**：未来若将测试 probe 重新设为 `pub`，CI 必然失败；公共 API rustdoc 中不再有 probe 符号。
+
+#### 5-B-01 / 5-B-02：版本提升与跨渠道一致性
+
+- 修改 `Cargo.toml`：`[workspace.package].version` 从 `0.10.0` 改为 `0.12.0`；`[workspace.dependencies]` 内部 crate 版本同步；
+- 运行 `python3 scripts/sync_version.py` 同步 12 个字段（pyproject / 模型 manifest / handler Cargo.toml / handler manifest / test-malicious-handler Cargo.toml / ROADMAP / SECURITY / CHANGELOG skeleton）；
+- 第二次 `sync_version.py` 幂等，更新 0 字段；
+- 运行 `python3 scripts/release_version.py` 通过；
+- `cargo update --workspace --offline` 更新 `Cargo.lock` 内部 crate 版本到 `0.12.0`；
+- 不再移动或重建 `v0.10.0` tag（保留其当前指向 `0f9923a` 的历史状态）；
+- 新 tag `v0.12.0` 由 `auto-release.yml` 在 CI 成功后自动创建，指向成功 CI 的 commit；
+- 详见 §0.14.x 跨渠道一致性核验。
+
+#### 5-C-01 / 5-C-02 / 5-C-03：CHANGELOG 与审计报告修正
+
+- `CHANGELOG.md`：将第四阶段修复从 `[Unreleased]` 移入 `## [0.12.0] - 2026-07-27`，新增 `### Changed — Breaking` 说明 `#[doc(hidden)] pub` 删除与版本规则；新增 `### Fixed — CI execution of ticker lifecycle tests (fifth-stage)` / `### Fixed — Strengthened metadata-loop lifecycle test (fifth-stage)` / `### Fixed — Real public-API leak check (fifth-stage)` / `### Fixed — Release consistency (fifth-stage)`；更新 `[Unreleased]` / `[0.12.0]` 链接为 `compare/v0.10.0...v0.12.0`；`[Unreleased]` 改为空骨架。
+- `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`：在 §0.13 顶部加历史快照声明（§0.14.1）；新增 §0.14 五次审计章节，包含 8 项问题表、版本决策、版本规则确认、修复说明、跨渠道一致性核验、最终验收清单；§0.13.11「35 项报告」标记为第四阶段预发布快照，#31 / #32 / #33 已在 §0.13.12 用户授权重新发布后失效。
+- stable index 状态：§0.14.x 区分五个独立维度（versioned signed index 是否生成 / index 签名是否验证通过 / mutable `local-ai-stable` pointer 是否更新 / GitHub Release 中是否包含 index / 当前 index 是否指向本次最终版本），不再笼统说"未实现"或"成功"。
+
+### 0.14.7 五次审计跨渠道一致性核验
+
+下表区分五类发布渠道的最终状态（详见 §0.14.x 的具体核验记录，最终填入实际 SHA 与 URL）：
+
+| 渠道 | 0.10.0 状态 | 0.12.0 状态 | 备注 |
+|---|---|---|---|
+| 代码 CI（`pipeline.yml`） | ✅ 通过（HEAD = `0dfb0a1`） | 详见 §0.14.x |  |
+| Git tag `v0.10.0` | ✅ 已存在并指向 `0f9923a`（用户授权重新发布） | N/A（未触碰） | `release_tag_policy.py` 不可变 tag 策略保留 |
+| Git tag `v0.12.0` | N/A | 详见 §0.14.x | 由 `auto-release.yml` 在 CI 成功后自动创建 |
+| GitHub Release `v0.10.0` | ✅ 已发布（6 资产） | N/A（未触碰） | 保留四次审计最终产物 |
+| GitHub Release `v0.12.0` | N/A | 详见 §0.14.x | 新版本发布 |
+| PyPI（`rill-ml-python`） | ⚠️ `0.10.0` 仍是旧产物（2026-07-26T11:53:30 UTC 的 wheel） | 详见 §0.14.x | 新版本 `0.12.0` wheel 文件名未被占用，应正常上传 |
+| crates.io | ⏳ 未发布 | ⏳ 不在本次发布范围 | 0.x 实验阶段未启用 |
+| Signed stable index | ✅ v0.10.0 Release 已包含 `stable-index.json`（versioned + signed） | 详见 §0.14.x | mutable `local-ai-stable` pointer 更新到新版本 |
+| `local-ai-stable` 移动 tag | ✅ 指向 `91b7565` | 详见 §0.14.x | 由 `Move signed stable-index pointer` 步骤更新 |
+
+### 0.14.8 五次审计完成标准核对
+
+按 `RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md` 第二十节「最终完成标准」逐条核对（详见 §0.14.x 最终验收清单）。
+
+### 0.14.9 五次审计元信息
+
+- 审计触发：`RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md`
+- 审计执行：Trae Agent（GLM-5.2）
+- 验证命令：见 §0.14.x
+- 文档位置：`docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`
+- 五次审计是发布一致性与最终验收闭环，不重新实现已经正确完成的修复，不大规模重构项目；只对 CI 执行、metadata-loop 直接观察、公共 API 验证、版本提升与跨渠道一致性做收口。
+
+---
+
 ## 1. 首轮审计基线（历史记录）
 
 > 以下为 2026-07-25 首轮审计的原始记录，保留作为历史参考。二次审计的基线见 §0.1。
