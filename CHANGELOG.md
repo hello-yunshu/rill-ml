@@ -15,7 +15,70 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
-No unreleased changes.
+This section documents the fourth-stage final acceptance closeout
+([`RILL_ML_TRAE_FOURTH_STAGE_FINAL_ACCEPTANCE_PROMPT.md`](RILL_ML_TRAE_FOURTH_STAGE_FINAL_ACCEPTANCE_PROMPT.md)).
+It only addresses the four confirmed remaining issues; no project redesign,
+no large-scale refactor, no reversal of already-correct work. No version
+bump: the only public-API change is the removal of a `#[doc(hidden)]` test
+accessor that was explicitly described as test-only in 0.10.0.
+
+### Fixed — Core ML serde trust boundary
+
+- `FtrlRegressor` / `FtrlClassifier` (`src/models/ftrl.rs`): the top-level
+  `validate_invariants()` now rejects deserialised state where
+  `params.len() > max_features` when `max_features` is `Some(_)`. Without
+  this check, a malicious payload could supply pre-built params with more
+  entries than the configured `max_features` cap allows, bypassing the
+  dynamic-growth contract. `params.len() == max_features` and
+  `params.len() < max_features` remain legal; `max_features == None`
+  remains unbounded. Six new serde tests cover regressor and classifier
+  across reject-above / accept-equal / allow-unbounded scenarios. Existing
+  config-aware `weight_checked` / `intercept_weight_checked` validation
+  is unchanged.
+
+### Fixed — Runtime ticker lifecycle test-only instrumentation
+
+- `handler/wasm.rs` / `tests/wasm_handler.rs`: the ticker lifecycle probe
+  has been migrated out of the production public API. The 0.10.0 design
+  exposed `#[doc(hidden)] pub fn active_epoch_ticker_count()` so that
+  integration tests (a separate crate) could reach the counter; this was
+  a leak, because `#[doc(hidden)]` only hides the item from rendered docs
+  and does not make it private. The matching `ACTIVE_EPOCH_TICKERS`
+  `AtomicUsize` and its `fetch_add` / `fetch_sub` ops also ran in the
+  production ticker hot path.
+
+  The new design:
+  - Gates `ACTIVE_EPOCH_TICKERS`, the `fetch_add` / `fetch_sub` ops in
+    `EpochTicker::start`, and the `active_epoch_ticker_count` accessor
+    behind `#[cfg(test)]`. The counter does not exist in release builds,
+    in CI builds that link the library as a dependency (integration
+    tests), or in the published crate.
+  - Removes the public `active_epoch_ticker_count()` accessor entirely.
+  - Moves the lifecycle tests
+    (`metadata_loop_failure_restores_active_ticker_count`,
+    `normal_handler_drop_restores_active_ticker_count`) into the
+    library's internal `#[cfg(test)] mod tests` in `src/handler/wasm.rs`,
+    which reaches private items directly through `super::*`.
+  - Adds `ticker_probe_is_not_in_public_api` as a source-level assertion
+    that the probe is `#[cfg(test)]`-gated and the accessor is private.
+  - Updates `tests/wasm_handler.rs` to drop the now-private accessor
+    calls and the `wait_for_active_ticker_count` helper. The file-wide
+    `WASM_TEST_LOCK` is retained as a conservative serialisation guard
+    for WASM component loading.
+
+  The production ticker hot path now performs zero atomic operations for
+  instrumentation. Timeout, fuel, epoch, and resource limits are
+  unchanged, and `WasmInvokeHandler`'s external behaviour is unchanged.
+
+### Fixed — Audit report accuracy
+
+- `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`: corrected the
+  Multinomial tolerance description to match the actual code constants
+  `MULTINOMIAL_TOTAL_ATOL = 1e-9` and `MULTINOMIAL_TOTAL_RTOL = 1e-6`
+  (the previous text claimed both were `1e-9`). Added §0.13 fourth-stage
+  acceptance closeout with an independent 4-issue problem table, current
+  HEAD / `origin/main` SHA, ahead/behind status, actual locally-resolved
+  tool versions, and CI verification status.
 
 ## [0.10.0] - 2026-07-26
 
@@ -104,6 +167,12 @@ exhaustive `match` arms and therefore require a minor bump.
   `transform()` hot path continues to skip the full scan.
 
 ### Fixed — Runtime ticker lifecycle observability
+
+> **Fourth-stage update**: the `#[doc(hidden)] pub` accessor described
+> below leaked a test probe into the public API. It has been removed
+> and the probe migrated to `#[cfg(test)]`-only internal
+> instrumentation. See the `[Unreleased]` section above for the
+> fourth-stage fix.
 
 - `handler/wasm.rs` / `tests/wasm_handler.rs`: added a test-only
   `active_epoch_ticker_count()` accessor backed by an
