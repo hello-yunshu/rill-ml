@@ -847,6 +847,7 @@ fn wasm_handler_long_error_string_is_truncated() {
 /// the call.
 #[test]
 fn wasm_handler_fuel_exhaustion_returns_timeout() {
+    let _guard = wasm_test_guard();
     let (loaded, _) = match prepare_malicious_handler() {
         Some(v) => v,
         None => return,
