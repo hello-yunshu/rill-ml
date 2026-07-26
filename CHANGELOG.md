@@ -15,43 +15,111 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [0.10.0] - 2026-07-26
+
+This release closes the third-stage audit
+([`RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md`](RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md))
+on top of the 0.9.0 baseline. It tightens the serde trust boundary for the
+remaining core models, makes the WASM ticker lifecycle directly observable
+from tests, and corrects the audit report and CHANGELOG to match the actual
+repository state. The runtime's public `InvokeErrorKind` enum is expanded
+and marked `#[non_exhaustive]`; both changes are breaking for downstream
+exhaustive `match` arms and therefore require a minor bump.
+
+### Changed — Breaking
+
+- `InvokeErrorKind` (in `crates/rill-runtime/src/server.rs`): the
+  previously exhaustive 0.9.0 enum had six variants
+  (`Internal`, `Timeout`, `Trap`, `OutputTooLarge`, `InvalidOutput`,
+  `ExecutionFailed`). Three new variants are added for direct WIT
+  `handler-error` mapping — `InvalidModel`, `InvalidInput`,
+  `UnsupportedCapability` — and the enum is now marked
+  `#[non_exhaustive]`. Existing exhaustive `match` arms on
+  `InvokeErrorKind` must add a wildcard `_` arm. The stable IPC error
+  codes are unchanged: the four guest-reported variants
+  (`InvalidModel`, `InvalidInput`, `UnsupportedCapability`,
+  `ExecutionFailed`) all still serialize to `handlerInternalError` for
+  v1/v2 wire compatibility.
+
 ### Changed — Non-breaking
 
+- `pipeline.yml` / `scripts/requirements-dev.txt`: the build-tool
+  versions are now expressed as a **compatible range** rather than an
+  exact pin. `wasm-pack` uses `~0.13.1`, `wasm-tools` uses `~1.254.0`,
+  and the Python tools use `maturin>=1.14,<1.15` and
+  `pytest>=8.4,<8.5`. CI and release share the same ranges, and CI
+  records the actually-resolved versions after install. Patch upgrades
+  are allowed so security fixes land without a manual bump; minor
+  upgrades still require an explicit range bump and a re-run of CI.
 - `StandardScaler::transform()` no longer runs a full `O(d)` `validate()`
   scan on each call. Internal state invariants are now guaranteed by the
   private constructor and the validated `Deserialize` impl, and re-checked
   only under `debug_assert!` inside `transform_into()`. The release path
   keeps only input dimension and output finiteness checks.
-- `InvokeErrorKind` is now marked `#[non_exhaustive]` so future variants
-  (e.g. for new WIT `handler-error` entries or host-side failure modes)
-  can be added without breaking downstream exhaustive `match` arms. The
-  stable IPC error codes (`handlerInternalError`, `handlerTimeout`, etc.)
-  are unchanged.
 
-### Fixed
+### Fixed — Core ML serde trust boundary
 
-- `FtrlRegressor` / `FtrlClassifier`: reject non-zero gradients whose
-  square underflows to zero, which previously produced `n_new == 0 &&
-  z_new != 0` states with a zero-denominator weight. Validate the
-  next-state weight is finite before committing `learn()`. Pre-judge the
-  `Ignore` policy for new features that would exceed `max_features` so
-  `grad * value` overflow on an ignored feature cannot fail the call.
-  Reject serde payloads in the `n == 0 && z != 0` malicious state. Use
-  `checked_finite_add` for the final `dot + intercept` addition.
-- `GaussianNaiveBayes` / `BernoulliNaiveBayes` / `MultinomialNaiveBayes`:
-  `predict_proba` now rejects `NaN` log-odds (`-Infinity - -Infinity`)
-  by returning `Err(NonFiniteValue)`. Each `learn()` computes the entire
-  next state before committing; any `checked_increment` failure leaves
-  the model completely unchanged — no partial commits.
-- `Precision` / `Recall` / `F1Score`: serde consistency checks now use
-  `checked_add` instead of `saturating_add`, so `u64` overflow is
-  rejected rather than silently saturated. F1's chained `tp + fp + fn`
-  is checked at every step.
-- `R2`: serde invariant now rejects negative `ss_res` and negative
-  `m2_truth` in addition to the existing finite checks.
-- `StandardScaler`: serde invariant now rejects negative `m2s`
-  (Welford M2 is mathematically non-negative) and unsynchronised
-  feature counts. State length mismatches are explicitly rejected.
+- `GaussianNaiveBayes` / `BernoulliNaiveBayes` / `MultinomialNaiveBayes`
+  (`src/models/naive_bayes.rs`): replaced the derived `Deserialize` with
+  a custom impl that constructs the model and calls a new
+  `validate_invariants()` before returning. The validator rejects
+  `feature_count == 0`, invalid `NaiveBayesConfig`, vector-length
+  mismatches between `feature_count` and per-class stats, non-finite
+  means/M2/feature sums, negative M2/feature sums, `samples_seen !=
+  class_false.class_count + class_true.class_count`, per-feature counts
+  that disagree with `class_count`, and Gaussian count=0/count=1 states
+  whose mean or M2 is non-zero. Multinomial totals are checked against
+  feature sums with an explicit relative/absolute tolerance. The
+  `predict_proba` `Ok(NaN)` path is also rejected. Each `learn()` is
+  atomic: any failure leaves the model completely unchanged.
+- `FtrlRegressor` / `FtrlClassifier` (`src/models/ftrl.rs`): added
+  `FtrlParam::weight_checked(&config)` and
+  `FtrlParam::intercept_weight_checked(&config)` which validate the
+  numerator, denominator, and final quotient for finiteness and
+  non-zero denominator, taking the L1 short-circuit and intercept
+  cold-start `n == 0` paths into account. The top-level
+  `validate_invariants()` now calls these for every stored param and
+  the intercept, so a malicious payload whose `alpha`/`beta`/`l2`/`n`
+  combination would underflow the denominator to zero is rejected at
+  deserialisation rather than producing `Infinity` weights at
+  `weights()`/`predict()` time. The pre-existing `n == 0 && z != 0`
+  rejection and `checked_finite_add` final dot+intercept are retained.
+- `R2` (`src/metrics/regression.rs`): the custom `Deserialize` now
+  rejects `count == 0` states with non-zero `ss_res`, `mean_truth`, or
+  `m2_truth`, and `count == 1` states with non-zero `m2_truth`.
+  `count == 1` with non-zero `ss_res` remains legal (single-sample
+  predictions may have residual error). The pre-existing finite and
+  non-negative checks are retained.
+- `StandardScaler` (`src/preprocessing/standard_scaler.rs`): the
+  `validate()` path now rejects `count == 0` states with any non-zero
+  mean or M2, and `count == 1` states with any non-zero M2. This
+  matches the documented zero-sample contract (mean=0, scale=1, input
+  returned unchanged) and closes the
+  `counts=[0], means=[10], m2s=[1]` malicious-state gap. The release
+  `transform()` hot path continues to skip the full scan.
+
+### Fixed — Runtime ticker lifecycle observability
+
+- `handler/wasm.rs` / `tests/wasm_handler.rs`: added a test-only
+  `active_epoch_ticker_count()` accessor backed by an
+  `AtomicUsize` counter that is incremented at epoch-ticker thread
+  entry and decremented before thread exit. The `EpochTicker::drop`
+  implementation joins the thread, so once `drop` returns the counter
+  has been updated. Two new tests
+  (`metadata_loop_failure_restores_active_ticker_count`,
+  `normal_handler_drop_restores_active_ticker_count`) poll this counter
+  with a bounded timeout, replacing the previous indirect test that
+  could only prove a subsequent handler still works — not that the old
+  ticker thread had actually exited. The accessor is `#[doc(hidden)]
+  pub` so integration tests (a separate crate) can reach it without
+  surfacing it in the documented API; `#[cfg(test)]` is not used
+  because the library is not compiled with `--test` when integration
+  tests link to it.
+
+### Fixed — Release tooling and policy
+
 - `release_tag_policy.py`: compare `tag_sha` against `target_sha`
   BEFORE checking successful/active release state. A stale tag pointing
   at an old SHA but with an existing successful Release run is now a
@@ -63,20 +131,10 @@ with the Rust-specific convention that 0.x releases may break the public API.
   log output. Detail is truncated to 4 KiB on a UTF-8 character boundary
   before any host log emission, and the IPC message never carries the
   detail. Each invoke error is logged exactly once.
-- `InvokeErrorKind`: expanded from a single `ExecutionFailed` variant to
-  a typed enum with `InvalidModel`, `InvalidInput`,
-  `UnsupportedCapability`, `ExecutionFailed`, `Timeout`, `Trap`,
-  `OutputTooLarge`, `InvalidOutput`, and `Internal`. Each WIT
-  `handler-error` variant is now mapped directly to its corresponding
-  kind, replacing the previous Debug-string sniffing that collapsed
-  every variant into `ExecutionFailed`.
 - New test-only `test-metadata-loop-handler` WASM component whose
   `metadata()` loops forever. The CI `wasm-handler` job builds it as a
   WASM component and feeds it to integration tests that verify the
   epoch deadline fires and no ticker thread leaks.
-- `pipeline.yml`: pinned `wasm-pack` to `0.13.1`, `wasm-tools` to
-  `1.254.0`, `maturin` to `1.14.1`, and `pytest` to `8.4.2` (was
-  `^major` ranges). CI and release pipelines use the same versions.
 - `README.md` / `README.en.md`: replaced the generic "bounded memory"
   claim with an accurate statement that fixed-dimension algorithms use
   bounded state, while dynamic-feature algorithms such as FTRL require
@@ -810,7 +868,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.10.0
 [0.9.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.9.0
 [0.8.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.8.1
 [0.8.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.8.0
