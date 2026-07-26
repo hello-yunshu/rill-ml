@@ -1499,6 +1499,37 @@ PyPI visibility check script works
 - 修复将在下一次 Release workflow 运行时（下一个版本发布）生效；
 - 本问题补登为第五阶段问题 5-D-01，问题总数由 8 升至 9，全部 Fixed。
 
+#### 0.14.11.1 修复 commit CI 验证结果
+
+修复 commit `af8fb5439b2c197154722dfe2cf649ac3245fca7` 推送后，GitHub
+Actions 在该 commit 上运行了以下工作流：
+
+| 工作流 | Run ID | 状态 | 耗时 | 备注 |
+|---|---|---|---|---|
+| CI / Release | `30218166343` | ✅ success | 4m24s | 11 个 job 全部通过 |
+| Docs | `30218166378` | ✅ success | 27s | |
+| Security audit | `30218166344` | ✅ success | 3m21s | |
+| Auto Release | `30218324253` | ❌ failure（预期） | 14s | tag `v0.12.0` 已存在于 `1a102b8`，CI HEAD 为 `af8fb54`，release_tag_policy 正确拒绝移动不可变 tag |
+
+Auto Release 失败是 release policy 的预期行为，不是 regression：修复
+commit 不包含版本提升（`Cargo.toml` 仍为 `0.12.0`），因此
+`release_tag_policy.py` 检测到 tag 已存在且指向不同 commit 时，按设计
+输出 `version tags are immutable and cannot be moved — bump the version
+number in Cargo.toml` 并退出 1。0.12.0 发布本身已完成，无需重新发布；
+本修复仅作为 workflow 稳定性收口，将在下一次版本发布时生效。
+
+#### 0.14.11.2 第五阶段最终 HEAD
+
+| 项 | 值 |
+|---|---|
+| 0.12.0 release tag SHA | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` |
+| 0.12.0 GitHub Release target | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` |
+| 0.12.0 PyPI wheel source | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` |
+| 第五阶段最终 main HEAD | `af8fb5439b2c197154722dfe2cf649ac3245fca7` |
+| origin/main SHA | `af8fb5439b2c197154722dfe2cf649ac3245fca7` |
+| ahead / behind | `0 / 0` |
+| 第五阶段 commit 总数 | 5（`5cf9878` + `77fecf8` + `10b978a` + `1a102b8` + `af8fb54`） |
+
 ---
 
 ## 1. 首轮审计基线（历史记录）
