@@ -56,6 +56,20 @@ pub const EPOCH_TICK_INTERVAL: Duration = Duration::from_secs(1);
 /// Number of epoch ticks before interruption (5 seconds).
 pub const EPOCH_DEADLINE: u64 = 5;
 
+// Test-only counter of live epoch-ticker threads. Incremented at thread
+// entry and decremented before thread exit, so a non-zero value means a
+// ticker thread is still running. Used by the ticker-lifecycle tests in
+// `tests/wasm_handler.rs` to directly observe that failed handler loads
+// and handler drops join the background thread. The counter is a private
+// `static` with zero overhead when unread; the accessor below is
+// `#[doc(hidden)] pub` so integration tests (a separate crate) can reach
+// it — `pub(crate)` would not be visible to `tests/wasm_handler.rs`, and
+// `#[cfg(test)]` is not set on the library when cargo compiles it as a
+// dependency for integration tests. `#[doc(hidden)]` keeps the accessor
+// out of the documented public API.
+static ACTIVE_EPOCH_TICKERS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
 /// Per-instance resource limiter enforcing memory and table caps.
 struct HostState;
 
@@ -104,10 +118,20 @@ impl EpochTicker {
         let engine_for_thread = engine;
         let stop_for_thread = Arc::clone(&stop_flag);
         let handle = std::thread::spawn(move || {
+            // Increment the test-only active-ticker counter at thread entry
+            // so the count reflects threads that have actually started. The
+            // matching decrement runs just before the thread exits (after
+            // the stop flag is observed), so a non-zero count means a
+            // ticker is still running. `Drop` joins the handle, which
+            // guarantees the decrement has happened by the time drop
+            // returns. The atomic ops have negligible overhead (a handful
+            // of cycles per handler load/drop, which is not a hot path).
+            ACTIVE_EPOCH_TICKERS.fetch_add(1, Ordering::SeqCst);
             while !stop_for_thread.load(Ordering::Relaxed) {
                 std::thread::sleep(EPOCH_TICK_INTERVAL);
                 engine_for_thread.increment_epoch();
             }
+            ACTIVE_EPOCH_TICKERS.fetch_sub(1, Ordering::SeqCst);
         });
         Self {
             stop_flag,
@@ -125,6 +149,22 @@ impl Drop for EpochTicker {
             let _ = handle.join();
         }
     }
+}
+
+/// Test-only accessor for the count of currently-running epoch-ticker
+/// threads. The count is incremented at ticker-thread entry and
+/// decremented before the thread exits; `EpochTicker::drop` joins the
+/// handle, so once drop returns the count has been updated.
+///
+/// Marked `#[doc(hidden)]` because this is test instrumentation, not
+/// part of the supported public API. It is `pub` (rather than
+/// `pub(crate)`) because the ticker-lifecycle tests live in
+/// `tests/wasm_handler.rs` — a separate crate that cannot reach
+/// `pub(crate)` items, and `#[cfg(test)]` is not set on the library
+/// when cargo compiles it as a dependency for integration tests.
+#[doc(hidden)]
+pub fn active_epoch_ticker_count() -> usize {
+    ACTIVE_EPOCH_TICKERS.load(Ordering::SeqCst)
 }
 
 /// Sandboxed WASM handler that implements [`InvokeHandler`].
