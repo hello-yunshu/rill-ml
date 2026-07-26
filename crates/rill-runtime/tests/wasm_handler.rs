@@ -44,29 +44,23 @@ use rill_runtime_protocol::{
 use sha2::{Digest, Sha256};
 
 // ---------------------------------------------------------------------------
-// Ticker lifecycle observability (audit 6.5).
+// Test serialisation.
 //
-// The `EpochTicker` RAII guard starts a background thread that periodically
-// calls `engine.increment_epoch()`. The tests below use a test-only
-// `active_epoch_ticker_count` counter to directly observe that the thread
-// is started on handler construction and joined on handler drop or load
-// failure. This is stronger than the existing
-// `metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers`
-// test, which can only prove a subsequent handler still works — not that
-// the old ticker thread has actually exited.
+// The `EpochTicker` RAII guard inside `WasmInvokeHandler` starts a
+// background thread. The direct ticker-lifecycle observability tests
+// (which read a test-only `active_epoch_ticker_count` counter) now live
+// in the library's internal `#[cfg(test)] mod tests` in
+// `src/handler/wasm.rs`, where the counter and its accessor can be
+// `#[cfg(test)]`-private instead of leaking into the public API. This
+// file still serialises its tests via `WASM_TEST_LOCK` to keep WASM
+// component loading deterministic and avoid resource contention on CI
+// runners; the file-wide lock was originally introduced for the ticker
+// counter but is retained as a conservative serialisation guard.
 // ---------------------------------------------------------------------------
 
-/// Serialises ALL tests in this file so that the ticker-lifecycle tests'
-/// assertions about the global `active_epoch_ticker_count` are not
-/// perturbed by parallel ticker creation/drop in other tests. Every
-/// test that constructs a `WasmInvokeHandler` must acquire this lock at
-/// entry, because each handler starts an `EpochTicker` thread that
-/// increments the global counter. Without serialisation, the baseline
-/// captured by a ticker test can shift underneath it as parallel tests
-/// construct or drop their own handlers.
-///
-/// The guard is recovered from poison so that a panic in one test does
-/// not cascade to all subsequent tests via `PoisonError`.
+/// Serialises ALL tests in this file to keep WASM component loading
+/// deterministic. The guard is recovered from poison so that a panic in
+/// one test does not cascade to all subsequent tests via `PoisonError`.
 static WASM_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Acquires the global WASM test serialisation lock. Every `#[test]` in
@@ -75,23 +69,6 @@ fn wasm_test_guard() -> std::sync::MutexGuard<'static, ()> {
     WASM_TEST_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-/// Polls `rill_runtime::handler::wasm::active_epoch_ticker_count` until
-/// it reaches `target` or `timeout` elapses. Returns `true` on success.
-/// Uses 10 ms polling to avoid flaky fixed sleeps while bounding wait
-/// time.
-fn wait_for_active_ticker_count(target: usize, timeout: std::time::Duration) -> bool {
-    let start = std::time::Instant::now();
-    loop {
-        if rill_runtime::handler::wasm::active_epoch_ticker_count() == target {
-            return true;
-        }
-        if start.elapsed() >= timeout {
-            return false;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
 }
 
 /// Returns the echo handler WASM component path, or `None` if not available.
@@ -875,114 +852,13 @@ fn wasm_handler_fuel_exhaustion_returns_timeout() {
     );
 }
 
-/// Verifies that a failed metadata-loop handler load does not leak the
-/// epoch-ticker thread. The test records a baseline ticker count, loads
-/// the metadata-loop handler (which must fail), then waits for the
-/// count to return to baseline — directly proving the ticker thread
-/// was joined. It then loads a normal echo handler, drops it, and
-/// confirms the count returns to baseline again.
-#[test]
-fn metadata_loop_failure_restores_active_ticker_count() {
-    let _guard = wasm_test_guard();
-
-    let metadata_loaded = match prepare_metadata_loop_handler() {
-        Some(v) => v,
-        None => return,
-    };
-
-    let baseline = rill_runtime::handler::wasm::active_epoch_ticker_count();
-
-    // The metadata-loop handler's `metadata()` loops forever; the host's
-    // epoch deadline interrupts it, and `WasmInvokeHandler::new` returns
-    // Err. The `EpochTicker` guard is dropped during error propagation,
-    // which joins the thread.
-    let result = WasmInvokeHandler::new(&metadata_loaded, &serde_json::json!({}));
-    assert!(result.is_err(), "metadata-loop handler must fail to load");
-
-    // After the failed load, the ticker thread must have been joined and
-    // the count must return to baseline.
-    assert!(
-        wait_for_active_ticker_count(baseline, std::time::Duration::from_secs(3)),
-        "active ticker count did not return to baseline {} after metadata-loop failure (got {})",
-        baseline,
-        rill_runtime::handler::wasm::active_epoch_ticker_count()
-    );
-
-    // Load a normal echo handler, then drop it and confirm the count
-    // returns to baseline. This exercises the normal drop path in the
-    // same serialised context.
-    let echo_component = match echo_handler_component() {
-        Some(path) => fs::read(&path).unwrap(),
-        None => {
-            eprintln!(
-                "skipping echo portion: echo handler component not built (set ECHO_HANDLER_WASM)"
-            );
-            return;
-        }
-    };
-    let signing = SigningKey::from_bytes(&[7; 32]);
-    let pack_bytes = build_echo_pack(&echo_component, &signing);
-    let (echo_loaded, _) = load_echo_pack(&pack_bytes, &signing.verifying_key());
-
-    let model = serde_json::json!({"kind": "linearRegression", "weights": [0.5], "intercept": 0.0});
-    let echo_handler = WasmInvokeHandler::new(&echo_loaded, &model)
-        .expect("echo handler must load after metadata-loop failure");
-
-    // Dropping the echo handler must join its ticker thread.
-    drop(echo_handler);
-
-    assert!(
-        wait_for_active_ticker_count(baseline, std::time::Duration::from_secs(3)),
-        "active ticker count did not return to baseline {} after echo handler drop (got {})",
-        baseline,
-        rill_runtime::handler::wasm::active_epoch_ticker_count()
-    );
-}
-
-/// Verifies that constructing a normal echo handler increments the
-/// active ticker count, and dropping it restores the count. This
-/// directly proves the ticker thread is started on construction and
-/// joined on drop.
-#[test]
-fn normal_handler_drop_restores_active_ticker_count() {
-    let _guard = wasm_test_guard();
-
-    let echo_component = match echo_handler_component() {
-        Some(path) => fs::read(&path).unwrap(),
-        None => {
-            eprintln!("skipping: echo handler component not built (set ECHO_HANDLER_WASM)");
-            return;
-        }
-    };
-
-    let baseline = rill_runtime::handler::wasm::active_epoch_ticker_count();
-
-    let signing = SigningKey::from_bytes(&[7; 32]);
-    let pack_bytes = build_echo_pack(&echo_component, &signing);
-    let (loaded, _) = load_echo_pack(&pack_bytes, &signing.verifying_key());
-
-    let model = serde_json::json!({"kind": "linearRegression", "weights": [0.5], "intercept": 0.0});
-    let handler =
-        WasmInvokeHandler::new(&loaded, &model).expect("echo handler must load successfully");
-
-    // The ticker thread increments the count at entry. Wait for the
-    // increment to be visible.
-    assert!(
-        wait_for_active_ticker_count(baseline + 1, std::time::Duration::from_secs(3)),
-        "active ticker count did not reach {} after handler construction (got {}, baseline {})",
-        baseline + 1,
-        rill_runtime::handler::wasm::active_epoch_ticker_count(),
-        baseline
-    );
-
-    // Dropping the handler must join the ticker thread and restore the
-    // count to baseline.
-    drop(handler);
-
-    assert!(
-        wait_for_active_ticker_count(baseline, std::time::Duration::from_secs(3)),
-        "active ticker count did not return to baseline {} after handler drop (got {})",
-        baseline,
-        rill_runtime::handler::wasm::active_epoch_ticker_count()
-    );
-}
+// The direct ticker-lifecycle observability tests
+// (`metadata_loop_failure_restores_active_ticker_count`,
+// `normal_handler_drop_restores_active_ticker_count`) previously lived
+// here and reached the counter through a `#[doc(hidden)] pub` accessor.
+// They have been moved to the library's internal `#[cfg(test)] mod
+// tests` in `src/handler/wasm.rs`, where the counter and its accessor
+// can be `#[cfg(test)]`-private instead of leaking into the public API.
+// The indirect lifecycle test
+// (`metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers`)
+// is retained below.

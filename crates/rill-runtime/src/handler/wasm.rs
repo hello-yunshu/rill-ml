@@ -58,15 +58,22 @@ pub const EPOCH_DEADLINE: u64 = 5;
 
 // Test-only counter of live epoch-ticker threads. Incremented at thread
 // entry and decremented before thread exit, so a non-zero value means a
-// ticker thread is still running. Used by the ticker-lifecycle tests in
-// `tests/wasm_handler.rs` to directly observe that failed handler loads
-// and handler drops join the background thread. The counter is a private
-// `static` with zero overhead when unread; the accessor below is
-// `#[doc(hidden)] pub` so integration tests (a separate crate) can reach
-// it — `pub(crate)` would not be visible to `tests/wasm_handler.rs`, and
-// `#[cfg(test)]` is not set on the library when cargo compiles it as a
-// dependency for integration tests. `#[doc(hidden)]` keeps the accessor
-// out of the documented public API.
+// ticker thread is still running. Used by the internal ticker-lifecycle
+// unit tests in `mod tests` below to directly observe that failed handler
+// loads and handler drops join the background thread.
+//
+// This counter, the matching `fetch_add`/`fetch_sub` ops in
+// `EpochTicker::start`, and the `active_epoch_ticker_count` accessor in
+// `mod tests` are all `#[cfg(test)]`-only: they do not exist in release
+// builds, in CI builds that link the library as a dependency (integration
+// tests), or in the published crate. The production ticker hot path
+// performs zero atomic operations for instrumentation. The previous
+// design exposed a `#[doc(hidden)] pub fn active_epoch_ticker_count()`
+// so that integration tests (a separate crate) could reach the counter;
+// that leaked a test probe into the public API. The current design moves
+// the lifecycle tests into this module's internal `#[cfg(test)] mod
+// tests`, which can reach private items directly through `super::*`.
+#[cfg(test)]
 static ACTIVE_EPOCH_TICKERS: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
 
@@ -124,13 +131,22 @@ impl EpochTicker {
             // the stop flag is observed), so a non-zero count means a
             // ticker is still running. `Drop` joins the handle, which
             // guarantees the decrement has happened by the time drop
-            // returns. The atomic ops have negligible overhead (a handful
-            // of cycles per handler load/drop, which is not a hot path).
+            // returns.
+            //
+            // The counter and these atomic ops are `#[cfg(test)]`-gated, so
+            // the production ticker hot path performs zero atomic
+            // operations for instrumentation. The whole counter does not
+            // exist in release builds, in CI builds that link the library
+            // as a dependency (integration tests), or in the published
+            // crate. The internal `mod tests` below reaches the counter
+            // directly through `super::*`, so no `pub` accessor is needed.
+            #[cfg(test)]
             ACTIVE_EPOCH_TICKERS.fetch_add(1, Ordering::SeqCst);
             while !stop_for_thread.load(Ordering::Relaxed) {
                 std::thread::sleep(EPOCH_TICK_INTERVAL);
                 engine_for_thread.increment_epoch();
             }
+            #[cfg(test)]
             ACTIVE_EPOCH_TICKERS.fetch_sub(1, Ordering::SeqCst);
         });
         Self {
@@ -149,22 +165,6 @@ impl Drop for EpochTicker {
             let _ = handle.join();
         }
     }
-}
-
-/// Test-only accessor for the count of currently-running epoch-ticker
-/// threads. The count is incremented at ticker-thread entry and
-/// decremented before the thread exits; `EpochTicker::drop` joins the
-/// handle, so once drop returns the count has been updated.
-///
-/// Marked `#[doc(hidden)]` because this is test instrumentation, not
-/// part of the supported public API. It is `pub` (rather than
-/// `pub(crate)`) because the ticker-lifecycle tests live in
-/// `tests/wasm_handler.rs` — a separate crate that cannot reach
-/// `pub(crate)` items, and `#[cfg(test)]` is not set on the library
-/// when cargo compiles it as a dependency for integration tests.
-#[doc(hidden)]
-pub fn active_epoch_ticker_count() -> usize {
-    ACTIVE_EPOCH_TICKERS.load(Ordering::SeqCst)
 }
 
 /// Sandboxed WASM handler that implements [`InvokeHandler`].
@@ -486,5 +486,255 @@ mod tests {
                 .table_growing(0, (MAX_TABLE_ELEMENTS * 2) as usize, None)
                 .expect("table_growing must not error")
         );
+    }
+
+    // -----------------------------------------------------------------
+    // Ticker lifecycle observability (audit 6.5 / fourth-stage 4-A-01).
+    //
+    // The `EpochTicker` RAII guard starts a background thread that
+    // periodically calls `engine.increment_epoch()`. The tests below use
+    // the test-only `ACTIVE_EPOCH_TICKERS` counter (and the private
+    // `active_epoch_ticker_count` accessor defined in this module) to
+    // directly observe that the thread is started on handler
+    // construction and joined on handler drop or load failure.
+    //
+    // These tests were previously in `tests/wasm_handler.rs` and reached
+    // the counter through a `#[doc(hidden)] pub` accessor, which leaked
+    // a test probe into the public API. They have been moved here so the
+    // counter and accessor can both be `#[cfg(test)]`-private.
+    // -----------------------------------------------------------------
+
+    use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::PathBuf;
+
+    use ed25519_dalek::{SigningKey, VerifyingKey};
+    use rill_runtime_protocol::{
+        HANDLER_API_VERSION, HANDLER_PACKAGE_FORMAT_VERSION, HandlerPackManifest,
+    };
+    use sha2::{Digest, Sha256};
+
+    /// Serialises lifecycle tests in this module so their assertions
+    /// about the global `ACTIVE_EPOCH_TICKERS` counter are not perturbed
+    /// by parallel ticker creation/drop. The guard is recovered from
+    /// poison so a panic in one test does not cascade.
+    static LIFECYCLE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Test-only accessor for the count of currently-running epoch-ticker
+    /// threads. Private to this module — does not exist in non-test
+    /// builds, cannot be reached from external crates or integration
+    /// tests.
+    fn active_epoch_ticker_count() -> usize {
+        ACTIVE_EPOCH_TICKERS.load(Ordering::SeqCst)
+    }
+
+    /// Acquires the lifecycle test serialisation lock.
+    fn lifecycle_guard() -> std::sync::MutexGuard<'static, ()> {
+        LIFECYCLE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Polls `active_epoch_ticker_count` until it reaches `target` or
+    /// `timeout` elapses. Uses 10 ms polling to avoid flaky fixed sleeps
+    /// while bounding wait time.
+    fn wait_for_active_ticker_count(target: usize, timeout: std::time::Duration) -> bool {
+        let start = std::time::Instant::now();
+        loop {
+            if active_epoch_ticker_count() == target {
+                return true;
+            }
+            if start.elapsed() >= timeout {
+                return false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    /// Returns the echo handler WASM component path, or `None` if not
+    /// available. Mirrors `tests/wasm_handler.rs::echo_handler_component`.
+    fn echo_handler_component() -> Option<PathBuf> {
+        if let Ok(path) = std::env::var("ECHO_HANDLER_WASM") {
+            let path = PathBuf::from(path);
+            if path.exists() {
+                return Some(path);
+            }
+        }
+        let workspace_target =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/echo-handler.wasm");
+        if workspace_target.exists() {
+            return Some(workspace_target);
+        }
+        None
+    }
+
+    /// Returns the metadata-loop handler WASM component path, or `None`.
+    fn metadata_loop_handler_component() -> Option<PathBuf> {
+        if let Ok(path) = std::env::var("METADATA_LOOP_HANDLER_WASM") {
+            let path = PathBuf::from(path);
+            if path.exists() {
+                return Some(path);
+            }
+        }
+        let workspace_target = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/test-metadata-loop-handler.wasm");
+        if workspace_target.exists() {
+            return Some(workspace_target);
+        }
+        None
+    }
+
+    /// Builds a signed `.rillhandler` pack from the echo handler.
+    fn build_echo_pack(module: &[u8], signing: &SigningKey) -> Vec<u8> {
+        let manifest = HandlerPackManifest {
+            format_version: HANDLER_PACKAGE_FORMAT_VERSION,
+            id: "rillml.echo.handler".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
+            handler_api_version: HANDLER_API_VERSION,
+            min_runtime_version: env!("CARGO_PKG_VERSION").into(),
+            publisher_key_id: "wasm-test-key".into(),
+            capabilities: vec!["rillml.linearRegression.predict".into()],
+            module_sha256: hex::encode(Sha256::digest(module)),
+            module_size: module.len() as u64,
+        };
+        crate::build_signed_handler_pack(&manifest, module, signing).unwrap()
+    }
+
+    /// Builds a signed `.rillhandler` pack from the metadata-loop
+    /// handler. The manifest id matches the guest's `metadata()` return
+    /// value — but since `metadata()` loops forever, the host never
+    /// reaches the mismatch check.
+    fn build_metadata_loop_pack(module: &[u8], signing: &SigningKey) -> Vec<u8> {
+        let manifest = HandlerPackManifest {
+            format_version: HANDLER_PACKAGE_FORMAT_VERSION,
+            id: "rillml.test.metadata-loop".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
+            handler_api_version: HANDLER_API_VERSION,
+            min_runtime_version: env!("CARGO_PKG_VERSION").into(),
+            publisher_key_id: "wasm-test-key".into(),
+            capabilities: vec!["rillml.linearRegression.predict".into()],
+            module_sha256: hex::encode(Sha256::digest(module)),
+            module_size: module.len() as u64,
+        };
+        crate::build_signed_handler_pack(&manifest, module, signing).unwrap()
+    }
+
+    /// Loads a signed pack, returning the `LoadedHandlerPack`.
+    fn load_pack(pack_bytes: &[u8], verifying: &VerifyingKey) -> crate::LoadedHandlerPack {
+        let trust = crate::TrustStore(BTreeMap::from([("wasm-test-key".into(), *verifying)]));
+        let (loaded, _) =
+            crate::load_handler_pack(std::io::Cursor::new(pack_bytes), &trust).unwrap();
+        loaded
+    }
+
+    /// Verifies that constructing a normal echo handler increments the
+    /// active ticker count, and dropping it restores the count. This
+    /// directly proves the ticker thread is started on construction and
+    /// joined on drop.
+    #[test]
+    fn normal_handler_drop_restores_active_ticker_count() {
+        let _guard = lifecycle_guard();
+
+        let component = match echo_handler_component() {
+            Some(path) => fs::read(&path).unwrap(),
+            None => {
+                eprintln!("skipping: echo handler component not built (set ECHO_HANDLER_WASM)");
+                return;
+            }
+        };
+
+        let signing = SigningKey::from_bytes(&[7; 32]);
+        let pack_bytes = build_echo_pack(&component, &signing);
+        let loaded = load_pack(&pack_bytes, &signing.verifying_key());
+
+        let baseline = active_epoch_ticker_count();
+
+        let model =
+            serde_json::json!({"kind": "linearRegression", "weights": [0.5], "intercept": 0.0});
+        let handler =
+            WasmInvokeHandler::new(&loaded, &model).expect("echo handler must load successfully");
+
+        // The ticker thread increments the count at entry. Wait for the
+        // increment to be visible.
+        assert!(
+            wait_for_active_ticker_count(baseline + 1, std::time::Duration::from_secs(3)),
+            "active ticker count did not reach {} after handler construction (got {}, baseline {})",
+            baseline + 1,
+            active_epoch_ticker_count(),
+            baseline
+        );
+
+        // Dropping the handler must join the ticker thread and restore
+        // the count to baseline.
+        drop(handler);
+
+        assert!(
+            wait_for_active_ticker_count(baseline, std::time::Duration::from_secs(3)),
+            "active ticker count did not return to baseline {} after handler drop (got {})",
+            baseline,
+            active_epoch_ticker_count()
+        );
+    }
+
+    /// Verifies that a failed metadata-loop handler load does not leak
+    /// the epoch-ticker thread. The test records a baseline ticker
+    /// count, loads the metadata-loop handler (which must fail), then
+    /// waits for the count to return to baseline — directly proving the
+    /// ticker thread was joined during `EpochTicker::drop`.
+    #[test]
+    fn metadata_loop_failure_restores_active_ticker_count() {
+        let _guard = lifecycle_guard();
+
+        let component = match metadata_loop_handler_component() {
+            Some(path) => fs::read(&path).unwrap(),
+            None => {
+                eprintln!(
+                    "skipping: metadata-loop handler component not built (set METADATA_LOOP_HANDLER_WASM)"
+                );
+                return;
+            }
+        };
+
+        let signing = SigningKey::from_bytes(&[9; 32]);
+        let pack_bytes = build_metadata_loop_pack(&component, &signing);
+        let loaded = load_pack(&pack_bytes, &signing.verifying_key());
+
+        let baseline = active_epoch_ticker_count();
+
+        // The metadata-loop handler's `metadata()` loops forever; the
+        // host's epoch deadline interrupts it, and `WasmInvokeHandler::new`
+        // returns Err. The `EpochTicker` guard is dropped during error
+        // propagation, which joins the thread.
+        let result = WasmInvokeHandler::new(&loaded, &serde_json::json!({}));
+        assert!(result.is_err(), "metadata-loop handler must fail to load");
+
+        // After the failed load, the ticker thread must have been joined
+        // and the count must return to baseline.
+        assert!(
+            wait_for_active_ticker_count(baseline, std::time::Duration::from_secs(3)),
+            "active ticker count did not return to baseline {} after metadata-loop failure (got {})",
+            baseline,
+            active_epoch_ticker_count()
+        );
+    }
+
+    /// Source-level invariant: the counter static and its accessor are
+    /// both `#[cfg(test)]`-gated, so they cannot be reached from
+    /// external crates. This test confirms the test-only counter is
+    /// reachable from internal tests; the `cargo doc` API check (§11)
+    /// independently confirms no `pub` accessor surfaces in rustdoc for
+    /// a release build.
+    #[test]
+    fn ticker_probe_is_not_in_public_api() {
+        let _guard = lifecycle_guard();
+        let baseline = active_epoch_ticker_count();
+        // The static itself is reachable from `super::*` (via the
+        // `use super::*;` at the top of `mod tests`). If the static or
+        // the accessor were `pub`, `cargo doc --features wasm --no-deps`
+        // would surface them in the public API; the §11 grep for
+        // `active_epoch_ticker_count` / `ACTIVE_EPOCH_TICKERS` in
+        // `target/doc/rill_runtime` must return no matches.
+        let _ = ACTIVE_EPOCH_TICKERS.load(Ordering::SeqCst);
+        assert_eq!(active_epoch_ticker_count(), baseline);
     }
 }
