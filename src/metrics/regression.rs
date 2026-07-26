@@ -191,6 +191,40 @@ impl<'de> serde::Deserialize<'de> for R2 {
                 "r2 m2_truth must be finite and non-negative",
             ));
         }
+        // count == 0: no samples seen → all accumulators must be exactly 0.
+        // The normal paths (new() / reset()) guarantee this; a non-zero
+        // value indicates a corrupted or malicious payload.
+        if state.count == 0 {
+            if state.ss_res != 0.0 {
+                return Err(serde::de::Error::custom(format!(
+                    "r2 ss_res must be 0 when count == 0, got {}",
+                    state.ss_res
+                )));
+            }
+            if state.mean_truth != 0.0 {
+                return Err(serde::de::Error::custom(format!(
+                    "r2 mean_truth must be 0 when count == 0, got {}",
+                    state.mean_truth
+                )));
+            }
+            if state.m2_truth != 0.0 {
+                return Err(serde::de::Error::custom(format!(
+                    "r2 m2_truth must be 0 when count == 0, got {}",
+                    state.m2_truth
+                )));
+            }
+        }
+        // count == 1: after a single Welford update, M2 is exactly 0
+        // (delta2 = truth - mean = 0, so m2_delta = 0). The normal update
+        // path guarantees exact 0, so no floating-point tolerance is
+        // introduced here. ss_res may be non-zero because the single
+        // prediction can have an error.
+        if state.count == 1 && state.m2_truth != 0.0 {
+            return Err(serde::de::Error::custom(format!(
+                "r2 m2_truth must be 0 when count == 1, got {}",
+                state.m2_truth
+            )));
+        }
         Ok(R2 {
             ss_res: state.ss_res,
             mean_truth: state.mean_truth,
@@ -434,5 +468,51 @@ mod tests {
         assert!(Mse::new().value().is_none());
         assert!(Rmse::new().value().is_none());
         assert!(R2::new().value().is_none());
+    }
+
+    // -----------------------------------------------------------------
+    // §6.3: R² count state consistency
+    // -----------------------------------------------------------------
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn r2_serde_rejects_count_zero_with_nonzero_ss_res() {
+        let json = "{\"ss_res\":1.0,\"mean_truth\":0.0,\"m2_truth\":0.0,\"count\":0}";
+        assert!(serde_json::from_str::<R2>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn r2_serde_rejects_count_zero_with_nonzero_mean() {
+        let json = "{\"ss_res\":0.0,\"mean_truth\":5.0,\"m2_truth\":0.0,\"count\":0}";
+        assert!(serde_json::from_str::<R2>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn r2_serde_rejects_count_zero_with_nonzero_m2() {
+        let json = "{\"ss_res\":0.0,\"mean_truth\":0.0,\"m2_truth\":3.0,\"count\":0}";
+        assert!(serde_json::from_str::<R2>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn r2_serde_rejects_count_one_with_nonzero_m2() {
+        // After a single Welford update, M2 is exactly 0. A non-zero M2 at
+        // count == 1 indicates a corrupted or malicious payload.
+        let json = "{\"ss_res\":0.5,\"mean_truth\":3.0,\"m2_truth\":0.25,\"count\":1}";
+        assert!(serde_json::from_str::<R2>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn r2_serde_accepts_count_one_with_nonzero_ss_res() {
+        // A single sample can have a non-zero prediction error, so ss_res
+        // at count == 1 is legitimately non-zero. Only m2_truth must be 0.
+        let json = "{\"ss_res\":2.5,\"mean_truth\":3.0,\"m2_truth\":0.0,\"count\":1}";
+        let m: R2 = serde_json::from_str(json).unwrap();
+        assert_eq!(m.count, 1);
+        // value() returns None for count < 2.
+        assert!(m.value().is_none());
     }
 }
