@@ -117,6 +117,15 @@ exhaustive `match` arms and therefore require a minor bump.
   surfacing it in the documented API; `#[cfg(test)]` is not used
   because the library is not compiled with `--test` when integration
   tests link to it.
+- `tests/wasm_handler.rs`: replaced the ticker-only `TICKER_TEST_LOCK`
+  with a file-wide `WASM_TEST_LOCK` and a `wasm_test_guard()` helper.
+  Every `#[test]` in the file now acquires the guard at entry, because
+  each `WasmInvokeHandler` construction starts an `EpochTicker` thread
+  that increments the global counter. Without file-wide serialisation
+  the baseline captured by a ticker test could shift underneath it as
+  parallel tests constructed or dropped their own handlers. The guard
+  is recovered from poison so a panic in one test does not cascade via
+  `PoisonError`. No production code changes.
 
 ### Fixed — Release tooling and policy
 
