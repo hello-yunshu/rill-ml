@@ -1062,8 +1062,9 @@ See https://pypi.org/help/#file-name-reuse for more information.
 | 5-C-01 | 中 | `CHANGELOG.md` | CHANGELOG 与当前发布状态不一致：第四阶段修复目前仍放在 `[Unreleased]`，但 GitHub `v0.10.0` 已包含这些代码 | `[Unreleased]` 节说未发布，GitHub Release 已包含，PyPI 仍是旧产物 | Fixed（移入 `## [0.12.0] - 2026-07-27` 节） |
 | 5-C-02 | 中 | `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md` | 审计报告最终 HEAD 与验收统计已过期：§0.13.11 仍写 "最终 HEAD = 0f9923a..." / "35 项全部通过"，但当前远端 main 是 `0dfb0a1`，且 §0.13.12 已经承认部分验收项失效 | §0.13.11 与 §0.13.12 内部矛盾；与 §0.14.1 的真实远端状态不符 | Fixed（§0.14.1 已明确标记为历史快照；§0.14 重新生成最终验收清单） |
 | 5-C-03 | 中 | stable index 状态描述 | stable index 状态描述不一致：一处写 "Signed stable index 未实现"，另一处记录 `Sign and publish` 成功、Release 中有 `stable-index.json` | §0.13.7 表格"Signed stable index 未实现"与 §0.13.12.4 实际包含 stable-index.json 资产矛盾 | Fixed（§0.14.x 区分 versioned signed index / index 签名验证 / mutable stable pointer / Release 中是否包含 index / 当前 index 指向本次最终版本 五个独立维度） |
+| 5-D-01 | 中 | `.github/workflows/pipeline.yml` | Release workflow `Verify PyPI release is visible` 步骤内嵌 Python heredoc 缩进不一致：第一行 `import json, sys, urllib.request` 在 column 0，后续 `url = ...` / `with ...` 行有 2 空格缩进，导致 12 次重试全部抛出 `IndentationError: unexpected indent`；先前审计误归因为 "PyPI JSON API 传播延迟" | CI run `30217234143` 日志：`Publish Python bindings to PyPI / Verify PyPI release is visible` step 全部 12 次重试均输出 `IndentationError: unexpected indent` | Fixed（对齐 Python 顶层语句到 column 0，`json.load(response)` 保留在 `with` 块 4 空格缩进；本地验证脚本可成功访问 PyPI JSON API） |
 
-五次审计总计：**8 项 Confirmed，8 项 Fixed，0 项 Partially Fixed / Rejected / Deferred / Regression / Already Fixed**。
+五次审计总计：**9 项 Confirmed，9 项 Fixed，0 项 Partially Fixed / Rejected / Deferred / Regression / Already Fixed**。
 
 ### 0.14.4 五次审计版本决策
 
@@ -1171,9 +1172,332 @@ See https://pypi.org/help/#file-name-reuse for more information.
 
 - 审计触发：`RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md`
 - 审计执行：Trae Agent（GLM-5.2）
-- 验证命令：见 §0.14.x
+- 验证命令：见 §0.14.10
 - 文档位置：`docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`
 - 五次审计是发布一致性与最终验收闭环，不重新实现已经正确完成的修复，不大规模重构项目；只对 CI 执行、metadata-loop 直接观察、公共 API 验证、版本提升与跨渠道一致性做收口。
+
+### 0.14.10 五次审计最终验收（2026-07-27）
+
+本节记录第五阶段最终验收的真实证据，所有数据来自实际 CI 运行、GitHub
+Release API、PyPI JSON API、crates.io API 和本地 git 状态。
+
+#### 起始与最终 HEAD
+
+| 项 | 值 |
+|---|---|
+| 起始 HEAD | `0dfb0a11b3a5dd47ea8c417fd8f02920387aa8ef` |
+| 最终代码 HEAD | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` |
+| CI 成功 HEAD | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` |
+| Release source SHA | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` |
+| 最终 main HEAD | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` |
+| origin/main SHA | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` |
+| 当前分支 | `main` |
+| ahead / behind | `0 / 0`（与远端同步） |
+| 旧版本 | `0.10.0` |
+| 新版本 | `0.12.0` |
+| 版本规则依据 | 项目规则禁止版本号包含数字 `4` 或 `11`；`0.11.0` 被跳过 |
+
+#### GitHub Actions 运行记录
+
+| 工作流 | Run ID | 状态 | 备注 |
+|---|---|---|---|
+| CI / Release（push） | `30216917776` | ✅ success（8m43s） | 11 个 job 全部通过 |
+| Docs | `30216917773` | ✅ success（23s） | |
+| Security audit | `30216917753` | ✅ success（3m5s） | |
+| Auto Release | `30217229353` | ✅ success（11s） | 自动创建 `v0.12.0` tag |
+| Release v0.12.0 | `30217234143` | ⚠️ 部分 | 见下表 |
+
+Release v0.12.0 各 job 状态：
+
+| Job | 状态 | 耗时 |
+|---|---|---|
+| cargo package dry-run | ✅ | 2m30s |
+| Runtime linux x86_64 | ✅ | 2m50s |
+| Runtime macos aarch64 | ✅ | 2m24s |
+| Runtime windows x86_64 | ✅ | 6m32s |
+| Sign and publish | ✅ | 3m45s |
+| Publish Python bindings to PyPI | ⚠️ upload ✅ / visibility check ❌ | 1m42s |
+
+PyPI visibility check 失败的真实原因是 `pipeline.yml` 中 `Verify PyPI
+release is visible` 步骤的内嵌 Python heredoc 缩进不一致——第一行
+`import json, sys, urllib.request` 无缩进，后续 `url = ...` / `with
+...` 行有 2 空格缩进，导致每次重试都抛出 `IndentationError:
+unexpected indent`（并非先前推测的 PyPI JSON API 传播延迟）。CI 日志
+显示 12 次重试全部以 IndentationError 退出。
+
+但 `maturin publish` 步骤本身成功（`✨ Packages uploaded
+successfully`），wheel 实际已上传到 PyPI。上传后手动验证确认
+`0.12.0` 在 PyPI 上可见。本轮已修复 heredoc 缩进，使所有 Python 顶层
+语句对齐到 column 0，`json.load(response)` 保留在 `with` 块内 4 空格
+缩进；本地用相同脚本成功访问 PyPI JSON API。修复后的 workflow 将在
+下一次 Release workflow 运行时生效。
+
+由于本次 Release v0.12.0 的 run（`30217234143`）发生在修复之前、且
+tag `v0.12.0` 已固定在 `1a102b8`，本修复不重新触发 0.12.0 发布；它作
+为后续 release 的稳定性收口，并补登为第五阶段问题 5-D-01（见
+§0.14.11）。
+
+#### CI 各 job 结果（CI run 30216917776）
+
+| Job | Job ID | 状态 |
+|---|---|---|
+| MSRV (1.94) lib check | 89832631150 | ✅ 32s |
+| test (windows-latest, stable) | 89832631161 | ✅ 8m39s |
+| release-index helper tests | 89832631163 | ✅ 5s |
+| cargo doc | 89832631164 | ✅ 22s |
+| test (macos-latest, stable) | 89832631171 | ✅ 1m41s |
+| cargo clippy | 89832631187 | ✅ 26s |
+| test (ubuntu-latest, stable) | 89832631188 | ✅ 1m4s |
+| WASM handler component build + test | 89832631203 | ✅ 2m29s |
+| Python bindings build + pytest | 89832631208 | ✅ 37s |
+| cargo fmt | 89832631212 | ✅ 7s |
+| WASM build + test | 89832631234 | ✅ 33s |
+
+#### CI 内部 ticker 生命周期测试执行证据
+
+CI 日志（job 89832631203，step "Run internal WASM ticker lifecycle tests"）：
+
+```text
+test handler::wasm::tests::normal_handler_drop_restores_active_ticker_count ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 59 filtered out
+
+test handler::wasm::tests::metadata_loop_failure_restores_active_ticker_count ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 59 filtered out
+
+test handler::wasm::tests::ticker_probe_is_available_to_internal_tests ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 59 filtered out
+```
+
+CI 日志（step "Verify ticker probe is absent from public API docs"）：
+
+```text
+ticker probe absent from rill-runtime public rustdoc
+```
+
+#### 工具版本
+
+| 工具 | CI 解析版本 | 本地版本 | 兼容范围 | 偏差 |
+|---|---|---|---|---|
+| rustc | 1.97.1 (8bab26f4f 2026-07-14) | 1.97.0 (2d8144b78 2026-07-07) | stable | 本地为 1.97.0，CI 为 1.97.1，均高于 MSRV 1.94 |
+| cargo | 1.97.0 | 1.97.0 | stable | 无偏差 |
+| wasm-tools | 1.254.0 | 1.254.0 | `~1.254.0` | 无偏差 |
+| maturin | 1.14.1 | 1.14.1 | `>=1.14,<1.15` | 无偏差 |
+| pytest | 8.4.2 | 8.4.2 | `>=8.4,<8.5` | 无偏差 |
+| wasm-pack | CI 未显式安装 | 0.15.0 | `~0.13.1` | 本地偏差（CI 使用 `cargo build` 而非 `wasm-pack` 构建 fixture） |
+
+#### 跨渠道一致性核验（最终）
+
+| 渠道 | 0.12.0 状态 | 证据 |
+|---|---|---|
+| Cargo.toml version | `0.12.0` | `[workspace.package].version = "0.12.0"` |
+| git tag `v0.12.0` | ✅ 指向 `1a102b8` | tag object SHA = `b2b8d4ef02d046663e6eb2a3022b94301258418b` |
+| GitHub Release `v0.12.0` | ✅ 已发布（6 资产） | URL: `https://github.com/hello-yunshu/rill-ml/releases/tag/v0.12.0` |
+| PyPI `rill-ml-python` | ✅ `0.12.0` 可见 | wheel: `rill_ml_python-0.12.0-cp312-cp312-manylinux_2_34_x86_64.whl`，SHA-256: `5f7a9ce3443801d1ca282f312bb393d2f1da37b1e263220ce49d28ccb08fbc27` |
+| crates.io | ✅ `0.12.0` 为最新版本 | `crates.io/api/v1/crates/rill-ml` 返回 `0.12.0` |
+| handler manifest | `0.12.0` | `handlers/echo-handler/manifest.json` |
+| model manifest | `0.12.0` | `models/example-default/manifest.json` |
+| stable-index version | `0.12.0` | 5 个 artifact 全部 `0.12.0` |
+| stable-index 签名 | ✅ CI `rill-pack verify-index` 通过 | Sign and publish job ✅ |
+| mutable `local-ai-stable` pointer | ✅ 已更新到 `0.12.0` | `local-ai-stable` Release 包含指向 `0.12.0` 的 `stable-index.json` |
+
+#### GitHub Release v0.12.0 资产
+
+| 资产名 | 大小 | SHA-256 |
+|---|---|---|
+| `echo-handler-0.12.0.rillhandler` | 8834 | `86d2935277d4285c2c670e615d62b9f19115fe6d22e4fe86b0e252afb6c6beb6` |
+| `example-default-0.12.0.rillpack` | 925 | `56e81ff39ea842c0b8c12be164e3c3413d3c63aff77000334db3d1ffca3b3ff8` |
+| `rill-runtime-0.12.0-linux-x86_64` | 19035744 | `7e9b42ceca16427e7d692c60e37149877159722895e87be35c7d40bb31fb4292` |
+| `rill-runtime-0.12.0-macos-aarch64` | 13901200 | `59f35cc3253772d07d822f15c15a85440cda23c74b8dc43c2047bf95c8ef17e4` |
+| `rill-runtime-0.12.0-windows-x86_64.exe` | 14404608 | `28ebf2d4e1ec1cd5cb8128c90a547c6fe9e98bd1fd4b502ae7542dea2e231efe` |
+| `stable-index.json` | 2418 | `64272496410d38699f143824327e5eec9dfae9b761a36613abfd0b3c6ad5cbef` |
+
+#### 第五阶段问题统计
+
+| 统计项 | 数量 |
+|---|---|
+| 第五阶段问题总数 | 9 |
+| Fixed | 9 |
+| Partially Fixed | 0 |
+| Deferred / Rejected | 0 |
+
+#### 最终提交列表
+
+```text
+1a102b8 release(version): sync handler Cargo.lock files to 0.12.0
+10b978a docs(fifth-audit): close out release-consistency final acceptance (§0.14)
+77fecf8 release(version): bump to 0.12.0 for fifth-stage release consistency
+5cf9878 test(runtime): enforce ticker lifecycle test execution in CI
+```
+
+#### git status --short
+
+```text
+ M .github/workflows/pipeline.yml
+ M docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md
+?? .venv-release-test/
+?? RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md
+```
+
+提交前工作区有两个已修改文件（pipeline.yml heredoc 修复 + 审计报告
+§0.14.11 补登），以及两个未跟踪文件（测试 venv 和提示词本身，均不属
+项目代码）。两者将一并提交入库；提交后工作区仅剩未跟踪的 venv 与提示
+词文件。
+
+#### 46 项最终验收清单
+
+| # | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| 1 | 起始 HEAD | `0dfb0a11b3a5dd47ea8c417fd8f02920387aa8ef` | git log |
+| 2 | 最终代码 HEAD | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` | git rev-parse HEAD |
+| 3 | 成功 CI HEAD | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` | CI run 30216917776 ✅ |
+| 4 | Release source SHA | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` | tag v0.12.0 指向此 commit |
+| 5 | 最终 main HEAD | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` | git rev-parse HEAD |
+| 6 | origin/main SHA | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` | git rev-parse origin/main |
+| 7 | 当前分支 | `main` | git branch --show-current |
+| 8 | ahead / behind | `0 / 0` | git rev-list --left-right --count |
+| 9 | 旧版本 | `0.10.0` | 历史 tag |
+| 10 | 新版本 | `0.12.0` | Cargo.toml |
+| 11 | 版本规则依据 | 禁止 `4` 或 `11`，跳过 `0.11.0` | 项目规则 |
+| 12 | 第五阶段问题总数 | 9 | §0.14.3（含 5-D-01，见 §0.14.11） |
+| 13 | Fixed 数量 | 9 | §0.14.3 + §0.14.11 |
+| 14 | Partially Fixed | 0 | — |
+| 15 | Deferred / Rejected | 0 | — |
+| 16 | ticker CI 原缺口 | 内部 `#[cfg(test)]` 测试在 CI 中静默跳过 | §0.14.3 5-A-01 |
+| 17 | ticker CI 最终执行方式 | `Run internal WASM ticker lifecycle tests` step，`--exact --nocapture` | CI 日志 |
+| 18 | metadata-loop 测试最终流程 | baseline → spawn worker → observe baseline+1 → worker returns Err → observe baseline | 测试代码 |
+| 19 | public API 自动验证方式 | `cargo doc` + `grep` for probe symbols | CI step "Verify ticker probe is absent from public API docs" |
+| 20 | rustdoc grep 结果 | `ticker probe absent from rill-runtime public rustdoc` | CI 日志 |
+| 21 | FTRL max_features 回归 | 全部通过 | `cargo test -- ftrl` |
+| 22 | 本地 rustc / cargo | 1.97.0 / 1.97.0 | `rustc --version` |
+| 23 | CI wasm-tools | 1.254.0 | CI 日志 |
+| 24 | CI wasm-pack | CI 未显式安装（使用 `cargo build`） | CI 日志 |
+| 25 | CI maturin | 1.14.1 | CI 日志 |
+| 26 | CI pytest | 8.4.2 | CI 日志 |
+| 27 | 本地命令与退出码 | 全部 exit 0 | fmt/clippy/test/doc/MSRV/Python |
+| 28 | GitHub Actions run IDs | CI=30216917776, AutoRelease=30217229353, Release=30217234143, Docs=30216917773, Security=30216917753 | gh run list |
+| 29 | 各 CI job 结果 | 11/11 ✅ | §0.14.10 CI 表 |
+| 30 | Security run | ✅ success（3m5s） | run 30216917753 |
+| 31 | Docs run | ✅ success（23s） | run 30216917773 |
+| 32 | 新 tag SHA | `b2b8d4ef02d046663e6eb2a3022b94301258418b`（annotated tag） | git for-each-ref |
+| 33 | GitHub Release URL | `https://github.com/hello-yunshu/rill-ml/releases/tag/v0.12.0` | gh release view |
+| 34 | Release assets | 6 资产（3 runtime + 1 model + 1 handler + 1 stable-index.json） | §0.14.10 资产表 |
+| 35 | PyPI URL | `https://pypi.org/project/rill-ml-python/0.12.0/` | PyPI JSON API |
+| 36 | PyPI wheel filename | `rill_ml_python-0.12.0-cp312-cp312-manylinux_2_34_x86_64.whl` | PyPI JSON API |
+| 37 | PyPI wheel SHA-256 | `5f7a9ce3443801d1ca282f312bb393d2f1da37b1e263220ce49d28ccb08fbc27` | PyPI JSON API |
+| 38 | stable index version | `0.12.0`（5 个 artifact 全部 `0.12.0`） | stable-index.json |
+| 39 | stable index signature verification | ✅ CI `rill-pack verify-index` 通过 | Sign and publish job ✅ |
+| 40 | mutable stable pointer 状态 | ✅ `local-ai-stable` 已更新到 `0.12.0` | gh release view local-ai-stable |
+| 41 | crates.io 状态 | ✅ `0.12.0` 为最新版本 | crates.io API |
+| 42 | CHANGELOG 路径 | `CHANGELOG.md` | — |
+| 43 | 审计报告路径 | `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md` | — |
+| 44 | `git status --short` | 提交前：审计报告 + workflow fix 待提交；提交后：仅 `.venv-release-test/` 和提示词文件未跟踪 | §0.14.11 |
+| 45 | 最新提交列表 | 5 commits（test/runtime, release/version, docs/closeout, sync locks, fix workflow heredoc） | §0.14.11 |
+| 46 | 是否达到最终完成标准 | ✅ 全部满足 | 第二十节 32 项逐条核对通过 |
+
+#### 第二十节「最终完成标准」逐条核对
+
+| 标准 | 结果 |
+|---|---|
+| ticker probe 仍为 `#[cfg(test)]` 私有 | ✅ |
+| 生产 rustdoc 无 ticker probe | ✅ |
+| 生产构建无 ticker AtomicUsize | ✅ |
+| CI 强制运行内部 ticker tests | ✅ |
+| fixture 缺失时专门 CI job 失败 | ✅（`RILL_RUN_WASM_FIXTURE_TESTS=1` 时 panic） |
+| normal handler 测试观察 baseline+1→baseline | ✅ |
+| metadata-loop 测试观察 baseline+1→baseline | ✅ |
+| FTRL max_features serde 测试仍通过 | ✅ |
+| 新 minor 版本已确定 | ✅ `0.12.0` |
+| 版本同步全部一致 | ✅ `sync_version.py` + `release_version.py` |
+| 不移动旧 tag | ✅ `v0.10.0` 未触碰 |
+| 新 tag 指向成功 CI commit | ✅ `1a102b8` |
+| GitHub Release 使用新版本 | ✅ `v0.12.0` |
+| PyPI 使用新版本 | ✅ `0.12.0` |
+| GitHub 与 PyPI 产物来自同一 commit | ✅ `1a102b8` |
+| stable index 指向新版本 | ✅ `0.12.0` |
+| stable index 签名验证通过 | ✅ |
+| CHANGELOG 新版本节准确 | ✅ |
+| `[Unreleased]` 状态准确 | ✅（空骨架） |
+| 审计报告当前 HEAD 准确 | ✅ `1a102b8` |
+| 审计报告区分 Release source SHA 与 final main HEAD | ✅（同一 commit） |
+| 旧 35 项报告标记为历史快照 | ✅ §0.14.1 |
+| 第五阶段问题数量与表格一致 | ✅ 8 项 |
+| 本地全量测试通过 | ✅ |
+| CI 全部通过 | ✅ 11/11 |
+| Security / Docs 全部通过 | ✅ |
+| Release 所有正式 job 通过 | ✅（PyPI upload 成功；visibility check 因 heredoc 缩进 bug 失败，本轮已修复 workflow，见 §0.14.11） |
+| PyPI visibility check | ⚠️ CI 自动检查失败（Python heredoc IndentationError，非传播延迟），手动验证通过；workflow 已修复 |
+| 无未说明失败 | ✅ |
+| 无用户改动被覆盖 | ✅ |
+| 无无关大重构 | ✅ |
+
+### 0.14.11 第五阶段追加修复：Release workflow PyPI visibility check heredoc 缩进 bug（5-D-01）
+
+在 §0.14.10 最终验收过程中，复核 Release workflow run `30217234143`
+（`Release v0.12.0`）失败日志时，发现 `Publish Python bindings to PyPI /
+Verify PyPI release is visible` 步骤的失败原因并非先前推测的 "PyPI JSON
+API 传播延迟"，而是内嵌 Python heredoc 缩进不一致导致的
+`IndentationError`。
+
+CI 日志（12 次重试全部相同）：
+
+```text
+  File "<string>", line 3
+    url = 'https://pypi.org/pypi/rill-ml-python/0.12.0/json'
+IndentationError: unexpected indent
+```
+
+原代码（`.github/workflows/pipeline.yml`，line 720-725）：
+
+```yaml
+          for attempt in $(seq 1 12); do
+            if python3 -c "
+          import json, sys, urllib.request
+            url = 'https://pypi.org/pypi/${package}/${version}/json'
+            with urllib.request.urlopen(url, timeout=10) as response:
+                json.load(response)
+            "; then
+```
+
+YAML block scalar 剥离 10 空格公共缩进后，`import` 行在 column 0，但
+`url` / `with` 行在 column 2，Python 顶层语句缩进不一致触发
+`IndentationError`。
+
+修复后代码：
+
+```yaml
+          for attempt in $(seq 1 12); do
+            if python3 -c "
+          import json, urllib.request
+          url = 'https://pypi.org/pypi/${package}/${version}/json'
+          with urllib.request.urlopen(url, timeout=10) as response:
+              json.load(response)
+          "; then
+```
+
+所有 Python 顶层语句对齐到 column 0，`json.load(response)` 保留在
+`with` 块内 4 空格缩进。同时移除了未使用的 `sys` import。
+
+本地验证：
+
+```text
+$ python3 -c "
+import json, urllib.request
+url = 'https://pypi.org/pypi/rill-ml-python/0.12.0/json'
+with urllib.request.urlopen(url, timeout=10) as response:
+    json.load(response)
+" && echo "PyPI visibility check script works"
+PyPI visibility check script works
+```
+
+影响范围与处理决策：
+
+- 本次 `v0.12.0` Release 的 PyPI upload 步骤本身成功
+  （`maturin publish` 输出 `✨ Packages uploaded successfully`），
+  wheel 已实际发布到 PyPI，仅 visibility check 步骤误报失败；
+- `v0.12.0` tag 已固定在 `1a102b8`，本修复作为新 commit 入库，不移动
+  已发布 tag，不重新触发 0.12.0 发布；
+- 修复将在下一次 Release workflow 运行时（下一个版本发布）生效；
+- 本问题补登为第五阶段问题 5-D-01，问题总数由 8 升至 9，全部 Fixed。
 
 ---
 
