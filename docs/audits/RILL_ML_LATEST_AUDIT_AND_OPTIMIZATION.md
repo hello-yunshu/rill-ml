@@ -287,12 +287,12 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 | 仓库 | hello-yunshu/rill-ml |
 | 分支 | `main` |
 | 三次审计起始基线 | `9791c5f9bbf95482f78a1fb189dc9447410377c7`（即二次审计闭环后又新增 2 个提交后的 main） |
-| 三次审计最终 HEAD SHA | 见本节末尾"三次审计最终提交列表"的最新 SHA；以 `git rev-parse HEAD` 为准 |
-| 与远端 `origin/main` 关系 | 本地 `main` 领先 `origin/main` 6 个未推送提交（三次审计 6 个；二次审计 7 个 + 二次审计后 2 个已推送） |
+| 三次审计最终 HEAD SHA | 本审计报告所在提交（以 `git rev-parse HEAD` 为准；编写时为 `31df802` 或其 amend 后继） |
+| 与远端 `origin/main` 关系 | 本地 `main` 领先 `origin/main` 8 个未推送提交（三次审计 8 个；二次审计 7 个 + 二次审计后 2 个已推送） |
 | 当前版本 | `0.10.0`（从 `0.9.0` minor 提升，理由见 §0.12.5） |
 | 三次审计触发提示词 | `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` |
 | Rust 工具链 | `cargo 1.95.0`（workspace MSRV 1.94）；MSRV 1.94.0 检查已本地执行 |
-| 工作区状态 | 三次审计修复已按 6 个逻辑提交全部入库，工作区仅剩未跟踪的提示词文件 `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` |
+| 工作区状态 | 三次审计修复已按 8 个提交全部入库（7 个 substantive + 1 个 doc-update，见 §0.12.10），工作区仅剩未跟踪的提示词文件 `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` |
 
 三次审计前已确认：
 
@@ -374,10 +374,11 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
   - 新增 `#[doc(hidden)] pub fn active_epoch_ticker_count() -> usize` 访问器（`#[doc(hidden)]` 不出现在文档公开 API 中；`pub` 而非 `pub(crate)` 是因为集成测试是单独 crate）。
 - **测试覆盖**（[crates/rill-runtime/tests/wasm_handler.rs](../../crates/rill-runtime/tests/wasm_handler.rs) 共 2 个新用例 + 1 个辅助函数）：
   - `wait_for_active_ticker_count(target, timeout)`：10ms 轮询，3 秒超时，避免固定 sleep 导致 flaky；
-  - `TICKER_TEST_LOCK`：`Mutex<()>` 串行化 ticker 测试，避免并行测试互相干扰计数器；
+  - `WASM_TEST_LOCK` / `wasm_test_guard()`：文件级 `Mutex<()>` 串行化**所有** `wasm_handler.rs` 测试（每个测试 entry 都 acquire），因为每个 `WasmInvokeHandler` 都会启动 `EpochTicker` 线程并递增计数器；guard 使用 `unwrap_or_else(|poisoned| poisoned.into_inner())` 从中毒锁恢复，避免一个测试 panic 级联影响后续测试；
   - `metadata_loop_failure_restores_active_ticker_count`：记录 baseline → 启动 metadata-loop handler → 确认构造失败 → 等待 active count 回到 baseline → 再构造正常 echo handler → drop → active count 再回到 baseline；
   - `normal_handler_drop_restores_active_ticker_count`：记录 baseline → 构造 echo handler → 确认 active count = baseline + 1 → drop → 等待回到 baseline。
 - **既有测试保留**：`metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers` 等全部保留，新测试是更强的直接观察补充。
+- **后续加固**（commit `24c600f`）：原始实现仅用 `TICKER_TEST_LOCK` 串行化两个 ticker 测试，但其他测试并行运行时仍会偏移 baseline。改为文件级 `WASM_TEST_LOCK` 后所有 19 个测试串行执行，计数器观察稳定。
 
 #### 3-C-01：工具版本兼容范围策略修正
 
@@ -497,7 +498,7 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 | Signed stable index | ⏳ 未实现 | ⏳ 不在本次发布范围 | 首轮审计 §3.5 标记为 Deferred |
 
 **关键说明**：
-- 三次审计所有修复已按 6 个逻辑提交入库（见 §0.12.10），**尚未 push 到 `origin/main`**，因此 CI 尚未运行；
+- 三次审计所有修复已按 8 个提交入库（7 个 substantive + 1 个 doc-update，见 §0.12.10），**尚未 push 到 `origin/main`**，因此 CI 尚未运行；
 - 推送后由 GitHub Actions `pipeline.yml` 自动触发等价验证；若全部通过，再创建 `v0.10.0` tag 触发 `auto-release.yml` 自动发布 GitHub Release；
 - crates.io / PyPI / signed stable index 三项在 0.x 阶段均未启用，本次不涉及。
 
@@ -522,18 +523,20 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 
 ### 0.12.10 三次审计最终提交列表
 
-按提示词第十三节建议的 6 个逻辑提交组织（按时间顺序，最新在前）：
+按提示词第十三节建议的逻辑提交组织，实际落入 8 个提交（commit 7 是 commit 4 的测试基础设施加固；commit 8 是 doc-update，记录 commit 7 与最终 HEAD；按时间顺序，最新在前）：
 
 | # | SHA | 提交信息 | 主要内容 |
 |---|---|---|---|
-| 6 | `7fbdbc1` | `docs(third-audit): final closeout — CHANGELOG and audit report` | CHANGELOG `[0.10.0]` 节 + 审计报告 §0.12 |
+| 8 | `31df802` | `docs(third-audit): record commit 7 (test serialisation) in CHANGELOG and audit report` | 同步 commit 7 到 CHANGELOG 与审计报告；更新 HEAD SHA |
+| 7 | `24c600f` | `test(runtime): serialise all wasm_handler tests to fix ticker counter flakiness` | 文件级 `WASM_TEST_LOCK` 取代仅覆盖 ticker 测试的 `TICKER_TEST_LOCK`；所有 19 个测试串行；poison 锁恢复 |
+| 6 | `7ad16a9` | `docs(third-audit): final closeout — CHANGELOG and audit report` | CHANGELOG `[0.10.0]` 节 + 审计报告 §0.12 |
 | 5 | `0eebb37` | `chore(release): bump to 0.10.0 and clarify compatible-range tool policy` | 版本提升 0.9.0 → 0.10.0；sync_version.py 同步 15 字段；工具范围策略描述修正 |
 | 4 | `3f073ef` | `test(runtime): make epoch-ticker lifecycle directly observable from tests` | `ACTIVE_EPOCH_TICKERS` 计数器 + 2 个直接观察测试 |
 | 3 | `d13755a` | `fix(core/stat-state): close R2 and StandardScaler count invariants` | R² count=0/1 + StandardScaler count=0/1 一致性 |
 | 2 | `a2eb5b8` | `fix(core/ftrl): add config-aware weight validation to serde trust boundary` | `weight_checked` / `intercept_weight_checked` + 顶层 `validate_invariants` |
 | 1 | `83cff4c` | `fix(core/naive-bayes): add custom Deserialize with full invariant validation` | 三种 NB 自定义 Deserialize + `validate_invariants` + 19 个新测试 |
 
-三次审计起始基线为 `9791c5f`，最终 HEAD 为 `7fbdbc1`（amend 后 SHA 以 `git rev-parse HEAD` 为准）。
+三次审计起始基线为 `9791c5f`，最终 HEAD 为 commit 8（`31df802` 或其 amend 后继，以 `git rev-parse HEAD` 为准）。
 
 ---
 
