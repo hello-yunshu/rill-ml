@@ -2,14 +2,14 @@
 //!
 //! Loads a signed `.rillhandler` module, instantiates it inside a Wasmtime
 //! component sandbox with strict resource limits, and adapts it to the
-//! [`InvokeHandler`] trait.
+//! [`InvokeHandler`](crate::server::InvokeHandler) trait.
 //!
 //! ## Sandbox guarantees
 //!
 //! - No WASI imports (no filesystem, network, environment, stdio, process).
 //! - Fuel budget per `configure`/`invoke` call.
 //! - Epoch interruption for wall-clock timeout.
-//! - Memory and table growth capped by [`HostLimits`].
+//! - Memory and table growth capped by `HostState` (implements [`ResourceLimiter`]).
 //! - Input and output JSON bounded by [`MAX_IO_BYTES`].
 
 use std::sync::{
@@ -167,7 +167,7 @@ impl Drop for EpochTicker {
     }
 }
 
-/// Sandboxed WASM handler that implements [`InvokeHandler`].
+/// Sandboxed WASM handler that implements [`crate::server::InvokeHandler`].
 ///
 /// The handler holds a Wasmtime [`Engine`], a background epoch-ticker thread,
 /// and a [`Mutex`] protecting the [`Store`] and component instance. Calls are
@@ -489,7 +489,8 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // Ticker lifecycle observability (audit 6.5 / fourth-stage 4-A-01).
+    // Ticker lifecycle observability (audit 6.5 / fourth-stage 4-A-01
+    // / fifth-stage 5-A-01..5-A-03).
     //
     // The `EpochTicker` RAII guard starts a background thread that
     // periodically calls `engine.increment_epoch()`. The tests below use
@@ -502,11 +503,30 @@ mod tests {
     // the counter through a `#[doc(hidden)] pub` accessor, which leaked
     // a test probe into the public API. They have been moved here so the
     // counter and accessor can both be `#[cfg(test)]`-private.
+    //
+    // Fifth-stage strengthening:
+    // - The metadata-loop test now spawns the constructor in a worker
+    //   thread so the main thread can observe `baseline + 1` *during*
+    //   construction (previously the synchronous flow could pass even if
+    //   the ticker never started, because by the time `new()` returned
+    //   `Err` the constructor had already joined the thread).
+    // - Fixture gating now respects `RILL_RUN_WASM_FIXTURE_TESTS=1`:
+    //   the dedicated `wasm-handler` CI job sets this env var so a
+    //   regression in fixture production surfaces as a hard CI failure
+    //   rather than a silently-skipped test. The regular workspace
+    //   `cargo test` job (which does not build the fixtures) still
+    //   skips gracefully.
+    // - The previously-named `ticker_probe_is_not_in_public_api` test
+    //   was renamed to `ticker_probe_is_available_to_internal_tests`
+    //   because it does *not* actually assert anything about the public
+    //   API. The real public-API leak check is a `cargo doc` + `grep`
+    //   step in the dedicated CI job.
     // -----------------------------------------------------------------
 
     use std::collections::BTreeMap;
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::Arc;
 
     use ed25519_dalek::{SigningKey, VerifyingKey};
     use rill_runtime_protocol::{
@@ -551,37 +571,65 @@ mod tests {
         }
     }
 
-    /// Returns the echo handler WASM component path, or `None` if not
-    /// available. Mirrors `tests/wasm_handler.rs::echo_handler_component`.
-    fn echo_handler_component() -> Option<PathBuf> {
-        if let Ok(path) = std::env::var("ECHO_HANDLER_WASM") {
-            let path = PathBuf::from(path);
-            if path.exists() {
-                return Some(path);
-            }
+    /// Resolves a WASM fixture path for the lifecycle tests.
+    ///
+    /// Resolution order:
+    /// 1. The `env_name` environment variable (e.g. `ECHO_HANDLER_WASM`) if
+    ///    set. The path must point to an existing file — a missing file
+    ///    panics so a misconfigured CI step cannot silently skip the test.
+    /// 2. The workspace-relative fallback under `target/`.
+    /// 3. If neither exists and `RILL_RUN_WASM_FIXTURE_TESTS` is **not**
+    ///    set, returns `None` so the regular workspace `cargo test` job
+    ///    (which does not build the WASM fixtures) can skip the test
+    ///    without failing.
+    /// 4. If neither exists and `RILL_RUN_WASM_FIXTURE_TESTS=1` is set,
+    ///    panics — the dedicated CI job must fail loudly instead of
+    ///    silently reporting green.
+    ///
+    /// The dedicated `wasm-handler` CI job sets
+    /// `RILL_RUN_WASM_FIXTURE_TESTS=1` after building the fixtures so
+    /// that a regression in fixture production surfaces as a hard CI
+    /// failure rather than a skipped test.
+    fn fixture_path(env_name: &str, fallback_relative: &str) -> Option<PathBuf> {
+        if let Ok(value) = std::env::var(env_name) {
+            let path = PathBuf::from(value);
+            assert!(
+                path.is_file(),
+                "{env_name} points to missing fixture: {}",
+                path.display()
+            );
+            return Some(path);
         }
-        let workspace_target =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/echo-handler.wasm");
-        if workspace_target.exists() {
-            return Some(workspace_target);
+
+        let fallback = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(fallback_relative);
+        if fallback.is_file() {
+            return Some(fallback);
         }
+
+        if std::env::var_os("RILL_RUN_WASM_FIXTURE_TESTS").is_some() {
+            panic!(
+                "{env_name} is not set and fallback fixture does not exist: {} \
+                 (RILL_RUN_WASM_FIXTURE_TESTS=1 is set, so missing fixtures must fail)",
+                fallback.display()
+            );
+        }
+
         None
+    }
+
+    /// Returns the echo handler WASM component path, or `None` if not
+    /// available and fixture tests are not mandatory. Mirrors
+    /// `tests/wasm_handler.rs::echo_handler_component`.
+    fn echo_handler_component() -> Option<PathBuf> {
+        fixture_path("ECHO_HANDLER_WASM", "../../target/echo-handler.wasm")
     }
 
     /// Returns the metadata-loop handler WASM component path, or `None`.
     fn metadata_loop_handler_component() -> Option<PathBuf> {
-        if let Ok(path) = std::env::var("METADATA_LOOP_HANDLER_WASM") {
-            let path = PathBuf::from(path);
-            if path.exists() {
-                return Some(path);
-            }
-        }
-        let workspace_target = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/test-metadata-loop-handler.wasm");
-        if workspace_target.exists() {
-            return Some(workspace_target);
-        }
-        None
+        fixture_path(
+            "METADATA_LOOP_HANDLER_WASM",
+            "../../target/test-metadata-loop-handler.wasm",
+        )
     }
 
     /// Builds a signed `.rillhandler` pack from the echo handler.
@@ -638,7 +686,10 @@ mod tests {
         let component = match echo_handler_component() {
             Some(path) => fs::read(&path).unwrap(),
             None => {
-                eprintln!("skipping: echo handler component not built (set ECHO_HANDLER_WASM)");
+                eprintln!(
+                    "skipping: echo handler component not built \
+                     (set ECHO_HANDLER_WASM or RILL_RUN_WASM_FIXTURE_TESTS=1)"
+                );
                 return;
             }
         };
@@ -677,10 +728,30 @@ mod tests {
     }
 
     /// Verifies that a failed metadata-loop handler load does not leak
-    /// the epoch-ticker thread. The test records a baseline ticker
-    /// count, loads the metadata-loop handler (which must fail), then
-    /// waits for the count to return to baseline — directly proving the
-    /// ticker thread was joined during `EpochTicker::drop`.
+    /// the epoch-ticker thread — and crucially, that the ticker was
+    /// actually *started* during construction (not just absent
+    /// throughout). The previous synchronous test could pass even if the
+    /// ticker never started, because by the time `new()` returned `Err`
+    /// the constructor had already joined the ticker thread, leaving the
+    /// counter at baseline.
+    ///
+    /// The strengthened flow:
+    /// 1. Record `baseline` ticker count.
+    /// 2. Spawn a worker thread that calls `WasmInvokeHandler::new`.
+    /// 3. From the main test thread, observe `count == baseline + 1`
+    ///    while the constructor is still blocked inside `metadata()`
+    ///    (which loops forever and is interrupted by the epoch deadline).
+    /// 4. Wait for the worker to return — the result must be `Err`
+    ///    because `metadata()` cannot complete within the epoch budget.
+    /// 5. After the worker returns, observe `count == baseline`,
+    ///    proving the `EpochTicker` guard was dropped during error
+    ///    propagation and joined its background thread.
+    ///
+    /// `LoadedHandlerPack` is `Send + Sync` (its fields are
+    /// `HandlerPackManifest` of plain scalars/strings and a `Vec<u8>`),
+    /// so the worker thread takes an `Arc<LoadedHandlerPack>` rather
+    /// than moving the owned value. No production type needs to grow
+    /// `Send`/`Sync` bounds for this test.
     #[test]
     fn metadata_loop_failure_restores_active_ticker_count() {
         let _guard = lifecycle_guard();
@@ -689,7 +760,8 @@ mod tests {
             Some(path) => fs::read(&path).unwrap(),
             None => {
                 eprintln!(
-                    "skipping: metadata-loop handler component not built (set METADATA_LOOP_HANDLER_WASM)"
+                    "skipping: metadata-loop handler component not built \
+                     (set METADATA_LOOP_HANDLER_WASM or RILL_RUN_WASM_FIXTURE_TESTS=1)"
                 );
                 return;
             }
@@ -697,15 +769,43 @@ mod tests {
 
         let signing = SigningKey::from_bytes(&[9; 32]);
         let pack_bytes = build_metadata_loop_pack(&component, &signing);
-        let loaded = load_pack(&pack_bytes, &signing.verifying_key());
+        let loaded = Arc::new(load_pack(&pack_bytes, &signing.verifying_key()));
 
         let baseline = active_epoch_ticker_count();
+
+        // Spawn the constructor in a worker thread so the main thread
+        // can observe the active-ticker counter while the constructor
+        // is still blocked inside the metadata-loop guest. The thread
+        // takes an `Arc<LoadedHandlerPack>` so the pack is shared, not
+        // moved; no production type needs to grow `Send`/`Sync` for
+        // this test.
+        let worker_loaded = Arc::clone(&loaded);
+        let worker = std::thread::spawn(move || {
+            WasmInvokeHandler::new(&worker_loaded, &serde_json::json!({}))
+        });
+
+        // While the worker is blocked inside metadata() (which loops
+        // forever), the EpochTicker thread must have started and
+        // incremented the counter. Wait for it to reach baseline + 1
+        // — this directly proves the ticker was started, not just
+        // absent throughout.
+        assert!(
+            wait_for_active_ticker_count(baseline + 1, std::time::Duration::from_secs(10)),
+            "metadata-loop constructor never started an epoch ticker \
+             (count stayed at {}, expected {} during construction)",
+            active_epoch_ticker_count(),
+            baseline + 1
+        );
 
         // The metadata-loop handler's `metadata()` loops forever; the
         // host's epoch deadline interrupts it, and `WasmInvokeHandler::new`
         // returns Err. The `EpochTicker` guard is dropped during error
         // propagation, which joins the thread.
-        let result = WasmInvokeHandler::new(&loaded, &serde_json::json!({}));
+        let result = worker.join().expect(
+            "metadata-loop constructor thread panicked; \
+             this may indicate a bug in the ticker thread startup or the \
+             epoch interruption path",
+        );
         assert!(result.is_err(), "metadata-loop handler must fail to load");
 
         // After the failed load, the ticker thread must have been joined
@@ -716,24 +816,40 @@ mod tests {
             baseline,
             active_epoch_ticker_count()
         );
+
+        // Drop the Arc<LoadedHandlerPack> explicitly so its refcount
+        // goes to zero and any test-only state is released before the
+        // next test runs.
+        drop(loaded);
     }
 
-    /// Source-level invariant: the counter static and its accessor are
-    /// both `#[cfg(test)]`-gated, so they cannot be reached from
-    /// external crates. This test confirms the test-only counter is
-    /// reachable from internal tests; the `cargo doc` API check (§11)
-    /// independently confirms no `pub` accessor surfaces in rustdoc for
-    /// a release build.
+    /// Source-level invariant: the test-only `ACTIVE_EPOCH_TICKERS`
+    /// static and its private `active_epoch_ticker_count` accessor are
+    /// reachable from this internal `#[cfg(test)] mod tests` (via
+    /// `use super::*`), so the lifecycle tests above can observe ticker
+    /// thread start/stop directly. This test confirms the counter is
+    /// *available to internal tests* — it is **not** a public-API
+    /// assertion. The actual public-API leak check (probe absent from
+    /// `cargo doc --features wasm --no-deps` output) is performed as a
+    /// separate `grep` step in the dedicated `wasm-handler` CI job,
+    /// which fails the build if `active_epoch_ticker_count` or
+    /// `ACTIVE_EPOCH_TICKERS` appears in `target/doc/rill_runtime/`.
+    ///
+    /// This test was previously named
+    /// `ticker_probe_is_not_in_public_api`, which was misleading
+    /// because a private `fn` reachable from `super::*` says nothing
+    /// about whether a future refactor might re-expose it as `pub`.
+    /// The renamed test now accurately describes what it checks.
     #[test]
-    fn ticker_probe_is_not_in_public_api() {
+    fn ticker_probe_is_available_to_internal_tests() {
         let _guard = lifecycle_guard();
         let baseline = active_epoch_ticker_count();
         // The static itself is reachable from `super::*` (via the
         // `use super::*;` at the top of `mod tests`). If the static or
         // the accessor were `pub`, `cargo doc --features wasm --no-deps`
-        // would surface them in the public API; the §11 grep for
-        // `active_epoch_ticker_count` / `ACTIVE_EPOCH_TICKERS` in
-        // `target/doc/rill_runtime` must return no matches.
+        // would surface them in the public API; the dedicated CI
+        // `grep -R "active_epoch_ticker_count|ACTIVE_EPOCH_TICKERS"
+        // target/doc/rill_runtime` step must return no matches.
         let _ = ACTIVE_EPOCH_TICKERS.load(Ordering::SeqCst);
         assert_eq!(active_epoch_ticker_count(), baseline);
     }
