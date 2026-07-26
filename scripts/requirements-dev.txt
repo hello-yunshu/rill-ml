@@ -4,13 +4,18 @@
 #   - .github/workflows/pipeline.yml (python-build CI job)
 #   - .github/workflows/pipeline.yml (publish-python release job)
 #
-# Pinned to a compatible minor release (``~=X.Y`` allows patch upgrades
-# only) so security fixes land without a manual bump, while breaking
-# minor upgrades are still excluded. ``pip install`` resolves the latest
-# matching patch at install time; for fully reproducible builds, pin the
-# resolved versions via a lockfile (e.g. pip-tools or uv.lock) instead.
+# Compatible-range policy: each tool is constrained to a single verified
+# minor release (``>=X.Y,<X.Y+1``) so security patch updates land
+# automatically, while breaking minor upgrades are still excluded. This
+# is NOT exact pinning — ``pip install`` resolves the latest matching
+# patch at install time, so builds on different days may pick different
+# patch versions. For fully reproducible builds, pin the resolved
+# versions via a lockfile (e.g. pip-tools or uv.lock) instead; that is
+# a deliberate opt-in, not the default.
+#
 # Bump deliberately and re-run CI before trusting a new minor version
-# with the release pipeline.
+# with the release pipeline. CI records the actual resolved version
+# after install (see ``pipeline.yml``'s ``--version`` steps).
 
-maturin~=1.14
-pytest~=8.4
+maturin>=1.14,<1.15
+pytest>=8.4,<8.5

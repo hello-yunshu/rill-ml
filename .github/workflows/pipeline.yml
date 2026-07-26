@@ -150,13 +150,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --locked -p rill-ml-wasm --target wasm32-unknown-unknown
       - name: Install wasm-pack
-        # Pinned to a compatible minor release (~0.13.1 allows patch
-        # upgrades only) and combined with ``--locked`` for reproducible
-        # CI builds. Avoids the unpinned ``curl | sh`` install path in
-        # the release chain. Patch upgrades are allowed so security fixes
-        # land without a manual bump; review Dependabot alerts before
-        # trusting a new minor version with the release pipeline.
+        # Compatible-range policy: ``~0.13.1`` allows patch upgrades
+        # within the 0.13 minor line; ``--locked`` pins transitive
+        # dependencies for the install. This is NOT exact pinning —
+        # different CI runs may resolve different patch versions when
+        # a new patch is published. Avoids the unpinned ``curl | sh``
+        # install path in the release chain. Patch upgrades are allowed
+        # so security fixes land without a manual bump; review
+        # Dependabot alerts before trusting a new minor version with
+        # the release pipeline.
         run: cargo install wasm-pack --locked --version "~0.13.1"
+      - name: Record resolved wasm-pack version
+        run: wasm-pack --version
       - name: wasm-pack test (--node)
         run: cd crates/rill-ml-wasm && wasm-pack test --node --release
 
@@ -172,12 +177,16 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Install wasm-tools
-        # Pinned to a compatible minor release (~1.254.0 allows patch
-        # upgrades only) and combined with ``--locked`` for reproducible
-        # WASM component builds. Bump together with the release job's
-        # wasm-tools pin when upgrading. Patch upgrades are allowed so
-        # security fixes land without a manual bump.
+        # Compatible-range policy: ``~1.254.0`` allows patch upgrades
+        # within the 1.254 minor line; ``--locked`` pins transitive
+        # dependencies for the install. This is NOT exact pinning —
+        # different CI runs may resolve different patch versions when
+        # a new patch is published. Bump together with the release
+        # job's wasm-tools range when upgrading. Patch upgrades are
+        # allowed so security fixes land without a manual bump.
         run: cargo install wasm-tools --locked --version "~1.254.0"
+      - name: Record resolved wasm-tools version
+        run: wasm-tools --version
       - name: Build echo handler component
         run: |
           cd handlers/echo-handler
@@ -227,8 +236,13 @@ jobs:
           pip install --upgrade pip
           # Install the Python build toolchain.
           # ``requirements-dev.txt`` is the source of truth for the
-          # maturin and pytest version constraints used by CI and release.
+          # maturin and pytest compatible-range constraints used by CI
+          # and release. This is NOT exact pinning — ``pip install``
+          # resolves the latest matching patch at install time.
           pip install -r scripts/requirements-dev.txt
+          # Record the actually resolved versions for traceability.
+          maturin --version
+          pytest --version
           cd crates/rill-ml-python
           maturin develop --release
           pytest tests/ -v
@@ -477,11 +491,15 @@ jobs:
               --output "dist/example-default-${VERSION}.rillpack"
           fi
       - name: Install wasm-tools
-        # Pinned to match the CI build in the ``wasm-handler`` job. Keeps
-        # the release component build reproducible from the same source.
-        # ``~1.254.0`` allows patch upgrades only; ``--locked`` pins the
-        # transitive dependencies so the build is still reproducible.
+        # Compatible-range policy: matches the CI build in the
+        # ``wasm-handler`` job. ``~1.254.0`` allows patch upgrades
+        # within the 1.254 minor line; ``--locked`` pins transitive
+        # dependencies for the install. This is NOT exact pinning —
+        # different release runs may resolve different patch versions
+        # when a new patch is published.
         run: cargo install wasm-tools --locked --version "~1.254.0"
+      - name: Record resolved wasm-tools version
+        run: wasm-tools --version
       - name: Build and sign echo handler package
         env:
           RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
@@ -598,8 +616,17 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Install pinned Python build toolchain
-        run: pip install -r scripts/requirements-dev.txt
+      - name: Install Python build toolchain (compatible range)
+        # ``requirements-dev.txt`` is the source of truth for the
+        # maturin and pytest compatible-range constraints used by both
+        # CI and release. This is NOT exact pinning — ``pip install``
+        # resolves the latest matching patch at install time. CI runs
+        # on different days may pick different patch versions.
+        run: |
+          pip install -r scripts/requirements-dev.txt
+          # Record the actually resolved versions for release traceability.
+          maturin --version
+          pytest --version
       - name: Verify PyPI token is configured
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.MATURIN_PYPI_TOKEN }}
