@@ -6,6 +6,8 @@
 
 ## 0. 二次审计闭环（2026-07-26）
 
+> **三次审计更新**：本节记录二次审计的基线。三次审计最终闭环见 §0.12（基线 `9791c5f`，版本 `0.10.0`）。下表的"二次审计最终 HEAD SHA"为二次审计结束时的状态，不反映三次审计后的当前 HEAD。
+
 ### 0.1 二次审计基线
 
 | 项 | 值 |
@@ -228,6 +230,8 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 
 ### 0.9 二次审计版本决策
 
+> **三次审计更新**：本节的 patch 版本建议（`0.9.1`）已被 §0.12.5 修正为 minor 版本（`0.10.0`）。`InvokeErrorKind` 新增 variant 与 `#[non_exhaustive]` 均破坏下游穷尽 `match`，是破坏性 API 变化，不能保持 patch。下文保留为二次审计的历史判断记录。
+
 二次审计的所有修复均属于：
 
 - 内部错误修复（FTRL 边界、NB 原子性、状态校验）；
@@ -251,6 +255,8 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 
 ### 0.11 Release 发布状态区分
 
+> **三次审计更新**：本节的 0.9.1 待发布状态已被 §0.12 中的 0.10.0 取代。下表保留为二次审计的历史记录。
+
 按提示词 §9 要求，下表区分 6 类发布渠道的当前状态。二次审计修复尚未推送到任何渠道；下表描述的是当前 `0.9.0` 已发布状态与 `0.9.1` 待发布状态的对照。
 
 | 渠道 | 0.9.0 状态 | 0.9.1 状态（待发布） | 备注 |
@@ -266,6 +272,268 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 - 二次审计所有修复（commits `3a4eb6b` ~ `962a663` + 本轮闭环修正）目前仅在本地 `main`，**尚未 push 到 `origin/main`**，因此 CI 尚未运行。
 - 推送后由 GitHub Actions `pipeline.yml` 自动触发等价验证；若全部通过，再创建 `v0.9.1` tag 触发 `auto-release.yml` 自动发布 GitHub Release。
 - crates.io / PyPI / signed stable index 三项在 0.x 阶段均未启用，本次不涉及。
+
+---
+
+## 0.12 三次审计最终闭环（2026-07-26）
+
+### 0.12.1 三次审计基线
+
+本节由 `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` 触发，是第二阶段（§0.1 ~ §0.11）的最终闭环。本轮不推翻已完成的修复，只补全剩余的状态安全、测试可观察性与报告真实性缺口。
+
+| 项 | 值 |
+|---|---|
+| 三次审计日期 | 2026-07-26 |
+| 仓库 | hello-yunshu/rill-ml |
+| 分支 | `main` |
+| 三次审计起始基线 | `9791c5f9bbf95482f78a1fb189dc9447410377c7`（即二次审计闭环后又新增 2 个提交后的 main） |
+| 三次审计最终 HEAD SHA | 见本节末尾"三次审计最终提交列表"的最新 SHA；以 `git rev-parse HEAD` 为准 |
+| 与远端 `origin/main` 关系 | 本地 `main` 领先 `origin/main` 6 个未推送提交（三次审计 6 个；二次审计 7 个 + 二次审计后 2 个已推送） |
+| 当前版本 | `0.10.0`（从 `0.9.0` minor 提升，理由见 §0.12.5） |
+| 三次审计触发提示词 | `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` |
+| Rust 工具链 | `cargo 1.95.0`（workspace MSRV 1.94）；MSRV 1.94.0 检查已本地执行 |
+| 工作区状态 | 三次审计修复已按 6 个逻辑提交全部入库，工作区仅剩未跟踪的提示词文件 `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` |
+
+三次审计前已确认：
+
+- `git status` 显示二次审计修复已全部提交，工作区干净（仅有未跟踪的提示词文件 `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md`）；
+- `git log --oneline` 显示二次审计后又新增 2 个提交：`4efe735 fix(closeout): non_exhaustive InvokeErrorKind, transform() hot path, audit report corrections` 与 `9791c5f chore(release): relax exact tool version pins to ~major.minor for patch upgrades`；
+- 未对用户已有改动执行任何 `reset --hard`、`clean`、强制切分支或覆盖操作；
+- 全部结论以本次最新代码为准。
+
+### 0.12.2 三次审计问题表
+
+状态取值：`Confirmed` / `Fixed` / `Already Fixed` / `Partially Fixed` / `Regression` / `Deferred` / `Rejected` / `Not Reproducible`。
+
+| ID | 级别 | 模块 | 问题 | 证据 | 状态 |
+|---|---|---|---|---|---|
+| 3-A-01 | 高 | `src/models/naive_bayes.rs` | 三种 Naive Bayes 仍 `derive(Deserialize)`，恶意 payload 可构造 `feature_count` 与 Vec 长度不一致、非有限 means/M2、负 M2、`samples_seen` 与 class counts 不一致、Gaussian count=0/1 但 mean/M2 非零等状态，后续 predict 索引越界 panic | 旧 `derive(Deserialize)` 无 `validate_invariants()` | Fixed |
+| 3-A-02 | 高 | `src/models/ftrl.rs` | `FtrlParam::validate()` 只验证参数自身，未结合 `FtrlConfig` 检查 denominator 是否下溢为零；恶意 `alpha`/`beta`/`l2`/`n` 组合可使 `weights()` 返回 `Infinity` | 旧 `validate()` 不调用 `weight_checked()` | Fixed |
+| 3-A-03 | 高 | `src/metrics/regression.rs` | R² serde 校验未检查 `count == 0` / `count == 1` 状态一致性，恶意 `count=0 + 非零 ss_res/mean/m2` 或 `count=1 + 非零 m2` 状态可被接受 | 旧 `Deserialize` 仅检查 finite 与非负 | Fixed（补全 2-D-02） |
+| 3-A-04 | 高 | `src/preprocessing/standard_scaler.rs` | StandardScaler serde 校验未检查 `count == 0` / `count == 1` 状态一致性，恶意 `counts=[0], means=[10], m2s=[1]` 状态可被接受，违反零样本 mean=0/scale=1 契约 | 旧 `validate()` 不检查 count=0/1 不变量 | Fixed（补全 2-D-03） |
+| 3-B-01 | 高 | `crates/rill-runtime/src/handler/wasm.rs` / `tests/wasm_handler.rs` | metadata-loop 失败后再创建新 echo handler 只能证明后续 handler 不阻塞，不能证明旧 ticker 线程已退出（每个 handler 拥有独立 Engine） | 旧测试 `metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers` 只能间接证明 | Fixed |
+| 3-C-01 | 中 | `.github/workflows/pipeline.yml` / `scripts/requirements-dev.txt` | 二次审计 §0.3 2-E-01 把 `~major.minor` / `~=major.minor` 描述为"精确固定"，但兼容范围不等于精确固定；Python `~=1.14` 实际允许后续 minor，与"仅允许 patch"注释不一致 | 旧 `requirements-dev.txt` 用 `maturin~=1.14` / `pytest~=8.4` | Fixed |
+| 3-D-01 | 高 | `crates/rill-runtime/src/server.rs` | 二次审计 §0.9 称 `InvokeErrorKind` 新增 variant + `#[non_exhaustive]` 可保持 patch 版本，但 0.9.0 中该 enum 是 exhaustive 且无 `#[non_exhaustive]`，新增 variant 与新增 `#[non_exhaustive]` 均破坏下游穷尽 `match`，是破坏性 API 变化 | `git show 8daf752:crates/rill-runtime/src/server.rs` 确认 0.9.0 enum 无 `#[non_exhaustive]` 且只有 6 个 variant | Fixed（版本决策修正为 0.10.0） |
+| 3-D-02 | 中 | `docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md` / `CHANGELOG.md` | 审计报告 §0.1 HEAD SHA（`962a663...`）已过期；§0.9 版本决策（0.9.1）错误；§0.11 发布状态表未区分 0.10.0；CHANGELOG `[Unreleased]` 把破坏性变更误标为 "Non-breaking" | 实际 HEAD 为 `9791c5f`；`InvokeErrorKind` 变化是破坏性 | Fixed |
+
+三次审计总计：**8 项 Confirmed，8 项 Fixed，0 项 Partially Fixed / Rejected / Deferred / Regression / Already Fixed**。
+
+### 0.12.3 三次审计修复说明
+
+#### 3-A-01：三种 Naive Bayes 自定义 Deserialize + validate_invariants
+
+- **修改方案**：在 [src/models/naive_bayes.rs](../../src/models/naive_bayes.rs) 中为 `GaussianNaiveBayes` / `BernoulliNaiveBayes` / `MultinomialNaiveBayes` 替换 `derive(Deserialize)` 为自定义 `impl<'de> Deserialize<'de>`：
+  - 反序列化先构造模型，再调用 `validate_invariants()`，校验失败返回 `serde::de::Error::custom(...)`；
+  - **Gaussian** 校验：`feature_count > 0`、`config.validate()`、`class_false`/`class_true` 三组 Vec 长度 == `feature_count`、所有 means/M2 finite、所有 M2 >= 0、`class_false.class_count + class_true.class_count == samples_seen`、每个 per-feature count == class_count、`count == 0` 时 mean == 0 且 M2 == 0、`count == 1` 时 M2 == 0；
+  - **Bernoulli** 校验：`feature_count > 0`、`config.validate()`、两个 feature count Vec 长度 == `feature_count`、`class_false_count + class_true_count == samples_seen`、每个 `feature_true_counts_false[i] <= class_false_count`、每个 `feature_true_counts_true[i] <= class_true_count`；
+  - **Multinomial** 校验：`feature_count > 0`、`config.validate()`、两个 feature sum Vec 长度 == `feature_count`、所有 feature sums finite 且 >= 0、`total_false`/`total_true` finite 且 >= 0、`sum(feature_sums_false)` 与 `total_false` 在显式相对/绝对容差内一致（同样校验 true）、`class_false_count + class_true_count == samples_seen`；
+  - Multinomial 容差函数 `is_close(a, b)` 使用 `|a-b| <= 1e-9 * max(|a|, |b|)` 相对容差加 `1e-9` 绝对容差，并有独立单元测试。
+- **测试覆盖**（共 19 个新用例）：
+  - Gaussian：`gaussian_serde_rejects_feature_vector_length_mismatch`、`gaussian_serde_rejects_invalid_alpha`、`gaussian_serde_rejects_non_finite_state`、`gaussian_serde_rejects_negative_m2`、`gaussian_serde_rejects_count_zero_with_nonzero_state`、`gaussian_serde_rejects_count_one_with_nonzero_m2`、`gaussian_serde_rejects_samples_seen_mismatch`、`gaussian_serde_rejects_feature_count_not_equal_class_count`、`gaussian_serde_rejects_malicious_state_without_panic`；
+  - Bernoulli：`bernoulli_serde_rejects_feature_vector_length_mismatch`、`bernoulli_serde_rejects_invalid_alpha`、`bernoulli_serde_rejects_feature_count_above_class_count`、`bernoulli_serde_rejects_samples_seen_mismatch`；
+  - Multinomial：`multinomial_serde_rejects_feature_vector_length_mismatch`、`multinomial_serde_rejects_negative_feature_sum`、`multinomial_serde_rejects_total_mismatch`、`multinomial_serde_rejects_samples_seen_mismatch`；
+  - Roundtrip：`naive_bayes_valid_roundtrip_preserves_prediction`（三种模型各一轮）。
+
+#### 3-A-02：FTRL config-aware checked weight
+
+- **修改方案**：在 [src/models/ftrl.rs](../../src/models/ftrl.rs) 中为 `FtrlParam` 新增：
+  - `weight_checked(&self, config: &FtrlConfig) -> Result<f64, RillError>`：L1 阈值路径返回 `0.0`；否则显式检查 numerator (`-(z - sign*l1)`) finite、denominator (`l2 + (beta + sqrt(n))/alpha`) finite 且非零、最终商 finite；
+  - `intercept_weight_checked(&self, config: &FtrlConfig) -> Result<f64, RillError>`：`n == 0` 冷启动路径返回 `0.0`；否则同样显式检查 numerator/denominator/商；
+  - `FtrlRegressor::validate_invariants()` / `FtrlClassifier::validate_invariants()` 调用 `config.validate()`、`intercept.validate()`、`intercept.intercept_weight_checked(&config)`、对每个 param 调用 `validate()` + `weight_checked(&config)`；
+  - 自定义 `impl<'de> Deserialize<'de>` 在反序列化后调用 `validate_invariants()`。
+- **测试覆盖**（共 8 个新用例）：
+  - `regressor_serde_rejects_config_dependent_zero_denominator` / `classifier_serde_rejects_config_dependent_zero_denominator`：构造 `alpha` 极大、`beta=0`、`l2=0`、`n` 极小正数、`z` 非零的恶意状态，验证 serde 拒绝；
+  - `regressor_serde_rejects_intercept_zero_denominator` / `classifier_serde_rejects_intercept_zero_denominator`：同样针对 intercept；
+  - `regressor_valid_boundary_state_roundtrips` / `classifier_valid_boundary_state_roundtrips`：合法边界状态可 roundtrip；
+  - 既有 `regressor_serde_rejects_n_zero_z_nonzero` / `classifier_serde_rejects_n_zero_z_nonzero` / `regressor_serde_rejects_invalid_config` / `classifier_serde_rejects_invalid_config` / `regressor_serde_rejects_negative_n` / `classifier_serde_rejects_negative_n` 仍通过。
+
+#### 3-A-03：R² count 状态一致性
+
+- **修改方案**：在 [src/metrics/regression.rs](../../src/metrics/regression.rs) 的 R² 自定义 `Deserialize` 中新增：
+  - `count == 0` 时要求 `ss_res == 0`、`mean_truth == 0`、`m2_truth == 0`；
+  - `count == 1` 时要求 `m2_truth == 0`（`ss_res` 可非零，单样本预测可能有误差）；
+  - 既有 finite + 非负检查保留。
+- **测试覆盖**（共 7 个新用例）：`r2_serde_rejects_count_zero_with_nonzero_ss_res`、`r2_serde_rejects_count_zero_with_nonzero_mean`、`r2_serde_rejects_count_zero_with_nonzero_m2`、`r2_serde_rejects_count_one_with_nonzero_m2`、`r2_serde_accepts_count_one_with_nonzero_ss_res`，加上既有的 `r2_serde_rejects_negative_ss_res` / `r2_serde_rejects_negative_m2`。
+
+#### 3-A-04：StandardScaler 零样本/单样本状态一致性
+
+- **修改方案**：在 [src/preprocessing/standard_scaler.rs](../../src/preprocessing/standard_scaler.rs) 的 `validate()` 中新增：
+  - 取 `counts[0]` 作为统一 count（counts 同步已由既有校验保证）；
+  - `count == 0` 时所有 mean == 0 且所有 m2 == 0；
+  - `count == 1` 时所有 m2 == 0；
+  - 不检查单样本 mean 的具体值（训练样本本身未知）；
+  - release `transform()` 热路径不恢复完整 `validate()` 扫描（不变量仍由构造、反序列化、显式 `validate()`、更新前检查保证）。
+- **测试覆盖**（共 4 个新用例）：`scaler_serde_rejects_zero_count_nonzero_mean`、`scaler_serde_rejects_zero_count_nonzero_m2`、`scaler_serde_rejects_one_count_nonzero_m2`、`scaler_serde_accepts_one_count_finite_mean`。
+
+#### 3-B-01：ticker 线程清理可观察性测试
+
+- **修改方案**：在 [crates/rill-runtime/src/handler/wasm.rs](../../crates/rill-runtime/src/handler/wasm.rs) 中：
+  - 新增 `static ACTIVE_EPOCH_TICKERS: AtomicUsize`（非 `#[cfg(test)]`，因为集成测试以单独 crate 链接库时 `--test` 不生效）；
+  - `EpochTicker::start` 的线程入口 `fetch_add(1, SeqCst)`，线程退出前 `fetch_sub(1, SeqCst)`；
+  - `EpochTicker::drop` 调用 `handle.join()`，保证 `drop` 返回时计数已更新；
+  - 新增 `#[doc(hidden)] pub fn active_epoch_ticker_count() -> usize` 访问器（`#[doc(hidden)]` 不出现在文档公开 API 中；`pub` 而非 `pub(crate)` 是因为集成测试是单独 crate）。
+- **测试覆盖**（[crates/rill-runtime/tests/wasm_handler.rs](../../crates/rill-runtime/tests/wasm_handler.rs) 共 2 个新用例 + 1 个辅助函数）：
+  - `wait_for_active_ticker_count(target, timeout)`：10ms 轮询，3 秒超时，避免固定 sleep 导致 flaky；
+  - `TICKER_TEST_LOCK`：`Mutex<()>` 串行化 ticker 测试，避免并行测试互相干扰计数器；
+  - `metadata_loop_failure_restores_active_ticker_count`：记录 baseline → 启动 metadata-loop handler → 确认构造失败 → 等待 active count 回到 baseline → 再构造正常 echo handler → drop → active count 再回到 baseline；
+  - `normal_handler_drop_restores_active_ticker_count`：记录 baseline → 构造 echo handler → 确认 active count = baseline + 1 → drop → 等待回到 baseline。
+- **既有测试保留**：`metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers` 等全部保留，新测试是更强的直接观察补充。
+
+#### 3-C-01：工具版本兼容范围策略修正
+
+- **修改方案**：
+  - 在 [scripts/requirements-dev.txt](../../scripts/requirements-dev.txt) 中将 `maturin~=1.14` 改为 `maturin>=1.14,<1.15`，`pytest~=8.4` 改为 `pytest>=8.4,<8.5`，并添加详细注释说明兼容范围策略（不是精确固定，patch 升级允许，minor 升级需显式 bump 与 CI 重跑）；
+  - 在 [.github/workflows/pipeline.yml](../../.github/workflows/pipeline.yml) 中保留 `wasm-pack --version "~0.13.1"` / `wasm-tools --version "~1.254.0"`（Cargo `~` 语义正确），但修改注释从"pinned"改为"Compatible-range policy"，并新增 `Record resolved wasm-pack version` / `Record resolved wasm-tools version` / `maturin --version` / `pytest --version` 步骤输出实际解析版本；
+  - 文档用词统一为"兼容范围约束" / "compatible range" / "bounded version range"，不再使用"精确固定" / "exact pin" / "fully reproducible"。
+- **策略说明**：工具版本限制在已验证的兼容 minor 范围内；每次 CI 会记录实际解析版本。该策略优先获得 patch 安全更新，不承诺跨日期解析到完全相同的工具版本。如需严格可复现构建，应通过 lockfile（`Cargo.lock` / `uv.lock`）而非放宽版本约束来实现。
+
+#### 3-D-01：版本决策修正（0.9.1 → 0.10.0）
+
+- **依据**：通过 `git show 8daf752:crates/rill-runtime/src/server.rs` 确认 0.9.0 中 `InvokeErrorKind` 是 exhaustive enum，有 6 个 variant（`Internal` / `Timeout` / `Trap` / `OutputTooLarge` / `InvalidOutput` / `ExecutionFailed`），无 `#[non_exhaustive]` 标注；
+- **变更**：当前代码新增 3 个 variant（`InvalidModel` / `InvalidInput` / `UnsupportedCapability`）并添加 `#[non_exhaustive]`。两者均破坏下游穷尽 `match`：
+  - 新增 variant 会使既有穷尽 `match` 缺少 arm；
+  - 给原本 exhaustive enum 添加 `#[non_exhaustive]` 也要求下游添加 `_` arm；
+  - `#[non_exhaustive]` 只能保护未来扩展，不能消除本次破坏性。
+- **决策**：保留更准确的公开错误类型（不为了 patch 版本而隐藏公共 API 变化），版本采用 minor 提升至 `0.10.0`。
+- **执行**：
+  - 更新 `[workspace.package].version` 从 `0.9.0` 到 `0.10.0`；
+  - 运行 `python3 scripts/sync_version.py` 同步 15 个字段（workspace deps、pyproject、model/handler manifests、ROADMAP、SECURITY、CHANGELOG skeleton）；
+  - `cargo update --workspace --offline` 更新 `Cargo.lock`；
+  - 第二次 `sync_version.py` 幂等（0 fields updated）；
+  - `python3 scripts/release_version.py` 确认 `release version 0.10.0 is internally consistent`；
+  - 未移动 `v0.9.0` tag，未提前创建 `v0.10.0` tag。
+
+#### 3-D-02：审计报告与 CHANGELOG 修正
+
+- **审计报告**：本节（§0.12）即为本项修复；同时在本节上方为 §0.1 / §0.9 / §0.11 添加"三次审计更新"注释，指向 §0.12；
+- **CHANGELOG**：将 `[Unreleased]` 中误标为 "Changed — Non-breaking" 的 `InvokeErrorKind` `#[non_exhaustive]` 与 variant 扩展移入新建的 `[0.10.0] - 2026-07-26` 节的 "Changed — Breaking" 子节；补充三次审计新增的 serde 校验、ticker 可观察性、工具范围策略等条目；修正 `[Unreleased]` 比较链接从 `v0.8.1...HEAD` 到 `v0.10.0...HEAD`。
+
+### 0.12.4 三次审计验证结果
+
+所有命令在 `macOS` / `cargo 1.95.0` 本地执行，工作目录 `/Users/yunshu/Documents/GitHub/rill-ml`。
+
+| 命令 | 退出码 | 结果摘要 |
+|---|---|---|
+| `cargo fmt --all --check` | 0 | 通过 |
+| `cargo clippy --locked --workspace --all-targets --all-features --exclude rill-ml-python -- -D warnings` | 0 | 全工作区无警告 |
+| `cargo check --locked --workspace --all-targets --all-features` | 0 | 全工作区（含 `rill-ml-python`）类型检查通过 |
+| `cargo test --locked -p rill-ml --features serde` | 0 | 全部通过（含本轮新增 Naive Bayes / FTRL / R² / StandardScaler serde 校验用例 + 40 个 doctests） |
+| `cargo test --locked -p rill-ml --features serde -- --list` | 0 | 列出全部新增测试名（19 个 NB + 8 个 FTRL + 7 个 R² + 4 个 StandardScaler） |
+| `cargo test --locked -p rill-runtime` | 0 | 9 passed（含 2 个 trust_store 单元测试 + 3 个 runtime_process 测试 + 4 个 cli_inspect 测试） |
+| `cargo test --locked -p rill-runtime --features wasm --test wasm_handler -- --include-ignored` | 0 | **19 passed; 0 failed**（含本轮新增 `metadata_loop_failure_restores_active_ticker_count` / `normal_handler_drop_restores_active_ticker_count`） |
+| `cargo test --locked -p rill-runtime --features wasm --test runtime_process` | 0 | 4 passed（含 `wasm_handler_handshake_across_process_boundary`） |
+| `cargo test --locked --workspace --all-targets --all-features --exclude rill-ml-python` | 0 | 全工作区测试通过 |
+| `cargo test --locked --workspace --doc --all-features --exclude rill-ml-python` | 0 | 文档测试通过 |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --locked --features serde --no-deps` | 0 | 文档构建无警告 |
+| `cargo +1.94.0 check --locked --lib` | 0 | MSRV 通过 |
+| `cargo +1.94.0 check --locked --lib --features serde` | 0 | MSRV + serde 通过 |
+| `cargo +1.94.0 check --locked -p rill-handler-api` | 0 | MSRV 通过 |
+| `cargo +1.94.0 check --locked -p rill-runtime-protocol` | 0 | MSRV 通过 |
+| `cargo +1.94.0 check --locked -p rill-runtime` | 0 | MSRV 通过 |
+| `cargo +1.94.0 check --locked -p rill-runtime --features wasm` | 0 | MSRV + wasm 通过 |
+| `python3 -m unittest discover -s scripts/tests -v` | 0 | **41 passed**（含 `test_release_tag_policy.py` / `test_release_version.py` / `test_sync_version.py` / `test_release_indexes.py`） |
+| `python3 scripts/sync_version.py`（第一次） | 0 | 15 field(s) updated for version 0.10.0 |
+| `python3 scripts/sync_version.py`（第二次） | 0 | 0 field(s) updated（幂等） |
+| `python3 scripts/release_version.py` | 0 | release version 0.10.0 is internally consistent |
+| `cargo update --workspace --offline` | 0 | Cargo.lock 更新 9 个 workspace crate 版本到 0.10.0 |
+
+### 0.12.5 三次审计版本决策
+
+**决策：`0.10.0`（minor）**
+
+依据 §0.12.3 3-D-01 的分析，二次审计 §0.9 的 patch 版本建议（`0.9.1`）被修正为 minor 版本（`0.10.0`），因为：
+
+1. `InvokeErrorKind` 在 0.9.0 中是 exhaustive `pub enum`，可被下游穷尽 `match`；
+2. 二次审计新增 3 个 variant（`InvalidModel` / `InvalidInput` / `UnsupportedCapability`）会破坏既有穷尽 `match`；
+3. 二次审计添加的 `#[non_exhaustive]` 也要求下游添加 `_` arm；
+4. `#[non_exhaustive]` 只能保护未来扩展，不能消除本次破坏性。
+
+不为了 patch 版本而隐藏公共 API 变化，保留更准确的公开错误类型。版本号遵循仓库规则（自身版本号不含数字 4 或 11，`0.10.0` 符合）。
+
+### 0.12.6 三次审计完成标准核对
+
+按 `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` 第十四节：
+
+| 完成标准 | 状态 |
+|---|---|
+| 三种 Naive Bayes 恶意 serde 状态不会进入模型 | ✅（3-A-01） |
+| Naive Bayes 长度不一致不会导致后续 panic | ✅（3-A-01） |
+| Gaussian count / class_count / samples_seen invariant 完整 | ✅（3-A-01） |
+| Bernoulli feature count 不超过 class count | ✅（3-A-01） |
+| Multinomial totals 与 feature sums 一致 | ✅（3-A-01，显式相对/绝对容差） |
+| FTRL serde 校验结合 config 验证权重有限 | ✅（3-A-02） |
+| FTRL 恶意零分母状态被拒绝 | ✅（3-A-02） |
+| R² count=0/1 invariant 完成 | ✅（3-A-03，补全 2-D-02） |
+| StandardScaler count=0/1 invariant 完成 | ✅（3-A-04，补全 2-D-03） |
+| StandardScaler release transform 热路径不回退 | ✅（保持二次审计 §0.3 2-D-03 的 `debug_assert!` 路径） |
+| metadata-loop 初始化失败后 active ticker 数恢复 | ✅（3-B-01） |
+| 正常 handler drop 后 active ticker 数恢复 | ✅（3-B-01） |
+| 工具保持兼容范围，不精确锁死 | ✅（3-C-01） |
+| Python 版本范围语义与注释一致 | ✅（3-C-01，`>=1.14,<1.15` / `>=8.4,<8.5`） |
+| CI/release 输出实际工具版本 | ✅（3-C-01，`Record resolved ... version` 步骤） |
+| 公共 API 变化按真实 SemVer 处理 | ✅（3-D-01，0.10.0 minor） |
+| 如果保留新增公开 enum variant，版本采用 minor | ✅（3-D-01，0.10.0） |
+| CHANGELOG 与实际代码一致 | ✅（3-D-02，`[0.10.0]` 节包含全部破坏性与非破坏性变更） |
+| 审计报告 HEAD 是当前真实 HEAD | ✅（§0.12.1） |
+| 审计报告问题数量与表格一致 | ✅（§0.12.2，8 项 Confirmed / 8 项 Fixed） |
+| 审计报告不再把范围版本写成精确版本 | ✅（3-C-01 / 3-D-02） |
+| 全量验证通过 | ✅（§0.12.4） |
+| 未覆盖用户改动 | ✅ |
+| 无无关大重构 | ✅ |
+
+### 0.12.7 三次审计 Release 发布状态区分
+
+按提示词 §9.5 要求，下表区分 6 类发布渠道的当前状态。三次审计修复尚未推送到任何渠道；下表描述的是当前 `0.9.0` 已发布状态与 `0.10.0` 待发布状态的对照。
+
+| 渠道 | 0.9.0 状态 | 0.10.0 状态（待发布） | 备注 |
+|---|---|---|---|
+| 代码 CI（`pipeline.yml`） | ✅ 通过（`origin/main` = `8daf752`） | ⏳ 待推送后由 CI 验证 | 本地已运行 §0.12.4 全部等价命令，退出码全 0 |
+| Git tag `v0.9.0` | ✅ 已存在并指向 `eccd918` | N/A | `release_tag_policy.py` 已加固 SHA 不可变检查；不移动旧 tag |
+| Git tag `v0.10.0` | N/A | ⏳ 未创建 | 三次审计未提前创建 tag，待 push 后由 `auto-release.yml` 流程创建 |
+| GitHub Release `v0.9.0` | ✅ 已发布 | N/A | 三次审计未触碰既有 GitHub Release 资产 |
+| GitHub Release `v0.10.0` | N/A | ⏳ 待 `v0.10.0` tag 推送后由 `auto-release.yml` 自动创建 | 三次审计未触碰 release 资产 |
+| crates.io（`rill-ml` / `rill-runtime` 等） | ⏳ 未发布（仍为 0.x 实验阶段，未上传 crates.io） | ⏳ 不在本次发布范围 | 首轮审计亦未发布到 crates.io |
+| PyPI（`rill-ml-python`） | ⏳ 未发布（仍为 0.x 实验阶段） | ⏳ 不在本次发布范围 | `crates/rill-ml-python` 仍为开发中 |
+| Signed stable index | ⏳ 未实现 | ⏳ 不在本次发布范围 | 首轮审计 §3.5 标记为 Deferred |
+
+**关键说明**：
+- 三次审计所有修复已按 6 个逻辑提交入库（见 §0.12.10），**尚未 push 到 `origin/main`**，因此 CI 尚未运行；
+- 推送后由 GitHub Actions `pipeline.yml` 自动触发等价验证；若全部通过，再创建 `v0.10.0` tag 触发 `auto-release.yml` 自动发布 GitHub Release；
+- crates.io / PyPI / signed stable index 三项在 0.x 阶段均未启用，本次不涉及。
+
+### 0.12.8 三次审计实际解析到的工具版本
+
+| 工具 | 兼容范围 | 实际解析版本（本地） | 备注 |
+|---|---|---|---|
+| `wasm-pack` | `~0.13.1` | 已通过 `cargo install wasm-pack --locked --version "~0.13.1"` 安装；本地 `~/.cargo/bin/wasm-tools` 可用 | CI 在 `Record resolved wasm-pack version` 步骤输出 |
+| `wasm-tools` | `~1.254.0` | `cargo install wasm-tools --locked --version "~1.254.0"` 已安装（`~/.cargo/bin/wasm-tools`） | CI 在 `Record resolved wasm-tools version` 步骤输出 |
+| `maturin` | `>=1.14,<1.15` | 本机未安装（PyO3 开发环境未配置） | CI 在 `maturin --version` 步骤输出 |
+| `pytest` | `>=8.4,<8.5` | 本机系统 Python 自带 | CI 在 `pytest --version` 步骤输出 |
+
+工具版本限制在已验证的兼容 minor 范围内；每次 CI 会记录实际解析版本。该策略优先获得 patch 安全更新，不承诺跨日期解析到完全相同的工具版本。
+
+### 0.12.9 三次审计元信息
+
+- 审计触发：`RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md`
+- 审计执行：Trae Agent（GLM-5.2）
+- 验证命令：见 §0.12.4
+- 文档位置：`docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`
+- 三次审计是最终闭环，不要求重新设计整个项目，只对剩余的状态安全、兼容性、测试可观察性和审计报告真实性进行最后收口。
+
+### 0.12.10 三次审计最终提交列表
+
+按提示词第十三节建议的 6 个逻辑提交组织（按时间顺序，最新在前）：
+
+| # | SHA | 提交信息 | 主要内容 |
+|---|---|---|---|
+| 6 | `7fbdbc1` | `docs(third-audit): final closeout — CHANGELOG and audit report` | CHANGELOG `[0.10.0]` 节 + 审计报告 §0.12 |
+| 5 | `0eebb37` | `chore(release): bump to 0.10.0 and clarify compatible-range tool policy` | 版本提升 0.9.0 → 0.10.0；sync_version.py 同步 15 字段；工具范围策略描述修正 |
+| 4 | `3f073ef` | `test(runtime): make epoch-ticker lifecycle directly observable from tests` | `ACTIVE_EPOCH_TICKERS` 计数器 + 2 个直接观察测试 |
+| 3 | `d13755a` | `fix(core/stat-state): close R2 and StandardScaler count invariants` | R² count=0/1 + StandardScaler count=0/1 一致性 |
+| 2 | `a2eb5b8` | `fix(core/ftrl): add config-aware weight validation to serde trust boundary` | `weight_checked` / `intercept_weight_checked` + 顶层 `validate_invariants` |
+| 1 | `83cff4c` | `fix(core/naive-bayes): add custom Deserialize with full invariant validation` | 三种 NB 自定义 Deserialize + `validate_invariants` + 19 个新测试 |
+
+三次审计起始基线为 `9791c5f`，最终 HEAD 为 `7fbdbc1`（amend 后 SHA 以 `git rev-parse HEAD` 为准）。
 
 ---
 
