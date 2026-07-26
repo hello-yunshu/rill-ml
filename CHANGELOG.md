@@ -15,8 +15,59 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
-This section is intentionally empty after the 0.12.0 release. New
+This section is intentionally empty after the 0.13.0 release. New
 changes will be added here as they land on `main`.
+
+## [0.13.0] - 2026-07-27
+
+This release closes the sixth-stage minimal final closeout
+([`RILL_ML_TRAE_SIXTH_STAGE_MINIMAL_FINAL_CLOSEOUT_PROMPT.md`](RILL_ML_TRAE_SIXTH_STAGE_MINIMAL_FINAL_CLOSEOUT_PROMPT.md))
+on top of the 0.12.0 baseline. It completes the first fully-green
+Release workflow verification after the fifth-stage PyPI visibility
+fix, and adds two runtime verification hardenings that the fifth-stage
+checks could not cover.
+
+### Fixed — Release workflow
+
+- Fixed the PyPI visibility-check Python heredoc indentation so a
+  successful upload is correctly verified through the PyPI JSON API.
+  The fix itself landed on `main` as part of the fifth-stage follow-up
+  (`af8fb54`); this release is the first one to go through the full
+  Release workflow with the fix in place, so the `Verify PyPI release
+  is visible` step now actually succeeds.
+
+### Fixed — Runtime verification
+
+- Added an external-crate compile-fail check
+  (`scripts/check_runtime_public_api.py`) proving the ticker test probe
+  (`active_epoch_ticker_count`) is not part of the public API, including
+  `#[doc(hidden)] pub` regressions that the previous rustdoc grep
+  cannot detect. A companion smoke crate proves legitimate public API
+  (`WasmInvokeHandler`) still compiles, so a broken dependency
+  configuration cannot be misread as "probe invisible". Three Python
+  unit tests cover the classification logic.
+- Added a test-level timeout (`mpsc::channel` + `recv_timeout(15s)`) to
+  the `metadata_loop_failure_restores_active_ticker_count` test so a
+  ticker/epoch regression fails promptly instead of waiting for the CI
+  job's 30-minute timeout. Worker panics are propagated via
+  `resume_unwind` so the failure points at the actual panic site. The
+  `baseline → baseline+1 → baseline` observation is preserved.
+
+### Changed — CI
+
+- The `wasm-handler` CI job gains a `Verify ticker probe is not
+  externally accessible` step that runs the new compile-fail script.
+  The existing rustdoc grep is kept as an auxiliary `rendered-doc smoke
+  check` but is no longer the primary public-API proof.
+
+### Changed — Audit and release consistency
+
+- The sixth-stage audit chapter (§0.15) records the five blocking
+  issues (6-A-01 / 6-A-02 / 6-B-01 / 6-B-02 / 6-C-01), their fixes,
+  and the full cross-channel consistency verification for 0.13.0. The
+  stale fifth-stage `wasm-pack: CI 未显式安装` record is corrected to
+  reflect the actual workflow (`Install wasm-pack` / `Record resolved
+  wasm-pack version` / `wasm-pack test --node`).
 
 ## [0.12.0] - 2026-07-27
 
@@ -1035,7 +1086,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.10.0...v0.12.0
 [0.10.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.10.0
 [0.9.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.9.0
