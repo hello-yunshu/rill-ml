@@ -708,8 +708,8 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 | 工具实际版本为明确数字 | ✅（§0.13.8） |
 | 工具仍采用兼容范围 | ✅（§0.13.8） |
 | CHANGELOG 不再把公开测试 accessor 写成 test-only API | ✅（[Unreleased] 节明确说明移除 pub accessor；0.10.0 节添加"Fourth-stage update"注释指向 [Unreleased]） |
-| 当前最终 HEAD 的 GitHub Actions 已核验 | ⏳ 待 push 后核验（详见 §0.13.7） |
-| 所有必要 CI job 为成功 | ⏳ 待 push 后核验（详见 §0.13.7） |
+| 当前最终 HEAD 的 GitHub Actions 已核验 | ✅（§0.13.7.1，三项必要 workflow 全部成功） |
+| 所有必要 CI job 为成功 | ✅（§0.13.7.1，CI / Release + Security + Docs 全部 success；Auto Release 失败为预期行为，详见 §0.13.7.2） |
 | 本地全量测试通过 | ✅（§0.13.4） |
 | MSRV 通过 | ✅（§0.13.4） |
 | `sync_version.py` 幂等 | ✅（§0.13.4） |
@@ -720,25 +720,92 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 
 ### 0.13.7 四次审计 Release 发布状态区分
 
-按提示词 §9.5 要求，下表区分 6 类发布渠道的当前状态。四次审计修复以 3 个提交入库后尚未推送；下表描述的是当前真实状态。
+按提示词 §9.5 要求，下表区分 6 类发布渠道的当前状态。四次审计修复已推送到 `origin/main`，CI 已运行并核验。
 
-| 渠道 | 0.10.0 状态 | 四次审计后状态（待发布） | 备注 |
+| 渠道 | 0.10.0 状态 | 四次审计后状态 | 备注 |
 |---|---|---|---|
-| 代码 CI（`pipeline.yml`） | ✅ 通过（`origin/main` = `617f39f`） | ⏳ 待推送后由 CI 验证 | 本地已运行 §0.13.4 全部等价命令，退出码全 0 |
-| Git tag `v0.9.0` | ✅ 已存在并指向 `eccd918` | N/A | `release_tag_policy.py` 已加固 SHA 不可变检查；不移动旧 tag |
-| Git tag `v0.10.0` | ✅ 已存在并指向 `617f39f` | N/A | 三次审计已推送后由 `auto-release.yml` 自动创建 |
-| GitHub Release `v0.9.0` | ✅ 已发布 | N/A | 四次审计未触碰既有 GitHub Release 资产 |
-| GitHub Release `v0.10.0` | ✅ 已发布 | N/A | 四次审计未触碰 release 资产 |
+| 代码 CI（`pipeline.yml`） | ✅ 通过（`origin/main` = `617f39f`） | ✅ 通过（`origin/main` = `88c9545`） | 详见 §0.13.7.1 CI 结果；本地 §0.13.4 等价命令退出码全 0 |
+| Git tag `v0.9.0` | ✅ 已存在并指向 `eccd918` | N/A（未触碰） | `release_tag_policy.py` 已加固 SHA 不可变检查 |
+| Git tag `v0.10.0` | ✅ 已存在并指向 `617f39f` | N/A（未触碰，本轮无版本提升） | `auto-release.yml` 试图在新 HEAD 创建 `v0.10.0` 被策略正确拒绝，详见 §0.13.7.2 |
+| GitHub Release `v0.9.0` | ✅ 已发布 | N/A（未触碰） | 四次审计未触碰既有 GitHub Release 资产 |
+| GitHub Release `v0.10.0` | ✅ 已发布 | N/A（未触碰） | 四次审计未触碰 release 资产 |
 | crates.io（`rill-ml` / `rill-runtime` 等） | ⏳ 未发布（仍为 0.x 实验阶段，未上传 crates.io） | ⏳ 不在本次发布范围 | 首轮审计亦未发布到 crates.io |
 | PyPI（`rill-ml-python`） | ⏳ 未发布（仍为 0.x 实验阶段） | ⏳ 不在本次发布范围 | `crates/rill-ml-python` 仍为开发中 |
 | Signed stable index | ⏳ 未实现 | ⏳ 不在本次发布范围 | 首轮审计 §3.5 标记为 Deferred |
 
 **关键说明**：
 
-- 四次审计所有修复已按 3 个提交入库（见 §0.13.10），起始 HEAD == `origin/main` == `617f39f`，本地领先 3 个未推送提交；
-- 推送后由 GitHub Actions `pipeline.yml` 自动触发等价验证；本次不提前创建新 tag，不提前发布；
-- 若 CI 全部通过，本轮修复可在下次发布（如 0.10.1 或 0.11.0）时一并包含；
+- 四次审计所有修复已按 3 个提交入库（见 §0.13.10）并推送到 `origin/main`，最终 HEAD = `origin/main` = `88c9545`；
+- GitHub Actions 三项必要 workflow（CI / Release、Security、Docs）全部成功（详见 §0.13.7.1）；
+- `Auto Release` workflow 失败是 `release_tag_policy.py` 不可变 tag 策略的正确行为：`v0.10.0` 已存在于 `617f39f`，新 HEAD `88c9545` 无法复用同一 tag，提示词明确禁止本轮版本提升与移动 `v0.10.0`，因此该失败为预期行为，非代码错误（详见 §0.13.7.2）；
+- 本次不提前创建新 tag，不提前发布；若需发布本轮修复，需先提升版本号（如 `0.10.1`）由 `auto-release.yml` 自动创建新 tag；
 - crates.io / PyPI / signed stable index 三项在 0.x 阶段均未启用，本次不涉及。
+
+#### 0.13.7.1 CI 结果详情（commit `88c9545`）
+
+| Workflow | Run ID | 状态 | 结论 |
+|---|---|---|---|
+| CI / Release | `30208894509` | completed | ✅ success |
+| Security audit | `30208894498` | completed | ✅ success |
+| Docs | `30208894495` | completed | ✅ success |
+| Auto Release | `30209026535` | completed | ❌ failure（预期，详见 §0.13.7.2） |
+
+CI / Release 各 job 结论：
+
+| Job | 结论 |
+|---|---|
+| cargo fmt | ✅ success |
+| cargo clippy | ✅ success |
+| test (ubuntu-latest, stable) | ✅ success |
+| test (windows-latest, stable) | ✅ success |
+| test (macos-latest, stable) | ✅ success |
+| MSRV (1.94) lib check | ✅ success |
+| cargo doc | ✅ success |
+| release-index helper tests | ✅ success |
+| WASM build + test | ✅ success |
+| WASM handler component build + test | ✅ success |
+| Python bindings build + pytest | ✅ success |
+| cargo package dry-run | skipped（tag-gated） |
+| Runtime ${{ matrix.target_os }} ${{ matrix.target_arch }} | skipped（tag-gated） |
+| Sign and publish | skipped（tag-gated） |
+| Publish Python bindings to PyPI | skipped（tag-gated） |
+
+Security audit 各 job 结论：
+
+| Job | 结论 |
+|---|---|
+| CodeQL static analysis | ✅ success |
+| RustSec advisory audit | ✅ success |
+
+Docs 各 job 结论：
+
+| Job | 结论 |
+|---|---|
+| Build documentation | ✅ success |
+
+#### 0.13.7.2 Auto Release 失败说明
+
+`Auto Release` workflow（run ID `30209026535`）在 `Tag and dispatch release` → `Create tag or select a safe retry` 步骤失败，错误信息：
+
+```
+version tag exists at 617f39fea0179a9a6ef0ecf41ac3bd0985f81cde
+but the successful CI head is 88c95459471f2ebceb10de31868062a45ae2b2ce;
+version tags are immutable and cannot be moved — bump the version number in Cargo.toml
+```
+
+这是 `scripts/release_tag_policy.py` 不可变 tag 策略的正确行为：
+
+- 当前 `Cargo.toml` 版本仍为 `0.10.0`；
+- `v0.10.0` tag 已存在于三次审计最终 HEAD `617f39f`；
+- 四次审计新 HEAD `88c9545` 无法复用同一 tag；
+- 策略正确拒绝移动 tag，并提示 "bump the version number in Cargo.toml"。
+
+提示词明确要求：
+
+- §14 禁止事项："提前强制创建或移动 `v0.10.0`"；
+- §0.13.5 版本决策："本轮无版本提升"。
+
+因此该失败为预期行为，非代码错误。若需发布本轮修复，需先提升版本号（如 `0.10.1`），由 `auto-release.yml` 自动创建新 tag 触发 release。本次按提示词要求不提前提升版本。
 
 ### 0.13.8 四次审计实际解析到的工具版本
 
