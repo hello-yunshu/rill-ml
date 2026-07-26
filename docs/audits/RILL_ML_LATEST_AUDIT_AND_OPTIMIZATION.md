@@ -287,12 +287,12 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 | 仓库 | hello-yunshu/rill-ml |
 | 分支 | `main` |
 | 三次审计起始基线 | `9791c5f9bbf95482f78a1fb189dc9447410377c7`（即二次审计闭环后又新增 2 个提交后的 main） |
-| 三次审计最终 HEAD SHA | 本审计报告所在提交（以 `git rev-parse HEAD` 为准；编写时为 `31df802` 或其 amend 后继） |
-| 与远端 `origin/main` 关系 | 本地 `main` 领先 `origin/main` 8 个未推送提交（三次审计 8 个；二次审计 7 个 + 二次审计后 2 个已推送） |
+| 三次审计最终 HEAD SHA | 本审计报告所在提交本身（运行 `git rev-parse HEAD` 获取；不在此硬编码 SHA 以避免 amend/后续提交导致引用失真） |
+| 与远端 `origin/main` 关系 | 本地 `main` 领先 `origin/main` 11 个未推送提交（三次审计 11 个；二次审计 7 个 + 二次审计后 2 个已推送） |
 | 当前版本 | `0.10.0`（从 `0.9.0` minor 提升，理由见 §0.12.5） |
 | 三次审计触发提示词 | `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` |
 | Rust 工具链 | `cargo 1.95.0`（workspace MSRV 1.94）；MSRV 1.94.0 检查已本地执行 |
-| 工作区状态 | 三次审计修复已按 8 个提交全部入库（7 个 substantive + 1 个 doc-update，见 §0.12.10），工作区仅剩未跟踪的提示词文件 `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` |
+| 工作区状态 | 三次审计修复已按 11 个提交全部入库（8 个 substantive + 3 个 doc-update，见 §0.12.10），工作区仅剩未跟踪的提示词文件 `RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md` |
 
 三次审计前已确认：
 
@@ -498,7 +498,7 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 | Signed stable index | ⏳ 未实现 | ⏳ 不在本次发布范围 | 首轮审计 §3.5 标记为 Deferred |
 
 **关键说明**：
-- 三次审计所有修复已按 8 个提交入库（7 个 substantive + 1 个 doc-update，见 §0.12.10），**尚未 push 到 `origin/main`**，因此 CI 尚未运行；
+- 三次审计所有修复已按 11 个提交入库（8 个 substantive + 3 个 doc-update，见 §0.12.10），**尚未 push 到 `origin/main`**，因此 CI 尚未运行；
 - 推送后由 GitHub Actions `pipeline.yml` 自动触发等价验证；若全部通过，再创建 `v0.10.0` tag 触发 `auto-release.yml` 自动发布 GitHub Release；
 - crates.io / PyPI / signed stable index 三项在 0.x 阶段均未启用，本次不涉及。
 
@@ -523,11 +523,14 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 
 ### 0.12.10 三次审计最终提交列表
 
-按提示词第十三节建议的逻辑提交组织，实际落入 8 个提交（commit 7 是 commit 4 的测试基础设施加固；commit 8 是 doc-update，记录 commit 7 与最终 HEAD；按时间顺序，最新在前）：
+按提示词第十三节建议的逻辑提交组织，实际落入 11 个提交（commit 7、9 是测试基础设施加固；commit 8、10、11 是 doc-update；按时间顺序，最新在前）：
 
 | # | SHA | 提交信息 | 主要内容 |
 |---|---|---|---|
-| 8 | `31df802` | `docs(third-audit): record commit 7 (test serialisation) in CHANGELOG and audit report` | 同步 commit 7 到 CHANGELOG 与审计报告；更新 HEAD SHA |
+| 11 | 本提交 | `docs(third-audit): record re-review fixes (commit 9-10) in CHANGELOG and audit report` | 同步 commit 9-10 到 CHANGELOG 与审计报告；更新 HEAD 引用策略为不硬编码 SHA |
+| 10 | `a822228` | `test(runtime): add missing wasm_test_guard to fuel_exhaustion test` | 补全 `wasm_handler_fuel_exhaustion_returns_timeout` 缺失的 `wasm_test_guard()`；复检发现 commit 7 遗漏 |
+| 9 | `9e5cda0` | `fix(core/naive-bayes): use checked_add for class_count sum to prevent u64 overflow panic` | 三种 NB 的 `class_false_count + class_true_count` 改用 `checked_add`；3 个回归测试覆盖 u64::MAX 边界 |
+| 8 | `da0a3a5` | `docs(third-audit): record commit 7 (test serialisation) in CHANGELOG and audit report` | 同步 commit 7 到 CHANGELOG 与审计报告；更新 HEAD SHA |
 | 7 | `24c600f` | `test(runtime): serialise all wasm_handler tests to fix ticker counter flakiness` | 文件级 `WASM_TEST_LOCK` 取代仅覆盖 ticker 测试的 `TICKER_TEST_LOCK`；所有 19 个测试串行；poison 锁恢复 |
 | 6 | `7ad16a9` | `docs(third-audit): final closeout — CHANGELOG and audit report` | CHANGELOG `[0.10.0]` 节 + 审计报告 §0.12 |
 | 5 | `0eebb37` | `chore(release): bump to 0.10.0 and clarify compatible-range tool policy` | 版本提升 0.9.0 → 0.10.0；sync_version.py 同步 15 字段；工具范围策略描述修正 |
@@ -536,7 +539,11 @@ fd85601 fix(core/naive-bayes): guarantee probability finiteness and failure atom
 | 2 | `a2eb5b8` | `fix(core/ftrl): add config-aware weight validation to serde trust boundary` | `weight_checked` / `intercept_weight_checked` + 顶层 `validate_invariants` |
 | 1 | `83cff4c` | `fix(core/naive-bayes): add custom Deserialize with full invariant validation` | 三种 NB 自定义 Deserialize + `validate_invariants` + 19 个新测试 |
 
-三次审计起始基线为 `9791c5f`，最终 HEAD 为 commit 8（`31df802` 或其 amend 后继，以 `git rev-parse HEAD` 为准）。
+三次审计起始基线为 `9791c5f`，最终 HEAD 为 commit 11（本提交本身；运行 `git rev-parse HEAD` 获取实际 SHA）。
+
+**commit 9 与 commit 10 的来源**：三次审计最终闭环后，按提示词要求进行"严谨复检一遍所有未推送的更改"，复检发现两处缺陷并修复：
+- commit 9：三种 NB 的 `class_false_count + class_true_count` 使用裸 `+`，恶意 serde payload 可构造两个接近 `u64::MAX` 的 class_count 导致 debug 模式 panic（违反信任边界契约）或 release 模式回绕误判。改用 `checked_add` 并新增 3 个回归测试。
+- commit 10：commit 7 的文件级 `WASM_TEST_LOCK` 意在覆盖所有 19 个 `#[test]`，但 `wasm_handler_fuel_exhaustion_returns_timeout` 被遗漏。补全缺失的 `wasm_test_guard()` 调用。
 
 ---
 

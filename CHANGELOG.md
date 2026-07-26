@@ -73,7 +73,10 @@ exhaustive `match` arms and therefore require a minor bump.
   whose mean or M2 is non-zero. Multinomial totals are checked against
   feature sums with an explicit relative/absolute tolerance. The
   `predict_proba` `Ok(NaN)` path is also rejected. Each `learn()` is
-  atomic: any failure leaves the model completely unchanged.
+  atomic: any failure leaves the model completely unchanged. The
+  `class_false_count + class_true_count` sum uses `checked_add` so a
+  malicious payload with both counts near `u64::MAX` is rejected with
+  `InvalidState` instead of panicking in debug or wrapping in release.
 - `FtrlRegressor` / `FtrlClassifier` (`src/models/ftrl.rs`): added
   `FtrlParam::weight_checked(&config)` and
   `FtrlParam::intercept_weight_checked(&config)` which validate the
@@ -125,7 +128,10 @@ exhaustive `match` arms and therefore require a minor bump.
   the baseline captured by a ticker test could shift underneath it as
   parallel tests constructed or dropped their own handlers. The guard
   is recovered from poison so a panic in one test does not cascade via
-  `PoisonError`. No production code changes.
+  `PoisonError`. No production code changes. A follow-up commit added
+  the missing guard to `wasm_handler_fuel_exhaustion_returns_timeout`,
+  which was overlooked in the initial file-wide sweep — all 19 `#[test]`
+  functions now acquire the guard.
 
 ### Fixed — Release tooling and policy
 
