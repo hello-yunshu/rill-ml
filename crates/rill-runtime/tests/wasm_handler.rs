@@ -56,11 +56,26 @@ use sha2::{Digest, Sha256};
 // the old ticker thread has actually exited.
 // ---------------------------------------------------------------------------
 
-/// Serialises the ticker-lifecycle tests so their assertions about the
-/// global `active_epoch_ticker_count` are not perturbed by parallel
-/// ticker creation/drop in other tests. Acquired at the start of each
-/// ticker test.
-static TICKER_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+/// Serialises ALL tests in this file so that the ticker-lifecycle tests'
+/// assertions about the global `active_epoch_ticker_count` are not
+/// perturbed by parallel ticker creation/drop in other tests. Every
+/// test that constructs a `WasmInvokeHandler` must acquire this lock at
+/// entry, because each handler starts an `EpochTicker` thread that
+/// increments the global counter. Without serialisation, the baseline
+/// captured by a ticker test can shift underneath it as parallel tests
+/// construct or drop their own handlers.
+///
+/// The guard is recovered from poison so that a panic in one test does
+/// not cascade to all subsequent tests via `PoisonError`.
+static WASM_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Acquires the global WASM test serialisation lock. Every `#[test]` in
+/// this file calls this at entry to ensure tests do not run in parallel.
+fn wasm_test_guard() -> std::sync::MutexGuard<'static, ()> {
+    WASM_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 /// Polls `rill_runtime::handler::wasm::active_epoch_ticker_count` until
 /// it reaches `target` or `timeout` elapses. Returns `true` on success.
@@ -129,6 +144,7 @@ fn load_echo_pack(
 
 #[test]
 fn echo_handler_invoke_returns_input() {
+    let _guard = wasm_test_guard();
     let component = match echo_handler_component() {
         Some(path) => fs::read(&path).unwrap(),
         None => {
@@ -156,6 +172,7 @@ fn echo_handler_invoke_returns_input() {
 
 #[test]
 fn echo_handler_rejects_unsupported_capability() {
+    let _guard = wasm_test_guard();
     let component = match echo_handler_component() {
         Some(path) => fs::read(&path).unwrap(),
         None => {
@@ -192,6 +209,7 @@ fn echo_handler_rejects_unsupported_capability() {
 
 #[test]
 fn echo_handler_metadata_mismatch_rejected() {
+    let _guard = wasm_test_guard();
     let component = match echo_handler_component() {
         Some(path) => fs::read(&path).unwrap(),
         None => {
@@ -240,6 +258,7 @@ fn echo_handler_metadata_mismatch_rejected() {
 /// JSON payloads (the IPC limit is shared).
 #[test]
 fn wasm_handler_rejects_oversized_output() {
+    let _guard = wasm_test_guard();
     use rill_runtime::handler::wasm::MAX_IO_BYTES;
     // 1 MiB, matching the IPC limit per HANDLER-RFC §5.
     assert_eq!(MAX_IO_BYTES, 1024 * 1024);
@@ -253,6 +272,7 @@ fn wasm_handler_rejects_oversized_output() {
 /// (memory/table growth).
 #[test]
 fn wasm_handler_sandbox_limits_verified() {
+    let _guard = wasm_test_guard();
     use rill_runtime::handler::wasm::{
         CONFIGURE_FUEL, EPOCH_DEADLINE, EPOCH_TICK_INTERVAL, INVOKE_FUEL, MAX_IO_BYTES,
         MAX_MEMORY_BYTES, MAX_TABLE_ELEMENTS,
@@ -339,6 +359,7 @@ fn prepare_malicious_handler() -> Option<(LoadedHandlerPack, SigningKey)> {
 
 #[test]
 fn wasm_handler_trap_returns_handler_trap_error() {
+    let _guard = wasm_test_guard();
     let (loaded, _) = match prepare_malicious_handler() {
         Some(v) => v,
         None => return,
@@ -366,6 +387,7 @@ fn wasm_handler_trap_returns_handler_trap_error() {
 
 #[test]
 fn wasm_handler_oversized_output_returns_output_too_large() {
+    let _guard = wasm_test_guard();
     let (loaded, _) = match prepare_malicious_handler() {
         Some(v) => v,
         None => return,
@@ -388,6 +410,7 @@ fn wasm_handler_oversized_output_returns_output_too_large() {
 
 #[test]
 fn wasm_handler_invalid_json_output_returns_invalid_output() {
+    let _guard = wasm_test_guard();
     let (loaded, _) = match prepare_malicious_handler() {
         Some(v) => v,
         None => return,
@@ -410,6 +433,7 @@ fn wasm_handler_invalid_json_output_returns_invalid_output() {
 
 #[test]
 fn wasm_handler_infinite_loop_returns_timeout() {
+    let _guard = wasm_test_guard();
     let (loaded, _) = match prepare_malicious_handler() {
         Some(v) => v,
         None => return,
@@ -443,6 +467,7 @@ fn wasm_handler_infinite_loop_returns_timeout() {
 
 #[test]
 fn wasm_handler_echo_mode_works_as_baseline() {
+    let _guard = wasm_test_guard();
     let (loaded, _) = match prepare_malicious_handler() {
         Some(v) => v,
         None => return,
@@ -472,6 +497,7 @@ fn wasm_handler_echo_mode_works_as_baseline() {
 /// a permanent `Trap`.
 #[test]
 fn wasm_handler_remains_usable_after_output_too_large() {
+    let _guard = wasm_test_guard();
     let (loaded, _) = match prepare_malicious_handler() {
         Some(v) => v,
         None => return,
@@ -508,6 +534,7 @@ fn wasm_handler_remains_usable_after_output_too_large() {
 /// echo-mode handler and confirms it works.
 #[test]
 fn wasm_handler_failure_does_not_affect_other_instances() {
+    let _guard = wasm_test_guard();
     let (loaded, _) = match prepare_malicious_handler() {
         Some(v) => v,
         None => return,
@@ -541,6 +568,7 @@ fn wasm_handler_failure_does_not_affect_other_instances() {
 /// `HandlerLoadError::Init` rather than an `InvokeError`.
 #[test]
 fn wasm_handler_configure_infinite_loop_returns_timeout() {
+    let _guard = wasm_test_guard();
     let (loaded, _) = match prepare_malicious_handler() {
         Some(v) => v,
         None => return,
@@ -659,6 +687,7 @@ fn prepare_metadata_loop_handler() -> Option<LoadedHandlerPack> {
 /// `HandlerLoadError::Init` rather than an `InvokeError`.
 #[test]
 fn wasm_handler_metadata_infinite_loop_returns_load_error() {
+    let _guard = wasm_test_guard();
     let loaded = match prepare_metadata_loop_handler() {
         Some(v) => v,
         None => return,
@@ -694,6 +723,7 @@ fn wasm_handler_metadata_infinite_loop_returns_load_error() {
 /// handlers).
 #[test]
 fn metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers() {
+    let _guard = wasm_test_guard();
     let metadata_loaded = match prepare_metadata_loop_handler() {
         Some(v) => v,
         None => return,
@@ -753,6 +783,7 @@ fn metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers() 
 /// memory and stderr noise. The stored detail must not exceed the limit.
 #[test]
 fn wasm_handler_long_error_string_is_truncated() {
+    let _guard = wasm_test_guard();
     use rill_runtime::InvokeError;
     use rill_runtime::MAX_DETAIL_BYTES;
 
@@ -851,7 +882,7 @@ fn wasm_handler_fuel_exhaustion_returns_timeout() {
 /// confirms the count returns to baseline again.
 #[test]
 fn metadata_loop_failure_restores_active_ticker_count() {
-    let _guard = TICKER_TEST_LOCK.lock().unwrap();
+    let _guard = wasm_test_guard();
 
     let metadata_loaded = match prepare_metadata_loop_handler() {
         Some(v) => v,
@@ -913,7 +944,7 @@ fn metadata_loop_failure_restores_active_ticker_count() {
 /// joined on drop.
 #[test]
 fn normal_handler_drop_restores_active_ticker_count() {
-    let _guard = TICKER_TEST_LOCK.lock().unwrap();
+    let _guard = wasm_test_guard();
 
     let echo_component = match echo_handler_component() {
         Some(path) => fs::read(&path).unwrap(),
