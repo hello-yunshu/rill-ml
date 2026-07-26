@@ -737,11 +737,15 @@ mod tests {
     ///
     /// The strengthened flow:
     /// 1. Record `baseline` ticker count.
-    /// 2. Spawn a worker thread that calls `WasmInvokeHandler::new`.
+    /// 2. Spawn a worker thread that calls `WasmInvokeHandler::new`,
+    ///    sending its result over an `mpsc::channel` so the main thread
+    ///    can wait with `recv_timeout` instead of an unbounded `join()`.
     /// 3. From the main test thread, observe `count == baseline + 1`
     ///    while the constructor is still blocked inside `metadata()`
     ///    (which loops forever and is interrupted by the epoch deadline).
-    /// 4. Wait for the worker to return — the result must be `Err`
+    /// 4. Wait for the worker to return — with a test-level timeout so
+    ///    a regression in epoch interruption fails promptly instead of
+    ///    hanging the CI job for 30 minutes. The result must be `Err`
     ///    because `metadata()` cannot complete within the epoch budget.
     /// 5. After the worker returns, observe `count == baseline`,
     ///    proving the `EpochTicker` guard was dropped during error
@@ -775,13 +779,24 @@ mod tests {
 
         // Spawn the constructor in a worker thread so the main thread
         // can observe the active-ticker counter while the constructor
-        // is still blocked inside the metadata-loop guest. The thread
-        // takes an `Arc<LoadedHandlerPack>` so the pack is shared, not
-        // moved; no production type needs to grow `Send`/`Sync` for
-        // this test.
+        // is still blocked inside the metadata-loop guest. The worker
+        // sends its result over a channel; the main thread uses
+        // `recv_timeout` to bound the wait, so a regression in epoch
+        // interruption or worker exit logic fails the test promptly
+        // instead of waiting for the CI job's 30-minute timeout.
+        //
+        // `tx.send` only fails if `rx` is dropped, which only happens
+        // if the test framework gives up; in normal operation `rx` is
+        // alive until after `recv_timeout`. If the worker panics
+        // before reaching `send`, `tx` is dropped by unwind and
+        // `recv_timeout` returns `Disconnected` — the main thread
+        // then re-raises the panic payload so the failure points at
+        // the actual panic site instead of a generic channel error.
+        let (tx, rx) = std::sync::mpsc::channel();
         let worker_loaded = Arc::clone(&loaded);
         let worker = std::thread::spawn(move || {
-            WasmInvokeHandler::new(&worker_loaded, &serde_json::json!({}))
+            let result = WasmInvokeHandler::new(&worker_loaded, &serde_json::json!({}));
+            let _ = tx.send(result);
         });
 
         // While the worker is blocked inside metadata() (which loops
@@ -797,16 +812,35 @@ mod tests {
             baseline + 1
         );
 
-        // The metadata-loop handler's `metadata()` loops forever; the
-        // host's epoch deadline interrupts it, and `WasmInvokeHandler::new`
-        // returns Err. The `EpochTicker` guard is dropped during error
-        // propagation, which joins the thread.
-        let result = worker.join().expect(
-            "metadata-loop constructor thread panicked; \
-             this may indicate a bug in the ticker thread startup or the \
-             epoch interruption path",
-        );
+        // Wait for the worker to terminate with a test-level timeout.
+        // The epoch deadline is 5 seconds; 15 seconds gives ample
+        // margin while still failing promptly if epoch interruption
+        // regresses. If the worker panics before `send`, `rx` returns
+        // `Disconnected` and we re-raise the panic payload so the
+        // failure points at the actual panic site.
+        let result = match rx.recv_timeout(std::time::Duration::from_secs(15)) {
+            Ok(result) => result,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                panic!(
+                    "metadata-loop constructor did not terminate within test timeout (15s) \
+                     — epoch interruption or worker exit logic may have regressed"
+                );
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                let payload = worker.join().expect_err(
+                    "metadata-loop constructor: rx disconnected but worker did not panic \
+                     — this should be unreachable",
+                );
+                std::panic::resume_unwind(payload);
+            }
+        };
         assert!(result.is_err(), "metadata-loop handler must fail to load");
+
+        // Join the worker to propagate any panic that occurred after
+        // `send` (essentially unreachable, but kept for completeness).
+        worker
+            .join()
+            .expect("metadata-loop constructor thread panicked after sending result");
 
         // After the failed load, the ticker thread must have been joined
         // and the count must return to baseline.
@@ -816,6 +850,11 @@ mod tests {
             baseline,
             active_epoch_ticker_count()
         );
+
+        // Emit a CI-log marker so the audit report can cite the exact
+        // step that proves the test-level timeout is in place. Only
+        // printed when the test runs to completion (i.e. not skipped).
+        println!("metadata-loop constructor timeout test: PASS");
 
         // Drop the Arc<LoadedHandlerPack> explicitly so its refcount
         // goes to zero and any test-only state is released before the

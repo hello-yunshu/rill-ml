@@ -263,15 +263,24 @@ jobs:
             --lib \
             handler::wasm::tests::ticker_probe_is_available_to_internal_tests \
             -- --exact --nocapture
-      - name: Verify ticker probe is absent from public API docs
-        # Fifth-stage 5-A-03: the previous `ticker_probe_is_not_in_public_api`
-        # unit test only proved the counter was reachable from internal
-        # tests — it did *not* verify that no `pub` accessor had leaked
-        # into the rendered rustdoc. This step builds the `rill-runtime`
-        # rustdoc with `--features wasm --no-deps` and greps the output
-        # for `active_epoch_ticker_count` / `ACTIVE_EPOCH_TICKERS`.
-        # A match fails the build, so a future refactor that re-exposes
-        # the test probe as `pub` cannot slip through CI.
+      - name: Verify ticker probe is not externally accessible
+        # Sixth-stage 6-A-01: the fifth-stage rustdoc grep check only
+        # inspects the rendered rustdoc.  Because `#[doc(hidden)] pub`
+        # items are not rendered, that grep cannot detect a regression
+        # where the probe is re-exposed as `#[doc(hidden)] pub fn
+        # active_epoch_ticker_count()`.  This step takes the stricter
+        # "external crate" view: a temporary crate that depends on
+        # `rill-runtime` via path tries to `use` the probe; the check
+        # passes only if that crate FAILS to compile.  A companion
+        # smoke crate proves legitimate public API still compiles, so a
+        # broken dependency configuration cannot be misread as "probe
+        # invisible".
+        run: python3 scripts/check_runtime_public_api.py
+      - name: rendered-doc smoke check
+        # Auxiliary check: confirm the test probe does not appear in the
+        # rendered rustdoc.  This is NOT the primary public-API proof
+        # (the compile-fail check above is) — it only catches probes
+        # that are both `pub` and not `#[doc(hidden)]`.
         run: |
           set -euo pipefail
           cargo doc --locked \
