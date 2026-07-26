@@ -1,6 +1,6 @@
 //! Handler adapters for the runtime engine.
 //!
-//! The runtime delegates capability execution to an [`InvokeHandler`]. Built-in
+//! The runtime delegates capability execution to an [`InvokeHandler`](crate::server::InvokeHandler). Built-in
 //! handlers live in [`builtin`]; sandboxed WASM handlers live in [`wasm`] behind
 //! the `wasm` feature flag.
 

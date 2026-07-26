@@ -219,6 +219,72 @@ jobs:
         env:
           ECHO_HANDLER_WASM: ${{ github.workspace }}/target/echo-handler.wasm
         run: cargo test --locked -p rill-runtime --features wasm --test runtime_process
+      - name: Run internal WASM ticker lifecycle tests
+        # Fifth-stage 5-A-01/5-A-02: the previous CI flow built the
+        # WASM fixtures but only ran the *integration* tests
+        # (`--test wasm_handler` / `--test runtime_process`). The
+        # internal `#[cfg(test)] mod tests` inside `handler/wasm.rs`
+        # — which directly observe the test-only `ACTIVE_EPOCH_TICKERS`
+        # counter — were silently skipped because they live behind
+        # `--lib` and rely on fixture env vars that the integration
+        # tests do not set for them.
+        #
+        # `RILL_RUN_WASM_FIXTURE_TESTS=1` makes fixture absence a hard
+        # failure: if the upstream fixture-build step regressed and
+        # produced no `.wasm`, the lifecycle tests panic instead of
+        # printing "skipping" and returning success.
+        #
+        # `-- --exact --nocapture` ensures each lifecycle test name
+        # appears verbatim in the CI log so the audit report can cite
+        # the workflow run ID + step + test name as evidence.
+        env:
+          RILL_RUN_WASM_FIXTURE_TESTS: "1"
+          ECHO_HANDLER_WASM: ${{ github.workspace }}/target/echo-handler.wasm
+          MALICIOUS_HANDLER_WASM: ${{ github.workspace }}/target/test-malicious-handler.wasm
+          METADATA_LOOP_HANDLER_WASM: ${{ github.workspace }}/target/test-metadata-loop-handler.wasm
+        run: |
+          cargo test --locked \
+            -p rill-runtime \
+            --features wasm \
+            --lib \
+            handler::wasm::tests::normal_handler_drop_restores_active_ticker_count \
+            -- --exact --nocapture
+
+          cargo test --locked \
+            -p rill-runtime \
+            --features wasm \
+            --lib \
+            handler::wasm::tests::metadata_loop_failure_restores_active_ticker_count \
+            -- --exact --nocapture
+
+          cargo test --locked \
+            -p rill-runtime \
+            --features wasm \
+            --lib \
+            handler::wasm::tests::ticker_probe_is_available_to_internal_tests \
+            -- --exact --nocapture
+      - name: Verify ticker probe is absent from public API docs
+        # Fifth-stage 5-A-03: the previous `ticker_probe_is_not_in_public_api`
+        # unit test only proved the counter was reachable from internal
+        # tests — it did *not* verify that no `pub` accessor had leaked
+        # into the rendered rustdoc. This step builds the `rill-runtime`
+        # rustdoc with `--features wasm --no-deps` and greps the output
+        # for `active_epoch_ticker_count` / `ACTIVE_EPOCH_TICKERS`.
+        # A match fails the build, so a future refactor that re-exposes
+        # the test probe as `pub` cannot slip through CI.
+        run: |
+          set -euo pipefail
+          cargo doc --locked \
+            -p rill-runtime \
+            --features wasm \
+            --no-deps
+          if grep -R -E \
+            "active_epoch_ticker_count|ACTIVE_EPOCH_TICKERS" \
+            target/doc/rill_runtime; then
+            echo "::error::ticker lifecycle test probe leaked into rill-runtime public docs"
+            exit 1
+          fi
+          echo "ticker probe absent from rill-runtime public rustdoc"
 
   python-build:
     name: Python bindings build + pytest
