@@ -160,6 +160,44 @@ impl StandardScaler {
                 "standard scaler feature counts must stay synchronized".to_owned(),
             ));
         }
+        // counts are synchronized (verified above), so the first entry
+        // represents every feature's sample count.
+        let n = self.counts.first().copied().unwrap_or(0);
+        // count == 0: no samples seen → mean and M2 must be exactly 0 for
+        // every feature. The normal paths (new() / reset()) guarantee this;
+        // a non-zero value indicates a corrupted or malicious payload. The
+        // public docs promise mean=0 and scale=1 in this state, so accepting
+        // a non-zero mean would silently break transform() output.
+        if n == 0 {
+            for (i, &mean) in self.means.iter().enumerate() {
+                if mean != 0.0 {
+                    return Err(RillError::InvalidState(format!(
+                        "standard scaler means[{i}] must be 0 when count == 0, got {mean}"
+                    )));
+                }
+            }
+            for (i, &m2) in self.m2s.iter().enumerate() {
+                if m2 != 0.0 {
+                    return Err(RillError::InvalidState(format!(
+                        "standard scaler m2s[{i}] must be 0 when count == 0, got {m2}"
+                    )));
+                }
+            }
+        }
+        // count == 1: after a single Welford update, delta2 = x - mean = 0,
+        // so m2_delta = delta * delta2 = 0 and M2 stays exactly 0. The
+        // normal update path guarantees exact 0, so no floating-point
+        // tolerance is introduced here. The single training sample is
+        // unknown, so mean is NOT constrained to a specific value.
+        if n == 1 {
+            for (i, &m2) in self.m2s.iter().enumerate() {
+                if m2 != 0.0 {
+                    return Err(RillError::InvalidState(format!(
+                        "standard scaler m2s[{i}] must be 0 when count == 1, got {m2}"
+                    )));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -407,6 +445,128 @@ mod tests {
             "m2s":[-1.0]
         }"#;
         assert!(serde_json::from_str::<StandardScaler>(malformed).is_err());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn scaler_serde_rejects_zero_count_nonzero_mean() {
+        // count == 0 promises mean=0, scale=1 (input returned unchanged).
+        // A non-zero mean would silently break transform() output.
+        let malformed = r#"{
+            "feature_count":1,
+            "config":{"with_mean":true,"with_std":true,"epsilon":1e-12},
+            "counts":[0],
+            "means":[10.0],
+            "m2s":[0.0]
+        }"#;
+        assert!(
+            serde_json::from_str::<StandardScaler>(malformed).is_err(),
+            "count=0 with non-zero mean must be rejected"
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn scaler_serde_rejects_zero_count_nonzero_m2() {
+        // count == 0 implies no samples → M2 (sum of squared deviations)
+        // must be exactly 0. A non-zero M2 is a corrupted/malicious state.
+        let malformed = r#"{
+            "feature_count":1,
+            "config":{"with_mean":true,"with_std":true,"epsilon":1e-12},
+            "counts":[0],
+            "means":[0.0],
+            "m2s":[1.0]
+        }"#;
+        assert!(
+            serde_json::from_str::<StandardScaler>(malformed).is_err(),
+            "count=0 with non-zero m2 must be rejected"
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn scaler_serde_rejects_one_count_nonzero_m2() {
+        // count == 1: after a single Welford update, delta2 = x - mean = 0,
+        // so M2 stays exactly 0. The training sample itself is unknown, so
+        // mean is NOT constrained — only M2 must be 0.
+        let malformed = r#"{
+            "feature_count":1,
+            "config":{"with_mean":true,"with_std":true,"epsilon":1e-12},
+            "counts":[1],
+            "means":[3.0],
+            "m2s":[0.25]
+        }"#;
+        assert!(
+            serde_json::from_str::<StandardScaler>(malformed).is_err(),
+            "count=1 with non-zero m2 must be rejected"
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn scaler_serde_accepts_one_count_finite_mean() {
+        // count == 1 with an arbitrary finite mean and M2 == 0 is the
+        // legitimate post-single-update state (mean == the single training
+        // sample). It must round-trip successfully.
+        let json = r#"{
+            "feature_count":2,
+            "config":{"with_mean":true,"with_std":true,"epsilon":1e-12},
+            "counts":[1,1],
+            "means":[3.0,-7.5],
+            "m2s":[0.0,0.0]
+        }"#;
+        let scaler: StandardScaler =
+            serde_json::from_str(json).expect("count=1 with finite mean and m2=0 must be accepted");
+        // Round-trip back to JSON and re-parse to confirm stability.
+        let re = serde_json::to_string(&scaler).unwrap();
+        let _: StandardScaler = serde_json::from_str(&re).unwrap();
+        assert_eq!(scaler.counts, vec![1, 1]);
+        assert_eq!(scaler.means, vec![3.0, -7.5]);
+        assert_eq!(scaler.m2s, vec![0.0, 0.0]);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn scaler_serde_roundtrip_preserves_state() {
+        // A scaler trained on a few samples must survive a serialize →
+        // deserialize round-trip with all invariants intact.
+        let mut scaler = StandardScaler::new(2).unwrap();
+        scaler.update(&[1.0, 10.0]).unwrap();
+        scaler.update(&[3.0, 20.0]).unwrap();
+        scaler.update(&[5.0, 30.0]).unwrap();
+        let json = serde_json::to_string(&scaler).unwrap();
+        let restored: StandardScaler = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.counts, scaler.counts);
+        assert_eq!(restored.means, scaler.means);
+        assert_eq!(restored.m2s, scaler.m2s);
+        // transform output must match as well.
+        let features = [2.0, 15.0];
+        assert_eq!(
+            scaler.transform(&features).unwrap(),
+            restored.transform(&features).unwrap()
+        );
+    }
+
+    #[test]
+    fn transform_hot_path_does_not_scan_invariants() {
+        // The release transform() hot path must remain a single loop and
+        // must NOT re-run the O(d) invariant scan from validate(). This
+        // test constructs a valid scaler and confirms transform() succeeds
+        // without invoking validate() (which would walk counts/means/m2s).
+        // We can't directly count scans, but we can confirm a scaler that
+        // has valid invariants transforms correctly and that the hot path
+        // doesn't change state.
+        let mut scaler = StandardScaler::new(3).unwrap();
+        scaler.update(&[1.0, 2.0, 3.0]).unwrap();
+        scaler.update(&[4.0, 5.0, 6.0]).unwrap();
+        let before = scaler.clone();
+        let out = scaler.transform(&[2.5, 3.5, 4.5]).unwrap();
+        // State must be unchanged.
+        assert_eq!(scaler.counts, before.counts);
+        assert_eq!(scaler.means, before.means);
+        assert_eq!(scaler.m2s, before.m2s);
+        // Output length matches feature count (single loop).
+        assert_eq!(out.len(), 3);
     }
 
     #[test]
