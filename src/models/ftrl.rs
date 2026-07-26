@@ -562,6 +562,19 @@ impl FtrlRegressor {
         // but would still yield a zero-denominator or infinite weight
         // (e.g. very large alpha with tiny n, beta=0, l2=0).
         self.config.validate()?;
+        // Top-level invariant: the stored feature count must not exceed
+        // `max_features`. A malicious payload with `max_features = 1` but
+        // two stored params violates the model contract and is rejected
+        // here rather than silently accepted.
+        if let Some(max_features) = self.config.max_features
+            && self.params.len() > max_features
+        {
+            return Err(RillError::InvalidState(format!(
+                "FTRL stored feature count {} exceeds max_features {}",
+                self.params.len(),
+                max_features
+            )));
+        }
         for (id, param) in &self.params {
             param.validate()?;
             param
@@ -803,6 +816,17 @@ impl FtrlClassifier {
     fn validate_invariants(&self) -> Result<(), RillError> {
         // See FtrlRegressor::validate_invariants for rationale.
         self.config.validate()?;
+        // Top-level invariant: the stored feature count must not exceed
+        // `max_features`. See FtrlRegressor::validate_invariants.
+        if let Some(max_features) = self.config.max_features
+            && self.params.len() > max_features
+        {
+            return Err(RillError::InvalidState(format!(
+                "FTRL stored feature count {} exceeds max_features {}",
+                self.params.len(),
+                max_features
+            )));
+        }
         for (id, param) in &self.params {
             param.validate()?;
             param
@@ -2312,5 +2336,113 @@ mod tests {
             assert!(w.is_finite(), "restored weight must be finite, got {w}");
         }
         assert!(restored.intercept().is_finite());
+    }
+
+    // -----------------------------------------------------------------
+    // Fourth-stage audit: FTRL max_features serde invariant (4-A-02)
+    // -----------------------------------------------------------------
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_serde_rejects_params_above_max_features() {
+        // config.max_features = 1, but two stored params. This violates
+        // the model contract and must be rejected at deserialisation.
+        let json = "{\"config\":{\"alpha\":0.1,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0,\"max_features\":1,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":1.0,\"n\":1.0},\"1\":{\"z\":1.0,\"n\":1.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":1}";
+        let result: Result<FtrlRegressor, _> = serde_json::from_str(json);
+        let err = match result {
+            Ok(_) => panic!("expected serde error, got Ok"),
+            Err(e) => e,
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("max_features") && msg.contains("feature count"),
+            "error must mention feature count / max_features, got: {msg}"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_serde_rejects_params_above_max_features() {
+        let json = "{\"config\":{\"alpha\":0.1,\"beta\":1.0,\"l1\":1.0,\"l2\":1.0,\"max_features\":1,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":1.0,\"n\":1.0},\"1\":{\"z\":1.0,\"n\":1.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":1}";
+        let result: Result<FtrlClassifier, _> = serde_json::from_str(json);
+        let err = match result {
+            Ok(_) => panic!("expected serde error, got Ok"),
+            Err(e) => e,
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("max_features") && msg.contains("feature count"),
+            "error must mention feature count / max_features, got: {msg}"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_serde_accepts_params_equal_to_max_features() {
+        // params.len() == max_features is legal. Round-trip must succeed
+        // and weights()/predict() must remain finite.
+        let json = "{\"config\":{\"alpha\":0.5,\"beta\":1.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":2,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":0.5,\"n\":1.0},\"1\":{\"z\":-0.25,\"n\":2.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":3}";
+        let model: FtrlRegressor =
+            serde_json::from_str(json).expect("equal count must be accepted");
+        assert_eq!(model.feature_count(), 2);
+        assert_eq!(model.samples_seen(), 3);
+        for (_, w) in model.weights() {
+            assert!(w.is_finite(), "weight must be finite, got {w}");
+        }
+        assert!(model.intercept().is_finite());
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 1.0)]).unwrap();
+        let pred = model.predict(&sf).expect("predict must succeed");
+        assert!(pred.is_finite(), "prediction must be finite, got {pred}");
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_serde_accepts_params_equal_to_max_features() {
+        let json = "{\"config\":{\"alpha\":0.5,\"beta\":1.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":2,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":0.5,\"n\":1.0},\"1\":{\"z\":-0.25,\"n\":2.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":3}";
+        let model: FtrlClassifier =
+            serde_json::from_str(json).expect("equal count must be accepted");
+        assert_eq!(model.feature_count(), 2);
+        assert_eq!(model.samples_seen(), 3);
+        for (_, w) in model.weights() {
+            assert!(w.is_finite(), "weight must be finite, got {w}");
+        }
+        assert!(model.intercept().is_finite());
+        let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (1, 1.0)]).unwrap();
+        let p = model
+            .predict_proba(&sf)
+            .expect("predict_proba must succeed");
+        assert!(p.is_finite(), "probability must be finite, got {p}");
+        assert!(
+            (0.0..=1.0).contains(&p),
+            "probability must be in [0,1], got {p}"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn regressor_serde_allows_unbounded_params_when_max_features_none() {
+        // max_features = None must not constrain params.len(). Three
+        // stored params with no cap must round-trip cleanly.
+        let json = "{\"config\":{\"alpha\":0.5,\"beta\":1.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":0.5,\"n\":1.0},\"1\":{\"z\":-0.25,\"n\":2.0},\"2\":{\"z\":1.5,\"n\":3.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":6}";
+        let model: FtrlRegressor =
+            serde_json::from_str(json).expect("unbounded state must be accepted");
+        assert_eq!(model.feature_count(), 3);
+        for (_, w) in model.weights() {
+            assert!(w.is_finite(), "weight must be finite, got {w}");
+        }
+        assert!(model.intercept().is_finite());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn classifier_serde_allows_unbounded_params_when_max_features_none() {
+        let json = "{\"config\":{\"alpha\":0.5,\"beta\":1.0,\"l1\":0.0,\"l2\":0.0,\"max_features\":null,\"new_feature_policy\":\"Reject\"},\"params\":{\"0\":{\"z\":0.5,\"n\":1.0},\"1\":{\"z\":-0.25,\"n\":2.0},\"2\":{\"z\":1.5,\"n\":3.0}},\"intercept\":{\"z\":0.0,\"n\":0.0},\"samples_seen\":6}";
+        let model: FtrlClassifier =
+            serde_json::from_str(json).expect("unbounded state must be accepted");
+        assert_eq!(model.feature_count(), 3);
+        for (_, w) in model.weights() {
+            assert!(w.is_finite(), "weight must be finite, got {w}");
+        }
+        assert!(model.intercept().is_finite());
     }
 }
