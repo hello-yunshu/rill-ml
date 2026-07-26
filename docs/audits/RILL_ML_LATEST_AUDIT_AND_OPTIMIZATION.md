@@ -1650,11 +1650,11 @@ release version 0.13.0 is internally consistent (v0.13.0)
 |---|---|---|
 | v0.12.0 Release source SHA | `1a102b8731bda4fd37c38fc513d7c2c8c824992a` | 第五阶段发布源，未移动 |
 | 本轮起始 main HEAD | `05b4dc4b8b0b93e5f5f656c82d0fa61863899349` | 第六阶段开始时的 main HEAD |
-| 本轮最终代码 HEAD | 待 CI 验证后填写 | Commit 3（docs/sixth-audit）之前的代码 HEAD |
-| 最终 origin/main HEAD | 待 CI 验证后填写 | 推送后 origin/main SHA |
-| 下一版本 Release source SHA | 待 Release 完成后填写 | `v0.13.0` tag 指向的 commit |
-| 最终文档 HEAD | 待 CI 验证后填写 | Commit 3（docs/sixth-audit）入库后的 HEAD |
-| `v0.13.0` tag SHA | 待 Auto Release 创建后填写 | 由 `auto-release.yml` 在 CI 成功后自动创建 |
+| 本轮最终代码 HEAD | `2e3983dc9ec9e1f9c9fe965aa71b081daf549893` | Commit 3（docs/sixth-audit）入库后的 HEAD |
+| 最终 origin/main HEAD | `2e3983dc9ec9e1f9c9fe965aa71b081daf549893` | 推送后 origin/main SHA（与本地同步） |
+| 下一版本 Release source SHA | `2e3983dc9ec9e1f9c9fe965aa71b081daf549893` | `v0.13.0` tag 指向的 commit |
+| 最终文档 HEAD | 待 follow-up commit 后填写 | 本轮 CI/Release 验证结果 follow-up commit 入库后的 HEAD |
+| `v0.13.0` tag SHA | tag object `aed025d7145abbb96df6798a76bb0c2d15e65bdc`，指向 commit `2e3983d` | 由 `auto-release.yml` 在 CI 成功后自动创建 |
 
 本轮提交列表：
 
@@ -1662,7 +1662,8 @@ release version 0.13.0 is internally consistent (v0.13.0)
 |---|---|---|
 | Commit 1 | `fd0159f` | `test(runtime): harden ticker API and metadata timeout verification` |
 | Commit 2 | `86ceb19` | `release(version): bump to 0.13.0` |
-| Commit 3 | 待创建 | `docs(sixth-audit): close final release verification gaps` |
+| Commit 3 | `2e3983d` | `docs(sixth-audit): close final release verification gaps` |
+| Follow-up | 待创建 | `docs(sixth-audit): record CI/Release verification results (§0.15.7)` |
 
 ### 0.15.6 wasm-pack CI 记录修正
 
@@ -1679,41 +1680,65 @@ release version 0.13.0 is internally consistent (v0.13.0)
   run: cd crates/rill-ml-wasm && wasm-pack test --node --release
 ```
 
-CI 显式安装 `wasm-pack` 并记录实际解析版本。实际解析版本从 CI 日志填写，不得猜测。本轮 CI 运行后将从 `Record resolved wasm-pack version` 步骤输出填入实际版本。
+CI 显式安装 `wasm-pack` 并记录实际解析版本。本轮 CI 运行（run `30220372464`）的 `Record resolved wasm-pack version` 步骤输出为 `wasm-pack 0.13.1`，在 `~0.13.1` 兼容范围内。
+
+实际 CI 工具版本（从 run `30220372464` 日志填写）：
+
+| 工具 | CI 实际版本 | 兼容范围 | 说明 |
+|---|---|---|---|
+| wasm-pack | `0.13.1` | `~0.13.1` | 在范围内 |
+| wasm-tools | `1.254.0` | `~1.254.0` | 在范围内 |
+| maturin | `1.14.1` | `>=1.14,<1.15` | 在范围内 |
+| pytest | `8.4.2` | `>=8.4,<8.5` | 在范围内 |
 
 ### 0.15.7 CI / Release 验证结果
 
-> 本节在 CI / Release 完成后填写实际 run ID 与状态。
+Commit 3（`2e3983d`）推送后，GitHub Actions 在该 commit 上运行了以下工作流：
 
-| 工作流 | Run ID | 状态 | 备注 |
-|---|---|---|---|
-| CI / Release | 待填写 | 待填写 | |
-| Docs | 待填写 | 待填写 | |
-| Security audit | 待填写 | 待填写 | |
-| Auto Release | 待填写 | 待填写 | 创建 `v0.13.0` tag |
-| Release v0.13.0 | 待填写 | 待填写 | 正式 Release workflow |
+| 工作流 | Run ID | 状态 | 耗时 | 备注 |
+|---|---|---|---|---|
+| CI | `30220372464` | ✅ success | ~4m | 11 个 job 全部通过；`Verify ticker probe is not externally accessible` 输出 `normal public API smoke crate: PASS` / `ticker probe external import: rejected as expected`；`Run internal WASM ticker lifecycle tests` 输出 `metadata-loop constructor timeout test: PASS` |
+| Docs | `30220372474` | ✅ success | ~1m | |
+| Security audit | `30220372463` | ✅ success | ~3m | |
+| Auto Release | `30220661187` | ✅ success | ~14s | 创建 `v0.13.0` tag 指向 `2e3983d`（tag object SHA `aed025d`） |
+| Release v0.13.0 | `30220669698` | ✅ success | ~12m | 正式 Release workflow，所有正式 job 全绿 |
 
-Release 正式 job 结果：
+Release v0.13.0 正式 job 结果（run `30220669698`）：
 
-| Job | 状态 |
-|---|---|
-| cargo package dry-run | 待填写 |
-| Runtime linux | 待填写 |
-| Runtime macOS | 待填写 |
-| Runtime windows | 待填写 |
-| Sign and publish | 待填写 |
-| Publish Python bindings to PyPI | 待填写 |
-| Verify PyPI release is visible | 待填写 |
+| Job | 状态 | 备注 |
+|---|---|---|
+| cargo package dry-run | ✅ success | |
+| Runtime linux x86_64 | ✅ success | |
+| Runtime windows x86_64 | ✅ success | |
+| Runtime macos aarch64 | ✅ success | |
+| Sign and publish | ✅ success | 包含 `Build and sign stable index` + `Move signed stable-index pointer` |
+| Publish Python bindings to PyPI | ✅ success | `maturin publish` 输出 `✨ Packages uploaded successfully` |
+| Verify PyPI release is visible | ✅ success | 输出 `PyPI release rill-ml-python==0.13.0 is visible.`（第一次尝试即成功，无 IndentationError） |
+
+PyPI visibility step 是本轮的关键验证点：v0.12.0 因 heredoc 缩进 bug 导致该步骤失败（§0.14.11），修复 commit `af8fb54` 推送后只通过普通 CI，未在正式 Release 流程中验证。本轮 `0.13.0` Release 是修复后的首次全绿验证。
 
 跨渠道一致性：
 
-| 渠道 | 版本 | 状态 |
-|---|---|---|
-| Git tag `v0.13.0` | 待填写 | 待填写 |
-| GitHub Release | 待填写 | 待填写 |
-| PyPI | 待填写 | 待填写 |
-| crates.io | 待填写 | 待填写 |
-| stable index | 待填写 | 待填写 |
+| 渠道 | 版本 | 状态 | 证据 |
+|---|---|---|---|
+| Git tag `v0.13.0` | `0.13.0` | ✅ | 指向 commit `2e3983d`，tag object SHA `aed025d` |
+| GitHub Release | `0.13.0` | ✅ | URL: `https://github.com/hello-yunshu/rill-ml/releases/tag/v0.13.0`，6 个资产 |
+| PyPI | `0.13.0` | ✅ | wheel `rill_ml_python-0.13.0-cp312-cp312-manylinux_2_34_x86_64.whl`，SHA-256 `53f29e17021644c2a029b9caec01b595d8c1a19eccdf070e6bd1ca161e0af1bd`，大小 358156 bytes |
+| crates.io | `0.13.0` | ✅ | `https://crates.io/api/v1/crates/rill-ml` 返回 `max_version: 0.13.0` |
+| stable index（versioned signed） | `0.13.0` | ✅ | `v0.13.0` Release 包含 `stable-index.json`（2418 bytes），payload 中所有 runtime artifact version = `0.13.0`，signature 字段存在（128 字符 hex = 64 字节 Ed25519） |
+| stable index signature | ✅ | ✅ | `Sign and publish` job 的 `Verify existing stable index when present` 步骤使用 `rill-pack verify-index` 验证通过；job 整体 success |
+| mutable stable pointer（`local-ai-stable`） | `0.13.0` | ✅ | `local-ai-stable` GitHub Release 的 `stable-index.json` 资产已通过 `Move signed stable-index pointer` 步骤更新（`gh release upload local-ai-stable dist/stable-index.json --clobber`），创建时间 `2026-07-26T21:27:42Z`，内容指向 `0.13.0` |
+
+GitHub Release v0.13.0 资产清单：
+
+| 资产名 | 大小 |
+|---|---|
+| `echo-handler-0.13.0.rillhandler` | 8836 bytes |
+| `example-default-0.13.0.rillpack` | 925 bytes |
+| `rill-runtime-0.13.0-linux-x86_64` | 19035504 bytes |
+| `rill-runtime-0.13.0-macos-aarch64` | 13901216 bytes |
+| `rill-runtime-0.13.0-windows-x86_64.exe` | 14404608 bytes |
+| `stable-index.json` | 2418 bytes |
 
 ### 0.15.8 六次审计完成标准核对
 
@@ -1721,32 +1746,32 @@ Release 正式 job 结果：
 
 | # | 完成标准 | 状态 | 证据 |
 |---|---|---|---|
-| 1 | 外部正常 runtime API smoke crate 编译成功 | ✅ | `scripts/check_runtime_public_api.py` smoke crate |
-| 2 | 外部 ticker probe import 编译失败 | ✅ | `scripts/check_runtime_public_api.py` probe crate |
-| 3 | 检查能覆盖 `#[doc(hidden)] pub` 回归 | ✅ | compile-fail 检查从外部 crate 视角验证 |
-| 4 | metadata-loop worker completion 有测试级 timeout | ✅ | `recv_timeout(15s)` |
-| 5 | metadata 测试仍观察 baseline+1→baseline | ✅ | 保留直接观察 |
+| 1 | 外部正常 runtime API smoke crate 编译成功 | ✅ | CI run `30220372464` 输出 `normal public API smoke crate: PASS` |
+| 2 | 外部 ticker probe import 编译失败 | ✅ | CI run `30220372464` 输出 `ticker probe external import: rejected as expected` |
+| 3 | 检查能覆盖 `#[doc(hidden)] pub` 回归 | ✅ | compile-fail 检查从外部 crate 视角验证，`#[doc(hidden)] pub` 仍可被外部 import |
+| 4 | metadata-loop worker completion 有测试级 timeout | ✅ | `recv_timeout(15s)` + `resume_unwind` |
+| 5 | metadata 测试仍观察 baseline+1→baseline | ✅ | CI run `30220372464` 输出 `metadata-loop constructor timeout test: PASS` |
 | 6 | fixture 缺失时专门 CI 硬失败 | ✅ | `RILL_RUN_WASM_FIXTURE_TESTS=1` |
 | 7 | ticker probe 仍为 `#[cfg(test)]` 私有 | ✅ | `ACTIVE_EPOCH_TICKERS` / accessor 均 `#[cfg(test)]` |
 | 8 | 生产构建无 ticker probe | ✅ | `#[cfg(test)]` gate |
-| 9 | `[Unreleased]` 准确记录 v0.12.0 后变化 | ✅ | `[Unreleased]` 空骨架 + `## [0.13.0]` 节 |
+| 9 | `[Unreleased]` 准确记录 v0.12.0 后变化 | ✅ | `[Unreleased]` 空骨架指向 `0.13.0` + `## [0.13.0]` 节 |
 | 10 | 审计报告当前 HEAD 准确 | ✅ | §0.15.5 |
-| 11 | wasm-pack CI 实际版本准确记录 | ⏳ | 待 CI 运行后填写 |
+| 11 | wasm-pack CI 实际版本准确记录 | ✅ | `0.13.1`（§0.15.6） |
 | 12 | workspace 版本为 `0.13.0` | ✅ | `sync_version.py` + `release_version.py` |
 | 13 | 所有版本同步一致 | ✅ | `sync_version.py` 0 field(s) updated |
 | 14 | `v0.12.0` 未移动 | ✅ | `1a102b8` 未触碰 |
-| 15 | `v0.13.0` 指向成功 CI HEAD | ⏳ | 待 Auto Release 创建后填写 |
-| 16 | CI / Security / Docs 全部成功 | ⏳ | 待 CI 运行后填写 |
-| 17 | 正式 Release workflow 全部成功 | ⏳ | 待 Release 完成后填写 |
-| 18 | PyPI upload 成功 | ⏳ | 待 Release 完成后填写 |
-| 19 | PyPI visibility step 成功 | ⏳ | 待 Release 完成后填写 |
-| 20 | GitHub Release 为 `0.13.0` | ⏳ | 待 Release 完成后填写 |
-| 21 | PyPI 为 `0.13.0` | ⏳ | 待 Release 完成后填写 |
-| 22 | crates.io 为 `0.13.0` | ⏳ | 待 Release 完成后填写 |
-| 23 | stable index 为 `0.13.0` | ⏳ | 待 Release 完成后填写 |
-| 24 | stable index 签名验证成功 | ⏳ | 待 Release 完成后填写 |
-| 25 | mutable stable pointer 指向 `0.13.0` | ⏳ | 待 Release 完成后填写 |
-| 26 | 无未说明失败 | ⏳ | 待 CI 验证后填写 |
+| 15 | `v0.13.0` 指向成功 CI HEAD | ✅ | tag 指向 `2e3983d`，CI run `30220372464` success |
+| 16 | CI / Security / Docs 全部成功 | ✅ | CI `30220372464` / Security `30220372463` / Docs `30220372474` 均 success |
+| 17 | 正式 Release workflow 全部成功 | ✅ | Release run `30220669698` success，所有正式 job 全绿 |
+| 18 | PyPI upload 成功 | ✅ | `maturin publish` 输出 `✨ Packages uploaded successfully` |
+| 19 | PyPI visibility step 成功 | ✅ | 输出 `PyPI release rill-ml-python==0.13.0 is visible.` |
+| 20 | GitHub Release 为 `0.13.0` | ✅ | `https://github.com/hello-yunshu/rill-ml/releases/tag/v0.13.0` |
+| 21 | PyPI 为 `0.13.0` | ✅ | wheel `rill_ml_python-0.13.0-cp312-cp312-manylinux_2_34_x86_64.whl` |
+| 22 | crates.io 为 `0.13.0` | ✅ | `crates.io/api/v1/crates/rill-ml` 返回 `max_version: 0.13.0` |
+| 23 | stable index 为 `0.13.0` | ✅ | `v0.13.0` Release + `local-ai-stable` 均包含指向 `0.13.0` 的 `stable-index.json` |
+| 24 | stable index 签名验证成功 | ✅ | `Sign and publish` job 的 `rill-pack verify-index` 通过 |
+| 25 | mutable stable pointer 指向 `0.13.0` | ✅ | `local-ai-stable` GitHub Release 的 `stable-index.json` 已更新（`2026-07-26T21:27:42Z`） |
+| 26 | 无未说明失败 | ✅ | 所有工作流均 success，无未说明 failure |
 | 27 | 无用户改动被覆盖 | ✅ | 仅修改提示词指定的文件 |
 | 28 | 无无关大重构 | ✅ | 仅最小必要改动 |
 
