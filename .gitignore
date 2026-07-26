@@ -23,6 +23,7 @@ crates/rill-ml-wasm/pkg/
 
 # Python virtual environments and caches
 .venv/
+.venv-*/
 .pytest_cache/
 
 # Local signing key (never commit)
