@@ -7,7 +7,7 @@
 //! This ensures each prediction is made *before* the model sees the current
 //! sample, giving an honest estimate of generalization on streaming data.
 
-pub mod progressive;
+pub(crate) mod progressive;
 
 pub use progressive::{
     BinaryClassificationSample, ProgressiveStep, RegressionSample, evaluate_binary_classification,

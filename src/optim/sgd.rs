@@ -1,10 +1,13 @@
 //! Stochastic gradient descent optimizer.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 
 /// Configuration for [`Sgd`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct SgdConfig {
     /// Learning rate. Must be finite and strictly positive.
     pub learning_rate: f64,
@@ -130,6 +133,27 @@ impl Sgd {
     /// Reset the sample counter.
     pub fn reset(&mut self) {
         self.samples_seen = 0;
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for Sgd {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.feature_count == 0 {
+            return Err(RillError::EmptyFeatures);
+        }
+        ensure_finite("learning_rate", self.config.learning_rate)?;
+        ensure_finite("l2", self.config.l2)?;
+        if self.config.learning_rate <= 0.0 {
+            return Err(RillError::InvalidLearningRate(self.config.learning_rate));
+        }
+        if self.config.l2 < 0.0 {
+            return Err(RillError::InvalidParameter {
+                name: "l2",
+                value: self.config.l2,
+            });
+        }
+        Ok(())
     }
 }
 

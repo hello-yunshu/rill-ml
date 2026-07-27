@@ -185,7 +185,6 @@ fn feature_hasher_with_linear_regression() {
     // on the dense representation. The model should be able to learn a
     // linear relationship that depends only on the hashed representation.
     use rill_ml::OnlineRegressor;
-    use rill_ml::loss::RegressionLoss;
     use rill_ml::models::{LinearRegression, LinearRegressionConfig};
     use rill_ml::optim::{Optimizer, SgdConfig};
 
@@ -193,21 +192,12 @@ fn feature_hasher_with_linear_regression() {
     let hasher = FeatureHasher::new(dim, 42).unwrap();
 
     let d = dim;
-    let mut model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.05,
-                    l2: 0.0,
-                },
-            )
-            .unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.05;
+    sgd.l2 = 0.0;
+    let mut lr_config = LinearRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    let mut model = LinearRegression::new(d, lr_config).unwrap();
 
     // Train on a single fixed sparse input whose target equals the sum
     // of the hashed dense vector. After many iterations, the model should

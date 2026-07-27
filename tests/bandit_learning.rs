@@ -30,15 +30,11 @@ fn clamp_01(v: f64) -> f64 {
 #[test]
 fn epsilon_greedy_finds_best_arm() {
     let mut rng = ChaCha8Rng::seed_from_u64(42);
-    let mut bandit = EpsilonGreedy::new(
-        3,
-        EpsilonGreedyConfig {
-            epsilon: 0.1,
-            decay: 1.0,
-            min_epsilon: 0.1,
-        },
-    )
-    .unwrap();
+    let mut eg_config = EpsilonGreedyConfig::default();
+    eg_config.epsilon = 0.1;
+    eg_config.decay = 1.0;
+    eg_config.min_epsilon = 0.1;
+    let mut bandit = EpsilonGreedy::new(3, eg_config).unwrap();
 
     for _ in 0..1000 {
         let arm = bandit.select(&mut rng).unwrap();
@@ -114,12 +110,11 @@ fn thompson_sampling_finds_best_arm() {
 #[test]
 fn linucb_learns_contextual_policy() {
     let mut rng = ChaCha8Rng::seed_from_u64(42);
-    let mut bandit = LinUcb::new(LinUcbConfig {
-        alpha: 1.0,
-        arm_count: 2,
-        feature_count: 2,
-    })
-    .unwrap();
+    let mut linucb_config = LinUcbConfig::default();
+    linucb_config.alpha = 1.0;
+    linucb_config.arm_count = 2;
+    linucb_config.feature_count = 2;
+    let mut bandit = LinUcb::new(linucb_config).unwrap();
 
     // Train: arm 0 is optimal when context[0] > context[1].
     for _ in 0..500 {
@@ -195,12 +190,11 @@ fn thompson_reset_clears_state() {
 
 #[test]
 fn linucb_reset_clears_state() {
-    let mut bandit = LinUcb::new(LinUcbConfig {
-        alpha: 1.0,
-        arm_count: 2,
-        feature_count: 2,
-    })
-    .unwrap();
+    let mut linucb_config = LinUcbConfig::default();
+    linucb_config.alpha = 1.0;
+    linucb_config.arm_count = 2;
+    linucb_config.feature_count = 2;
+    let mut bandit = LinUcb::new(linucb_config).unwrap();
     bandit.update(0, &[1.0, 0.5], 1.0).unwrap();
     bandit.update(1, &[0.3, 0.7], 0.5).unwrap();
     assert_eq!(bandit.samples_seen(), 2);
@@ -263,12 +257,11 @@ fn thompson_rejects_invalid_inputs() {
 
 #[test]
 fn linucb_rejects_invalid_inputs() {
-    let mut bandit = LinUcb::new(LinUcbConfig {
-        alpha: 1.0,
-        arm_count: 2,
-        feature_count: 2,
-    })
-    .unwrap();
+    let mut linucb_config = LinUcbConfig::default();
+    linucb_config.alpha = 1.0;
+    linucb_config.arm_count = 2;
+    linucb_config.feature_count = 2;
+    let mut bandit = LinUcb::new(linucb_config).unwrap();
     // Invalid arm.
     assert!(matches!(
         bandit.update(5, &[1.0, 0.5], 1.0),
@@ -306,12 +299,11 @@ fn bandit_select_returns_valid_arm() {
 #[test]
 fn linucb_select_returns_valid_arm() {
     let mut rng = ChaCha8Rng::seed_from_u64(0);
-    let bandit = LinUcb::new(LinUcbConfig {
-        alpha: 1.0,
-        arm_count: 3,
-        feature_count: 2,
-    })
-    .unwrap();
+    let mut linucb_config = LinUcbConfig::default();
+    linucb_config.alpha = 1.0;
+    linucb_config.arm_count = 3;
+    linucb_config.feature_count = 2;
+    let bandit = LinUcb::new(linucb_config).unwrap();
     let context = [0.5, 0.8];
     let arm = bandit.select(&context, &mut rng).unwrap();
     assert!(arm < 3);

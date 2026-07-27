@@ -106,6 +106,18 @@ def main() -> None:
     parser.add_argument("--handler-version")
     parser.add_argument("--handler-min-runtime", default=None)
     parser.add_argument("--output", type=Path, required=True)
+    # The release channel distinguishes the stable pointer (``local-ai-stable``
+    # with ``stable-index.json``) from the candidate pointer
+    # (``local-ai-candidate`` with ``candidate-index.json``). A prerelease
+    # version (e.g. ``1.0.0-rc.1``) must publish to the candidate channel
+    # only; a stable version publishes to the stable channel. The channel
+    # value is recorded in the signed payload so downstream clients can
+    # reject a candidate index when they expect a stable one.
+    parser.add_argument(
+        "--channel",
+        choices=("stable", "candidate"),
+        default="stable",
+    )
     args = parser.parse_args()
 
     base_url = f"https://github.com/{args.repository}/releases/download/{args.tag}"
@@ -182,7 +194,7 @@ def main() -> None:
 
     payload = {
         "schemaVersion": RELEASE_INDEX_SCHEMA_VERSION,
-        "channel": "stable",
+        "channel": args.channel,
         "generatedAt": args.generated_at,
         "publisherKeyId": args.publisher_key_id,
         "artifacts": artifacts,

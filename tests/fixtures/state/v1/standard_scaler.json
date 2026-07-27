@@ -1,0 +1,26 @@
+{
+  "format_version": 1,
+  "model": {
+    "feature_count": 3,
+    "config": {
+      "with_mean": true,
+      "with_std": true,
+      "epsilon": 1e-12
+    },
+    "counts": [
+      3,
+      3,
+      3
+    ],
+    "means": [
+      2.0,
+      20.0,
+      200.0
+    ],
+    "m2s": [
+      2.0,
+      200.0,
+      20000.0
+    ]
+  }
+}

@@ -3,7 +3,6 @@
 use rill_ml::OnlineBinaryClassifier;
 use rill_ml::OnlineRegressor;
 use rill_ml::evaluate::{BinaryClassificationSample, RegressionSample};
-use rill_ml::loss::BinaryLogLoss;
 use rill_ml::metrics::{Accuracy, Mae};
 use rill_ml::models::{
     BaselineConfig, LogisticRegression, LogisticRegressionConfig, MeanRegressor,
@@ -59,22 +58,12 @@ async fn stream_handles_finite_value_correctly() {
 
 #[tokio::test]
 async fn classify_stream_long_run_increments_samples() {
-    let optimizer = Optimizer::sgd(
-        1,
-        SgdConfig {
-            learning_rate: 0.1,
-            l2: 0.0,
-        },
-    )
-    .unwrap();
-    let mut model = LogisticRegression::new(
-        1,
-        LogisticRegressionConfig {
-            optimizer,
-            loss: BinaryLogLoss::new(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    let optimizer = Optimizer::sgd(1, sgd).unwrap();
+    let mut config = LogisticRegressionConfig::default();
+    config.optimizer = optimizer;
+    let mut model = LogisticRegression::new(1, config).unwrap();
     let mut acc = Accuracy::default();
     let samples: Vec<BinaryClassificationSample> = (0..500)
         .map(|i| {
@@ -97,22 +86,12 @@ async fn classify_stream_long_run_increments_samples() {
 
 #[tokio::test]
 async fn classify_stream_empty_returns_none() {
-    let optimizer = Optimizer::sgd(
-        1,
-        SgdConfig {
-            learning_rate: 0.1,
-            l2: 0.0,
-        },
-    )
-    .unwrap();
-    let mut model = LogisticRegression::new(
-        1,
-        LogisticRegressionConfig {
-            optimizer,
-            loss: BinaryLogLoss::new(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    let optimizer = Optimizer::sgd(1, sgd).unwrap();
+    let mut config = LogisticRegressionConfig::default();
+    config.optimizer = optimizer;
+    let mut model = LogisticRegression::new(1, config).unwrap();
     let mut acc = Accuracy::default();
     let stream = iter::<Vec<BinaryClassificationSample>>(vec![]);
     let final_value = progressive_classify_stream(&mut model, &mut acc, stream)

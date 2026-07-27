@@ -6,13 +6,14 @@
 //! observation seeds the mean directly.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::traits::OnlineStatistic;
 
 /// Exponentially weighted moving average.
 ///
 /// `alpha` must satisfy `0 < alpha <= 1`. Smaller values give more weight to
-/// the past; `alpha = 1` reduces to a [`LastValue`](crate::stats::extrema)-like
-/// tracker.
+/// the past; `alpha = 1` reduces to a `LastValue`-like tracker.
 ///
 /// # Examples
 ///
@@ -66,6 +67,21 @@ impl ExponentiallyWeightedMean {
     /// Number of observations seen so far.
     pub const fn count(&self) -> u64 {
         self.count
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for ExponentiallyWeightedMean {
+    fn validate_state(&self) -> Result<(), RillError> {
+        ensure_finite("alpha", self.alpha)?;
+        ensure_finite("ew mean", self.mean)?;
+        if self.alpha <= 0.0 || self.alpha > 1.0 {
+            return Err(RillError::InvalidParameter {
+                name: "alpha",
+                value: self.alpha,
+            });
+        }
+        Ok(())
     }
 }
 
