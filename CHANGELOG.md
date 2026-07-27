@@ -19,8 +19,17 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
-This section is intentionally empty after the `1.0.0-rc.1` candidate. New
-changes will be added here as they land on `main`.
+
+## [1.0.0-rc.2] - 2026-07-28
+
+### Fixed
+
+- `cargo package` failed for `rill-runtime` because the `wasmtime::component::bindgen!`
+  macro referenced `../rill-handler-api/wit/rill-handler.wit`, a relative path that
+  does not exist inside the packaged tarball. The WIT source is now copied to
+  `crates/rill-runtime/wit/rill-handler.wit` and the macro path updated to
+  `wit/rill-handler.wit`. `scripts/check_wit_abi.py` now also verifies the copy
+  stays byte-identical to the canonical source, preventing silent drift.
 
 ## [1.0.0-rc.1] - 2026-07-28
 
@@ -1237,6 +1246,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.1
 [0.13.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.10.0...v0.12.0
