@@ -15,6 +15,13 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+
+## [1.0.0-rc.1] - 2026-07-27
+
+### Changed
+
+- TODO: describe notable changes for 1.0.0-rc.1.
+
 This section is intentionally empty after the 0.13.0 release. New
 changes will be added here as they land on `main`.
 
@@ -1087,6 +1094,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.13.0...HEAD
+[1.0.0-rc.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.1
 [0.13.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.10.0...v0.12.0
 [0.10.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.10.0
