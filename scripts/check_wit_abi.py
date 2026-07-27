@@ -66,6 +66,18 @@ def wit_path(root: pathlib.Path) -> pathlib.Path:
     return root / "crates" / "rill-handler-api" / "wit" / "rill-handler.wit"
 
 
+def runtime_wit_copy_path(root: pathlib.Path) -> pathlib.Path:
+    """Path to the WIT copy bundled inside ``rill-runtime`` for packaging.
+
+    ``cargo package`` creates a self-contained tarball that cannot resolve
+    the ``../rill-handler-api/wit/...`` relative path used in development.
+    A verbatim copy lives at ``crates/rill-runtime/wit/rill-handler.wit``
+    so the ``bindgen!`` macro can find it via ``wit/rill-handler.wit``.
+    This check ensures the copy stays byte-identical to the canonical source.
+    """
+    return root / "crates" / "rill-runtime" / "wit" / "rill-handler.wit"
+
+
 def handler_api_lib_path(root: pathlib.Path) -> pathlib.Path:
     return root / "crates" / "rill-handler-api" / "src" / "lib.rs"
 
@@ -190,6 +202,22 @@ def main() -> int:
             f"got {actual_hash}. The WIT text was edited; either revert the "
             f"edit or, for an intentional additive change within v1, update "
             f"FROZEN_WIT_SHA256 in this script after review."
+        )
+
+    # 3b. Runtime WIT copy must be byte-identical to the canonical source.
+    runtime_wit_copy = runtime_wit_copy_path(root)
+    if not runtime_wit_copy.is_file():
+        return fail(
+            f"rill-runtime WIT copy not found: {runtime_wit_copy}. "
+            f"Run: cp crates/rill-handler-api/wit/rill-handler.wit "
+            f"crates/rill-runtime/wit/"
+        )
+    copy_text = runtime_wit_copy.read_text(encoding="utf-8")
+    if copy_text != wit_text:
+        return fail(
+            f"rill-runtime WIT copy differs from canonical source. "
+            f"Run: cp crates/rill-handler-api/wit/rill-handler.wit "
+            f"crates/rill-runtime/wit/"
         )
 
     # 4. rill-handler-api Rust constants.
