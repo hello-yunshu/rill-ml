@@ -28,9 +28,15 @@ use crate::server::{InvokeError, InvokeErrorKind, InvokeHandler as InvokeHandler
 
 // Generate host bindings from the canonical WIT world. The macro emits an
 // `invoke_handler` module containing the `InvokeHandler` instance struct.
+//
+// The WIT source is copied from `crates/rill-handler-api/wit/rill-handler.wit`
+// into `crates/rill-runtime/wit/rill-handler.wit` so that `cargo package` can
+// build the tarball self-contained — the relative `../rill-handler-api/...`
+// path used in development does not exist inside the packaged tarball. The
+// `scripts/check_wit_abi.py` CI gate verifies the two copies stay identical.
 mod invoke_handler {
     wasmtime::component::bindgen!({
-        path: "../rill-handler-api/wit/rill-handler.wit",
+        path: "wit/rill-handler.wit",
         world: "invoke-handler",
     });
 }
