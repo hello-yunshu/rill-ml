@@ -1,6 +1,7 @@
 //! Stochastic gradient descent optimizer.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
 use crate::persistence::ValidateState;
 
 /// Configuration for [`Sgd`].

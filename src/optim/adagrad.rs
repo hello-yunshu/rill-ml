@@ -4,6 +4,7 @@
 //! rate accordingly. Time complexity per step: `O(d)`. Space: `O(d)`.
 
 use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
 use crate::persistence::ValidateState;
 
 /// Configuration for [`AdaGrad`].

@@ -4,6 +4,7 @@
 //! update/transform: `O(d)`. Space complexity: `O(d)`.
 
 use crate::error::{RillError, checked_increment, ensure_finite, validate_features};
+#[cfg(feature = "serde")]
 use crate::persistence::ValidateState;
 use crate::traits::Transformer;
 

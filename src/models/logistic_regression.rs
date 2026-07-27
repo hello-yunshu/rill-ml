@@ -7,6 +7,7 @@ use crate::error::{
 };
 use crate::loss::log_loss::{BinaryLogLoss, sigmoid};
 use crate::optim::Optimizer;
+#[cfg(feature = "serde")]
 use crate::persistence::ValidateState;
 use crate::traits::OnlineBinaryClassifier;
 
