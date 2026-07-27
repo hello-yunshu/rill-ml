@@ -26,6 +26,8 @@ use crate::bandit::{
     validate_sample_count,
 };
 use crate::error::RillError;
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use rand::Rng;
 
 /// Configuration for [`ThompsonSampling`].
@@ -376,6 +378,13 @@ impl<'de> serde::Deserialize<'de> for ThompsonSampling {
         };
         bandit.validate().map_err(serde::de::Error::custom)?;
         Ok(bandit)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for ThompsonSampling {
+    fn validate_state(&self) -> Result<(), RillError> {
+        ThompsonSampling::validate(self)
     }
 }
 

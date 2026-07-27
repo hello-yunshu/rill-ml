@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "model": {
+    "config": {
+      "initial_prediction": 0.0
+    },
+    "mean": {
+      "count": 4,
+      "mean": 26.75
+    }
+  }
+}
