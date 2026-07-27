@@ -3,13 +3,13 @@
 //! Every non-rolling statistic in this module uses `O(1)` memory.
 //! Rolling statistics use `O(window_size)` memory.
 
-pub mod count;
-pub mod ew_mean;
-pub mod extrema;
-pub mod mean;
-pub mod rolling;
-pub mod sum;
-pub mod variance;
+pub(crate) mod count;
+pub(crate) mod ew_mean;
+pub(crate) mod extrema;
+pub(crate) mod mean;
+pub(crate) mod rolling;
+pub(crate) mod sum;
+pub(crate) mod variance;
 
 pub use count::Count;
 pub use ew_mean::ExponentiallyWeightedMean;

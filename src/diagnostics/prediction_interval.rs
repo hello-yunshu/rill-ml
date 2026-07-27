@@ -41,6 +41,7 @@ impl PredictionInterval {
 /// Configuration for [`ResidualInterval`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct ResidualIntervalConfig {
     /// Multiplier applied to the recent error when forming the interval.
     ///

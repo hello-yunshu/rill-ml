@@ -1,11 +1,11 @@
 //! Online models: baseline regressors, linear regression, logistic regression,
 //! Naive Bayes classifiers, and FTRL-Proximal for sparse features.
 
-pub mod baseline;
-pub mod ftrl;
-pub mod linear_regression;
-pub mod logistic_regression;
-pub mod naive_bayes;
+pub(crate) mod baseline;
+pub(crate) mod ftrl;
+pub(crate) mod linear_regression;
+pub(crate) mod logistic_regression;
+pub(crate) mod naive_bayes;
 
 pub use baseline::{
     BaselineConfig, ExponentiallyWeightedMeanRegressor, LastValueRegressor, MeanRegressor,

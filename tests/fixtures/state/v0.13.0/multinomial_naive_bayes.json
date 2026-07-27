@@ -1,0 +1,24 @@
+{
+  "format_version": 1,
+  "model": {
+    "feature_count": 3,
+    "config": {
+      "alpha": 1.0
+    },
+    "feature_sums_false": [
+      0.0,
+      1.0,
+      2.0
+    ],
+    "feature_sums_true": [
+      2.0,
+      1.0,
+      0.0
+    ],
+    "total_false": 3.0,
+    "total_true": 3.0,
+    "class_false_count": 1,
+    "class_true_count": 1,
+    "samples_seen": 2
+  }
+}

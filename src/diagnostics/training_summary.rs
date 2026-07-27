@@ -12,6 +12,7 @@ use crate::traits::OnlineStatistic;
 /// Configuration for [`TrainingSummary`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct TrainingSummaryConfig {
     /// Alpha for the exponentially weighted recent error.
     ///

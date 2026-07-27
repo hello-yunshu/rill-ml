@@ -36,8 +36,8 @@ const DEFAULT_MAX_EVENTS: usize = 1000;
 /// the strategy's action when drift is detected.
 ///
 /// The wrapper is generic over the model `M`, detector `D`, and strategy `A`
-/// to avoid trait-object overhead and preserve concrete types. See the
-/// [module documentation](crate::drift::aware_model) for the full contract.
+/// to avoid trait-object overhead and preserve concrete types. See the module
+/// documentation for the full contract.
 ///
 /// # Examples
 ///

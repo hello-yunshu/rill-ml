@@ -28,6 +28,7 @@ use crate::error::{RillError, ensure_finite};
 /// Configuration for [`Adwin`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct AdwinConfig {
     /// Significance level for drift detection. Must be in `(0, 1)`.
     /// Smaller values reduce false positives. Defaults to `0.002`.
@@ -61,8 +62,8 @@ impl Default for AdwinConfig {
 /// ADWIN (Adaptive Windowing) drift detector.
 ///
 /// Maintains a variable-length window and detects distribution changes by
-/// comparing the means of the window's two halves. See the
-/// [module documentation](crate::drift::adwin) for the algorithm.
+/// comparing the means of the window's two halves. See the module
+/// documentation for the algorithm.
 ///
 /// # Examples
 ///

@@ -5,6 +5,8 @@
 //! See <https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm>.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::traits::OnlineStatistic;
 
 /// Whether to compute population or sample variance.
@@ -101,6 +103,21 @@ impl Variance {
     /// The configured variance kind.
     pub const fn kind(&self) -> VarianceKind {
         self.kind
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for Variance {
+    fn validate_state(&self) -> Result<(), RillError> {
+        ensure_finite("variance mean", self.mean)?;
+        ensure_finite("variance m2", self.m2)?;
+        if self.m2 < 0.0 {
+            return Err(RillError::InvalidState(format!(
+                "variance m2 must be non-negative, got {}",
+                self.m2
+            )));
+        }
+        Ok(())
     }
 }
 

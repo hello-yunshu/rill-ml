@@ -519,8 +519,11 @@ mod tests {
     // - The previously-named `ticker_probe_is_not_in_public_api` test
     //   was renamed to `ticker_probe_is_available_to_internal_tests`
     //   because it does *not* actually assert anything about the public
-    //   API. The real public-API leak check is a `cargo doc` + `grep`
-    //   step in the dedicated CI job.
+    //   API. The primary public-API leak check is the external compile-fail
+    //   crate in `scripts/check_runtime_public_api.py` (run by the
+    //   `wasm-handler` CI job); the `cargo doc` + `grep` step in the same
+    //   job is an auxiliary smoke check that only catches probes which are
+    //   both `pub` and not `#[doc(hidden)]`.
     // -----------------------------------------------------------------
 
     use std::collections::BTreeMap;
@@ -868,11 +871,11 @@ mod tests {
     /// `use super::*`), so the lifecycle tests above can observe ticker
     /// thread start/stop directly. This test confirms the counter is
     /// *available to internal tests* — it is **not** a public-API
-    /// assertion. The actual public-API leak check (probe absent from
-    /// `cargo doc --features wasm --no-deps` output) is performed as a
-    /// separate `grep` step in the dedicated `wasm-handler` CI job,
-    /// which fails the build if `active_epoch_ticker_count` or
-    /// `ACTIVE_EPOCH_TICKERS` appears in `target/doc/rill_runtime/`.
+    /// assertion. The primary public-API leak check is the external
+    /// compile-fail crate in `scripts/check_runtime_public_api.py`
+    /// (run by the `wasm-handler` CI job); the `cargo doc` + `grep`
+    /// step in the same job is an auxiliary smoke check that only
+    /// catches probes which are both `pub` and not `#[doc(hidden)]`.
     ///
     /// This test was previously named
     /// `ticker_probe_is_not_in_public_api`, which was misleading

@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "model": {
+    "categories": [
+      "a",
+      "b",
+      "c"
+    ],
+    "samples_seen": 1
+  }
+}

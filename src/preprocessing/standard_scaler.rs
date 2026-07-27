@@ -4,11 +4,14 @@
 //! update/transform: `O(d)`. Space complexity: `O(d)`.
 
 use crate::error::{RillError, checked_increment, ensure_finite, validate_features};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::traits::Transformer;
 
 /// Configuration for [`StandardScaler`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct StandardScalerConfig {
     /// Whether to subtract the running mean. Default: `true`.
     pub with_mean: bool,
@@ -366,6 +369,13 @@ impl<'de> serde::Deserialize<'de> for StandardScaler {
         };
         scaler.validate().map_err(serde::de::Error::custom)?;
         Ok(scaler)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for StandardScaler {
+    fn validate_state(&self) -> Result<(), RillError> {
+        StandardScaler::validate(self)
     }
 }
 

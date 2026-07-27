@@ -80,21 +80,12 @@ fn standard_scaler_serialization_roundtrip() {
 #[test]
 fn linear_regression_serialization_roundtrip() {
     let d = 2;
-    let mut model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.1,
-                    l2: 0.01,
-                },
-            )
-            .unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    sgd.l2 = 0.01;
+    let mut config = LinearRegressionConfig::default();
+    config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    let mut model = LinearRegression::new(d, config).unwrap();
     model.learn(&[1.0, 2.0], 3.0).unwrap();
     model.learn(&[4.0, 5.0], 6.0).unwrap();
     assert_roundtrip(&model);
@@ -139,21 +130,11 @@ fn snapshot_rejects_incompatible_version() {
 #[test]
 fn snapshot_preserves_trained_model_predictions() {
     let d = 2;
-    let mut model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.1,
-                    l2: 0.0,
-                },
-            )
-            .unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    let mut config = LinearRegressionConfig::default();
+    config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    let mut model = LinearRegression::new(d, config).unwrap();
     for _ in 0..100 {
         model.learn(&[1.0, 1.0], 2.0).unwrap();
     }
@@ -173,14 +154,10 @@ fn snapshot_preserves_trained_model_predictions() {
 
 #[test]
 fn optimizer_serialization_roundtrip() {
-    let opt = Optimizer::sgd(
-        3,
-        SgdConfig {
-            learning_rate: 0.05,
-            l2: 0.001,
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.05;
+    sgd.l2 = 0.001;
+    let opt = Optimizer::sgd(3, sgd).unwrap();
     let json1 = serde_json::to_string(&opt).unwrap();
     let restored: Optimizer = serde_json::from_str(&json1).unwrap();
     let json2 = serde_json::to_string(&restored).unwrap();
@@ -236,14 +213,12 @@ fn feature_hasher_serialization_roundtrip() {
 
 #[test]
 fn ftrl_regressor_serialization_roundtrip() {
-    let mut model = FtrlRegressor::new(FtrlConfig {
-        alpha: 0.3,
-        beta: 0.5,
-        l1: 0.1,
-        l2: 0.2,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl = FtrlConfig::default();
+    ftrl.alpha = 0.3;
+    ftrl.beta = 0.5;
+    ftrl.l1 = 0.1;
+    ftrl.l2 = 0.2;
+    let mut model = FtrlRegressor::new(ftrl).unwrap();
     let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (3, 2.0)]).unwrap();
     model.learn(&sf, 5.0).unwrap();
     model.learn(&sf, -1.0).unwrap();
@@ -252,14 +227,12 @@ fn ftrl_regressor_serialization_roundtrip() {
 
 #[test]
 fn ftrl_classifier_serialization_roundtrip() {
-    let mut model = FtrlClassifier::new(FtrlConfig {
-        alpha: 0.3,
-        beta: 0.5,
-        l1: 0.1,
-        l2: 0.2,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl = FtrlConfig::default();
+    ftrl.alpha = 0.3;
+    ftrl.beta = 0.5;
+    ftrl.l1 = 0.1;
+    ftrl.l2 = 0.2;
+    let mut model = FtrlClassifier::new(ftrl).unwrap();
     let sf = SparseFeatures::from_sorted(vec![(0, 1.0), (2, -1.0)]).unwrap();
     model.learn(&sf, true).unwrap();
     model.learn(&sf, false).unwrap();
@@ -321,8 +294,9 @@ fn frequency_encoder_serialization_roundtrip() {
 
 #[test]
 fn constant_imputer_serialization_roundtrip() {
-    let mut imp =
-        ConstantImputer::with_config(3, ConstantImputerConfig { fill_value: 7.0 }).unwrap();
+    let mut config = ConstantImputerConfig::default();
+    config.fill_value = 7.0;
+    let mut imp = ConstantImputer::with_config(3, config).unwrap();
     imp.update(&[1.0, f64::NAN, 3.0]).unwrap();
     imp.update(&[2.0, 4.0, f64::NAN]).unwrap();
     assert_roundtrip(&imp);
@@ -484,15 +458,11 @@ fn drift_aware_model_serde_roundtrip() {
 
 #[test]
 fn epsilon_greedy_serialization_roundtrip() {
-    let mut bandit = EpsilonGreedy::new(
-        3,
-        EpsilonGreedyConfig {
-            epsilon: 0.2,
-            decay: 0.99,
-            min_epsilon: 0.05,
-        },
-    )
-    .unwrap();
+    let mut config = EpsilonGreedyConfig::default();
+    config.epsilon = 0.2;
+    config.decay = 0.99;
+    config.min_epsilon = 0.05;
+    let mut bandit = EpsilonGreedy::new(3, config).unwrap();
     bandit.update(0, 0.8).unwrap();
     bandit.update(1, 0.3).unwrap();
     bandit.update(0, 0.9).unwrap();
@@ -511,13 +481,9 @@ fn epsilon_greedy_serialization_roundtrip() {
 
 #[test]
 fn ucb1_serialization_roundtrip() {
-    let mut bandit = Ucb1::new(
-        3,
-        Ucb1Config {
-            exploration_constant: 2.0,
-        },
-    )
-    .unwrap();
+    let mut config = Ucb1Config::default();
+    config.exploration_constant = 2.0;
+    let mut bandit = Ucb1::new(3, config).unwrap();
     bandit.update(0, 1.0).unwrap();
     bandit.update(1, 0.5).unwrap();
     bandit.update(2, 0.7).unwrap();
@@ -535,14 +501,10 @@ fn ucb1_serialization_roundtrip() {
 
 #[test]
 fn thompson_sampling_serialization_roundtrip() {
-    let mut bandit = ThompsonSampling::new(
-        3,
-        ThompsonConfig {
-            alpha_prior: 1.0,
-            beta_prior: 1.0,
-        },
-    )
-    .unwrap();
+    let mut config = ThompsonConfig::default();
+    config.alpha_prior = 1.0;
+    config.beta_prior = 1.0;
+    let mut bandit = ThompsonSampling::new(3, config).unwrap();
     bandit.update(0, 1.0).unwrap();
     bandit.update(1, 0.0).unwrap();
     bandit.update(0, 0.7).unwrap();
@@ -560,12 +522,11 @@ fn thompson_sampling_serialization_roundtrip() {
 
 #[test]
 fn linucb_serialization_roundtrip() {
-    let mut bandit = LinUcb::new(LinUcbConfig {
-        alpha: 1.5,
-        arm_count: 2,
-        feature_count: 3,
-    })
-    .unwrap();
+    let mut config = LinUcbConfig::default();
+    config.alpha = 1.5;
+    config.arm_count = 2;
+    config.feature_count = 3;
+    let mut bandit = LinUcb::new(config).unwrap();
     bandit.update(0, &[1.0, 0.5, 0.2], 1.0).unwrap();
     bandit.update(1, &[0.3, 0.7, 0.9], 0.5).unwrap();
     bandit.update(0, &[0.8, 0.1, 0.4], 0.9).unwrap();

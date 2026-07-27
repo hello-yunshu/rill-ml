@@ -6,7 +6,6 @@
 //! comparison against [`LogisticRegression`] on shared data.
 
 use rand::SeedableRng;
-use rill_ml::loss::BinaryLogLoss;
 use rill_ml::metrics::{Accuracy, F1Score};
 use rill_ml::models::{
     BernoulliNaiveBayes, GaussianNaiveBayes, LogisticRegression, LogisticRegressionConfig,
@@ -289,21 +288,12 @@ fn gaussian_nb_comparable_to_logistic() {
 
     // Train LogisticRegression.
     let d = 2;
-    let mut logreg = LogisticRegression::new(
-        d,
-        LogisticRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.1,
-                    l2: 0.0,
-                },
-            )
-            .unwrap(),
-            loss: BinaryLogLoss::new(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    sgd.l2 = 0.0;
+    let mut config = LogisticRegressionConfig::default();
+    config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    let mut logreg = LogisticRegression::new(d, config).unwrap();
     for (x, y) in &data {
         logreg.learn(x, *y).unwrap();
     }

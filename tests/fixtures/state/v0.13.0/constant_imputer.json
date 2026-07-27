@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "model": {
+    "feature_count": 2,
+    "config": {
+      "fill_value": -1.0
+    },
+    "samples_seen": 0
+  }
+}

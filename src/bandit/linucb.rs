@@ -34,6 +34,8 @@ use crate::bandit::{
     ContextualBandit, checked_finite_add, checked_increment, validate_arm, validate_reward_finite,
 };
 use crate::error::RillError;
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use rand::Rng;
 
 /// Configuration for [`LinUcb`].
@@ -43,15 +45,15 @@ use rand::Rng;
 /// ```
 /// use rill_ml::bandit::LinUcbConfig;
 ///
-/// let config = LinUcbConfig {
-///     alpha: 1.0,
-///     arm_count: 3,
-///     feature_count: 2,
-/// };
+/// let mut config = LinUcbConfig::default();
+/// config.alpha = 1.0;
+/// config.arm_count = 3;
+/// config.feature_count = 2;
 /// assert_eq!(config.arm_count, 3);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct LinUcbConfig {
     /// Exploration parameter `alpha`. Controls the exploration/exploitation
     /// trade-off. Higher values favor exploration. Must be finite and positive.
@@ -106,11 +108,10 @@ impl LinUcbConfig {
 /// use rand::SeedableRng;
 /// use rand_chacha::ChaCha8Rng;
 ///
-/// let config = LinUcbConfig {
-///     alpha: 1.0,
-///     arm_count: 2,
-///     feature_count: 2,
-/// };
+/// let mut config = LinUcbConfig::default();
+/// config.alpha = 1.0;
+/// config.arm_count = 2;
+/// config.feature_count = 2;
 /// let mut bandit = LinUcb::new(config).unwrap();
 /// let mut rng = ChaCha8Rng::seed_from_u64(0);
 ///
@@ -385,6 +386,13 @@ impl<'de> serde::Deserialize<'de> for LinUcb {
         };
         bandit.validate().map_err(serde::de::Error::custom)?;
         Ok(bandit)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for LinUcb {
+    fn validate_state(&self) -> Result<(), RillError> {
+        LinUcb::validate(self)
     }
 }
 

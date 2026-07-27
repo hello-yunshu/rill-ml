@@ -1,0 +1,9 @@
+pub mod rill_handler_api
+pub const rill_handler_api::HANDLER_API_VERSION: u32
+pub const rill_handler_api::MAX_CAPABILITIES: usize
+pub const rill_handler_api::MAX_CAPABILITY_LEN: usize
+pub const rill_handler_api::MAX_HANDLER_ID_LEN: usize
+pub const rill_handler_api::MAX_HANDLER_VERSION_LEN: usize
+pub const rill_handler_api::WIT_PACKAGE: &str
+pub const rill_handler_api::WIT_VERSION: &str
+pub const rill_handler_api::WIT_WORLD: &str

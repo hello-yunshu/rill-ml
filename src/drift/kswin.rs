@@ -31,6 +31,7 @@ use crate::error::{RillError, checked_increment, ensure_finite};
 /// Configuration for [`Kswin`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct KswinConfig {
     /// Significance level for the KS test. Must be in `(0, 1)`. Smaller
     /// values reduce false positives. Defaults to `0.005`.
@@ -73,11 +74,11 @@ impl Default for KswinConfig {
 /// ```
 /// use rill_ml::drift::{DriftDetector, DriftLevel, Kswin, KswinConfig};
 ///
-/// let mut kswin = Kswin::new(KswinConfig {
-///     alpha: 0.01,
-///     window_size: 50,
-///     check_interval: 50,
-/// }).unwrap();
+/// let mut kswin_config = KswinConfig::default();
+/// kswin_config.alpha = 0.01;
+/// kswin_config.window_size = 50;
+/// kswin_config.check_interval = 50;
+/// let mut kswin = Kswin::new(kswin_config).unwrap();
 ///
 /// // Stable stream around 0.
 /// for _ in 0..100 {

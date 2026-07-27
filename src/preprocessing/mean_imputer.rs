@@ -5,6 +5,8 @@
 //! stability.
 
 use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::traits::Transformer;
 
 /// Replaces `NaN` values with the per-feature running mean.
@@ -68,6 +70,33 @@ impl MeanImputer {
         let delta = value - self.means[idx];
         ensure_finite("mean delta", delta)?;
         self.means[idx] = checked_finite_add(self.means[idx], delta / n as f64, "mean")?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for MeanImputer {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.feature_count == 0 {
+            return Err(RillError::EmptyFeatures);
+        }
+        if self.counts.len() != self.feature_count {
+            return Err(RillError::InvalidState(format!(
+                "mean imputer counts length {} does not match feature_count {}",
+                self.counts.len(),
+                self.feature_count
+            )));
+        }
+        if self.means.len() != self.feature_count {
+            return Err(RillError::InvalidState(format!(
+                "mean imputer means length {} does not match feature_count {}",
+                self.means.len(),
+                self.feature_count
+            )));
+        }
+        for &m in &self.means {
+            ensure_finite("mean", m)?;
+        }
         Ok(())
     }
 }

@@ -7,7 +7,6 @@
 //! `from_json` is provided as associated functions where feasible.
 
 use js_sys::Float64Array;
-use rill_ml::loss::{BinaryLogLoss, RegressionLoss};
 use rill_ml::models::{
     LinearRegression, LinearRegressionConfig, LogisticRegression, LogisticRegressionConfig,
 };
@@ -63,9 +62,8 @@ impl WasmMean {
     }
 
     pub fn from_json(json: &str) -> Result<WasmMean, JsValue> {
-        let snap: Snapshot<Mean> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmMean {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -127,9 +125,8 @@ impl WasmVariance {
     }
 
     pub fn from_json(json: &str) -> Result<WasmVariance, JsValue> {
-        let snap: Snapshot<Variance> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmVariance {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -162,10 +159,8 @@ impl WasmEWMean {
     }
 
     pub fn from_json(json: &str) -> Result<WasmEWMean, JsValue> {
-        let snap: Snapshot<ExponentiallyWeightedMean> =
-            serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmEWMean {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -209,9 +204,8 @@ impl WasmStandardScaler {
     }
 
     pub fn from_json(json: &str) -> Result<WasmStandardScaler, JsValue> {
-        let snap: Snapshot<StandardScaler> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmStandardScaler {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -226,22 +220,12 @@ pub struct WasmLinearRegression {
 impl WasmLinearRegression {
     #[wasm_bindgen(constructor)]
     pub fn new(feature_count: usize, learning_rate: f64) -> Result<WasmLinearRegression, JsValue> {
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(js_err)?;
-        let model = LinearRegression::new(
-            feature_count,
-            LinearRegressionConfig {
-                optimizer,
-                loss: RegressionLoss::default(),
-            },
-        )
-        .map_err(js_err)?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(js_err)?;
+        let mut config = LinearRegressionConfig::default();
+        config.optimizer = optimizer;
+        let model = LinearRegression::new(feature_count, config).map_err(js_err)?;
         Ok(WasmLinearRegression { inner: model })
     }
 
@@ -266,9 +250,8 @@ impl WasmLinearRegression {
     }
 
     pub fn from_json(json: &str) -> Result<WasmLinearRegression, JsValue> {
-        let snap: Snapshot<LinearRegression> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmLinearRegression {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -286,22 +269,12 @@ impl WasmLogisticRegression {
         feature_count: usize,
         learning_rate: f64,
     ) -> Result<WasmLogisticRegression, JsValue> {
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(js_err)?;
-        let model = LogisticRegression::new(
-            feature_count,
-            LogisticRegressionConfig {
-                optimizer,
-                loss: BinaryLogLoss::new(),
-            },
-        )
-        .map_err(js_err)?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(js_err)?;
+        let mut config = LogisticRegressionConfig::default();
+        config.optimizer = optimizer;
+        let model = LogisticRegression::new(feature_count, config).map_err(js_err)?;
         Ok(WasmLogisticRegression { inner: model })
     }
 
@@ -330,9 +303,8 @@ impl WasmLogisticRegression {
     }
 
     pub fn from_json(json: &str) -> Result<WasmLogisticRegression, JsValue> {
-        let snap: Snapshot<LogisticRegression> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmLogisticRegression {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -351,22 +323,12 @@ impl WasmRegressionPipeline {
         learning_rate: f64,
     ) -> Result<WasmRegressionPipeline, JsValue> {
         let scaler = StandardScaler::new(feature_count).map_err(js_err)?;
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(js_err)?;
-        let model = LinearRegression::new(
-            feature_count,
-            LinearRegressionConfig {
-                optimizer,
-                loss: RegressionLoss::default(),
-            },
-        )
-        .map_err(js_err)?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(js_err)?;
+        let mut config = LinearRegressionConfig::default();
+        config.optimizer = optimizer;
+        let model = LinearRegression::new(feature_count, config).map_err(js_err)?;
         let pipe = RegressionPipeline::new(scaler, model).map_err(js_err)?;
         Ok(WasmRegressionPipeline { inner: pipe })
     }
@@ -388,10 +350,8 @@ impl WasmRegressionPipeline {
     }
 
     pub fn from_json(json: &str) -> Result<WasmRegressionPipeline, JsValue> {
-        let snap: Snapshot<RegressionPipeline<StandardScaler, LinearRegression>> =
-            serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmRegressionPipeline {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -410,22 +370,12 @@ impl WasmClassificationPipeline {
         learning_rate: f64,
     ) -> Result<WasmClassificationPipeline, JsValue> {
         let scaler = StandardScaler::new(feature_count).map_err(js_err)?;
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(js_err)?;
-        let model = LogisticRegression::new(
-            feature_count,
-            LogisticRegressionConfig {
-                optimizer,
-                loss: BinaryLogLoss::new(),
-            },
-        )
-        .map_err(js_err)?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(js_err)?;
+        let mut config = LogisticRegressionConfig::default();
+        config.optimizer = optimizer;
+        let model = LogisticRegression::new(feature_count, config).map_err(js_err)?;
         let pipe = ClassificationPipeline::new(scaler, model).map_err(js_err)?;
         Ok(WasmClassificationPipeline { inner: pipe })
     }
@@ -451,10 +401,8 @@ impl WasmClassificationPipeline {
     }
 
     pub fn from_json(json: &str) -> Result<WasmClassificationPipeline, JsValue> {
-        let snap: Snapshot<ClassificationPipeline<StandardScaler, LogisticRegression>> =
-            serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmClassificationPipeline {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }

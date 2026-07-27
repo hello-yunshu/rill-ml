@@ -13,6 +13,7 @@ use crate::drift::detector::DriftLevel;
 /// and executed by [`DriftAwareModel`](crate::drift::aware_model::DriftAwareModel).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum DriftAction {
     /// Record the event but do not change model behavior. This is the
     /// safest default and should be used when the cost of a wrong reset

@@ -51,6 +51,7 @@ pub struct HandlerPackInspection {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum HandlerPackError {
     #[error(transparent)]
     Archive(#[from] ArchiveError),

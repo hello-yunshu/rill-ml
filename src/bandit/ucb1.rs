@@ -28,6 +28,8 @@ use crate::bandit::{
     validate_sample_count,
 };
 use crate::error::RillError;
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use rand::Rng;
 
 /// Configuration for [`Ucb1`].
@@ -37,11 +39,13 @@ use rand::Rng;
 /// ```
 /// use rill_ml::bandit::Ucb1Config;
 ///
-/// let config = Ucb1Config { exploration_constant: 2.0 };
+/// let mut config = Ucb1Config::default();
+/// config.exploration_constant = 2.0;
 /// assert!((config.exploration_constant - 2.0).abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct Ucb1Config {
     /// Exploration constant `c` in the UCB formula. Controls the
     /// exploration/exploitation trade-off. Higher values favor exploration.
@@ -272,6 +276,13 @@ impl<'de> serde::Deserialize<'de> for Ucb1 {
         };
         bandit.validate().map_err(serde::de::Error::custom)?;
         Ok(bandit)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for Ucb1 {
+    fn validate_state(&self) -> Result<(), RillError> {
+        Ucb1::validate(self)
     }
 }
 

@@ -5,12 +5,15 @@
 //! [`ExponentiallyWeightedMeanRegressor`] before being considered useful.
 
 use crate::error::{RillError, checked_increment, ensure_finite, ensure_finite_target};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::stats::{ExponentiallyWeightedMean, Mean};
 use crate::traits::{OnlineRegressor, OnlineStatistic};
 
 /// Configuration shared by baseline regressors.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct BaselineConfig {
     /// Prediction returned before any target has been observed.
     pub initial_prediction: f64,
@@ -203,6 +206,33 @@ impl OnlineRegressor for ExponentiallyWeightedMeanRegressor {
 
     fn reset(&mut self) {
         self.ew.reset();
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for MeanRegressor {
+    fn validate_state(&self) -> Result<(), RillError> {
+        validate_baseline_config(&self.config)?;
+        self.mean.validate_state()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for LastValueRegressor {
+    fn validate_state(&self) -> Result<(), RillError> {
+        validate_baseline_config(&self.config)?;
+        if let Some(value) = self.last_value {
+            ensure_finite("last_value", value)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for ExponentiallyWeightedMeanRegressor {
+    fn validate_state(&self) -> Result<(), RillError> {
+        validate_baseline_config(&self.config)?;
+        self.ew.validate_state()
     }
 }
 

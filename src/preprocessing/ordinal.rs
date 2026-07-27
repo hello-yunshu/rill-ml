@@ -5,6 +5,8 @@
 //! of each category using the current mapping.
 
 use crate::error::{RillError, checked_increment};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 
 /// Online ordinal encoder for string features.
 ///
@@ -101,6 +103,23 @@ impl OrdinalEncoder {
     pub fn reset(&mut self) {
         self.categories.clear();
         self.samples_seen = 0;
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for OrdinalEncoder {
+    fn validate_state(&self) -> Result<(), RillError> {
+        // `fit_one` maintains `categories` in strictly ascending order with
+        // no duplicates via binary search. A violation indicates a corrupted
+        // or maliciously crafted serde payload.
+        for window in self.categories.windows(2) {
+            if window[0] >= window[1] {
+                return Err(RillError::InvalidState(
+                    "ordinal encoder categories must be strictly sorted".to_owned(),
+                ));
+            }
+        }
+        Ok(())
     }
 }
 

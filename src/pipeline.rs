@@ -11,6 +11,8 @@
 //! produced *before* any state update).
 
 use crate::error::{RillError, ensure_finite_target};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::traits::{OnlineBinaryClassifier, OnlineRegressor, Transformer};
 
 /// A pipeline combining a transformer and a regressor.
@@ -181,6 +183,46 @@ where
     fn reset(&mut self) {
         self.transformer.reset();
         self.model.reset();
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T, M> ValidateState for RegressionPipeline<T, M>
+where
+    T: Transformer + ValidateState,
+    M: OnlineRegressor + ValidateState,
+{
+    fn validate_state(&self) -> Result<(), RillError> {
+        self.transformer.validate_state()?;
+        self.model.validate_state()?;
+        if self.transformer.output_dim() != self.model.feature_count() {
+            return Err(RillError::InvalidState(format!(
+                "regression pipeline dimension mismatch: transformer output_dim {} != model feature_count {}",
+                self.transformer.output_dim(),
+                self.model.feature_count()
+            )));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T, M> ValidateState for ClassificationPipeline<T, M>
+where
+    T: Transformer + ValidateState,
+    M: OnlineBinaryClassifier + ValidateState,
+{
+    fn validate_state(&self) -> Result<(), RillError> {
+        self.transformer.validate_state()?;
+        self.model.validate_state()?;
+        if self.transformer.output_dim() != self.model.feature_count() {
+            return Err(RillError::InvalidState(format!(
+                "classification pipeline dimension mismatch: transformer output_dim {} != model feature_count {}",
+                self.transformer.output_dim(),
+                self.model.feature_count()
+            )));
+        }
+        Ok(())
     }
 }
 

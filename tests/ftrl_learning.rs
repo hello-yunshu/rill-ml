@@ -7,7 +7,6 @@
 
 use rand::SeedableRng;
 use rill_ml::feature_hasher::FeatureHasher;
-use rill_ml::loss::RegressionLoss;
 use rill_ml::metrics::{F1Score, Mae};
 use rill_ml::models::{
     FtrlClassifier, FtrlConfig, FtrlRegressor, LinearRegression, LinearRegressionConfig,
@@ -53,14 +52,12 @@ fn ftrl_regressor_converges_on_linear_data() {
     // On `y = 3*x1 + 2*x2`, the average MAE over the last 50 training
     // samples must be strictly lower than over the first 50, proving that
     // the model is learning the linear relationship.
-    let mut model = FtrlRegressor::new(FtrlConfig {
-        alpha: 0.5,
-        beta: 1.0,
-        l1: 0.0,
-        l2: 0.0,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl_config = FtrlConfig::default();
+    ftrl_config.alpha = 0.5;
+    ftrl_config.beta = 1.0;
+    ftrl_config.l1 = 0.0;
+    ftrl_config.l2 = 0.0;
+    let mut model = FtrlRegressor::new(ftrl_config).unwrap();
 
     let data = make_regression_data(500);
     let mut first_mae = Mae::new();
@@ -99,31 +96,20 @@ fn ftrl_regressor_comparable_to_linear_regression() {
     // LinearRegression should achieve an MAE below 1.0 after 500 steps.
     let data = make_regression_data(500);
 
-    let mut ftrl = FtrlRegressor::new(FtrlConfig {
-        alpha: 0.5,
-        beta: 1.0,
-        l1: 0.0,
-        l2: 0.0,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl_config = FtrlConfig::default();
+    ftrl_config.alpha = 0.5;
+    ftrl_config.beta = 1.0;
+    ftrl_config.l1 = 0.0;
+    ftrl_config.l2 = 0.0;
+    let mut ftrl = FtrlRegressor::new(ftrl_config).unwrap();
 
     let d = 2;
-    let mut linreg = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.1,
-                    l2: 0.0,
-                },
-            )
-            .unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    sgd.l2 = 0.0;
+    let mut linreg_config = LinearRegressionConfig::default();
+    linreg_config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    let mut linreg = LinearRegression::new(d, linreg_config).unwrap();
 
     let mut ftrl_mae = Mae::new();
     let mut linreg_mae = Mae::new();
@@ -154,14 +140,12 @@ fn ftrl_regressor_l1_sparsity() {
     // With a very high L1 coefficient, the FTRL soft-thresholding rule
     // (|z| <= lambda1 -> w = 0) should drive all feature weights to zero,
     // producing an empty weights() vector.
-    let mut model = FtrlRegressor::new(FtrlConfig {
-        alpha: 0.1,
-        beta: 1.0,
-        l1: 100.0,
-        l2: 0.0,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl_config = FtrlConfig::default();
+    ftrl_config.alpha = 0.1;
+    ftrl_config.beta = 1.0;
+    ftrl_config.l1 = 100.0;
+    ftrl_config.l2 = 0.0;
+    let mut model = FtrlRegressor::new(ftrl_config).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
     for _ in 0..300 {
@@ -184,14 +168,12 @@ fn ftrl_regressor_dynamic_features() {
     // The model should accept new FeatureIds that were never seen in
     // earlier samples. feature_count() should grow as new ids appear,
     // and earlier features should remain tracked.
-    let mut model = FtrlRegressor::new(FtrlConfig {
-        alpha: 0.5,
-        beta: 1.0,
-        l1: 0.0,
-        l2: 0.0,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl_config = FtrlConfig::default();
+    ftrl_config.alpha = 0.5;
+    ftrl_config.beta = 1.0;
+    ftrl_config.l1 = 0.0;
+    ftrl_config.l2 = 0.0;
+    let mut model = FtrlRegressor::new(ftrl_config).unwrap();
 
     assert_eq!(model.feature_count(), 0);
 
@@ -227,14 +209,12 @@ fn ftrl_classifier_converges() {
     // Train on separable data; the F1 score on the training samples should
     // exceed 0.5 after training, indicating the model has learned a useful
     // decision boundary.
-    let mut model = FtrlClassifier::new(FtrlConfig {
-        alpha: 0.5,
-        beta: 1.0,
-        l1: 0.0,
-        l2: 0.0,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl_config = FtrlConfig::default();
+    ftrl_config.alpha = 0.5;
+    ftrl_config.beta = 1.0;
+    ftrl_config.l1 = 0.0;
+    ftrl_config.l2 = 0.0;
+    let mut model = FtrlClassifier::new(ftrl_config).unwrap();
 
     let data = make_classification_data(500);
 
@@ -263,14 +243,12 @@ fn ftrl_classifier_predict_proba_in_range() {
     // of the magnitude of the input features. Sigmoid can saturate at
     // exactly 0.0 or 1.0 for extreme logits, so the public contract is
     // the closed interval.
-    let mut model = FtrlClassifier::new(FtrlConfig {
-        alpha: 0.5,
-        beta: 1.0,
-        l1: 0.0,
-        l2: 0.0,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl_config = FtrlConfig::default();
+    ftrl_config.alpha = 0.5;
+    ftrl_config.beta = 1.0;
+    ftrl_config.l1 = 0.0;
+    ftrl_config.l2 = 0.0;
+    let mut model = FtrlClassifier::new(ftrl_config).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(13);
     for _ in 0..200 {
@@ -299,14 +277,12 @@ fn ftrl_with_feature_hasher() {
     // an FtrlClassifier. The model should learn to discriminate between
     // two distinct sets of string features.
     let hasher = FeatureHasher::new(64, 42).unwrap();
-    let mut model = FtrlClassifier::new(FtrlConfig {
-        alpha: 0.5,
-        beta: 1.0,
-        l1: 0.0,
-        l2: 0.0,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl_config = FtrlConfig::default();
+    ftrl_config.alpha = 0.5;
+    ftrl_config.beta = 1.0;
+    ftrl_config.l1 = 0.0;
+    ftrl_config.l2 = 0.0;
+    let mut model = FtrlClassifier::new(ftrl_config).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(31);
     for _ in 0..500 {
@@ -358,14 +334,12 @@ fn ftrl_classifier_logloss_decreases() {
     // that the classifier is becoming better calibrated over time.
     use rill_ml::metrics::LogLoss;
 
-    let mut model = FtrlClassifier::new(FtrlConfig {
-        alpha: 0.5,
-        beta: 1.0,
-        l1: 0.0,
-        l2: 0.0,
-        ..Default::default()
-    })
-    .unwrap();
+    let mut ftrl_config = FtrlConfig::default();
+    ftrl_config.alpha = 0.5;
+    ftrl_config.beta = 1.0;
+    ftrl_config.l1 = 0.0;
+    ftrl_config.l2 = 0.0;
+    let mut model = FtrlClassifier::new(ftrl_config).unwrap();
 
     let data = make_classification_data(500);
     let mut first_loss = LogLoss::default();

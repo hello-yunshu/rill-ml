@@ -1,0 +1,169 @@
+pub mod rill_runtime
+#[non_exhaustive] pub enum rill_runtime::ArchiveError
+pub rill_runtime::ArchiveError::ChecksumCoverage
+pub rill_runtime::ArchiveError::Digest(alloc::string::String)
+pub rill_runtime::ArchiveError::Duplicate(alloc::string::String)
+pub rill_runtime::ArchiveError::Forbidden(alloc::string::String)
+pub rill_runtime::ArchiveError::Io(core::io::error::Error)
+pub rill_runtime::ArchiveError::Json(serde_json::error::Error)
+pub rill_runtime::ArchiveError::Limit(&'static str)
+pub rill_runtime::ArchiveError::Missing(&'static str)
+pub rill_runtime::ArchiveError::MissingOwned(alloc::string::String)
+pub rill_runtime::ArchiveError::Signature
+pub rill_runtime::ArchiveError::UnknownKey
+pub rill_runtime::ArchiveError::UnsafePath(alloc::string::String)
+pub rill_runtime::ArchiveError::Zip(zip::result::ZipError)
+#[non_exhaustive] pub enum rill_runtime::EngineResponse
+pub rill_runtime::EngineResponse::Error
+pub rill_runtime::EngineResponse::Error::code: alloc::string::String
+pub rill_runtime::EngineResponse::Error::message: alloc::string::String
+pub rill_runtime::EngineResponse::Error::request_id: alloc::string::String
+pub rill_runtime::EngineResponse::Error::retryable: bool
+pub rill_runtime::EngineResponse::Handshake
+pub rill_runtime::EngineResponse::Handshake::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime::EngineResponse::Handshake::handler: core::option::Option<rill_runtime::HandlerIdentity>
+pub rill_runtime::EngineResponse::Handshake::model_pack_id: alloc::string::String
+pub rill_runtime::EngineResponse::Handshake::model_pack_version: alloc::string::String
+pub rill_runtime::EngineResponse::Handshake::request_id: alloc::string::String
+pub rill_runtime::EngineResponse::Handshake::runtime_version: alloc::string::String
+pub rill_runtime::EngineResponse::Health
+pub rill_runtime::EngineResponse::Health::healthy: bool
+pub rill_runtime::EngineResponse::Health::model_pack_id: alloc::string::String
+pub rill_runtime::EngineResponse::Health::model_pack_version: alloc::string::String
+pub rill_runtime::EngineResponse::Health::request_id: alloc::string::String
+pub rill_runtime::EngineResponse::Result
+pub rill_runtime::EngineResponse::Result::output: serde_json::value::Value
+pub rill_runtime::EngineResponse::Result::request_id: alloc::string::String
+impl rill_runtime::EngineResponse
+pub fn rill_runtime::EngineResponse::to_v1(&self, u32) -> rill_runtime_protocol::RuntimeResponse
+pub fn rill_runtime::EngineResponse::to_v2(&self, u32) -> rill_runtime_protocol::RuntimeResponseV2
+#[non_exhaustive] pub enum rill_runtime::HandlerLoadError
+pub rill_runtime::HandlerLoadError::CapabilityMissing
+pub rill_runtime::HandlerLoadError::CapabilityMissing::missing: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime::HandlerLoadError::Init(alloc::string::String)
+pub rill_runtime::HandlerLoadError::MetadataMismatch(alloc::string::String)
+pub rill_runtime::HandlerLoadError::Pack(rill_runtime::HandlerPackError)
+#[non_exhaustive] pub enum rill_runtime::HandlerPackError
+pub rill_runtime::HandlerPackError::Archive(rill_runtime::ArchiveError)
+pub rill_runtime::HandlerPackError::Json(serde_json::error::Error)
+pub rill_runtime::HandlerPackError::Manifest(alloc::string::String)
+pub rill_runtime::HandlerPackError::ModuleDigestMismatch
+pub rill_runtime::HandlerPackError::RuntimeTooOld
+pub rill_runtime::HandlerPackError::RuntimeTooOld::actual: alloc::string::String
+pub rill_runtime::HandlerPackError::RuntimeTooOld::minimum: alloc::string::String
+#[non_exhaustive] pub enum rill_runtime::InvokeErrorKind
+pub rill_runtime::InvokeErrorKind::ExecutionFailed
+pub rill_runtime::InvokeErrorKind::Internal
+pub rill_runtime::InvokeErrorKind::InvalidInput
+pub rill_runtime::InvokeErrorKind::InvalidModel
+pub rill_runtime::InvokeErrorKind::InvalidOutput
+pub rill_runtime::InvokeErrorKind::OutputTooLarge
+pub rill_runtime::InvokeErrorKind::Timeout
+pub rill_runtime::InvokeErrorKind::Trap
+pub rill_runtime::InvokeErrorKind::UnsupportedCapability
+#[non_exhaustive] pub enum rill_runtime::ModelPackError
+pub rill_runtime::ModelPackError::Archive(rill_runtime::ArchiveError)
+pub rill_runtime::ModelPackError::Json(serde_json::error::Error)
+pub rill_runtime::ModelPackError::Manifest(alloc::string::String)
+pub rill_runtime::ModelPackError::RuntimeTooOld
+pub rill_runtime::ModelPackError::RuntimeTooOld::actual: alloc::string::String
+pub rill_runtime::ModelPackError::RuntimeTooOld::minimum: alloc::string::String
+#[non_exhaustive] pub enum rill_runtime::ReleaseIndexError
+pub rill_runtime::ReleaseIndexError::Canonical(rill_runtime::ArchiveError)
+pub rill_runtime::ReleaseIndexError::Json(serde_json::error::Error)
+pub rill_runtime::ReleaseIndexError::Manifest(alloc::string::String)
+pub rill_runtime::ReleaseIndexError::Signature
+pub rill_runtime::ReleaseIndexError::UnknownKey
+pub struct rill_runtime::HandlerIdentity
+pub rill_runtime::HandlerIdentity::effective_capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime::HandlerIdentity::handler_api_version: u32
+pub rill_runtime::HandlerIdentity::handler_id: alloc::string::String
+pub rill_runtime::HandlerIdentity::handler_version: alloc::string::String
+pub struct rill_runtime::HandlerPackInspection
+pub rill_runtime::HandlerPackInspection::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime::HandlerPackInspection::handler_api_version: u32
+pub rill_runtime::HandlerPackInspection::id: alloc::string::String
+pub rill_runtime::HandlerPackInspection::min_runtime_version: alloc::string::String
+pub rill_runtime::HandlerPackInspection::module_sha256: alloc::string::String
+pub rill_runtime::HandlerPackInspection::module_size: u64
+pub rill_runtime::HandlerPackInspection::publisher_key_id: alloc::string::String
+pub rill_runtime::HandlerPackInspection::signature_verified: bool
+pub rill_runtime::HandlerPackInspection::version: alloc::string::String
+pub struct rill_runtime::InvokeError
+impl rill_runtime::InvokeError
+pub fn rill_runtime::InvokeError::detail(&self) -> core::option::Option<&str>
+pub const fn rill_runtime::InvokeError::kind(&self) -> rill_runtime::InvokeErrorKind
+pub const fn rill_runtime::InvokeError::new(rill_runtime::InvokeErrorKind) -> Self
+pub const fn rill_runtime::InvokeError::public_message(&self) -> &'static str
+pub const fn rill_runtime::InvokeError::retryable(&self) -> bool
+pub const fn rill_runtime::InvokeError::stable_code(&self) -> &'static str
+pub fn rill_runtime::InvokeError::with_detail(rill_runtime::InvokeErrorKind, impl core::convert::Into<alloc::string::String>) -> Self
+impl core::error::Error for rill_runtime::InvokeError
+impl core::fmt::Display for rill_runtime::InvokeError
+pub fn rill_runtime::InvokeError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub struct rill_runtime::LinearRegressionInvokeHandler
+impl rill_runtime::LinearRegressionInvokeHandler
+pub fn rill_runtime::LinearRegressionInvokeHandler::from_pack(&rill_runtime::LoadedModelPack) -> core::result::Result<Self, alloc::string::String>
+impl rill_runtime::InvokeHandler for rill_runtime::LinearRegressionInvokeHandler
+pub fn rill_runtime::LinearRegressionInvokeHandler::invoke(&self, &str, &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, rill_runtime::InvokeError>
+pub struct rill_runtime::LoadedHandlerPack
+pub rill_runtime::LoadedHandlerPack::manifest: rill_runtime_protocol::HandlerPackManifest
+pub rill_runtime::LoadedHandlerPack::module: alloc::vec::Vec<u8>
+pub struct rill_runtime::LoadedModelPack
+pub rill_runtime::LoadedModelPack::manifest: rill_runtime_protocol::ModelPackManifest
+pub rill_runtime::LoadedModelPack::model: serde_json::value::Value
+pub struct rill_runtime::ModelPackInspection
+pub rill_runtime::ModelPackInspection::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime::ModelPackInspection::id: alloc::string::String
+pub rill_runtime::ModelPackInspection::publisher_key_id: alloc::string::String
+pub rill_runtime::ModelPackInspection::runtime_api_version: u32
+pub rill_runtime::ModelPackInspection::signature_verified: bool
+pub rill_runtime::ModelPackInspection::version: alloc::string::String
+pub struct rill_runtime::RuntimeEngine
+impl rill_runtime::RuntimeEngine
+pub fn rill_runtime::RuntimeEngine::effective_capabilities(&self) -> &[alloc::string::String]
+pub fn rill_runtime::RuntimeEngine::handle(&self, rill_runtime_protocol::RuntimeRequest) -> rill_runtime::EngineResponse
+pub fn rill_runtime::RuntimeEngine::handler_identity(&self) -> core::option::Option<&rill_runtime::HandlerIdentity>
+pub fn rill_runtime::RuntimeEngine::new(rill_runtime::LoadedModelPack) -> Self
+pub fn rill_runtime::RuntimeEngine::with_handler_identity(self, rill_runtime::HandlerIdentity) -> Self
+pub fn rill_runtime::RuntimeEngine::with_invoke_handler(self, alloc::sync::Arc<dyn rill_runtime::InvokeHandler>) -> Self
+pub fn rill_runtime::RuntimeEngine::with_log_sink(self, alloc::sync::Arc<dyn rill_runtime::HostLogSink>) -> Self
+pub struct rill_runtime::StderrLogSink
+impl rill_runtime::HostLogSink for rill_runtime::StderrLogSink
+pub fn rill_runtime::StderrLogSink::emit(&self, &str)
+pub struct rill_runtime::TrustStore(pub alloc::collections::btree::map::BTreeMap<alloc::string::String, ed25519_dalek::verifying::VerifyingKey>)
+pub struct rill_runtime::WasmInvokeHandler
+impl rill_runtime::WasmInvokeHandler
+pub fn rill_runtime::WasmInvokeHandler::engine(&self) -> &wasmtime::engine::Engine
+pub fn rill_runtime::WasmInvokeHandler::new(&rill_runtime::LoadedHandlerPack, &serde_json::value::Value) -> core::result::Result<Self, rill_runtime::HandlerLoadError>
+impl core::fmt::Debug for rill_runtime::WasmInvokeHandler
+pub fn rill_runtime::WasmInvokeHandler::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl rill_runtime::InvokeHandler for rill_runtime::WasmInvokeHandler
+pub fn rill_runtime::WasmInvokeHandler::invoke(&self, &str, &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, rill_runtime::InvokeError>
+pub const rill_runtime::CONFIGURE_FUEL: u64
+pub const rill_runtime::EPOCH_DEADLINE: u64
+pub const rill_runtime::EPOCH_TICK_INTERVAL: core::time::Duration
+pub const rill_runtime::INVOKE_FUEL: u64
+pub const rill_runtime::LINEAR_REGRESSION_CAPABILITY: &str
+pub const rill_runtime::MAX_DETAIL_BYTES: usize
+pub const rill_runtime::MAX_IO_BYTES: usize
+pub const rill_runtime::MAX_MEMORY_BYTES: usize
+pub const rill_runtime::MAX_TABLE_ELEMENTS: u32
+pub trait rill_runtime::HostLogSink: core::marker::Send + core::marker::Sync + core::fmt::Debug
+pub fn rill_runtime::HostLogSink::emit(&self, &str)
+impl rill_runtime::HostLogSink for rill_runtime::StderrLogSink
+pub fn rill_runtime::StderrLogSink::emit(&self, &str)
+pub trait rill_runtime::InvokeHandler: core::marker::Send + core::marker::Sync + core::fmt::Debug
+pub fn rill_runtime::InvokeHandler::invoke(&self, &str, &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, rill_runtime::InvokeError>
+impl rill_runtime::InvokeHandler for rill_runtime::LinearRegressionInvokeHandler
+pub fn rill_runtime::LinearRegressionInvokeHandler::invoke(&self, &str, &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, rill_runtime::InvokeError>
+impl rill_runtime::InvokeHandler for rill_runtime::WasmInvokeHandler
+pub fn rill_runtime::WasmInvokeHandler::invoke(&self, &str, &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, rill_runtime::InvokeError>
+pub fn rill_runtime::build_signed_handler_pack(&rill_runtime_protocol::HandlerPackManifest, &[u8], &ed25519_dalek::signing::SigningKey) -> core::result::Result<alloc::vec::Vec<u8>, rill_runtime::HandlerPackError>
+pub fn rill_runtime::build_signed_model_pack(&rill_runtime_protocol::ModelPackManifest, &serde_json::value::Value, &ed25519_dalek::signing::SigningKey) -> core::result::Result<alloc::vec::Vec<u8>, rill_runtime::ModelPackError>
+pub fn rill_runtime::canonical_json(&[u8]) -> core::result::Result<alloc::vec::Vec<u8>, rill_runtime::ArchiveError>
+pub fn rill_runtime::effective_capabilities(&[alloc::string::String], &[alloc::string::String]) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, rill_runtime::HandlerLoadError>
+pub fn rill_runtime::load_handler_pack<R: alloc::io::read::Read + core::io::seek::Seek>(R, &rill_runtime::TrustStore) -> core::result::Result<(rill_runtime::LoadedHandlerPack, rill_runtime::HandlerPackInspection), rill_runtime::HandlerPackError>
+pub fn rill_runtime::load_model_pack<R: alloc::io::read::Read + core::io::seek::Seek>(R, &rill_runtime::TrustStore) -> core::result::Result<(rill_runtime::LoadedModelPack, rill_runtime::ModelPackInspection), rill_runtime::ModelPackError>
+pub fn rill_runtime::sign_release_index(rill_runtime_protocol::ReleaseIndexPayload, &ed25519_dalek::signing::SigningKey) -> core::result::Result<rill_runtime_protocol::SignedReleaseIndex, rill_runtime::ReleaseIndexError>
+pub fn rill_runtime::verify_release_index(&rill_runtime_protocol::SignedReleaseIndex, &rill_runtime::TrustStore) -> core::result::Result<(), rill_runtime::ReleaseIndexError>

@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "model": {
+    "count": 20,
+    "mean": 9.5,
+    "m2": 665.0,
+    "kind": "Sample"
+  }
+}

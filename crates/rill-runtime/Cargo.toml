@@ -20,7 +20,10 @@ name = "rill-pack"
 path = "src/bin/rill-pack.rs"
 
 [features]
-default = []
+# WASM handler support is on by default so that `cargo install rill-runtime`
+# matches the official GitHub release binary behaviour. The core runtime
+# stays WASM-free only when the user explicitly passes `--no-default-features`.
+default = ["wasm"]
 # Enables the sandboxed WASM InvokeHandler. Requires wasmtime, which raises the
 # effective build-toolchain requirement; the core runtime stays WASM-free when
 # this feature is off.

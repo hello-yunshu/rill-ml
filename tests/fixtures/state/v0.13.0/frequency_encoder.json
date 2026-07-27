@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "model": {
+    "category_counts": {
+      "x": 3,
+      "y": 1,
+      "z": 1
+    },
+    "total": 5,
+    "samples_seen": 1
+  }
+}

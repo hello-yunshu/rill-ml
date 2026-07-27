@@ -6,17 +6,167 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 with the Rust-specific convention that 0.x releases may break the public API.
 
-> **Status: 0.x — Experimental but usable.**
-> The core math is tested and the predict/learn/persist loop is complete, but
-> the public API may still change between minor versions. Do not use RillML for
+> **Status: 1.0 Release Candidate.**
+> The Stable crates (`rill-ml`, `rill-runtime`, `rill-runtime-protocol`,
+> `rill-handler-api`) are now under the 1.x compatibility freeze. Preview
+> crates (`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`, `rill-ml-arrow`,
+> `rill-ml-polars`, `rillml-inspect`) remain at `0.x`. The `local-ai-stable`
+> pointer continues to point at `0.13.0` until the final `1.0.0` release; the
+> `local-ai-candidate` pointer tracks `1.0.0-rc.x`. Do not use RillML for
 > safety-critical, medical, financial, or industrial-control decisions without
 > independent verification. Always keep a simple baseline and business-rule
 > fallback alongside model predictions.
 
 ## [Unreleased]
 
-This section is intentionally empty after the 0.13.0 release. New
+This section is intentionally empty after the `1.0.0-rc.1` candidate. New
 changes will be added here as they land on `main`.
+
+## [1.0.0-rc.1] - 2026-07-28
+
+This is the first 1.0 release candidate. It finalises the API, state format,
+IPC, WIT ABI, runtime product contract, and release channel behaviour that
+will remain compatible throughout the 1.x cycle. The Stable group
+(`rill-ml`, `rill-runtime`, `rill-runtime-protocol`, `rill-handler-api`)
+advances to `1.0.0-rc.1`; the Preview group stays at `0.13.0`. The
+`local-ai-stable` pointer is intentionally untouched and continues to point
+at `0.13.0`; the new `local-ai-candidate` pointer tracks this RC.
+
+### Added — Stability policy
+
+- `STABILITY.md` defines the 1.0 compatibility surface: Stable vs Preview
+  crates, Rust public API freeze, serde model state schema, IPC v1/v2 wire
+  schema, WIT ABI v1, model/handler pack formats, runtime CLI, default
+  features, MSRV (1.94.0), platform support, deprecation policy, 1.x
+  breaking-change policy, and the stable/candidate release channels.
+- `release-plan.toml` is the single machine-readable source of truth for
+  the Stable/Preview version split. Stable crates inherit
+  `1.0.0-rc.1` from `[workspace.package].version`; Preview crates pin
+  `0.13.0` locally.
+
+### Changed — Rust public API finalisation
+
+- Dual module paths (`pub mod foo; pub use foo::*;`) collapsed to a single
+  official re-export path. Implementation modules under `models`, `optim`,
+  `loss`, `stats`, `preprocessing`, `metrics`, `drift`, `bandit`,
+  `diagnostics`, and runtime `handler`/`package`/`server` are now
+  `pub(crate)`; only the top-level re-exports are the public contract.
+  `scripts/check_runtime_public_api.py` proves via an external compile-fail
+  crate that internal paths cannot be imported from downstream code.
+- `#[non_exhaustive]` added to all non-versioned, extensible enums
+  (`RillError`, `Optimizer`, `RegressionLoss`, `HandlerLoadError`,
+  `ModelPackError`, `HandlerPackError`, `ArchiveError`, `ReleaseIndexError`,
+  `InvokeErrorKind`, `EngineResponse`, `DriftAction`, `DriftLevel`,
+  `WarmupState`, `Confidence`, `NewFeaturePolicy`) and to all extensible
+  `*Config` structs. Versioned wire-schema types (`RuntimeRequest`,
+  `RuntimeResponse`, `RuntimeResponseV2`) are intentionally NOT marked
+  `#[non_exhaustive]`; they evolve by introducing a new versioned type.
+- Examples and tests updated to construct `*Config` structs via
+  `Default::default()` + field assignment rather than struct literals,
+  so adding a field in a future 1.x release is not a breaking change.
+
+### Added — Versioned model state freeze
+
+- `ValidateState` trait unifies per-type state validation (dimensions,
+  finite values, non-negative counts, optimizer parameter counts, FTRL
+  `max_features`, encoder mapping consistency, pipeline dimensions, bandit
+  arm state, drift detector buffer).
+- `Snapshot::into_model_with_validation(validate)` is the required restore
+  path at trust boundaries. `Snapshot::into_model()` remains available for
+  trusted state and is documented as such.
+- Python and WASM `from_json` now go through `Snapshot::from_json_validated`,
+  which enforces `MAX_SNAPSHOT_JSON_BYTES` before deserialization and runs
+  `ValidateState` on the restored model. Untrusted `from_json` input that
+  exceeds the size limit, contains non-finite values, declares inconsistent
+  dimensions, or supplies an unknown `format_version` is rejected atomically.
+- Cross-version state fixtures committed under `tests/fixtures/state/`:
+  `v0.13.0/` (representative state produced by the immutable `v0.13.0` tag)
+  and `v1/` (state produced by this RC). CI loads every fixture on every
+  run; a schema bump requires a migration note in `CHANGELOG.md` and a new
+  fixture set.
+
+### Added — IPC v1/v2 freeze
+
+- Golden IPC fixtures committed under
+  `crates/rill-runtime-protocol/tests/fixtures/v1/` and `v2/` covering
+  handshake, health, invoke, result, and error for both protocol versions.
+  Each fixture is round-tripped (fixture → typed → JSON → normalised →
+  fixture) and rejects unknown fields.
+- Stable error code constants in `rill-runtime-protocol::error_code`:
+  `invalidJson`, `invalidRequestId`, `incompatibleApiVersion`,
+  `invalidClientIdentity`, `unsupportedCapability`, `noInvokeHandler`,
+  `handlerTimeout`, `handlerTrap`, `handlerOutputTooLarge`,
+  `handlerInvalidOutput`, `handlerInternalError`. Existing codes are frozen
+  and additive; new codes may be added in 1.x but existing codes are never
+  renamed.
+
+### Added — WIT ABI v1 freeze
+
+- `scripts/check_wit_abi.py` verifies that the four independent declarations
+  of the WIT ABI version agree (canonical WIT source, `rill-handler-api`
+  Rust constants, `rill-runtime-protocol` constant) and that the normalised
+  WIT source SHA-256 matches the frozen value
+  (`108a68dfd6bcf86e3b63ad630508b2bbf407d00e8634067366e53dbc257cc90c`).
+- Prebuilt v1 component fixture
+  (`crates/rill-runtime/tests/fixtures/handler-v1-component.wasm`, built
+  from the `v0.13.0` tag) committed to the repository. Its SHA-256
+  (`6cfb4bf2eac5d0d5a4644c56f58b2fd679fc989893bc381a8ae31b410852011b`)
+  is verified before each load. CI never rebuilds this fixture from
+  current WIT, so a WIT regression is detected when the current runtime
+  can no longer load the historical component.
+- `tests/wit_v1_component.rs` exercises the full
+  `metadata → configure → invoke` lifecycle against the prebuilt
+  component, packs it into a signed `.rillhandler`, and loads it back
+  through the standard handler-pack loader.
+
+### Changed — Runtime product contract
+
+- `rill-runtime` now ships with `default = ["wasm"]` so that
+  `cargo install rill-runtime` matches the official GitHub release binary
+  behaviour. Builds that omit the feature must document that
+  `.rillhandler` packs cannot be loaded.
+- The implicit fallback to the deprecated built-in `linear-regression`
+  handler has been removed. When neither `--handler` nor
+  `--builtin-handler` is passed, the runtime fails to start with
+  `MissingHandlerOption`. The explicit
+  `--builtin-handler linear-regression` path is retained as a
+  compatibility option.
+- `--model-trust-key` is now the primary CLI parameter name; `--trust-key`
+  is kept as a deprecated alias for 1.x compatibility. Help text and docs
+  use the primary name only.
+- macOS official release assets are Apple Silicon only and must be
+  codesigned. The release workflow fails when signing secrets are missing
+  rather than silently publishing unsigned assets.
+
+### Added — Candidate release channel
+
+- `scripts/build-release-index.py` gains a `--channel` argument
+  (`stable` | `candidate`). The channel value is recorded in the signed
+  payload so downstream clients can reject a candidate index when they
+  expect a stable one.
+- `pipeline.yml` detects prerelease versions (contains `-` after the
+  patch number), passes `--prerelease` to `gh release create`, uploads
+  `candidate-index.json` to the `local-ai-candidate` pointer release,
+  and never touches `local-ai-stable`. Stable releases update only
+  `local-ai-stable`.
+- The SemVer validation regex in `pipeline.yml` now accepts standard
+  prerelease tags (`^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$`).
+- The Python crate remains in the Preview group and is not published to
+  PyPI during the 1.0 RC cycle.
+
+### Added — CI gates
+
+- WIT ABI v1 consistency check (`scripts/check_wit_abi.py`) in the
+  `wasm-handler` job.
+- Prebuilt WIT v1 component compatibility test (`cargo test --test
+  wit_v1_component`) in the `wasm-handler` job.
+
+### Changed — Documentation
+
+- `STABILITY.md` is the single source of truth for the 1.x compatibility
+  surface. `SECURITY.md`, `CONTRIBUTING.md`, `README.md`, `README.en.md`,
+  and `ROADMAP.md` now cross-reference it and no longer describe the
+  project as `0.x — Experimental`.
 
 ## [0.13.0] - 2026-07-27
 
@@ -1086,7 +1236,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.1
 [0.13.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.10.0...v0.12.0
 [0.10.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v0.10.0

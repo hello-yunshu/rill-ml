@@ -1,0 +1,32 @@
+{
+  "fixtureName": "handler-v1-component.wasm",
+  "description": "Prebuilt WIT v1 handler component frozen for 1.0 ABI compatibility testing. CI must NOT rebuild this fixture from the current WIT source on every run; the component is treated as an immutable witness that the runtime continues to load historical v1 handlers throughout the 1.x cycle.",
+  "source": {
+    "gitTag": "v0.13.0",
+    "gitCommit": "2e3983dc9ec9e1f9c9fe965aa71b081daf549893",
+    "sourcePath": "handlers/echo-handler",
+    "sourceVersion": "0.13.0"
+  },
+  "build": {
+    "builderCommit": "2e3983dc9ec9e1f9c9fe965aa71b081daf549893",
+    "buildCommand": "cargo build --release --target wasm32-unknown-unknown && wasm-tools component new target/wasm32-unknown-unknown/release/echo-handler.wasm -o handler-v1-component.wasm",
+    "witPackage": "rill:handler@1.0.0",
+    "witWorld": "invoke-handler",
+    "handlerApiVersion": 1,
+    "witSha256": "108a68dfd6bcf86e3b63ad630508b2bbf407d00e8634067366e53dbc257cc90c",
+    "builtAt": "2026-07-28",
+    "builtBy": "RillML 1.0 freeze process (work/1.0-freeze branch)"
+  },
+  "artifact": {
+    "sha256": "6cfb4bf2eac5d0d5a4644c56f58b2fd679fc989893bc381a8ae31b410852011b",
+    "sizeBytes": 22966,
+    "format": "WASM Component Model component"
+  },
+  "freezePolicy": [
+    "This fixture is committed to the repository and must not be rebuilt by CI.",
+    "The current runtime must continue to load this fixture for the entire 1.x cycle.",
+    "If the runtime fails to load this fixture, the change is a breaking WIT ABI change and requires a new rill:handler@2.x package plus a HANDLER_API_VERSION bump.",
+    "Additive WIT changes within v1 must not break loading this fixture.",
+    "The fixture's SHA-256 is verified by the wit_v1_component test before loading."
+  ]
+}

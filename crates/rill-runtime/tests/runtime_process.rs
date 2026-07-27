@@ -390,3 +390,70 @@ fn wasm_handler_handshake_across_process_boundary() {
             && output["features"] == serde_json::json!([4.0, 2.0])
     ));
 }
+
+#[test]
+fn missing_handler_option_returns_error() {
+    // 1.0 contract: when neither --handler nor --builtin-handler is passed,
+    // the runtime must refuse to start. The previous behaviour silently fell
+    // back to the deprecated built-in linear-regression handler, which
+    // contradicted the 1.0 deprecation policy. This test pins the new
+    // contract so a future regression cannot reintroduce the implicit
+    // fallback.
+    let signing = SigningKey::from_bytes(&[77; 32]);
+    let manifest = ModelPackManifest {
+        format_version: MODEL_PACK_FORMAT_VERSION,
+        id: "rillml.example.default".into(),
+        version: "0.7.0".into(),
+        runtime_api_version: RUNTIME_API_VERSION,
+        min_runtime_version: "0.7.0".into(),
+        publisher_key_id: "missing-handler-test".into(),
+        capabilities: vec![LINEAR_REGRESSION_CAPABILITY.into()],
+    };
+    let model = serde_json::json!({
+        "kind": "linearRegression",
+        "weights": [1.0],
+        "intercept": 0.0
+    });
+    let pack = build_signed_model_pack(&manifest, &model, &signing).unwrap();
+    let temporary = tempfile::tempdir().unwrap();
+    let pack_path = temporary.path().join("missing-handler.rillpack");
+    fs::write(&pack_path, pack).unwrap();
+
+    let trust = format!(
+        "missing-handler-test={}",
+        hex::encode(signing.verifying_key().to_bytes())
+    );
+
+    // Start the runtime with --pack and --model-trust-key but NO --handler
+    // or --builtin-handler. Do not wire stdin so the process exits
+    // immediately after the CLI parser rejects the missing handler option.
+    let output = Command::new(env!("CARGO_BIN_EXE_rill-runtime"))
+        .args(["serve", "--pack"])
+        .arg(&pack_path)
+        .args(["--model-trust-key", &trust])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "expected non-zero exit when no handler option is supplied; stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("no --handler or --builtin-handler specified"),
+        "expected MissingHandlerOption diagnostic on stderr, got: {stderr}"
+    );
+
+    // Also verify the primary parameter name --model-trust-key is accepted
+    // (not just the deprecated --trust-key alias) by checking the runtime
+    // gets past trust-store parsing and fails specifically on the handler
+    // option. A trust-store parse error would emit a different diagnostic.
+    assert!(
+        !stderr.contains("invalid trusted key"),
+        "expected --model-trust-key to be accepted as the primary name; stderr={stderr}"
+    );
+}

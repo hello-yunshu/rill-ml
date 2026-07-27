@@ -3,10 +3,13 @@
 //! The runtime delegates capability execution to an [`InvokeHandler`](crate::server::InvokeHandler). Built-in
 //! handlers live in [`builtin`]; sandboxed WASM handlers live in [`wasm`] behind
 //! the `wasm` feature flag.
+//!
+//! Both submodules are `pub(crate)` after the 1.0 dual-module-path cleanup.
+//! Public types and constants are re-exported from [`crate`].
 
-pub mod builtin;
+pub(crate) mod builtin;
 #[cfg(feature = "wasm")]
-pub mod wasm;
+pub(crate) mod wasm;
 
 use serde::Serialize;
 
@@ -24,6 +27,7 @@ pub struct HandlerIdentity {
 
 /// Errors that arise while loading or preparing a handler for execution.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum HandlerLoadError {
     #[error("handler pack error: {0}")]
     Pack(#[from] crate::handler_package::HandlerPackError),

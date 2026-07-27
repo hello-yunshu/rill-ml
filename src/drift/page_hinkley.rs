@@ -27,6 +27,7 @@ use crate::error::{RillError, checked_increment, ensure_finite};
 /// Configuration for [`PageHinkley`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct PageHinkleyConfig {
     /// The detection threshold (λ). When the test statistic exceeds this
     /// value, a drift is reported. Must be finite and strictly positive.
@@ -68,8 +69,8 @@ impl Default for PageHinkleyConfig {
 
 /// Page-Hinkley sequential change detector.
 ///
-/// Detects sustained mean shifts in a scalar stream. See the
-/// [module documentation](crate::drift::page_hinkley) for the algorithm.
+/// Detects sustained mean shifts in a scalar stream. See the module
+/// documentation for the algorithm.
 ///
 /// # Examples
 ///

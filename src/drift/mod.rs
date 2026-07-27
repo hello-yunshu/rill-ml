@@ -46,22 +46,22 @@
 //! assert_eq!(action, DriftAction::ResetModel);
 //! ```
 //!
-//! [`DriftAwareModel`]: crate::drift::aware_model::DriftAwareModel
-//! [`PageHinkley`]: crate::drift::page_hinkley::PageHinkley
-//! [`Adwin`]: crate::drift::adwin::Adwin
-//! [`Kswin`]: crate::drift::kswin::Kswin
-//! [`TimeDecayedMean`]: crate::drift::decay::TimeDecayedMean
-//! [`LearningRateScheduler`]: crate::drift::decay::LearningRateScheduler
-//! [`FixedWindowBuffer`]: crate::drift::decay::FixedWindowBuffer
+//! [`DriftAwareModel`]: crate::drift::DriftAwareModel
+//! [`PageHinkley`]: crate::drift::PageHinkley
+//! [`Adwin`]: crate::drift::Adwin
+//! [`Kswin`]: crate::drift::Kswin
+//! [`TimeDecayedMean`]: crate::drift::TimeDecayedMean
+//! [`LearningRateScheduler`]: crate::drift::LearningRateScheduler
+//! [`FixedWindowBuffer`]: crate::drift::FixedWindowBuffer
 
-pub mod action;
-pub mod adwin;
-pub mod aware_model;
-pub mod decay;
-pub mod detector;
-pub mod kswin;
-pub mod page_hinkley;
-pub mod strategy;
+pub(crate) mod action;
+pub(crate) mod adwin;
+pub(crate) mod aware_model;
+pub(crate) mod decay;
+pub(crate) mod detector;
+pub(crate) mod kswin;
+pub(crate) mod page_hinkley;
+pub(crate) mod strategy;
 
 pub use action::{DriftAction, DriftEvent};
 pub use adwin::{Adwin, AdwinConfig};
