@@ -571,6 +571,188 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             self.assertEqual(len(models), 1)
             self.assertEqual(models[0]["url"], "https://localhost:8443/model-0.7.0")
 
+    def test_build_release_index_defaults_to_stable_channel(self) -> None:
+        # Without --channel, the payload must carry "channel": "stable" so
+        # existing release behaviour is unchanged.
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            version = "0.7.0"
+            for name in (
+                f"rill-runtime-{version}-linux-x86_64",
+                f"rill-runtime-{version}-macos-aarch64",
+                f"rill-runtime-{version}-windows-x86_64.exe",
+                f"example-default-{version}.rillpack",
+            ):
+                (temp / name).write_bytes(name.encode())
+            output = temp / "payload.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/build-release-index.py"),
+                    "--release-dir", str(temp),
+                    "--version", version,
+                    "--tag", f"v{version}",
+                    "--repository", "example/rill-ml",
+                    "--publisher-key-id", PUBLISHER,
+                    "--generated-at", "2026-07-13T01:00:00Z",
+                    "--output", str(output),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(payload["channel"], "stable")
+
+    def test_build_release_index_supports_candidate_channel(self) -> None:
+        # With --channel candidate, the payload must carry
+        # "channel": "candidate" so downstream clients can distinguish an
+        # RC index from a stable index.
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            version = "1.0.0-rc.1"
+            for name in (
+                f"rill-runtime-{version}-linux-x86_64",
+                f"rill-runtime-{version}-macos-aarch64",
+                f"rill-runtime-{version}-windows-x86_64.exe",
+                f"example-default-{version}.rillpack",
+            ):
+                (temp / name).write_bytes(name.encode())
+            output = temp / "payload.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/build-release-index.py"),
+                    "--release-dir", str(temp),
+                    "--version", version,
+                    "--tag", f"v{version}",
+                    "--repository", "example/rill-ml",
+                    "--publisher-key-id", PUBLISHER,
+                    "--generated-at", "2026-07-13T01:00:00Z",
+                    "--channel", "candidate",
+                    "--output", str(output),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(payload["channel"], "candidate")
+
+    def test_build_release_index_rejects_invalid_channel(self) -> None:
+        # Only "stable" and "candidate" are valid channels.
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            version = "1.0.0-rc.1"
+            for name in (
+                f"rill-runtime-{version}-linux-x86_64",
+                f"rill-runtime-{version}-macos-aarch64",
+                f"rill-runtime-{version}-windows-x86_64.exe",
+                f"example-default-{version}.rillpack",
+            ):
+                (temp / name).write_bytes(name.encode())
+            output = temp / "payload.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/build-release-index.py"),
+                    "--release-dir", str(temp),
+                    "--version", version,
+                    "--tag", f"v{version}",
+                    "--repository", "example/rill-ml",
+                    "--publisher-key-id", PUBLISHER,
+                    "--generated-at", "2026-07-13T01:00:00Z",
+                    "--channel", "beta",
+                    "--output", str(output),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+
+    def test_update_model_release_preserves_candidate_channel(self) -> None:
+        # A model-only update on a candidate index must keep
+        # "channel": "candidate" — it must not silently downgrade to
+        # "stable".
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            model = temp / "model.rillpack"
+            model.write_bytes(b"signed-model-rc")
+            runtime = {
+                "kind": "runtime",
+                "id": "rill-runtime",
+                "version": "1.0.0-rc.1",
+                "runtimeApiVersion": 2,
+                "targetOs": "macos",
+                "targetArch": "aarch64",
+                "url": "https://example.invalid/runtime",
+                "sha256": "00" * 32,
+                "size": 1,
+            }
+            current = temp / "candidate-index.json"
+            current.write_text(
+                json.dumps(
+                    {
+                        "payload": {
+                            "schemaVersion": 2,
+                            "channel": "candidate",
+                            "generatedAt": "2026-07-13T00:00:00Z",
+                            "publisherKeyId": PUBLISHER,
+                            "artifacts": [
+                                runtime,
+                                {
+                                    "kind": "model",
+                                    "id": "rillml.example.default",
+                                    "version": "1.0.0-rc.1",
+                                    "runtimeApiVersion": 2,
+                                    "url": "https://example.invalid/model-rc.1",
+                                    "sha256": "11" * 32,
+                                    "size": 1,
+                                },
+                            ],
+                        },
+                        "signature": "verified before helper invocation",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = temp / "next-payload.json"
+            result = self.run_model_update(
+                current, model, "1.0.0-rc.2", output,
+                url="https://example.invalid/model-rc.2",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(payload["channel"], "candidate")
+            next_model = next(
+                item for item in payload["artifacts"] if item["kind"] == "model"
+            )
+            self.assertEqual(next_model["version"], "1.0.0-rc.2")
+
+    def test_pipeline_yml_accepts_prerelease_tags(self) -> None:
+        # The version-validation regex in pipeline.yml must accept SemVer
+        # prerelease tags like v1.0.0-rc.1, not just stable v1.0.0.
+        workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
+        # The regex must include the optional prerelease group.
+        self.assertIn(
+            r"^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+            workflow,
+            "pipeline.yml must accept SemVer prerelease tags",
+        )
+        # The --prerelease flag must be conditionally passed to gh release.
+        self.assertIn("--prerelease", workflow)
+        # The candidate pointer release must be referenced.
+        self.assertIn("local-ai-candidate", workflow)
+        self.assertIn("candidate-index.json", workflow)
+
+    def test_pipeline_yml_does_not_touch_stable_pointer_for_prerelease(self) -> None:
+        # The pipeline must route prerelease versions to local-ai-candidate
+        # and stable versions to local-ai-stable — the two channels must
+        # never cross.
+        workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
+        # The IS_PRERELEASE output must drive the pointer selection.
+        self.assertIn("IS_PRERELEASE", workflow)
+        self.assertIn("POINTER_RELEASE", workflow)
+        self.assertIn("pointer_release=local-ai-candidate", workflow)
+        self.assertIn("pointer_release=local-ai-stable", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

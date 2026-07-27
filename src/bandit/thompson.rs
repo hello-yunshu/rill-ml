@@ -26,6 +26,8 @@ use crate::bandit::{
     validate_sample_count,
 };
 use crate::error::RillError;
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use rand::Rng;
 
 /// Configuration for [`ThompsonSampling`].
@@ -35,14 +37,14 @@ use rand::Rng;
 /// ```
 /// use rill_ml::bandit::ThompsonConfig;
 ///
-/// let config = ThompsonConfig {
-///     alpha_prior: 1.0,
-///     beta_prior: 1.0,
-/// };
+/// let mut config = ThompsonConfig::default();
+/// config.alpha_prior = 1.0;
+/// config.beta_prior = 1.0;
 /// assert!((config.alpha_prior - 1.0).abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct ThompsonConfig {
     /// Prior alpha (success) parameter for the Beta distribution.
     ///
@@ -376,6 +378,13 @@ impl<'de> serde::Deserialize<'de> for ThompsonSampling {
         };
         bandit.validate().map_err(serde::de::Error::custom)?;
         Ok(bandit)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for ThompsonSampling {
+    fn validate_state(&self) -> Result<(), RillError> {
+        ThompsonSampling::validate(self)
     }
 }
 

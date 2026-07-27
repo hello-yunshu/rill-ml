@@ -1,8 +1,8 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use rill_runtime_protocol::{
     MIN_RUNTIME_API_VERSION, RUNTIME_API_VERSION, RuntimeRequest, RuntimeResponse,
-    RuntimeResponseV2,
+    RuntimeResponseV2, error_code,
 };
 use serde_json::Value;
 
@@ -51,7 +51,7 @@ pub enum InvokeErrorKind {
     Timeout,
     /// Wasmtime trap (unreachable, OOB, stack overflow, …).
     Trap,
-    /// Handler output exceeded [`MAX_IO_BYTES`](crate::handler::wasm::MAX_IO_BYTES).
+    /// Handler output exceeded [`MAX_IO_BYTES`](crate::MAX_IO_BYTES).
     OutputTooLarge,
     /// Handler output failed JSON deserialisation on the host side.
     InvalidOutput,
@@ -115,11 +115,11 @@ impl InvokeError {
     /// logging and diagnostics.
     pub const fn stable_code(&self) -> &'static str {
         match self.kind {
-            InvokeErrorKind::Internal => "handlerInternalError",
-            InvokeErrorKind::Timeout => "handlerTimeout",
-            InvokeErrorKind::Trap => "handlerTrap",
-            InvokeErrorKind::OutputTooLarge => "handlerOutputTooLarge",
-            InvokeErrorKind::InvalidOutput => "handlerInvalidOutput",
+            InvokeErrorKind::Internal => error_code::HANDLER_INTERNAL_ERROR,
+            InvokeErrorKind::Timeout => error_code::HANDLER_TIMEOUT,
+            InvokeErrorKind::Trap => error_code::HANDLER_TRAP,
+            InvokeErrorKind::OutputTooLarge => error_code::HANDLER_OUTPUT_TOO_LARGE,
+            InvokeErrorKind::InvalidOutput => error_code::HANDLER_INVALID_OUTPUT,
             // Guest-reported WIT `handler-error` variants all collapse to
             // `handlerInternalError` on the wire, matching the previous
             // `map_invoke_error` behaviour that mapped
@@ -127,7 +127,7 @@ impl InvokeError {
             InvokeErrorKind::InvalidModel
             | InvokeErrorKind::InvalidInput
             | InvokeErrorKind::UnsupportedCapability
-            | InvokeErrorKind::ExecutionFailed => "handlerInternalError",
+            | InvokeErrorKind::ExecutionFailed => error_code::HANDLER_INTERNAL_ERROR,
         }
     }
 
@@ -183,8 +183,8 @@ fn truncate_to_bytes(s: String, max_bytes: usize) -> String {
 
 /// Minimal host-side log sink for invoke diagnostics.
 ///
-/// Production code uses [`StderrLogSink`]; tests inject
-/// [`CapturingLogSink`] to verify log content and bounds without capturing
+/// Production code uses [`StderrLogSink`]. Downstream test harnesses can
+/// implement this trait to capture and verify log content without touching
 /// stderr. Keeping this trait tiny avoids pulling in a full logging
 /// framework while still making the runtime's only log call testable.
 ///
@@ -207,66 +207,21 @@ impl HostLogSink for StderrLogSink {
     }
 }
 
-/// Test-only [`HostLogSink`] that captures every emitted message in a
-/// `Mutex<Vec<String>>`. Tests inspect the captured messages to verify
-/// log bounds, content, and deduplication without touching stderr.
-#[derive(Debug, Default)]
-pub struct CapturingLogSink {
-    messages: Mutex<Vec<String>>,
-}
-
-impl CapturingLogSink {
-    /// Create an empty capturing sink.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Return a snapshot of all captured messages in emission order.
-    pub fn messages(&self) -> Vec<String> {
-        self.messages
-            .lock()
-            .expect("CapturingLogSink poisoned")
-            .clone()
-    }
-
-    /// Total byte length of all captured messages. Useful for asserting
-    /// that a 16 KiB guest error did not produce a 16 KiB log.
-    pub fn total_bytes(&self) -> usize {
-        self.messages
-            .lock()
-            .expect("CapturingLogSink poisoned")
-            .iter()
-            .map(String::len)
-            .sum()
-    }
-
-    /// Drop all captured messages.
-    pub fn clear(&self) {
-        self.messages
-            .lock()
-            .expect("CapturingLogSink poisoned")
-            .clear();
-    }
-}
-
-impl HostLogSink for CapturingLogSink {
-    fn emit(&self, message: &str) {
-        self.messages
-            .lock()
-            .expect("CapturingLogSink poisoned")
-            .push(message.to_string());
-    }
-}
-
 /// Consumers can implement this trait to add business-specific invocation logic.
 pub trait InvokeHandler: Send + Sync + std::fmt::Debug {
     fn invoke(&self, capability: &str, input: &Value) -> Result<Value, InvokeError>;
 }
 
-/// Internal response type produced by [`RuntimeEngine`]. The IPC layer converts
+/// Engine-side response produced by [`RuntimeEngine`]. The IPC layer converts
 /// this to a v1 [`RuntimeResponse`] or v2 [`RuntimeResponseV2`] based on the
 /// request's `api_version`.
+///
+/// This type is part of the 1.x stable API because it is the return type of
+/// [`RuntimeEngine::handle`]. Downstream consumers that embed the engine
+/// (rather than using the `rill-runtime` CLI) call `handle` and then convert
+/// the result to the appropriate wire version.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum EngineResponse {
     Handshake {
         request_id: String,
@@ -439,7 +394,7 @@ impl RuntimeEngine {
     }
 
     /// Replace the default [`StderrLogSink`] with a custom sink. Tests
-    /// inject a [`CapturingLogSink`] to verify log bounds and content
+    /// inject a capturing sink to verify log bounds and content
     /// without capturing stderr.
     pub fn with_log_sink(mut self, sink: Arc<dyn HostLogSink>) -> Self {
         self.log_sink = sink;
@@ -467,13 +422,18 @@ impl RuntimeEngine {
     pub fn handle(&self, request: RuntimeRequest) -> EngineResponse {
         let request_id = request.request_id().to_string();
         if request_id.is_empty() || request_id.len() > 128 {
-            return self.error(request_id, "invalidRequestId", "invalid request id", false);
+            return self.error(
+                request_id,
+                error_code::INVALID_REQUEST_ID,
+                "invalid request id",
+                false,
+            );
         }
         let api_version = request.api_version();
         if !(MIN_RUNTIME_API_VERSION..=RUNTIME_API_VERSION).contains(&api_version) {
             return self.error(
                 request_id,
-                "incompatibleApiVersion",
+                error_code::INCOMPATIBLE_API_VERSION,
                 "runtime API version is not supported",
                 false,
             );
@@ -493,7 +453,7 @@ impl RuntimeEngine {
                 {
                     return self.error(
                         request_id,
-                        "invalidClientIdentity",
+                        error_code::INVALID_CLIENT_IDENTITY,
                         "invalid client identity",
                         false,
                     );
@@ -522,7 +482,7 @@ impl RuntimeEngine {
                 if !self.is_capability_allowed(&capability) {
                     return self.error(
                         request_id,
-                        "unsupportedCapability",
+                        error_code::UNSUPPORTED_CAPABILITY,
                         "capability is not in the effective set",
                         false,
                     );
@@ -530,7 +490,7 @@ impl RuntimeEngine {
                 let Some(handler) = &self.invoke_handler else {
                     return self.error(
                         request_id,
-                        "noInvokeHandler",
+                        error_code::NO_INVOKE_HANDLER,
                         "no invoke handler registered",
                         false,
                     );
@@ -602,9 +562,68 @@ impl RuntimeEngine {
 #[cfg(test)]
 mod tests {
     use rill_runtime_protocol::{MODEL_PACK_FORMAT_VERSION, ModelPackManifest};
+    use std::sync::Mutex;
 
     use super::*;
     use crate::handler::builtin::LINEAR_REGRESSION_CAPABILITY;
+
+    /// Test-only [`HostLogSink`] that captures every emitted message in a
+    /// `Mutex<Vec<String>>`. Tests inspect the captured messages to verify
+    /// log bounds, content, and deduplication without touching stderr.
+    ///
+    /// This type is `pub(crate)` and lives inside `#[cfg(test)]` so it
+    /// never appears in the public API surface. Downstream test harnesses
+    /// that need similar functionality should implement [`HostLogSink`]
+    /// directly.
+    #[derive(Debug, Default)]
+    pub(crate) struct CapturingLogSink {
+        messages: Mutex<Vec<String>>,
+    }
+
+    impl CapturingLogSink {
+        /// Create an empty capturing sink.
+        pub(crate) fn new() -> Self {
+            Self::default()
+        }
+
+        /// Return a snapshot of all captured messages in emission order.
+        pub(crate) fn messages(&self) -> Vec<String> {
+            self.messages
+                .lock()
+                .expect("CapturingLogSink poisoned")
+                .clone()
+        }
+
+        /// Total byte length of all captured messages. Useful for asserting
+        /// that a 16 KiB guest error did not produce a 16 KiB log.
+        #[allow(dead_code)]
+        pub(crate) fn total_bytes(&self) -> usize {
+            self.messages
+                .lock()
+                .expect("CapturingLogSink poisoned")
+                .iter()
+                .map(String::len)
+                .sum()
+        }
+
+        /// Drop all captured messages.
+        #[allow(dead_code)]
+        pub(crate) fn clear(&self) {
+            self.messages
+                .lock()
+                .expect("CapturingLogSink poisoned")
+                .clear();
+        }
+    }
+
+    impl HostLogSink for CapturingLogSink {
+        fn emit(&self, message: &str) {
+            self.messages
+                .lock()
+                .expect("CapturingLogSink poisoned")
+                .push(message.to_string());
+        }
+    }
 
     fn engine() -> RuntimeEngine {
         RuntimeEngine::new(LoadedModelPack {

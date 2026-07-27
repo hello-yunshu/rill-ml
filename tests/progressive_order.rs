@@ -72,21 +72,11 @@ fn progressive_classification_tracks_accuracy() {
     use rill_ml::models::{LogisticRegression, LogisticRegressionConfig};
     use rill_ml::optim::{Optimizer, SgdConfig};
     let d = 1;
-    let mut model = LogisticRegression::new(
-        d,
-        LogisticRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.5,
-                    l2: 0.0,
-                },
-            )
-            .unwrap(),
-            loss: Default::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.5;
+    let mut config = LogisticRegressionConfig::default();
+    config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    let mut model = LogisticRegression::new(d, config).unwrap();
 
     let mut accuracy = Accuracy::default();
     let samples: Vec<BinaryClassificationSample> = (0..200)

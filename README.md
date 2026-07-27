@@ -22,7 +22,7 @@
 
 RillML 提供可直接嵌入 Rust 原生应用的增量学习组件：在线统计、预处理器、线性/逻辑回归、评估指标、Pipeline、渐进式评估，以及基于 serde 的可选状态持久化。
 
-Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定、签名 `.rillpack` 模型包和签名 `.rillhandler` WASM handler 包。v0.7 起，runtime 在沙箱内加载经过签名验证的 WASM handler，更新 handler 不需要重新编译 runtime 二进制。宿主可以只依赖协议 crate，让 Runtime、模型和 handler 各自独立更新。官方 macOS Runtime 仅发布 Apple Silicon（ARM64）版本，不提供 Intel 构建。详见 [`RUNTIME.md`](RUNTIME.md)。
+Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定、签名 `.rillpack` 模型包和签名 `.rillhandler` WASM handler 包。Runtime 在沙箱内加载经过签名验证的 WASM handler，更新 handler 不需要重新编译 runtime 二进制。宿主可以只依赖协议 crate，让 Runtime、模型和 handler 各自独立更新。官方 macOS Runtime 仅发布 Apple Silicon（ARM64）版本，不提供 Intel 构建。1.0 稳定性矩阵、冻结范围与 Stable/Preview 划分详见 [`STABILITY.md`](STABILITY.md)；运行时产品边界详见 [`RUNTIME.md`](RUNTIME.md)。
 
 > RillML 受 [River](https://riverml.xyz/) 推广的在线学习工作流启发，是独立的 Rust 项目，与 River 无关联，目前不追求 API 或模型兼容性。
 
@@ -62,7 +62,14 @@ cargo add rill-ml
 cargo add rill-ml --features serde
 ```
 
-版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。
+`rill-ml` 默认启用 `bandit` feature（多臂老虎机模块，引入 `rand`）；如不需可关闭默认特性：
+`cargo add rill-ml --no-default-features`。
+
+`rill-runtime` 默认启用 `wasm` feature（Wasmtime 沙箱，可直接加载 `.rillhandler` 包），
+因此 `cargo install rill-runtime` 行为与官方 GitHub 二进制一致。如需 WASM-free 构建：
+`cargo install rill-runtime --no-default-features`（无法加载 `.rillhandler`）。
+
+版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.0.0-rc.1`（候选），Preview 组保持 `0.13.0`。
 
 **环境要求：** Rust 1.94+（Edition 2024），无需 nightly。
 
@@ -189,23 +196,24 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 ## 生态与平台扩展
 
-v0.6 新增五个独立可发布的 crate，v0.7 新增 `rill-handler-api`。它们均位于 `crates/` 下，依赖 `rill-ml` 但不改变核心 API。核心库默认不引入 `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3`。
+Workspace 下的 crate 分为 Stable 组（1.x 兼容冻结）和 Preview 组（0.x）。完整稳定性矩阵与冻结范围见 [`STABILITY.md`](STABILITY.md)。核心库默认不引入 `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3`。
 
-| Crate | 说明 | 安装 |
-|---|---|---|
-| `rill-ml-tokio` | 在 `tokio_stream::Stream` 上驱动 `predict → metric → learn` | `cargo add rill-ml-tokio` |
-| `rill-ml-arrow` | Apache Arrow `RecordBatch`/`Float64Array` 与 `&[f64]` 互转 | `cargo add rill-ml-arrow` |
-| `rill-ml-polars` | Polars `DataFrame` 与样本对互转，追加预测列 | `cargo add rill-ml-polars` |
-| `rillml-inspect` | 查看 `Snapshot` JSON、版本与校验的 CLI（非运行依赖） | `cargo install rillml-inspect` |
-| `rill-ml-wasm` | WebAssembly 绑定（`wasm32-unknown-unknown`），浏览器端在线学习 | `cargo add rill-ml-wasm` |
-| `rill-ml-python` | Python 绑定（PyO3 + Maturin），PyPI 包名 `rill-ml-python`，`import rill_ml` | `pip install rill-ml-python` |
-| `rill-handler-api` | 版本化 WIT handler ABI 契约（handler 作者使用） | `cargo add rill-handler-api` |
-| `rill-runtime-protocol` | 稳定、严格、带版本的 JSON IPC 类型 | `cargo add rill-runtime-protocol` |
-| `rill-runtime` | 加载签名模型包与签名 handler 的独立可执行 runtime | `cargo install rill-runtime` |
+| Crate | 说明 | 状态 | 安装 |
+|---|---|---|---|
+| `rill-ml` | 核心在线学习库（本文档主体） | Stable | `cargo add rill-ml` |
+| `rill-runtime` | 加载签名模型包与签名 handler 的独立可执行 runtime | Stable | `cargo install rill-runtime` |
+| `rill-runtime-protocol` | 稳定、严格、带版本的 JSON IPC 类型 | Stable | `cargo add rill-runtime-protocol` |
+| `rill-handler-api` | 版本化 WIT handler ABI 契约（handler 作者使用） | Stable | `cargo add rill-handler-api` |
+| `rill-ml-tokio` | 在 `tokio_stream::Stream` 上驱动 `predict → metric → learn` | Preview | `cargo add rill-ml-tokio` |
+| `rill-ml-arrow` | Apache Arrow `RecordBatch`/`Float64Array` 与 `&[f64]` 互转 | Preview | `cargo add rill-ml-arrow` |
+| `rill-ml-polars` | Polars `DataFrame` 与样本对互转，追加预测列 | Preview | `cargo add rill-ml-polars` |
+| `rill-ml-wasm` | WebAssembly 绑定（`wasm32-unknown-unknown`），浏览器端在线学习 | Preview | `cargo add rill-ml-wasm` |
+| `rill-ml-python` | Python 绑定（PyO3 + Maturin），PyPI 包名 `rill-ml-python`，`import rill_ml` | Preview | `pip install rill-ml-python` |
+| `rillml-inspect` | 查看 `Snapshot` JSON、版本与校验的 CLI（非运行依赖） | Preview | `cargo install rillml-inspect` |
 
 ## 路线图
 
-RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](ROADMAP.md)。
+RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](ROADMAP.md)，1.0 兼容性承诺参见 [`STABILITY.md`](STABILITY.md)。
 
 - **v0.1** — 基础闭环：预测、评估、学习、保存、恢复。
 - **v0.2** — 可靠性与诊断：预测报告、冷启动、基线比较。
@@ -213,8 +221,10 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](
 - **v0.4** — 漂移检测：Page-Hinkley、ADWIN、KSWIN、自适应学习。
 - **v0.5** — 在线决策：多臂老虎机、上下文老虎机。
 - **v0.6** — 平台与生态：WASM、Python 绑定、Tokio Stream 适配。
-- **v0.7** — 可插拔 WASM handler：签名 `.rillhandler` 包、Wasmtime 沙箱、IPC v2。*（当前）*
-- **v1.0** — 稳定的 API 和状态格式。
+- **v0.7** — 可插拔 WASM handler：签名 `.rillhandler` 包、Wasmtime 沙箱、IPC v2。
+- **v0.13.0** — 最后一个 0.x 稳定版本（`local-ai-stable` 指针仍指向此版本）。
+- **v1.0.0-rc.1** — 1.0 候选版本：API、状态格式、IPC、WIT、Runtime、发布通道全部冻结。`local-ai-candidate` 指针指向此版本；`local-ai-stable` 指针不变。
+- **v1.0.0** — 最终稳定版本（候选准入全部通过后发布）。
 
 ## 正确性与验证
 

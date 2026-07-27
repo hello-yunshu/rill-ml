@@ -2,16 +2,35 @@
 
 ## Supported versions
 
-RillML is currently at `0.x` ("Experimental but usable"). Only the latest
-minor release receives security fixes. There is no separate LTS branch.
+RillML is at the 1.0 Release Candidate stage. The Stable crates
+(`rill-ml`, `rill-runtime`, `rill-runtime-protocol`, `rill-handler-api`)
+are under the 1.x compatibility freeze documented in
+[`STABILITY.md`](STABILITY.md). The Preview crates
+(`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`, `rill-ml-arrow`,
+`rill-ml-polars`, `rillml-inspect`) remain at `0.x` and are not covered by
+the 1.x freeze.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.13.x   | :white_check_mark: |
-| < 0.13   | :x:                |
+| Version line | Status | Supported | Channel |
+| ------------ | ------ | --------- | ------- |
+| `1.0.0-rc.x` | Current candidate | :white_check_mark: | `local-ai-candidate` |
+| `1.0.x` (final) | Not yet released | Will be supported on release | `local-ai-stable` (planned) |
+| `0.13.0` | Last 0.x stable | :white_check_mark: (security fixes only) | `local-ai-stable` |
+| `< 0.13.0` | EOL | :x: | — |
 
-Once RillML reaches `1.0`, a more detailed support table will be published
-here.
+The `local-ai-stable` pointer continues to point at `0.13.0` until the
+final `1.0.0` release ships. The `local-ai-candidate` pointer tracks the
+latest `1.0.0-rc.x`. A candidate release never updates the stable pointer.
+
+### Backport policy
+
+- Security fixes that affect a Stable crate are backported to the
+  `0.13.0` release line as long as it appears in the supported versions
+  table above.
+- Security fixes that only affect a Preview crate are applied
+  forward-only; Preview crates do not carry a backport guarantee.
+- A fix lands on the `1.0.0-rc.x` candidate line first, then on `main`
+  for the next RC or the final `1.0.0`. If `0.13.0` is affected, the
+  same fix is cherry-picked to the `0.13.x` release branch.
 
 ## Reporting a vulnerability
 
@@ -37,8 +56,23 @@ a per-case basis. Reporters will be credited in the release notes and in
 
 ## Scope
 
-This policy covers the `rill-ml` crate published from this repository. It does
-**not** cover:
+This policy covers the Stable crates published from this repository:
+
+- `rill-ml` — the core learning library.
+- `rill-runtime` — the standalone inference runtime (including the
+  Wasmtime-sandboxed WASM handler loader when built with the `wasm`
+  feature, which is the default).
+- `rill-runtime-protocol` — the IPC v1/v2 JSON wire schema and stable
+  error codes.
+- `rill-handler-api` — the WIT ABI v1 contract for handler authors.
+
+The Preview crates (`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`,
+`rill-ml-arrow`, `rill-ml-polars`, `rillml-inspect`) ship from this
+repository but are not under the 1.x compatibility freeze. Security
+issues in Preview crates are still welcome and will be fixed, but they
+do not carry the Stable backport guarantee.
+
+This policy does **not** cover:
 
 - Issues in downstream applications that use RillML (report those to the
   application maintainer).
@@ -47,6 +81,26 @@ This policy covers the `rill-ml` crate published from this repository. It does
   promptly once a fixed release is available.
 - Theoretical numeric drift or model accuracy regressions. These are bugs, not
   security issues, and should be filed as regular GitHub issues.
+
+### macOS signing policy
+
+Official `rill-runtime` macOS release assets are Apple Silicon (ARM64) only
+and must be codesigned. The release workflow fails when the signing
+secrets are missing rather than silently publishing unsigned assets. An
+unsigned macOS binary is never advertised as an official stable or
+candidate release artifact. See [`STABILITY.md`](STABILITY.md) §Platform
+support for the full platform matrix.
+
+### Wasmtime security upgrade policy
+
+`rill-runtime` with the `wasm` feature (the default) depends on
+`wasmtime`. A Wasmtime security advisory triggers an out-of-band release
+of the affected Stable release lines (`1.0.0-rc.x` and, once it ships,
+`1.0.x`; `0.13.0` only if the `wasm` feature is in scope for that line).
+Patch upgrades within the same wasmtime minor line are applied via
+Dependabot PRs and reviewed by maintainers. Minor upgrades require a
+maintainer review of the changelog before merge; the review note is
+recorded in `CHANGELOG.md`.
 
 ## Threat model and safe usage
 
@@ -105,10 +159,11 @@ RillML runs in the host process. It is not sandboxed. If you execute untrusted
 example code or load untrained models from third parties, do so in a sandbox
 appropriate to your platform.
 
-### 6. Untrusted WASM handlers (rill-runtime 0.7+)
+### 6. Untrusted WASM handlers (rill-runtime 1.0+)
 
-`rill-runtime` with the `wasm` feature loads signed `.rillhandler` WASM
-components. The sandbox is designed to minimise trust in handler code:
+`rill-runtime` with the `wasm` feature (the default) loads signed
+`.rillhandler` WASM components. The sandbox is designed to minimise trust
+in handler code:
 
 - **Signature before instantiation.** The handler pack's manifest, checksums,
   and Ed25519 signature are verified before any WASM byte is compiled. An
@@ -137,15 +192,17 @@ components. The sandbox is designed to minimise trust in handler code:
 
 **Limitations to be aware of:**
 
-- The `wasm` feature is opt-in. Default builds of `rill-runtime` do not
-  include Wasmtime and cannot load `.rillhandler` packs.
+- The `wasm` feature is on by default. Builds that pass
+  `--no-default-features` do not include Wasmtime and cannot load
+  `.rillhandler` packs; this must be documented by the downstream
+  distributor.
 - Wasmtime bug or misconfiguration could theoretically compromise the
   sandbox. Keep Wasmtime updated and monitor upstream security advisories.
 - The fuel and epoch limits are best-effort; a handler that finds a
   sandbox escape in Wasmtime could bypass them. This is a trusted-platform
   assumption, not a guarantee against zero-day exploits.
 - Handlers are loaded at startup and run for the lifetime of the process.
-  Hot replacement is not supported in 0.7.
+  Hot replacement is not supported in 1.x.
 
 ## Dependency policy
 

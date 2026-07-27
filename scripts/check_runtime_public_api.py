@@ -9,11 +9,18 @@ probe is re-exposed as ``#[doc(hidden)] pub fn active_epoch_ticker_count()``.
 
 This script takes the stricter "external crate" view: it creates a
 temporary crate that depends on ``rill-runtime`` (via path) and attempts
-to ``use rill_runtime::handler::wasm::active_epoch_ticker_count;``.  The
-check passes only if that crate **fails to compile**.  A companion smoke
-crate proves that legitimate public API
-(``rill_runtime::handler::wasm::WasmInvokeHandler``) still compiles, so a
-broken dependency configuration cannot be misread as "probe invisible".
+to ``use rill_runtime::active_epoch_ticker_count;``.  The check passes
+only if that crate **fails to compile**.  A companion smoke crate proves
+that legitimate public API (``rill_runtime::WasmInvokeHandler``) still
+compiles, so a broken dependency configuration cannot be misread as
+"probe invisible".
+
+After the 1.0 dual-module-path cleanup, implementation modules in
+``rill-runtime`` are ``pub(crate)``; only top-level re-exports are
+public.  The probe is defined inside a ``#[cfg(test)] mod tests`` in
+``handler::wasm`` and is never re-exported, so importing it via either
+``rill_runtime::active_epoch_ticker_count`` or
+``rill_runtime::handler::wasm::active_epoch_ticker_count`` must fail.
 
 Exit codes:
   0  probe is not externally accessible (expected)
@@ -67,7 +74,10 @@ def runtime_crate_path(root: pathlib.Path) -> pathlib.Path:
 SMOKE_MAIN_RS = """\
 // Smoke crate: prove that legitimate public runtime API compiles when
 // rill-runtime is consumed as an external dependency with --features wasm.
-use rill_runtime::handler::wasm::WasmInvokeHandler;
+// Uses the top-level re-export path (rill_runtime::WasmInvokeHandler),
+// not the internal module path (rill_runtime::handler::wasm::...), which
+// is pub(crate) after the 1.0 dual-module-path cleanup.
+use rill_runtime::WasmInvokeHandler;
 
 fn main() {
     let _ = std::any::TypeId::of::<WasmInvokeHandler>();
@@ -78,8 +88,9 @@ PROBE_MAIN_RS = """\
 // Probe crate: attempt to import the test-only ticker probe.  This MUST
 // fail to compile; if it compiles, the probe has leaked into the public
 // API (including via `#[doc(hidden)] pub`, which rustdoc grep cannot
-// detect).
-use rill_runtime::handler::wasm::active_epoch_ticker_count;
+// detect).  The probe lives inside a #[cfg(test)] mod in handler::wasm
+// and is not re-exported at the top level.
+use rill_runtime::active_epoch_ticker_count;
 
 fn main() {
     let _ = active_epoch_ticker_count();

@@ -49,19 +49,17 @@ fn scenario_a_mean_shift() {
     println!("Stream: 200 steps at mean 0, then 200 steps at mean 5.\n");
 
     let mut ph = PageHinkley::default();
-    let mut adwin = Adwin::new(AdwinConfig {
-        delta: 0.05,
-        warning_delta: 0.1,
-        max_window: 500,
-        min_samples: 10,
-    })
-    .unwrap();
-    let mut kswin = Kswin::new(KswinConfig {
-        alpha: 0.01,
-        window_size: 50,
-        check_interval: 50,
-    })
-    .unwrap();
+    let mut adwin_config = AdwinConfig::default();
+    adwin_config.delta = 0.05;
+    adwin_config.warning_delta = 0.1;
+    adwin_config.max_window = 500;
+    adwin_config.min_samples = 10;
+    let mut adwin = Adwin::new(adwin_config).unwrap();
+    let mut kswin_config = KswinConfig::default();
+    kswin_config.alpha = 0.01;
+    kswin_config.window_size = 50;
+    kswin_config.check_interval = 50;
+    let mut kswin = Kswin::new(kswin_config).unwrap();
 
     let mut rng = ChaCha8Rng::seed_from_u64(42);
     let mut ph_trigger: Option<u64> = None;
@@ -106,12 +104,11 @@ fn scenario_b_variance_change() {
     println!("--- Scenario B: Variance Change ---");
     println!("Stream: 200 steps at std=0.1, then 200 steps at std=3.0 (same mean).\n");
 
-    let mut kswin = Kswin::new(KswinConfig {
-        alpha: 0.01,
-        window_size: 50,
-        check_interval: 50,
-    })
-    .unwrap();
+    let mut kswin_config = KswinConfig::default();
+    kswin_config.alpha = 0.01;
+    kswin_config.window_size = 50;
+    kswin_config.check_interval = 50;
+    let mut kswin = Kswin::new(kswin_config).unwrap();
     let mut ph = PageHinkley::default();
     let mut adwin = Adwin::default();
 
@@ -161,43 +158,25 @@ fn scenario_c_drift_aware_model() {
     let feature_count = 1;
 
     // Drift-aware model: LinearRegression + PageHinkley + ResetModel strategy.
-    let aware_optimizer = Optimizer::sgd(
-        feature_count,
-        SgdConfig {
-            learning_rate: 0.1,
-            l2: 0.0,
-        },
-    )
-    .unwrap();
-    let aware_model = LinearRegression::new(
-        feature_count,
-        LinearRegressionConfig {
-            optimizer: aware_optimizer,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let mut aware_sgd = SgdConfig::default();
+    aware_sgd.learning_rate = 0.1;
+    aware_sgd.l2 = 0.0;
+    let aware_optimizer = Optimizer::sgd(feature_count, aware_sgd).unwrap();
+    let mut aware_config = LinearRegressionConfig::default();
+    aware_config.optimizer = aware_optimizer;
+    let aware_model = LinearRegression::new(feature_count, aware_config).unwrap();
     let aware_detector = PageHinkley::default();
     let aware_strategy = StaticStrategy::new(DriftAction::NotifyOnly, DriftAction::ResetModel);
     let mut aware = DriftAwareModel::new(aware_model, aware_detector, aware_strategy);
 
     // Plain model: same LinearRegression, no drift awareness.
-    let plain_optimizer = Optimizer::sgd(
-        feature_count,
-        SgdConfig {
-            learning_rate: 0.1,
-            l2: 0.0,
-        },
-    )
-    .unwrap();
-    let mut plain = LinearRegression::new(
-        feature_count,
-        LinearRegressionConfig {
-            optimizer: plain_optimizer,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let mut plain_sgd = SgdConfig::default();
+    plain_sgd.learning_rate = 0.1;
+    plain_sgd.l2 = 0.0;
+    let plain_optimizer = Optimizer::sgd(feature_count, plain_sgd).unwrap();
+    let mut plain_config = LinearRegressionConfig::default();
+    plain_config.optimizer = plain_optimizer;
+    let mut plain = LinearRegression::new(feature_count, plain_config).unwrap();
 
     let mut aware_mae = Mae::default();
     let mut plain_mae = Mae::default();

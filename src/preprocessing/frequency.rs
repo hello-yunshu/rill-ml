@@ -6,6 +6,8 @@
 use std::collections::BTreeMap;
 
 use crate::error::{RillError, checked_increment};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 
 /// Online frequency encoder for string features.
 ///
@@ -95,6 +97,43 @@ impl FrequencyEncoder {
         self.category_counts.clear();
         self.total = 0;
         self.samples_seen = 0;
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for FrequencyEncoder {
+    fn validate_state(&self) -> Result<(), RillError> {
+        // Every category count must be strictly positive: counts are only
+        // inserted via `entry().or_insert(0)` followed by an immediate
+        // increment, so a zero value indicates a corrupted or maliciously
+        // crafted serde payload.
+        for (cat, &count) in &self.category_counts {
+            if count == 0 {
+                return Err(RillError::InvalidState(format!(
+                    "frequency encoder category `{cat}` has zero count"
+                )));
+            }
+        }
+        // `total` must equal the sum of all category counts: each `update_strs`
+        // call increments `total` by `features.len()` and increments a
+        // per-category count by 1 for each feature occurrence, so the two
+        // must stay in lockstep.
+        let sum: u64 = self.category_counts.values().sum();
+        if self.total != sum {
+            return Err(RillError::InvalidState(format!(
+                "frequency encoder total ({}) does not match sum of category counts ({})",
+                self.total, sum
+            )));
+        }
+        // `samples_seen` cannot exceed `total`: each update adds at least 1
+        // to `total` (features is non-empty) and exactly 1 to `samples_seen`.
+        if self.samples_seen > self.total {
+            return Err(RillError::InvalidState(format!(
+                "frequency encoder samples_seen ({}) cannot exceed total ({})",
+                self.samples_seen, self.total
+            )));
+        }
+        Ok(())
     }
 }
 
