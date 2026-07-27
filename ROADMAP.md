@@ -157,7 +157,10 @@ Python 绑定
 | v0.5 | 在线决策 | 从预测扩展到策略选择 |
 | v0.6 | 生态与平台 | 扩大接入范围 |
 | v0.7 | 可插拔 WASM handler | runtime 加载签名 WASM handler、IPC v2、统一发布流水线 |
-| v1.0 | 稳定版本 | API、状态格式和生产能力稳定 |
+| v0.8–v0.13 | 收敛与稳定化 | 发布流水线一致性、PyPI 可见性、ticker 生命周期 CI、第六阶段最终验收 |
+| v0.13.0 | 最后一个 0.x 稳定版本 | `local-ai-stable` 指针仍指向此版本 |
+| v1.0.0-rc.1 | 1.0 候选版本 | API、状态格式、IPC、WIT、Runtime、发布通道全部冻结 |
+| v1.0.0 | 最终稳定版本 | 候选准入全部通过后发布 |
 
 ---
 
@@ -898,7 +901,7 @@ rillml-inspect
 
 # 十、v0.7：可插拔 WASM handler
 
-> 状态：当前（v1.0.0-rc.1，2026-07-27）
+> 状态：已完成（v0.7，2026-06-15）
 
 ## 目标
 
@@ -958,6 +961,55 @@ rillml-inspect
 - 发布索引签名覆盖每个二进制、模型包与 handler 包的 SHA-256、大小、版本、平台与 URL；
 - macOS Runtime 除发布索引签名外还通过 `codesign --verify --strict`；
 - Runtime、模型、handler 三者更新彼此独立，但都必须通过启动自检后才能切换为 `current`。
+
+---
+
+# 十·五、v1.0.0-rc.1：候选版本冻结
+
+> 状态：当前（v1.0.0-rc.1，2026-07-28）
+
+## 目标
+
+把 Stable 组 crate（`rill-ml`、`rill-runtime`、`rill-runtime-protocol`、`rill-handler-api`）的 API、状态格式、IPC、WIT ABI、Runtime CLI、默认 feature、发布通道行为全部冻结到 1.x 兼容承诺；Preview 组 crate 保持 `0.x`。Stable 组版本推进至 `1.0.0-rc.1`，Preview 组保持 `0.13.0`。
+
+`local-ai-stable` 指针仍指向 `0.13.0`，`local-ai-candidate` 指针指向 `1.0.0-rc.1`。RC 资产和 tag 不可变；修复使用 `rc.N+1`。
+
+## 冻结范围
+
+完整稳定性矩阵与演进规则见 [`STABILITY.md`](STABILITY.md)。关键冻结项：
+
+- **Rust 公共 API** — Stable crate 公共 API 由 `api-baseline/` 记录并由 CI 闸门执行。
+- **serde 模型状态** — `Snapshot<T>` 携带 `format_version`；`ValidateState` trait 强制类型不变量；Python/WASM `from_json` 走 `Snapshot::from_json_validated` 并强制 `MAX_SNAPSHOT_JSON_BYTES` 限制；`v0.13.0/` 与 `v1/` fixtures 在每次 CI 运行中加载。
+- **IPC v1/v2** — Golden fixtures 覆盖 handshake、health、invoke、result、error；稳定错误码冻结；新字段或新语义使用 v3。
+- **WIT ABI v1** — `rill:handler@1.0.0` 冻结；`scripts/check_wit_abi.py` 校验 WIT 源、Rust 常量与 hash 一致；预构建 v1 component fixture 在 CI 中加载（不从当前 WIT 重建）。
+- **模型/handler 包格式** — `.rillpack` 与 `.rillhandler` 格式版本 1 冻结。
+- **Runtime CLI** — `serve`、`inspect-pack`、`inspect-handler` 子命令与参数冻结；`--model-trust-key` 为正式主名称，`--trust-key` 为兼容别名；未指定 `--handler`/`--builtin-handler` 时启动失败（不再隐式回退）。
+- **默认 feature** — `rill-runtime` 默认启用 `wasm`，`cargo install rill-runtime` 与官方 GitHub 二进制行为一致。
+- **MSRV** — 1.94.0；MSRV 提升是次级破坏性变更，需要 CHANGELOG 记录与 CI 矩阵更新。
+- **平台** — Linux x86_64、Windows x86_64、macOS aarch64（签名）；macOS Intel 不发布。
+
+## 发布通道
+
+| 通道 | 索引文件 | 指针 tag | 用途 |
+|---|---|---|---|
+| stable | `stable-index.json` | `local-ai-stable` | 最终 `1.0.0` 及以后 |
+| candidate | `candidate-index.json` | `local-ai-candidate` | `1.0.0-rc.x` 预发布 |
+
+预发布版本遵循 SemVer `1.0.0-rc.N`。`pipeline.yml` 检测预发布版本并路由到 candidate 通道；`local-ai-stable` 在整个 RC 周期内不变。
+
+## 准入条件
+
+最终 `1.0.0` 发布前必须满足（见 `RILL_ML_TRAE_1_0_FREEZE_AND_RC_PROMPT.md` §15）：
+
+- 所有 Stable crate 有 API baseline，SemVer CI 生效；
+- `v0.13.0` state fixtures 已生成并提交，RC 能加载所有承诺兼容的旧状态；
+- IPC v1/v2 全 fixtures，error code 冻结；
+- 旧 WIT v1 component 与 `.rillhandler` 可加载；
+- Runtime 默认 WASM 行为与文档一致；
+- macOS 官方资产签名策略明确并由 CI 执行；
+- prerelease SemVer 支持，candidate signed index，stable pointer 不变；
+- README、ROADMAP、CHANGELOG、SECURITY、CONTRIBUTING、STABILITY 一致；
+- 完整 CI、Security、Docs、RC Release 全绿。
 
 ---
 
