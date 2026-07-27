@@ -126,15 +126,18 @@ permanently frozen for 1.x. New fields or semantics use a new versioned type
 Error responses use the stable `error_code` constants defined in
 `rill-runtime-protocol::error_code`. Existing codes are frozen:
 
-- `invalidJson`
-- `unsupportedApiVersion`
-- `invalidRequest`
-- `capabilityError`
-- `handlerTimeout`
-- `handlerTrap`
-- `handlerOutputTooLarge`
-- `handlerInvalidOutput`
-- `handlerInternalError`
+- `invalidJson` — request body was not valid protocol JSON
+- `invalidRequestId` — `requestId` was missing, empty, or too long
+- `incompatibleApiVersion` — `apiVersion` was outside the supported range
+- `invalidClientIdentity` — `clientName` / `clientVersion` failed validation
+- `unsupportedCapability` — `Invoke` capability is not in the effective set
+- `noInvokeHandler` — `Invoke` was issued but no handler is registered
+- `handlerTimeout` — handler exceeded the wall-clock deadline (retryable)
+- `handlerTrap` — handler trapped (unreachable, OOB, stack overflow, …)
+- `handlerOutputTooLarge` — handler output exceeded the host-side size limit
+- `handlerInvalidOutput` — handler output was not valid JSON
+- `handlerInternalError` — handler reported an internal error (covers all
+  four WIT `handler-error` variants on the wire for backwards compatibility)
 
 New codes may be added (additive) but existing codes are never renamed.
 
@@ -149,21 +152,43 @@ New codes may be added (additive) but existing codes are never renamed.
 ## WIT ABI v1
 
 The WIT package `rill:handler@1.0.0` is frozen. `HANDLER_API_VERSION = 1`
-and `WIT_VERSION = "1.0.0"` are enforced by `scripts/check_wit_abi.py`.
+and `WIT_VERSION = "1.0.0"` are enforced by `scripts/check_wit_abi.py`,
+which verifies four independent declarations of the ABI version agree:
+
+1. `crates/rill-handler-api/wit/rill-handler.wit` — the canonical WIT source.
+2. `crates/rill-handler-api/src/lib.rs` — Rust constants
+   (`HANDLER_API_VERSION`, `WIT_PACKAGE`, `WIT_VERSION`, `WIT_WORLD`).
+3. `crates/rill-runtime-protocol/src/lib.rs` — the protocol constant
+   `HANDLER_API_VERSION` used in handler-pack manifest validation.
+4. SHA-256 of the normalised WIT text (frozen:
+   `108a68dfd6bcf86e3b63ad630508b2bbf407d00e8634067366e53dbc257cc90c`).
 
 A prebuilt v1 component fixture
-(`crates/rill-runtime/tests/fixtures/handler-v1-component.wasm`) is loaded by
-CI to prove the current runtime still loads a component built by the frozen
-WIT. CI does not rebuild this fixture from current WIT.
+(`crates/rill-runtime/tests/fixtures/handler-v1-component.wasm`) is committed
+to the repository and loaded by `tests/wit_v1_component.rs` to prove the
+current runtime still loads a component built from the `v0.13.0` tag using
+the frozen WIT. CI does **not** rebuild this fixture from current WIT. The
+fixture's SHA-256
+(`6cfb4bf2eac5d0d5a4644c56f58b2fd679fc989893bc381a8ae31b410852011b`) is
+verified before each load so silent replacement is detected.
 
 ### WIT evolution
 
-- Additive changes (new functions, new resources) may be allowed within v1
-  if they do not break existing guests. The check script enforces hash
-  consistency for the frozen text.
-- Breaking changes require a new `rill:handler@2.x` package and a new
-  `HANDLER_API_VERSION`.
+- v1 types and the wire schema are permanently frozen. The frozen set
+  includes: `handler-metadata`, `handler-error`, the `invoke-handler`
+  world, and the three exported functions (`metadata`, `configure`,
+  `invoke`).
+- Additive changes within v1 are limited to new resources or new
+  non-required interface functions; they must not break existing guests
+  and must not change the normalised WIT hash without an explicit review
+  that updates `FROZEN_WIT_SHA256` in `scripts/check_wit_abi.py`.
+- Breaking changes (renaming or removing a type, changing a function
+  signature, altering a variant's payload) require a new
+  `rill:handler@2.x` package and a `HANDLER_API_VERSION` bump.
 - The 1.x runtime continues to load v1 handlers for the entire 1.x cycle.
+- `HANDLER_API_VERSION` and the WIT package major version are coupled:
+  `rill:handler@1.x` ↔ `HANDLER_API_VERSION = 1`,
+  `rill:handler@2.x` ↔ `HANDLER_API_VERSION = 2`, and so on.
 
 ## Model and handler packages
 

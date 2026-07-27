@@ -16,7 +16,7 @@ use rill_runtime::{
 };
 use rill_runtime_protocol::{
     MAX_MESSAGE_BYTES, MIN_RUNTIME_API_VERSION, RUNTIME_API_VERSION, RuntimeRequest,
-    RuntimeResponse, RuntimeResponseV2,
+    RuntimeResponse, RuntimeResponseV2, error_code,
 };
 use thiserror::Error;
 
@@ -275,7 +275,7 @@ fn serve(engine: RuntimeEngine) -> Result<(), CliError> {
             Err(_) => EngineResponseJson::V1(RuntimeResponse::Error {
                 request_id: String::new(),
                 api_version: MIN_RUNTIME_API_VERSION,
-                code: "invalidJson".into(),
+                code: error_code::INVALID_JSON.into(),
                 message: "request is not valid protocol JSON".into(),
                 retryable: false,
             }),
