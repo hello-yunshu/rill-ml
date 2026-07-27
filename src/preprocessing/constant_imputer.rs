@@ -9,6 +9,7 @@ use crate::traits::Transformer;
 /// Configuration for [`ConstantImputer`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct ConstantImputerConfig {
     /// The value to replace NaN with.
     pub fill_value: f64,

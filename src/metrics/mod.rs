@@ -4,9 +4,9 @@
 //! bounded memory. Rolling metrics store per-sample contributions in a
 //! fixed-size window.
 
-pub mod classification;
-pub mod regression;
-pub mod rolling;
+pub(crate) mod classification;
+pub(crate) mod regression;
+pub(crate) mod rolling;
 
 pub use classification::{Accuracy, F1Score, LogLoss, Precision, Recall};
 pub use regression::{Mae, Mse, R2, Rmse};

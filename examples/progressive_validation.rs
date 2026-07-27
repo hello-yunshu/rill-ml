@@ -22,19 +22,12 @@ use rill_ml::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let d = 2;
     let scaler = StandardScaler::new(d)?;
-    let model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.05,
-                    l2: 0.0,
-                },
-            )?,
-            loss: Default::default(),
-        },
-    )?;
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.05;
+    sgd.l2 = 0.0;
+    let mut lr_config = LinearRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(d, sgd)?;
+    let model = LinearRegression::new(d, lr_config)?;
     let mut pipeline = RegressionPipeline::new(scaler, model)?;
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
@@ -63,38 +56,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // the model state advances during evaluation).
     let mut pipeline2 = {
         let scaler = StandardScaler::new(d)?;
-        let model = LinearRegression::new(
-            d,
-            LinearRegressionConfig {
-                optimizer: Optimizer::sgd(
-                    d,
-                    SgdConfig {
-                        learning_rate: 0.05,
-                        l2: 0.0,
-                    },
-                )?,
-                loss: Default::default(),
-            },
-        )?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = 0.05;
+        sgd.l2 = 0.0;
+        let mut lr_config = LinearRegressionConfig::default();
+        lr_config.optimizer = Optimizer::sgd(d, sgd)?;
+        let model = LinearRegression::new(d, lr_config)?;
         RegressionPipeline::new(scaler, model)?
     };
     evaluate_regression_with_steps(&mut pipeline2, &mut mse, samples.clone())?;
 
     let mut pipeline3 = {
         let scaler = StandardScaler::new(d)?;
-        let model = LinearRegression::new(
-            d,
-            LinearRegressionConfig {
-                optimizer: Optimizer::sgd(
-                    d,
-                    SgdConfig {
-                        learning_rate: 0.05,
-                        l2: 0.0,
-                    },
-                )?,
-                loss: Default::default(),
-            },
-        )?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = 0.05;
+        sgd.l2 = 0.0;
+        let mut lr_config = LinearRegressionConfig::default();
+        lr_config.optimizer = Optimizer::sgd(d, sgd)?;
+        let model = LinearRegression::new(d, lr_config)?;
         RegressionPipeline::new(scaler, model)?
     };
     evaluate_regression_with_steps(&mut pipeline3, &mut rmse, samples)?;

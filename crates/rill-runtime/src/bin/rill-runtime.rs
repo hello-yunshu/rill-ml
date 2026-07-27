@@ -9,12 +9,10 @@ use std::{
 use clap::{Parser, Subcommand};
 use ed25519_dalek::VerifyingKey;
 #[cfg(feature = "wasm")]
-use rill_runtime::handler::effective_capabilities;
+use rill_runtime::effective_capabilities;
 use rill_runtime::{
-    HandlerIdentity, InvokeHandler, LinearRegressionInvokeHandler, LoadedHandlerPack,
-    RuntimeEngine, TrustStore,
-    handler_package::HandlerPackError,
-    package::{ModelPackError, load_model_pack},
+    HandlerIdentity, HandlerPackError, InvokeHandler, LinearRegressionInvokeHandler,
+    LoadedHandlerPack, ModelPackError, RuntimeEngine, TrustStore, load_model_pack,
 };
 use rill_runtime_protocol::{
     MAX_MESSAGE_BYTES, MIN_RUNTIME_API_VERSION, RUNTIME_API_VERSION, RuntimeRequest,

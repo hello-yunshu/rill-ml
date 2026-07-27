@@ -54,6 +54,7 @@ use std::collections::BTreeMap;
 /// the model continue to train regardless of the policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum NewFeaturePolicy {
     /// Reject the entire `learn` call with [`RillError::InvalidState`] when
     /// adding the new features in the current sample would exceed
@@ -73,6 +74,7 @@ pub enum NewFeaturePolicy {
 /// regularization parameters must be non-negative.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[non_exhaustive]
 pub struct FtrlConfig {
     /// Alpha: learning rate scaling. Must be `> 0`.
     pub alpha: f64,

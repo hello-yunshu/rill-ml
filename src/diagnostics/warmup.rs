@@ -11,6 +11,7 @@ use crate::error::{RillError, checked_increment, ensure_finite};
 /// Lifecycle state of a model during warmup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum WarmupState {
     /// No samples have been observed yet.
     NoData,
@@ -50,6 +51,7 @@ impl WarmupState {
 /// Configuration for [`WarmupTracker`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct WarmupConfig {
     /// Number of samples below which the model is considered [`WarmupState::WarmingUp`].
     pub warming_up_threshold: u64,

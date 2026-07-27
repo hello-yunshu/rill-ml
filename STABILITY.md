@@ -53,6 +53,15 @@ variants or fields can be added without a breaking change:
 - `HandlerLoadError`
 - `ModelPackError`
 - `HandlerPackError`
+- `ArchiveError`
+- `ReleaseIndexError`
+- `InvokeErrorKind`
+- `EngineResponse`
+- `DriftAction`
+- `DriftLevel`
+- `WarmupState`
+- `Confidence`
+- `NewFeaturePolicy`
 
 Application-facing config structs that may gain new optional fields also
 carry `#[non_exhaustive]` and provide a `Default` or constructor.

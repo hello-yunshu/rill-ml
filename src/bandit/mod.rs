@@ -55,16 +55,16 @@
 //! assert!(stats.pulls > 0);
 //! ```
 //!
-//! [`EpsilonGreedy`]: crate::bandit::epsilon_greedy::EpsilonGreedy
-//! [`Ucb1`]: crate::bandit::ucb1::Ucb1
-//! [`ThompsonSampling`]: crate::bandit::thompson::ThompsonSampling
-//! [`LinUcb`]: crate::bandit::linucb::LinUcb
+//! [`EpsilonGreedy`]: crate::bandit::EpsilonGreedy
+//! [`Ucb1`]: crate::bandit::Ucb1
+//! [`ThompsonSampling`]: crate::bandit::ThompsonSampling
+//! [`LinUcb`]: crate::bandit::LinUcb
 
-pub mod epsilon_greedy;
-pub mod linucb;
-pub mod stats;
-pub mod thompson;
-pub mod ucb1;
+pub(crate) mod epsilon_greedy;
+pub(crate) mod linucb;
+pub(crate) mod stats;
+pub(crate) mod thompson;
+pub(crate) mod ucb1;
 
 pub use epsilon_greedy::{EpsilonGreedy, EpsilonGreedyConfig};
 pub use linucb::{LinUcb, LinUcbConfig};

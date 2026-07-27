@@ -17,19 +17,12 @@ use rill_ml::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let d = 3;
     let scaler = StandardScaler::new(d)?;
-    let model = LogisticRegression::new(
-        d,
-        LogisticRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.1,
-                    l2: 0.0,
-                },
-            )?,
-            loss: Default::default(),
-        },
-    )?;
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    sgd.l2 = 0.0;
+    let mut lr_config = LogisticRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(d, sgd)?;
+    let model = LogisticRegression::new(d, lr_config)?;
     let mut pipeline = ClassificationPipeline::new(scaler, model)?;
 
     let mut accuracy = Accuracy::default();

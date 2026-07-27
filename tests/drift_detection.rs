@@ -52,13 +52,12 @@ fn page_hinkley_detects_sudden_mean_shift() {
 
 #[test]
 fn adwin_detects_gradual_drift() {
-    let mut adwin = Adwin::new(AdwinConfig {
-        delta: 0.05,
-        warning_delta: 0.1,
-        max_window: 300,
-        min_samples: 5,
-    })
-    .unwrap();
+    let mut adwin_config = AdwinConfig::default();
+    adwin_config.delta = 0.05;
+    adwin_config.warning_delta = 0.1;
+    adwin_config.max_window = 300;
+    adwin_config.min_samples = 5;
+    let mut adwin = Adwin::new(adwin_config).unwrap();
     let mut rng = ChaCha8Rng::seed_from_u64(99);
 
     // Gradual drift from mean 0 to mean 5.
@@ -77,12 +76,11 @@ fn adwin_detects_gradual_drift() {
 
 #[test]
 fn kswin_detects_variance_change() {
-    let mut kswin = Kswin::new(KswinConfig {
-        alpha: 0.01,
-        window_size: 50,
-        check_interval: 50,
-    })
-    .unwrap();
+    let mut kswin_config = KswinConfig::default();
+    kswin_config.alpha = 0.01;
+    kswin_config.window_size = 50;
+    kswin_config.check_interval = 50;
+    let mut kswin = Kswin::new(kswin_config).unwrap();
     let mut rng = ChaCha8Rng::seed_from_u64(7);
 
     // Low-variance stream.
@@ -107,12 +105,11 @@ fn kswin_detects_variance_change() {
 
 #[test]
 fn kswin_detects_distribution_shape_change() {
-    let mut kswin = Kswin::new(KswinConfig {
-        alpha: 0.01,
-        window_size: 50,
-        check_interval: 50,
-    })
-    .unwrap();
+    let mut kswin_config = KswinConfig::default();
+    kswin_config.alpha = 0.01;
+    kswin_config.window_size = 50;
+    kswin_config.check_interval = 50;
+    let mut kswin = Kswin::new(kswin_config).unwrap();
     let mut rng = ChaCha8Rng::seed_from_u64(123);
 
     // Uniform distribution in [0, 1).
@@ -310,29 +307,19 @@ fn static_strategy_decides_correctly_per_level() {
 fn drift_aware_model_with_linear_regression_and_adwin() {
     // Cross-component: LinearRegression + Adwin + ResetModel strategy.
     let feature_count = 1;
-    let optimizer = Optimizer::sgd(
-        feature_count,
-        SgdConfig {
-            learning_rate: 0.1,
-            l2: 0.0,
-        },
-    )
-    .unwrap();
-    let model = LinearRegression::new(
-        feature_count,
-        LinearRegressionConfig {
-            optimizer,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-    let detector = Adwin::new(AdwinConfig {
-        delta: 0.05,
-        warning_delta: 0.1,
-        max_window: 200,
-        min_samples: 10,
-    })
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    sgd.l2 = 0.0;
+    let optimizer = Optimizer::sgd(feature_count, sgd).unwrap();
+    let mut lr_config = LinearRegressionConfig::default();
+    lr_config.optimizer = optimizer;
+    let model = LinearRegression::new(feature_count, lr_config).unwrap();
+    let mut adwin_config = AdwinConfig::default();
+    adwin_config.delta = 0.05;
+    adwin_config.warning_delta = 0.1;
+    adwin_config.max_window = 200;
+    adwin_config.min_samples = 10;
+    let detector = Adwin::new(adwin_config).unwrap();
     let strategy = StaticStrategy::new(DriftAction::NotifyOnly, DriftAction::ResetModel);
     let mut aware = DriftAwareModel::new(model, detector, strategy);
 
@@ -365,13 +352,9 @@ fn drift_aware_model_with_linear_regression_and_adwin() {
 #[test]
 fn page_hinkley_config_validation() {
     // Zero threshold is invalid.
-    assert!(
-        PageHinkley::new(PageHinkleyConfig {
-            threshold: 0.0,
-            ..Default::default()
-        })
-        .is_err()
-    );
+    let mut ph_config = PageHinkleyConfig::default();
+    ph_config.threshold = 0.0;
+    assert!(PageHinkley::new(ph_config).is_err());
 
     // Valid config succeeds.
     assert!(PageHinkley::new(PageHinkleyConfig::default()).is_ok());
@@ -379,12 +362,11 @@ fn page_hinkley_config_validation() {
 
 #[test]
 fn kswin_no_false_positive_on_stable_stream() {
-    let mut kswin = Kswin::new(KswinConfig {
-        alpha: 0.005,
-        window_size: 100,
-        check_interval: 100,
-    })
-    .unwrap();
+    let mut kswin_config = KswinConfig::default();
+    kswin_config.alpha = 0.005;
+    kswin_config.window_size = 100;
+    kswin_config.check_interval = 100;
+    let mut kswin = Kswin::new(kswin_config).unwrap();
     let mut rng = ChaCha8Rng::seed_from_u64(7);
 
     for _ in 0..2000 {

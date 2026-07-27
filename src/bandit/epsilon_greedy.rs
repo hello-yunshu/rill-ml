@@ -28,15 +28,15 @@ use rand::Rng;
 /// ```
 /// use rill_ml::bandit::EpsilonGreedyConfig;
 ///
-/// let config = EpsilonGreedyConfig {
-///     epsilon: 0.1,
-///     decay: 0.999,
-///     min_epsilon: 0.01,
-/// };
+/// let mut config = EpsilonGreedyConfig::default();
+/// config.epsilon = 0.1;
+/// config.decay = 0.999;
+/// config.min_epsilon = 0.01;
 /// assert!((config.epsilon - 0.1).abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct EpsilonGreedyConfig {
     /// Initial exploration probability. Must be in `[0, 1]`.
     ///

@@ -1,0 +1,131 @@
+pub mod rill_runtime_protocol
+pub enum rill_runtime_protocol::ReleaseArtifactKind
+pub rill_runtime_protocol::ReleaseArtifactKind::Handler
+pub rill_runtime_protocol::ReleaseArtifactKind::Model
+pub rill_runtime_protocol::ReleaseArtifactKind::Runtime
+pub enum rill_runtime_protocol::RuntimeRequest
+pub rill_runtime_protocol::RuntimeRequest::Handshake
+pub rill_runtime_protocol::RuntimeRequest::Handshake::api_version: u32
+pub rill_runtime_protocol::RuntimeRequest::Handshake::client_name: alloc::string::String
+pub rill_runtime_protocol::RuntimeRequest::Handshake::client_version: alloc::string::String
+pub rill_runtime_protocol::RuntimeRequest::Handshake::request_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeRequest::Health
+pub rill_runtime_protocol::RuntimeRequest::Health::api_version: u32
+pub rill_runtime_protocol::RuntimeRequest::Health::request_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeRequest::Invoke
+pub rill_runtime_protocol::RuntimeRequest::Invoke::api_version: u32
+pub rill_runtime_protocol::RuntimeRequest::Invoke::capability: alloc::string::String
+pub rill_runtime_protocol::RuntimeRequest::Invoke::input: serde_json::value::Value
+pub rill_runtime_protocol::RuntimeRequest::Invoke::request_id: alloc::string::String
+impl rill_runtime_protocol::RuntimeRequest
+pub fn rill_runtime_protocol::RuntimeRequest::api_version(&self) -> u32
+pub fn rill_runtime_protocol::RuntimeRequest::request_id(&self) -> &str
+pub enum rill_runtime_protocol::RuntimeResponse
+pub rill_runtime_protocol::RuntimeResponse::Error
+pub rill_runtime_protocol::RuntimeResponse::Error::api_version: u32
+pub rill_runtime_protocol::RuntimeResponse::Error::code: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Error::message: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Error::request_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Error::retryable: bool
+pub rill_runtime_protocol::RuntimeResponse::Handshake
+pub rill_runtime_protocol::RuntimeResponse::Handshake::api_version: u32
+pub rill_runtime_protocol::RuntimeResponse::Handshake::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime_protocol::RuntimeResponse::Handshake::model_pack_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Handshake::model_pack_version: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Handshake::request_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Handshake::runtime_version: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Health
+pub rill_runtime_protocol::RuntimeResponse::Health::api_version: u32
+pub rill_runtime_protocol::RuntimeResponse::Health::healthy: bool
+pub rill_runtime_protocol::RuntimeResponse::Health::model_pack_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Health::model_pack_version: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Health::request_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponse::Result
+pub rill_runtime_protocol::RuntimeResponse::Result::api_version: u32
+pub rill_runtime_protocol::RuntimeResponse::Result::output: serde_json::value::Value
+pub rill_runtime_protocol::RuntimeResponse::Result::request_id: alloc::string::String
+pub enum rill_runtime_protocol::RuntimeResponseV2
+pub rill_runtime_protocol::RuntimeResponseV2::Error
+pub rill_runtime_protocol::RuntimeResponseV2::Error::api_version: u32
+pub rill_runtime_protocol::RuntimeResponseV2::Error::code: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Error::message: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Error::request_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Error::retryable: bool
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::api_version: u32
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::effective_capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::handler_api_version: u32
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::handler_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::handler_version: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::model_pack_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::model_pack_version: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::request_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Handshake::runtime_version: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Health
+pub rill_runtime_protocol::RuntimeResponseV2::Health::api_version: u32
+pub rill_runtime_protocol::RuntimeResponseV2::Health::healthy: bool
+pub rill_runtime_protocol::RuntimeResponseV2::Health::model_pack_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Health::model_pack_version: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Health::request_id: alloc::string::String
+pub rill_runtime_protocol::RuntimeResponseV2::Result
+pub rill_runtime_protocol::RuntimeResponseV2::Result::api_version: u32
+pub rill_runtime_protocol::RuntimeResponseV2::Result::output: serde_json::value::Value
+pub rill_runtime_protocol::RuntimeResponseV2::Result::request_id: alloc::string::String
+pub struct rill_runtime_protocol::HandlerPackManifest
+pub rill_runtime_protocol::HandlerPackManifest::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime_protocol::HandlerPackManifest::format_version: u32
+pub rill_runtime_protocol::HandlerPackManifest::handler_api_version: u32
+pub rill_runtime_protocol::HandlerPackManifest::id: alloc::string::String
+pub rill_runtime_protocol::HandlerPackManifest::min_runtime_version: alloc::string::String
+pub rill_runtime_protocol::HandlerPackManifest::module_sha256: alloc::string::String
+pub rill_runtime_protocol::HandlerPackManifest::module_size: u64
+pub rill_runtime_protocol::HandlerPackManifest::publisher_key_id: alloc::string::String
+pub rill_runtime_protocol::HandlerPackManifest::version: alloc::string::String
+impl rill_runtime_protocol::HandlerPackManifest
+pub fn rill_runtime_protocol::HandlerPackManifest::validate_shape(&self) -> core::result::Result<(), &'static str>
+pub struct rill_runtime_protocol::ModelPackManifest
+pub rill_runtime_protocol::ModelPackManifest::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime_protocol::ModelPackManifest::format_version: u32
+pub rill_runtime_protocol::ModelPackManifest::id: alloc::string::String
+pub rill_runtime_protocol::ModelPackManifest::min_runtime_version: alloc::string::String
+pub rill_runtime_protocol::ModelPackManifest::publisher_key_id: alloc::string::String
+pub rill_runtime_protocol::ModelPackManifest::runtime_api_version: u32
+pub rill_runtime_protocol::ModelPackManifest::version: alloc::string::String
+impl rill_runtime_protocol::ModelPackManifest
+pub fn rill_runtime_protocol::ModelPackManifest::validate_capabilities(&[alloc::string::String]) -> core::result::Result<(), &'static str>
+pub fn rill_runtime_protocol::ModelPackManifest::validate_shape(&self) -> core::result::Result<(), &'static str>
+pub struct rill_runtime_protocol::ReleaseArtifact
+pub rill_runtime_protocol::ReleaseArtifact::handler_api_version: core::option::Option<u32>
+pub rill_runtime_protocol::ReleaseArtifact::id: alloc::string::String
+pub rill_runtime_protocol::ReleaseArtifact::kind: rill_runtime_protocol::ReleaseArtifactKind
+pub rill_runtime_protocol::ReleaseArtifact::min_runtime_version: core::option::Option<alloc::string::String>
+pub rill_runtime_protocol::ReleaseArtifact::runtime_api_version: u32
+pub rill_runtime_protocol::ReleaseArtifact::sha256: alloc::string::String
+pub rill_runtime_protocol::ReleaseArtifact::size: u64
+pub rill_runtime_protocol::ReleaseArtifact::target_arch: core::option::Option<alloc::string::String>
+pub rill_runtime_protocol::ReleaseArtifact::target_os: core::option::Option<alloc::string::String>
+pub rill_runtime_protocol::ReleaseArtifact::url: alloc::string::String
+pub rill_runtime_protocol::ReleaseArtifact::version: alloc::string::String
+impl rill_runtime_protocol::ReleaseArtifact
+pub fn rill_runtime_protocol::ReleaseArtifact::validate_shape(&self) -> core::result::Result<(), &'static str>
+pub struct rill_runtime_protocol::ReleaseIndexPayload
+pub rill_runtime_protocol::ReleaseIndexPayload::artifacts: alloc::vec::Vec<rill_runtime_protocol::ReleaseArtifact>
+pub rill_runtime_protocol::ReleaseIndexPayload::channel: alloc::string::String
+pub rill_runtime_protocol::ReleaseIndexPayload::generated_at: alloc::string::String
+pub rill_runtime_protocol::ReleaseIndexPayload::publisher_key_id: alloc::string::String
+pub rill_runtime_protocol::ReleaseIndexPayload::schema_version: u32
+impl rill_runtime_protocol::ReleaseIndexPayload
+pub fn rill_runtime_protocol::ReleaseIndexPayload::validate_shape(&self) -> core::result::Result<(), &'static str>
+pub struct rill_runtime_protocol::SignedReleaseIndex
+pub rill_runtime_protocol::SignedReleaseIndex::payload: rill_runtime_protocol::ReleaseIndexPayload
+pub rill_runtime_protocol::SignedReleaseIndex::signature: alloc::string::String
+pub const rill_runtime_protocol::HANDLER_API_VERSION: u32
+pub const rill_runtime_protocol::HANDLER_PACKAGE_FORMAT_VERSION: u32
+pub const rill_runtime_protocol::MAX_MESSAGE_BYTES: usize
+pub const rill_runtime_protocol::MIN_RUNTIME_API_VERSION: u32
+pub const rill_runtime_protocol::MODEL_PACK_FORMAT_VERSION: u32
+pub const rill_runtime_protocol::RELEASE_INDEX_SCHEMA_VERSION: u32
+pub const rill_runtime_protocol::RUNTIME_API_VERSION: u32
+pub const rill_runtime_protocol::RUNTIME_ARTIFACT_ID: &str
+pub const rill_runtime_protocol::RUNTIME_STATE_FORMAT_VERSION: u32

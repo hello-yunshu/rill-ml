@@ -3,9 +3,9 @@
 //! Losses are represented as concrete enums, not trait objects, to keep
 //! serialization and state management simple.
 
-pub mod huber;
-pub mod log_loss;
-pub mod squared;
+pub(crate) mod huber;
+pub(crate) mod log_loss;
+pub(crate) mod squared;
 
 pub use huber::HuberLoss;
 pub use log_loss::BinaryLogLoss;
@@ -17,6 +17,7 @@ pub use squared::SquaredError;
 /// the loss function applied to each update.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum RegressionLoss {
     /// `0.5 * (y - y_hat)^2`
     #[default]

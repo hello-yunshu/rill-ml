@@ -135,33 +135,24 @@ fn main() {
     let hasher = FeatureHasher::new(64, 42).unwrap();
 
     // FTRL classifier (sparse, direct on SparseFeatures)
-    let mut ftrl = FtrlClassifier::new(FtrlConfig {
-        alpha: 0.5,
-        beta: 1.0,
-        l1: 2.0,
-        l2: 0.5,
-        max_features: None,
-        new_feature_policy: NewFeaturePolicy::default(),
-    })
-    .unwrap();
+    let mut ftrl_config = FtrlConfig::default();
+    ftrl_config.alpha = 0.5;
+    ftrl_config.beta = 1.0;
+    ftrl_config.l1 = 2.0;
+    ftrl_config.l2 = 0.5;
+    ftrl_config.max_features = None;
+    ftrl_config.new_feature_policy = NewFeaturePolicy::default();
+    let mut ftrl = FtrlClassifier::new(ftrl_config).unwrap();
 
     // Logistic regression (dense, on hashed features)
     let d = 64;
-    let log_reg = LogisticRegression::new(
-        d,
-        LogisticRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.1,
-                    l2: 0.01,
-                },
-            )
-            .unwrap(),
-            loss: BinaryLogLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    sgd.l2 = 0.01;
+    let mut lr_config = LogisticRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    lr_config.loss = BinaryLogLoss::default();
+    let log_reg = LogisticRegression::new(d, lr_config).unwrap();
     let mut log_reg = log_reg;
 
     // Gaussian Naive Bayes (dense, on hashed features)

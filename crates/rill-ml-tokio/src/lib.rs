@@ -101,7 +101,6 @@ mod tests {
     use super::*;
     use rill_ml::OnlineBinaryClassifier;
     use rill_ml::evaluate::{BinaryClassificationSample, RegressionSample};
-    use rill_ml::loss::BinaryLogLoss;
     use rill_ml::metrics::{Accuracy, Mae};
     use rill_ml::models::{
         BaselineConfig, LogisticRegression, LogisticRegressionConfig, MeanRegressor,
@@ -203,22 +202,12 @@ mod tests {
         ];
 
         let make_model = || {
-            let optimizer = Optimizer::sgd(
-                2,
-                rill_ml::optim::SgdConfig {
-                    learning_rate: 0.1,
-                    l2: 0.0,
-                },
-            )
-            .unwrap();
-            LogisticRegression::new(
-                2,
-                LogisticRegressionConfig {
-                    optimizer,
-                    loss: BinaryLogLoss::new(),
-                },
-            )
-            .unwrap()
+            let mut sgd = rill_ml::optim::SgdConfig::default();
+            sgd.learning_rate = 0.1;
+            let optimizer = Optimizer::sgd(2, sgd).unwrap();
+            let mut config = LogisticRegressionConfig::default();
+            config.optimizer = optimizer;
+            LogisticRegression::new(2, config).unwrap()
         };
 
         // Sync reference
@@ -245,22 +234,12 @@ mod tests {
 
     #[tokio::test]
     async fn classify_empty_stream_leaves_metric_unchanged() {
-        let optimizer = Optimizer::sgd(
-            1,
-            rill_ml::optim::SgdConfig {
-                learning_rate: 0.1,
-                l2: 0.0,
-            },
-        )
-        .unwrap();
-        let mut model = LogisticRegression::new(
-            1,
-            LogisticRegressionConfig {
-                optimizer,
-                loss: BinaryLogLoss::new(),
-            },
-        )
-        .unwrap();
+        let mut sgd = rill_ml::optim::SgdConfig::default();
+        sgd.learning_rate = 0.1;
+        let optimizer = Optimizer::sgd(1, sgd).unwrap();
+        let mut config = LogisticRegressionConfig::default();
+        config.optimizer = optimizer;
+        let mut model = LogisticRegression::new(1, config).unwrap();
         let mut acc = Accuracy::default();
         let stream = iter::<Vec<BinaryClassificationSample>>(vec![]);
         let final_value = progressive_classify_stream(&mut model, &mut acc, stream)
@@ -284,22 +263,12 @@ mod tests {
             .collect();
         let n = samples.len();
 
-        let optimizer = Optimizer::sgd(
-            1,
-            rill_ml::optim::SgdConfig {
-                learning_rate: 0.1,
-                l2: 0.0,
-            },
-        )
-        .unwrap();
-        let mut model = LogisticRegression::new(
-            1,
-            LogisticRegressionConfig {
-                optimizer,
-                loss: BinaryLogLoss::new(),
-            },
-        )
-        .unwrap();
+        let mut sgd = rill_ml::optim::SgdConfig::default();
+        sgd.learning_rate = 0.1;
+        let optimizer = Optimizer::sgd(1, sgd).unwrap();
+        let mut config = LogisticRegressionConfig::default();
+        config.optimizer = optimizer;
+        let mut model = LogisticRegression::new(1, config).unwrap();
         let mut acc = Accuracy::default();
         let stream = iter(samples);
         let final_acc = progressive_classify_stream(&mut model, &mut acc, stream)

@@ -40,22 +40,12 @@ async fn main() {
             .unwrap();
 
     // Linear regression
-    let optimizer = Optimizer::sgd(
-        1,
-        SgdConfig {
-            learning_rate: 0.005,
-            l2: 0.0,
-        },
-    )
-    .unwrap();
-    let regression = LinearRegression::new(
-        1,
-        LinearRegressionConfig {
-            optimizer,
-            loss: Default::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.005;
+    let optimizer = Optimizer::sgd(1, sgd).unwrap();
+    let mut config = LinearRegressionConfig::default();
+    config.optimizer = optimizer;
+    let regression = LinearRegression::new(1, config).unwrap();
     let mut model = regression;
     let mut model_mae = Mae::default();
     let model_final = progressive_regress_stream(&mut model, &mut model_mae, iter(samples))

@@ -34,22 +34,13 @@ fn main() {
     // --- Setup: two competing models on a synthetic linear stream ---
     let feature_count = 2;
     let scaler = StandardScaler::new(feature_count).unwrap();
-    let optimizer = Optimizer::sgd(
-        feature_count,
-        SgdConfig {
-            learning_rate: 0.05,
-            l2: 0.0,
-        },
-    )
-    .unwrap();
-    let regression = LinearRegression::new(
-        feature_count,
-        LinearRegressionConfig {
-            optimizer,
-            loss: Default::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.05;
+    sgd.l2 = 0.0;
+    let optimizer = Optimizer::sgd(feature_count, sgd).unwrap();
+    let mut lr_config = LinearRegressionConfig::default();
+    lr_config.optimizer = optimizer;
+    let regression = LinearRegression::new(feature_count, lr_config).unwrap();
     let mut linear_pipeline: RegressionPipeline<StandardScaler, LinearRegression> =
         RegressionPipeline::new(scaler, regression).unwrap();
     let mut mean_baseline = MeanRegressor::new(BaselineConfig::default()).unwrap();

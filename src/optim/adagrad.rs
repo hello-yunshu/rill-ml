@@ -8,6 +8,7 @@ use crate::error::{RillError, checked_finite_add, checked_increment, ensure_fini
 /// Configuration for [`AdaGrad`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct AdaGradConfig {
     /// Global learning rate. Must be finite and strictly positive.
     pub learning_rate: f64,

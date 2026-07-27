@@ -12,6 +12,7 @@ use crate::traits::OnlineBinaryClassifier;
 /// Configuration for [`LogisticRegression`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct LogisticRegressionConfig {
     /// The optimizer (SGD or AdaGrad).
     pub optimizer: Optimizer,

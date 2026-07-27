@@ -37,11 +37,13 @@ use rand::Rng;
 /// ```
 /// use rill_ml::bandit::Ucb1Config;
 ///
-/// let config = Ucb1Config { exploration_constant: 2.0 };
+/// let mut config = Ucb1Config::default();
+/// config.exploration_constant = 2.0;
 /// assert!((config.exploration_constant - 2.0).abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct Ucb1Config {
     /// Exploration constant `c` in the UCB formula. Controls the
     /// exploration/exploitation trade-off. Higher values favor exploration.

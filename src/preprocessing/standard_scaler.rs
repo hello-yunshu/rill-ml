@@ -9,6 +9,7 @@ use crate::traits::Transformer;
 /// Configuration for [`StandardScaler`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct StandardScalerConfig {
     /// Whether to subtract the running mean. Default: `true`.
     pub with_mean: bool,

@@ -18,6 +18,7 @@ use crate::error::{RillError, ensure_finite};
 /// comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum Confidence {
     /// No data has been observed yet.
     None,

@@ -34,6 +34,7 @@ pub(crate) struct Checksums {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ArchiveError {
     #[error("zip error: {0}")]
     Zip(#[from] zip::result::ZipError),
@@ -64,6 +65,7 @@ pub enum ArchiveError {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ReleaseIndexError {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
