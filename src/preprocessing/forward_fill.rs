@@ -5,6 +5,7 @@
 //! with `0.0`.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+use crate::persistence::ValidateState;
 use crate::traits::Transformer;
 
 /// Replaces `NaN` values with the last observed non-NaN value.
@@ -50,6 +51,26 @@ impl ForwardFill {
                 expected: self.feature_count,
                 actual: features.len(),
             });
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for ForwardFill {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.feature_count == 0 {
+            return Err(RillError::EmptyFeatures);
+        }
+        if self.last_values.len() != self.feature_count {
+            return Err(RillError::InvalidState(format!(
+                "forward fill last_values length {} does not match feature_count {}",
+                self.last_values.len(),
+                self.feature_count
+            )));
+        }
+        for v in self.last_values.iter().flatten() {
+            ensure_finite("last_value", *v)?;
         }
         Ok(())
     }

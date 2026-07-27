@@ -43,6 +43,8 @@
 
 use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite};
 use crate::loss::log_loss::sigmoid;
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::sparse::{FeatureId, SparseFeatures};
 use crate::traits::{SparseClassifier, SparseRegressor};
 use std::collections::BTreeMap;
@@ -111,7 +113,7 @@ impl Default for FtrlConfig {
 
 impl FtrlConfig {
     /// Validate configuration parameters.
-    fn validate(&self) -> Result<(), RillError> {
+    pub(crate) fn validate(&self) -> Result<(), RillError> {
         ensure_finite("alpha", self.alpha)?;
         ensure_finite("beta", self.beta)?;
         ensure_finite("l1", self.l1)?;
@@ -556,7 +558,7 @@ impl<'de> serde::Deserialize<'de> for FtrlRegressor {
 
 impl FtrlRegressor {
     #[cfg_attr(not(feature = "serde"), allow(dead_code))]
-    fn validate_invariants(&self) -> Result<(), RillError> {
+    pub(crate) fn validate_invariants(&self) -> Result<(), RillError> {
         // config and individual params are validated at deserialization;
         // here we additionally verify that the config + param combination
         // produces a finite, computable weight for every feature and the
@@ -815,7 +817,7 @@ impl<'de> serde::Deserialize<'de> for FtrlClassifier {
 
 impl FtrlClassifier {
     #[cfg_attr(not(feature = "serde"), allow(dead_code))]
-    fn validate_invariants(&self) -> Result<(), RillError> {
+    pub(crate) fn validate_invariants(&self) -> Result<(), RillError> {
         // See FtrlRegressor::validate_invariants for rationale.
         self.config.validate()?;
         // Top-level invariant: the stored feature count must not exceed
@@ -840,6 +842,27 @@ impl FtrlClassifier {
             .intercept_weight_checked(&self.config)
             .map_err(|e| RillError::InvalidState(format!("ftrl intercept weight: {e}")))?;
         Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for FtrlConfig {
+    fn validate_state(&self) -> Result<(), RillError> {
+        FtrlConfig::validate(self)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for FtrlRegressor {
+    fn validate_state(&self) -> Result<(), RillError> {
+        FtrlRegressor::validate_invariants(self)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for FtrlClassifier {
+    fn validate_state(&self) -> Result<(), RillError> {
+        FtrlClassifier::validate_invariants(self)
     }
 }
 

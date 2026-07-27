@@ -1,0 +1,7 @@
+{
+  "config": {
+    "dimension": 32,
+    "seed": 42,
+    "signed": true
+  }
+}

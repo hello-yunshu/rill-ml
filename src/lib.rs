@@ -68,6 +68,7 @@ pub mod traits;
 
 pub use error::RillError;
 pub use evaluate::{BinaryClassificationSample, RegressionSample};
+pub use persistence::{MAX_SNAPSHOT_JSON_BYTES, SNAPSHOT_FORMAT_VERSION, Snapshot, ValidateState};
 pub use traits::{
     Metric, OnlineBinaryClassifier, OnlineRegressor, OnlineStatistic, SparseClassifier,
     SparseRegressor, Transformer,

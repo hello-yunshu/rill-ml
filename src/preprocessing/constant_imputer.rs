@@ -4,6 +4,7 @@
 //! passed through unchanged. This imputer has no learnable state.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+use crate::persistence::ValidateState;
 use crate::traits::Transformer;
 
 /// Configuration for [`ConstantImputer`].
@@ -78,6 +79,17 @@ impl ConstantImputer {
                 actual: features.len(),
             });
         }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for ConstantImputer {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.feature_count == 0 {
+            return Err(RillError::EmptyFeatures);
+        }
+        ensure_finite("fill_value", self.config.fill_value)?;
         Ok(())
     }
 }

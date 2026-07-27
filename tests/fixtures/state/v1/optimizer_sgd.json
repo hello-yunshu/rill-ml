@@ -1,0 +1,10 @@
+{
+  "Sgd": {
+    "feature_count": 2,
+    "config": {
+      "learning_rate": 0.01,
+      "l2": 0.0
+    },
+    "samples_seen": 0
+  }
+}

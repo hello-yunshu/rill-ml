@@ -12,6 +12,8 @@ use crate::error::{
     RillError, checked_finite_add, checked_increment, ensure_finite, validate_features,
 };
 use crate::loss::log_loss::sigmoid;
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::traits::OnlineBinaryClassifier;
 
 /// Configuration for Naive Bayes classifiers.
@@ -315,7 +317,7 @@ impl GaussianNaiveBayes {
 
     /// Validate all invariants required for a deserialized model to be safe.
     #[cfg_attr(not(feature = "serde"), allow(dead_code))]
-    fn validate_invariants(&self) -> Result<(), RillError> {
+    pub(crate) fn validate_invariants(&self) -> Result<(), RillError> {
         if self.feature_count == 0 {
             return Err(RillError::EmptyFeatures);
         }
@@ -578,7 +580,7 @@ impl BernoulliNaiveBayes {
     /// the corresponding class count, and `samples_seen` must equal the sum
     /// of the two class counts. Lengths must match `feature_count`.
     #[cfg_attr(not(feature = "serde"), allow(dead_code))]
-    fn validate_invariants(&self) -> Result<(), RillError> {
+    pub(crate) fn validate_invariants(&self) -> Result<(), RillError> {
         if self.feature_count == 0 {
             return Err(RillError::EmptyFeatures);
         }
@@ -846,7 +848,7 @@ impl MultinomialNaiveBayes {
     /// Grossly inconsistent (e.g. off-by-orders-of-magnitude) state is still
     /// rejected.
     #[cfg_attr(not(feature = "serde"), allow(dead_code))]
-    fn validate_invariants(&self) -> Result<(), RillError> {
+    pub(crate) fn validate_invariants(&self) -> Result<(), RillError> {
         if self.feature_count == 0 {
             return Err(RillError::EmptyFeatures);
         }
@@ -966,6 +968,27 @@ impl<'de> serde::Deserialize<'de> for MultinomialNaiveBayes {
             .validate_invariants()
             .map_err(serde::de::Error::custom)?;
         Ok(model)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for GaussianNaiveBayes {
+    fn validate_state(&self) -> Result<(), RillError> {
+        GaussianNaiveBayes::validate_invariants(self)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for BernoulliNaiveBayes {
+    fn validate_state(&self) -> Result<(), RillError> {
+        BernoulliNaiveBayes::validate_invariants(self)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for MultinomialNaiveBayes {
+    fn validate_state(&self) -> Result<(), RillError> {
+        MultinomialNaiveBayes::validate_invariants(self)
     }
 }
 

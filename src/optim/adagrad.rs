@@ -4,6 +4,7 @@
 //! rate accordingly. Time complexity per step: `O(d)`. Space: `O(d)`.
 
 use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite};
+use crate::persistence::ValidateState;
 
 /// Configuration for [`AdaGrad`].
 #[derive(Debug, Clone)]
@@ -164,6 +165,56 @@ impl AdaGrad {
         }
         self.grad_sq_intercept = 0.0;
         self.samples_seen = 0;
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for AdaGrad {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.feature_count == 0 {
+            return Err(RillError::EmptyFeatures);
+        }
+        ensure_finite("learning_rate", self.config.learning_rate)?;
+        ensure_finite("l2", self.config.l2)?;
+        ensure_finite("epsilon", self.config.epsilon)?;
+        if self.config.learning_rate <= 0.0 {
+            return Err(RillError::InvalidLearningRate(self.config.learning_rate));
+        }
+        if self.config.l2 < 0.0 {
+            return Err(RillError::InvalidParameter {
+                name: "l2",
+                value: self.config.l2,
+            });
+        }
+        if self.config.epsilon <= 0.0 {
+            return Err(RillError::InvalidParameter {
+                name: "epsilon",
+                value: self.config.epsilon,
+            });
+        }
+        if self.grad_sq_weights.len() != self.feature_count {
+            return Err(RillError::InvalidState(format!(
+                "adagrad grad_sq_weights length {} does not match feature_count {}",
+                self.grad_sq_weights.len(),
+                self.feature_count
+            )));
+        }
+        ensure_finite("grad_sq_intercept", self.grad_sq_intercept)?;
+        for &g in &self.grad_sq_weights {
+            ensure_finite("grad_sq_weights", g)?;
+            if g < 0.0 {
+                return Err(RillError::InvalidState(format!(
+                    "adagrad grad_sq_weights must be non-negative, got {g}"
+                )));
+            }
+        }
+        if self.grad_sq_intercept < 0.0 {
+            return Err(RillError::InvalidState(format!(
+                "adagrad grad_sq_intercept must be non-negative, got {}",
+                self.grad_sq_intercept
+            )));
+        }
+        Ok(())
     }
 }
 
