@@ -4,8 +4,8 @@
 //! overhead and simplify serialization. The internal parameter vector has
 //! length `feature_count + 1`, where the last position holds the intercept.
 
-pub mod adagrad;
-pub mod sgd;
+pub(crate) mod adagrad;
+pub(crate) mod sgd;
 
 pub use adagrad::{AdaGrad, AdaGradConfig};
 pub use sgd::{Sgd, SgdConfig};
@@ -13,6 +13,7 @@ pub use sgd::{Sgd, SgdConfig};
 /// Concrete optimizer enum wrapping all supported optimizers.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum Optimizer {
     /// Stochastic gradient descent with optional L2 regularization.
     Sgd(Sgd),
@@ -69,6 +70,16 @@ impl Optimizer {
         match self {
             Optimizer::Sgd(o) => o.reset(),
             Optimizer::AdaGrad(o) => o.reset(),
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl crate::persistence::ValidateState for Optimizer {
+    fn validate_state(&self) -> Result<(), RillError> {
+        match self {
+            Optimizer::Sgd(o) => o.validate_state(),
+            Optimizer::AdaGrad(o) => o.validate_state(),
         }
     }
 }

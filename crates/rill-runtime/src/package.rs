@@ -12,8 +12,6 @@ use crate::archive::{
     read_archive, verify_checksums_and_signature,
 };
 
-pub use crate::archive::{ReleaseIndexError, sign_release_index, verify_release_index};
-
 const MODEL_PATH: &str = "model.json";
 
 const MODEL_PACK_LIMITS: ArchiveLimits = ArchiveLimits {
@@ -49,6 +47,7 @@ pub struct ModelPackInspection {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ModelPackError {
     #[error(transparent)]
     Archive(#[from] ArchiveError),
@@ -126,6 +125,7 @@ pub fn build_signed_model_pack(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::archive::{ReleaseIndexError, sign_release_index, verify_release_index};
     use rill_runtime_protocol::{MODEL_PACK_FORMAT_VERSION, RUNTIME_API_VERSION};
     use std::collections::BTreeMap;
 

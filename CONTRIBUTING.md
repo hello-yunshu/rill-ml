@@ -93,17 +93,92 @@ If any of these is missing, the PR will be held until it is addressed.
 
 ## 5. API stability and breaking changes
 
-RillML is currently at `0.x`. Breaking changes are allowed but must be:
+The Stable crates (`rill-ml`, `rill-runtime`, `rill-runtime-protocol`,
+`rill-handler-api`) are under the 1.x compatibility freeze documented in
+[`STABILITY.md`](STABILITY.md). The Preview crates
+(`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`, `rill-ml-arrow`,
+`rill-ml-polars`, `rillml-inspect`) remain at `0.x`.
 
-- Documented in `CHANGELOG.md` under `[Unreleased]` with a clear "Breaking"
-  section.
-- Avoided when an additive change would suffice.
-- Discussed in an issue first if the change touches `OnlineRegressor`,
-  `OnlineBinaryClassifier`, `Transformer`, `Metric`, `OnlineStatistic`, or
-  `Snapshot<T>`.
+### 5.1 1.x breaking-change policy
 
-`Snapshot<T>` carries a `format_version`. Bumping the format version requires a
-migration note in `CHANGELOG.md`.
+Breaking changes to any Stable artifact require a new major version (2.0).
+Stable artifacts include:
+
+- Rust public API of the Stable crates.
+- serde model state schema (a new `format_version` is not breaking if a
+  migration path exists, but removing support for an old version is).
+- IPC v1/v2 wire schema.
+- WIT ABI v1.
+- Model/handler pack format.
+- Runtime CLI subcommands and argument names.
+
+Additive changes are allowed within 1.x: new Stable APIs, new error codes,
+new `*Config` fields via `#[non_exhaustive]`, new enum variants via
+`#[non_exhaustive]`. See `STABILITY.md` for the full policy.
+
+### 5.2 Deprecation-before-removal
+
+A deprecated Stable API remains available for at least one minor 1.x
+release before removal. Removals happen only in a new minor release,
+never a patch. Deprecations are recorded in `CHANGELOG.md` under a
+"Deprecated" section.
+
+### 5.3 API baseline and SemVer CI
+
+The public Rust API of each Stable crate is recorded under
+`api-baseline/` and enforced by `cargo-semver-checks` in CI. A PR that
+changes the public API of a Stable crate must update the corresponding
+baseline file in the same PR. CI will fail on unapproved baseline
+changes. Additive changes are accepted; breaking changes are rejected
+unless explicitly approved as a 2.0 preparation.
+
+### 5.4 State schema bumps
+
+`Snapshot<T>` carries an outer `format_version` (currently `1`). Each
+serializable model type additionally implements `ValidateState` to
+enforce type-specific invariants. A schema bump requires:
+
+1. A migration note in `CHANGELOG.md`.
+2. A new fixture set under `tests/fixtures/state/v<N>/`.
+3. Continued loading of all prior 1.x fixtures in CI.
+4. A `format_version` increment in `Snapshot<T>`.
+
+Removing support for an old `format_version` is a breaking change and
+requires 2.0.
+
+### 5.5 IPC and WIT evolution
+
+IPC v1/v2 wire schemas and WIT ABI v1 are permanently frozen. New fields
+or new semantics use a new versioned type (e.g. `RuntimeResponseV3`,
+`rill:handler@2.x`). The 1.x runtime continues to support v1 and v2
+throughout the 1.x cycle. Removing an old protocol version or WIT ABI
+version requires 2.0 or the end of the stated support period.
+
+### 5.6 MSRV bumps
+
+The Minimum Supported Rust Version for Stable crates is **1.94.0**,
+enforced in CI. An MSRV bump is a minor breaking change and requires:
+
+1. A `CHANGELOG.md` note.
+2. A CI matrix update (the `msrv` job's `toolchain` field and the
+   `Rust 1.94+` badge in `README.md` / `README.en.md`).
+3. A `STABILITY.md` update if the stated MSRV value changes.
+
+### 5.7 Public enum and config design norms
+
+- Non-versioned, extensible enums carry `#[non_exhaustive]` so future
+  variants can be added without a breaking change. Versioned wire-schema
+  types (e.g. `RuntimeRequest`, `RuntimeResponse`, `RuntimeResponseV2`)
+  are NOT marked `#[non_exhaustive]`; they evolve by introducing a new
+  versioned type.
+- Config structs that are expected to grow carry `#[non_exhaustive]` and
+  a `Default` implementation. Examples and docs use `Default::default()`
+  or the provided constructors rather than full struct literals where
+  the field set may expand.
+- Public APIs do not panic on ordinary user input. `Mutex::lock()` calls
+  in public paths return `Result` rather than `.expect()`. Internal
+  invariant panics must not be reachable from external input. Rustdoc
+  `# Panics` sections document any remaining condition.
 
 ## 6. Code style
 
@@ -144,9 +219,12 @@ Releases are created automatically from `main`; do not create or push version
 tags by hand. To prepare a release:
 
 1. Update the root and workspace package versions, all local path dependency
-   requirements, the example model manifest, and the Python project version.
-2. Move the release notes out of `[Unreleased]` into a dated version section in
-   `CHANGELOG.md`.
+   requirements, the example model manifest, and the Python project version
+   per the `release-plan.toml` Stable/Preview split. Stable crates inherit
+   the version from `[workspace.package].version`; Preview crates pin
+   locally and stay at `0.x` during the 1.x cycle.
+2. Move the release notes out of `[Unreleased]` into a dated version section
+   in `CHANGELOG.md`.
 3. Push the completed change to `main`.
 
 After the `CI / Release` CI jobs succeed, `Auto Release` validates that every
@@ -155,6 +233,34 @@ verified `main` commit, and dispatches `CI / Release` with the tag input.
 Existing tags are never moved. A successful or active release is treated as an
 idempotent no-op, while a failed release can be retried automatically with the
 current workflow while still checking out the original immutable version tag.
+
+### 9.1 Release channels
+
+There are two release channels, documented in `STABILITY.md`:
+
+- **stable** — `stable-index.json` published to the `local-ai-stable`
+  pointer release. Updated only by a final stable version
+  (e.g. `1.0.0`, `0.13.0`).
+- **candidate** — `candidate-index.json` published to the
+  `local-ai-candidate` pointer release. Updated only by a prerelease
+  version (e.g. `1.0.0-rc.1`, `1.0.0-rc.2`).
+
+The release workflow detects prerelease versions (the version string
+contains `-` after the patch number) and routes the signed index to the
+appropriate channel. A candidate release never updates the stable
+pointer; the stable pointer remained at `0.13.0` throughout the 1.0 RC
+cycle.
+
+### 9.2 Prerelease versions
+
+Prerelease versions follow SemVer `1.0.0-rc.N`. The version tooling
+(`scripts/sync_version.py`, `scripts/release_version.py`,
+`scripts/release_version_compare.py`) accepts prerelease identifiers via
+strict SemVer 2.0 regex patterns. `scripts/build-release-index.py` routes
+the signed index to the candidate channel via `--channel candidate`. The
+release workflow passes `--prerelease` to `gh release create`. RC assets
+and tags are immutable: a failed RC is fixed by shipping `rc.N+1`, never
+by moving the existing tag.
 
 ## 10. Licensing
 

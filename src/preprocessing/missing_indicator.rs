@@ -7,6 +7,8 @@
 //! transformers.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::traits::Transformer;
 
 /// Adds a missing-value indicator for each feature.
@@ -46,6 +48,16 @@ impl MissingIndicator {
                 expected: self.feature_count,
                 actual: features.len(),
             });
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for MissingIndicator {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.feature_count == 0 {
+            return Err(RillError::EmptyFeatures);
         }
         Ok(())
     }

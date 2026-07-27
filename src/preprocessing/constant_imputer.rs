@@ -4,11 +4,14 @@
 //! passed through unchanged. This imputer has no learnable state.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use crate::traits::Transformer;
 
 /// Configuration for [`ConstantImputer`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct ConstantImputerConfig {
     /// The value to replace NaN with.
     pub fill_value: f64,
@@ -77,6 +80,17 @@ impl ConstantImputer {
                 actual: features.len(),
             });
         }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for ConstantImputer {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.feature_count == 0 {
+            return Err(RillError::EmptyFeatures);
+        }
+        ensure_finite("fill_value", self.config.fill_value)?;
         Ok(())
     }
 }

@@ -3,9 +3,9 @@ use std::{fs, path::PathBuf};
 use clap::{Parser, Subcommand};
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use rill_runtime::{
-    TrustStore,
-    handler_package::{HandlerPackError, build_signed_handler_pack, load_handler_pack},
-    package::{build_signed_model_pack, load_model_pack, sign_release_index, verify_release_index},
+    HandlerPackError, ModelPackError, ReleaseIndexError, TrustStore, build_signed_handler_pack,
+    build_signed_model_pack, load_handler_pack, load_model_pack, sign_release_index,
+    verify_release_index,
 };
 use rill_runtime_protocol::{
     HandlerPackManifest, ModelPackManifest, ReleaseIndexPayload, SignedReleaseIndex,
@@ -87,11 +87,11 @@ enum CliError {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("model package error: {0}")]
-    Package(#[from] rill_runtime::package::ModelPackError),
+    Package(#[from] ModelPackError),
     #[error("handler package error: {0}")]
     HandlerPackage(#[from] HandlerPackError),
     #[error("release-index error: {0}")]
-    ReleaseIndex(#[from] rill_runtime::archive::ReleaseIndexError),
+    ReleaseIndex(#[from] ReleaseIndexError),
     #[error("RILL_SIGNING_KEY_HEX must contain exactly one 32-byte hexadecimal signing seed")]
     SigningKey,
     #[error("public key must contain exactly 32 hexadecimal bytes")]

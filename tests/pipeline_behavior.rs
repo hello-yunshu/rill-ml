@@ -6,7 +6,6 @@
 
 use rand::SeedableRng;
 use rill_ml::OnlineRegressor;
-use rill_ml::loss::RegressionLoss;
 use rill_ml::models::{LinearRegression, LinearRegressionConfig};
 use rill_ml::optim::{Optimizer, SgdConfig};
 use rill_ml::pipeline::{ClassificationPipeline, RegressionPipeline};
@@ -15,14 +14,9 @@ use rill_ml::traits::{OnlineBinaryClassifier, Transformer};
 
 fn make_regression_pipeline(d: usize) -> RegressionPipeline<StandardScaler, LinearRegression> {
     let scaler = StandardScaler::new(d).unwrap();
-    let model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(d, SgdConfig::default()).unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut lr_config = LinearRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(d, SgdConfig::default()).unwrap();
+    let model = LinearRegression::new(d, lr_config).unwrap();
     RegressionPipeline::new(scaler, model).unwrap()
 }
 
@@ -61,14 +55,9 @@ fn pipeline_predict_is_side_effect_free() {
 fn pipeline_transformer_does_not_see_target() {
     let d = 2;
     let scaler = StandardScaler::new(d).unwrap();
-    let model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(d, SgdConfig::default()).unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut lr_config = LinearRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(d, SgdConfig::default()).unwrap();
+    let model = LinearRegression::new(d, lr_config).unwrap();
     let mut pipeline = RegressionPipeline::new(scaler, model).unwrap();
 
     let x = &[1.0, 2.0];
@@ -90,21 +79,11 @@ fn pipeline_rejects_dimension_mismatch() {
 fn pipeline_with_minmax_scaler_works() {
     let d = 2;
     let scaler = MinMaxScaler::new(d).unwrap();
-    let model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.1,
-                    l2: 0.0,
-                },
-            )
-            .unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    let mut lr_config = LinearRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    let model = LinearRegression::new(d, lr_config).unwrap();
     let mut pipeline = RegressionPipeline::new(scaler, model).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(88);
@@ -128,21 +107,11 @@ fn classification_pipeline_learns() {
     use rill_ml::models::{LogisticRegression, LogisticRegressionConfig};
     let d = 2;
     let scaler = StandardScaler::new(d).unwrap();
-    let model = LogisticRegression::new(
-        d,
-        LogisticRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.1,
-                    l2: 0.0,
-                },
-            )
-            .unwrap(),
-            loss: Default::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.1;
+    let mut lr_config = LogisticRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    let model = LogisticRegression::new(d, lr_config).unwrap();
     let mut pipeline = ClassificationPipeline::new(scaler, model).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(33);
@@ -172,14 +141,9 @@ fn pipeline_reset_clears_state() {
 #[test]
 fn clipper_in_pipeline_clamps_values() {
     let clipper = Clipper::new(1, -1.0, 1.0).unwrap();
-    let model = LinearRegression::new(
-        1,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(1, SgdConfig::default()).unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut lr_config = LinearRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(1, SgdConfig::default()).unwrap();
+    let model = LinearRegression::new(1, lr_config).unwrap();
     let mut pipeline = RegressionPipeline::new(clipper, model).unwrap();
 
     // Learning with extreme values should be clipped by the clipper.
