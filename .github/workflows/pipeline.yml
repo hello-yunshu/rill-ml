@@ -127,6 +127,55 @@ jobs:
       - name: cargo doc --features serde --no-deps
         run: cargo doc --locked --features serde --no-deps
 
+  public-api:
+    name: public API baseline
+    # 1.0 freeze: verify that the public Rust API of each Stable crate
+    # still matches the frozen baseline under `api-baseline/`. Additive
+    # additions are allowed within 1.x; breaking changes must fail CI.
+    # `cargo-public-api` requires the nightly toolchain to build the
+    # rustdoc JSON that backs the listing.
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust (nightly)
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-public-api
+        # Compatible-range policy: ``~0.52`` allows patch upgrades within
+        # the 0.52 minor line; ``--locked`` pins transitive dependencies.
+        run: cargo install cargo-public-api --locked --version "~0.52"
+      - name: Record resolved cargo-public-api version
+        run: cargo public-api --version
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify Stable-crate public API baseline
+        run: python3 scripts/generate_api_baseline.py --verify
+
+  install-smoke:
+    name: cargo install default-feature smoke
+    # 1.0 freeze: verify that `cargo install rill-runtime` (the documented
+    # user-facing install command) succeeds with default features and
+    # produces a working binary. This catches regressions where a default
+    # feature change breaks the documented install path even when
+    # `cargo check` passes.
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo install rill-runtime (default features)
+        run: cargo install --path crates/rill-runtime --root /tmp/rill-install --locked
+      - name: Verify rill-runtime --help works
+        run: /tmp/rill-install/bin/rill-runtime --help
+      - name: Verify rill-runtime serve --help advertises --handler and --model-trust-key
+        run: |
+          set -euo pipefail
+          output=$(/tmp/rill-install/bin/rill-runtime serve --help)
+          echo "$output" | grep -- '--handler'
+          echo "$output" | grep -- '--model-trust-key'
+
   release-index-helpers:
     name: release-index helper tests
     if: github.event_name != 'workflow_dispatch'
