@@ -294,6 +294,18 @@ jobs:
             exit 1
           fi
           echo "ticker probe absent from rill-runtime public rustdoc"
+      - name: WIT ABI v1 consistency check
+        # 1.0 freeze: verify that the four independent declarations of the
+        # WIT ABI version agree, and that the normalised WIT source hash
+        # matches the frozen value. This catches accidental WIT edits that
+        # would silently break handler compatibility without a major bump.
+        run: python3 scripts/check_wit_abi.py
+      - name: Run prebuilt WIT v1 component compatibility tests
+        # 1.0 freeze: verify the current runtime can load a prebuilt
+        # component compiled from the v0.13.0 tag using the frozen WIT v1
+        # ABI. The fixture (tests/fixtures/handler-v1-component.wasm) is
+        # committed and never rebuilt by CI.
+        run: cargo test --locked -p rill-runtime --features wasm --test wit_v1_component -- --include-ignored
 
   python-build:
     name: Python bindings build + pytest
