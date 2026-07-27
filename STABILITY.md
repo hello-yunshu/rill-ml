@@ -238,7 +238,9 @@ enforced in CI. An MSRV bump is a minor breaking change and requires a
 
 macOS official runtime assets are Apple Silicon only and must be codesigned.
 Unsigned macOS assets are not published as official stable or candidate
-artifacts.
+artifacts. When Apple Developer ID secrets are not configured in the release
+workflow, the macOS build is skipped and the release index does not claim
+macOS support for that release.
 
 ## Deprecation policy
 

@@ -30,6 +30,12 @@ with the Rust-specific convention that 0.x releases may break the public API.
   `crates/rill-runtime/wit/rill-handler.wit` and the macro path updated to
   `wit/rill-handler.wit`. `scripts/check_wit_abi.py` now also verifies the copy
   stays byte-identical to the canonical source, preventing silent drift.
+- The release workflow failed hard when Apple Developer ID secrets were not
+  configured, blocking Linux and Windows assets behind a macOS-only secret
+  requirement. The workflow now detects missing secrets, skips the macOS build
+  with a warning, and the release index does not claim macOS support for that
+  release. `strategy.fail-fast` is now `false` so a skipped macOS matrix entry
+  does not abort the whole release. `STABILITY.md` documents the skip behaviour.
 
 ## [1.0.0-rc.1] - 2026-07-28
 
