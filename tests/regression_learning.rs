@@ -5,7 +5,6 @@
 
 use rand::SeedableRng;
 use rill_ml::OnlineRegressor;
-use rill_ml::loss::RegressionLoss;
 use rill_ml::models::{
     BaselineConfig, ExponentiallyWeightedMeanRegressor, LastValueRegressor, LinearRegression,
     LinearRegressionConfig, MeanRegressor,
@@ -17,21 +16,12 @@ fn linear_regression_converges_to_true_weights() {
     let d = 3;
     let true_weights = [2.0, -1.0, 0.5];
     let true_intercept = 3.0;
-    let mut model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.05,
-                    l2: 0.0,
-                },
-            )
-            .unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.05;
+    sgd.l2 = 0.0;
+    let mut config = LinearRegressionConfig::default();
+    config.optimizer = Optimizer::sgd(d, sgd).unwrap();
+    let mut model = LinearRegression::new(d, config).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
     for _ in 0..2000 {
@@ -96,22 +86,13 @@ fn last_value_regressor_tracks_last() {
 fn linear_regression_with_adagrad_converges() {
     use rill_ml::optim::AdaGradConfig;
     let d = 2;
-    let mut model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::adagrad(
-                d,
-                AdaGradConfig {
-                    learning_rate: 1.0,
-                    l2: 0.0,
-                    epsilon: 1e-8,
-                },
-            )
-            .unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut adagrad = AdaGradConfig::default();
+    adagrad.learning_rate = 1.0;
+    adagrad.l2 = 0.0;
+    adagrad.epsilon = 1e-8;
+    let mut config = LinearRegressionConfig::default();
+    config.optimizer = Optimizer::adagrad(d, adagrad).unwrap();
+    let mut model = LinearRegression::new(d, config).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
     for _ in 0..1000 {
@@ -129,14 +110,9 @@ fn linear_regression_with_adagrad_converges() {
 #[test]
 fn predict_is_side_effect_free() {
     let d = 2;
-    let model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(d, SgdConfig::default()).unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut config = LinearRegressionConfig::default();
+    config.optimizer = Optimizer::sgd(d, SgdConfig::default()).unwrap();
+    let model = LinearRegression::new(d, config).unwrap();
     let samples_before = model.samples_seen();
     let _ = model.predict(&[1.0, 2.0]).unwrap();
     let _ = model.predict(&[3.0, 4.0]).unwrap();
@@ -146,14 +122,9 @@ fn predict_is_side_effect_free() {
 #[test]
 fn reset_clears_model_state() {
     let d = 1;
-    let mut model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(d, SgdConfig::default()).unwrap(),
-            loss: RegressionLoss::default(),
-        },
-    )
-    .unwrap();
+    let mut config = LinearRegressionConfig::default();
+    config.optimizer = Optimizer::sgd(d, SgdConfig::default()).unwrap();
+    let mut model = LinearRegression::new(d, config).unwrap();
     model.learn(&[1.0], 5.0).unwrap();
     model.learn(&[2.0], 10.0).unwrap();
     assert_eq!(model.samples_seen(), 2);

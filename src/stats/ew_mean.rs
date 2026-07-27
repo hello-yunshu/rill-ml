@@ -11,8 +11,7 @@ use crate::traits::OnlineStatistic;
 /// Exponentially weighted moving average.
 ///
 /// `alpha` must satisfy `0 < alpha <= 1`. Smaller values give more weight to
-/// the past; `alpha = 1` reduces to a [`LastValue`](crate::stats::extrema)-like
-/// tracker.
+/// the past; `alpha = 1` reduces to a `LastValue`-like tracker.
 ///
 /// # Examples
 ///

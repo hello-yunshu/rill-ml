@@ -7,7 +7,6 @@
 //! `from_json` is provided as associated functions where feasible.
 
 use js_sys::Float64Array;
-use rill_ml::loss::{BinaryLogLoss, RegressionLoss};
 use rill_ml::models::{
     LinearRegression, LinearRegressionConfig, LogisticRegression, LogisticRegressionConfig,
 };
@@ -226,22 +225,12 @@ pub struct WasmLinearRegression {
 impl WasmLinearRegression {
     #[wasm_bindgen(constructor)]
     pub fn new(feature_count: usize, learning_rate: f64) -> Result<WasmLinearRegression, JsValue> {
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(js_err)?;
-        let model = LinearRegression::new(
-            feature_count,
-            LinearRegressionConfig {
-                optimizer,
-                loss: RegressionLoss::default(),
-            },
-        )
-        .map_err(js_err)?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(js_err)?;
+        let mut config = LinearRegressionConfig::default();
+        config.optimizer = optimizer;
+        let model = LinearRegression::new(feature_count, config).map_err(js_err)?;
         Ok(WasmLinearRegression { inner: model })
     }
 
@@ -286,22 +275,12 @@ impl WasmLogisticRegression {
         feature_count: usize,
         learning_rate: f64,
     ) -> Result<WasmLogisticRegression, JsValue> {
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(js_err)?;
-        let model = LogisticRegression::new(
-            feature_count,
-            LogisticRegressionConfig {
-                optimizer,
-                loss: BinaryLogLoss::new(),
-            },
-        )
-        .map_err(js_err)?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(js_err)?;
+        let mut config = LogisticRegressionConfig::default();
+        config.optimizer = optimizer;
+        let model = LogisticRegression::new(feature_count, config).map_err(js_err)?;
         Ok(WasmLogisticRegression { inner: model })
     }
 
@@ -351,22 +330,12 @@ impl WasmRegressionPipeline {
         learning_rate: f64,
     ) -> Result<WasmRegressionPipeline, JsValue> {
         let scaler = StandardScaler::new(feature_count).map_err(js_err)?;
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(js_err)?;
-        let model = LinearRegression::new(
-            feature_count,
-            LinearRegressionConfig {
-                optimizer,
-                loss: RegressionLoss::default(),
-            },
-        )
-        .map_err(js_err)?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(js_err)?;
+        let mut config = LinearRegressionConfig::default();
+        config.optimizer = optimizer;
+        let model = LinearRegression::new(feature_count, config).map_err(js_err)?;
         let pipe = RegressionPipeline::new(scaler, model).map_err(js_err)?;
         Ok(WasmRegressionPipeline { inner: pipe })
     }
@@ -410,22 +379,12 @@ impl WasmClassificationPipeline {
         learning_rate: f64,
     ) -> Result<WasmClassificationPipeline, JsValue> {
         let scaler = StandardScaler::new(feature_count).map_err(js_err)?;
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(js_err)?;
-        let model = LogisticRegression::new(
-            feature_count,
-            LogisticRegressionConfig {
-                optimizer,
-                loss: BinaryLogLoss::new(),
-            },
-        )
-        .map_err(js_err)?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(js_err)?;
+        let mut config = LogisticRegressionConfig::default();
+        config.optimizer = optimizer;
+        let model = LogisticRegression::new(feature_count, config).map_err(js_err)?;
         let pipe = ClassificationPipeline::new(scaler, model).map_err(js_err)?;
         Ok(WasmClassificationPipeline { inner: pipe })
     }

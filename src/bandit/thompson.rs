@@ -35,14 +35,14 @@ use rand::Rng;
 /// ```
 /// use rill_ml::bandit::ThompsonConfig;
 ///
-/// let config = ThompsonConfig {
-///     alpha_prior: 1.0,
-///     beta_prior: 1.0,
-/// };
+/// let mut config = ThompsonConfig::default();
+/// config.alpha_prior = 1.0;
+/// config.beta_prior = 1.0;
 /// assert!((config.alpha_prior - 1.0).abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct ThompsonConfig {
     /// Prior alpha (success) parameter for the Beta distribution.
     ///

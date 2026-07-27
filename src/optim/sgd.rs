@@ -5,6 +5,7 @@ use crate::error::{RillError, checked_increment, ensure_finite};
 /// Configuration for [`Sgd`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct SgdConfig {
     /// Learning rate. Must be finite and strictly positive.
     pub learning_rate: f64,

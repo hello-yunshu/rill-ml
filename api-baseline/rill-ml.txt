@@ -1,0 +1,1792 @@
+pub mod rill_ml
+pub mod rill_ml::bandit
+pub struct rill_ml::bandit::ArmStats
+pub rill_ml::bandit::ArmStats::mean_reward: f64
+pub rill_ml::bandit::ArmStats::pulls: u64
+pub rill_ml::bandit::ArmStats::total_reward: f64
+impl rill_ml::bandit::ArmStats
+pub const fn rill_ml::bandit::ArmStats::empty() -> Self
+pub fn rill_ml::bandit::ArmStats::new(u64, f64) -> core::result::Result<Self, rill_ml::error::RillError>
+impl core::default::Default for rill_ml::bandit::ArmStats
+pub fn rill_ml::bandit::ArmStats::default() -> Self
+pub struct rill_ml::bandit::EpsilonGreedy
+impl rill_ml::bandit::EpsilonGreedy
+pub const fn rill_ml::bandit::EpsilonGreedy::current_epsilon(&self) -> f64
+pub fn rill_ml::bandit::EpsilonGreedy::new(usize, rill_ml::bandit::EpsilonGreedyConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::bandit::EpsilonGreedy::pulls(&self) -> &[u64]
+pub fn rill_ml::bandit::EpsilonGreedy::total_rewards(&self) -> &[f64]
+pub fn rill_ml::bandit::EpsilonGreedy::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::bandit::Bandit for rill_ml::bandit::EpsilonGreedy
+pub fn rill_ml::bandit::EpsilonGreedy::arm_count(&self) -> usize
+pub fn rill_ml::bandit::EpsilonGreedy::arm_stats(&self, usize) -> core::result::Result<rill_ml::bandit::ArmStats, rill_ml::error::RillError>
+pub fn rill_ml::bandit::EpsilonGreedy::reset(&mut self)
+pub fn rill_ml::bandit::EpsilonGreedy::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::EpsilonGreedy::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::EpsilonGreedy::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::bandit::EpsilonGreedy
+pub fn rill_ml::bandit::EpsilonGreedy::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+#[non_exhaustive] pub struct rill_ml::bandit::EpsilonGreedyConfig
+pub rill_ml::bandit::EpsilonGreedyConfig::decay: f64
+pub rill_ml::bandit::EpsilonGreedyConfig::epsilon: f64
+pub rill_ml::bandit::EpsilonGreedyConfig::min_epsilon: f64
+impl rill_ml::bandit::EpsilonGreedyConfig
+pub fn rill_ml::bandit::EpsilonGreedyConfig::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl core::default::Default for rill_ml::bandit::EpsilonGreedyConfig
+pub fn rill_ml::bandit::EpsilonGreedyConfig::default() -> Self
+pub struct rill_ml::bandit::LinUcb
+impl rill_ml::bandit::LinUcb
+pub fn rill_ml::bandit::LinUcb::a_matrix(&self, usize) -> core::result::Result<&[alloc::vec::Vec<f64>], rill_ml::error::RillError>
+pub const fn rill_ml::bandit::LinUcb::alpha(&self) -> f64
+pub fn rill_ml::bandit::LinUcb::b_vector(&self, usize) -> core::result::Result<&[f64], rill_ml::error::RillError>
+pub fn rill_ml::bandit::LinUcb::new(rill_ml::bandit::LinUcbConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::bandit::LinUcb::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::bandit::ContextualBandit for rill_ml::bandit::LinUcb
+pub fn rill_ml::bandit::LinUcb::arm_count(&self) -> usize
+pub fn rill_ml::bandit::LinUcb::feature_count(&self) -> usize
+pub fn rill_ml::bandit::LinUcb::reset(&mut self)
+pub fn rill_ml::bandit::LinUcb::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::LinUcb::select(&self, &[f64], &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::LinUcb::update(&mut self, usize, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::bandit::LinUcb
+pub fn rill_ml::bandit::LinUcb::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+#[non_exhaustive] pub struct rill_ml::bandit::LinUcbConfig
+pub rill_ml::bandit::LinUcbConfig::alpha: f64
+pub rill_ml::bandit::LinUcbConfig::arm_count: usize
+pub rill_ml::bandit::LinUcbConfig::feature_count: usize
+impl rill_ml::bandit::LinUcbConfig
+pub fn rill_ml::bandit::LinUcbConfig::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl core::default::Default for rill_ml::bandit::LinUcbConfig
+pub fn rill_ml::bandit::LinUcbConfig::default() -> Self
+#[non_exhaustive] pub struct rill_ml::bandit::ThompsonConfig
+pub rill_ml::bandit::ThompsonConfig::alpha_prior: f64
+pub rill_ml::bandit::ThompsonConfig::beta_prior: f64
+impl rill_ml::bandit::ThompsonConfig
+pub fn rill_ml::bandit::ThompsonConfig::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl core::default::Default for rill_ml::bandit::ThompsonConfig
+pub fn rill_ml::bandit::ThompsonConfig::default() -> Self
+pub struct rill_ml::bandit::ThompsonSampling
+impl rill_ml::bandit::ThompsonSampling
+pub fn rill_ml::bandit::ThompsonSampling::alphas(&self) -> &[f64]
+pub fn rill_ml::bandit::ThompsonSampling::betas(&self) -> &[f64]
+pub fn rill_ml::bandit::ThompsonSampling::new(usize, rill_ml::bandit::ThompsonConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::bandit::ThompsonSampling::pulls(&self) -> &[u64]
+pub fn rill_ml::bandit::ThompsonSampling::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::bandit::Bandit for rill_ml::bandit::ThompsonSampling
+pub fn rill_ml::bandit::ThompsonSampling::arm_count(&self) -> usize
+pub fn rill_ml::bandit::ThompsonSampling::arm_stats(&self, usize) -> core::result::Result<rill_ml::bandit::ArmStats, rill_ml::error::RillError>
+pub fn rill_ml::bandit::ThompsonSampling::reset(&mut self)
+pub fn rill_ml::bandit::ThompsonSampling::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::ThompsonSampling::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::ThompsonSampling::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::bandit::ThompsonSampling
+pub fn rill_ml::bandit::ThompsonSampling::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::bandit::Ucb1
+impl rill_ml::bandit::Ucb1
+pub fn rill_ml::bandit::Ucb1::new(usize, rill_ml::bandit::Ucb1Config) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::bandit::Ucb1::pulls(&self) -> &[u64]
+pub fn rill_ml::bandit::Ucb1::total_rewards(&self) -> &[f64]
+pub fn rill_ml::bandit::Ucb1::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::bandit::Bandit for rill_ml::bandit::Ucb1
+pub fn rill_ml::bandit::Ucb1::arm_count(&self) -> usize
+pub fn rill_ml::bandit::Ucb1::arm_stats(&self, usize) -> core::result::Result<rill_ml::bandit::ArmStats, rill_ml::error::RillError>
+pub fn rill_ml::bandit::Ucb1::reset(&mut self)
+pub fn rill_ml::bandit::Ucb1::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::Ucb1::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::Ucb1::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::bandit::Ucb1
+pub fn rill_ml::bandit::Ucb1::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+#[non_exhaustive] pub struct rill_ml::bandit::Ucb1Config
+pub rill_ml::bandit::Ucb1Config::exploration_constant: f64
+impl rill_ml::bandit::Ucb1Config
+pub fn rill_ml::bandit::Ucb1Config::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl core::default::Default for rill_ml::bandit::Ucb1Config
+pub fn rill_ml::bandit::Ucb1Config::default() -> Self
+pub trait rill_ml::bandit::Bandit
+pub fn rill_ml::bandit::Bandit::arm_count(&self) -> usize
+pub fn rill_ml::bandit::Bandit::arm_stats(&self, usize) -> core::result::Result<rill_ml::bandit::ArmStats, rill_ml::error::RillError>
+pub fn rill_ml::bandit::Bandit::reset(&mut self)
+pub fn rill_ml::bandit::Bandit::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::Bandit::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::Bandit::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::bandit::Bandit for rill_ml::bandit::EpsilonGreedy
+pub fn rill_ml::bandit::EpsilonGreedy::arm_count(&self) -> usize
+pub fn rill_ml::bandit::EpsilonGreedy::arm_stats(&self, usize) -> core::result::Result<rill_ml::bandit::ArmStats, rill_ml::error::RillError>
+pub fn rill_ml::bandit::EpsilonGreedy::reset(&mut self)
+pub fn rill_ml::bandit::EpsilonGreedy::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::EpsilonGreedy::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::EpsilonGreedy::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::bandit::Bandit for rill_ml::bandit::ThompsonSampling
+pub fn rill_ml::bandit::ThompsonSampling::arm_count(&self) -> usize
+pub fn rill_ml::bandit::ThompsonSampling::arm_stats(&self, usize) -> core::result::Result<rill_ml::bandit::ArmStats, rill_ml::error::RillError>
+pub fn rill_ml::bandit::ThompsonSampling::reset(&mut self)
+pub fn rill_ml::bandit::ThompsonSampling::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::ThompsonSampling::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::ThompsonSampling::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::bandit::Bandit for rill_ml::bandit::Ucb1
+pub fn rill_ml::bandit::Ucb1::arm_count(&self) -> usize
+pub fn rill_ml::bandit::Ucb1::arm_stats(&self, usize) -> core::result::Result<rill_ml::bandit::ArmStats, rill_ml::error::RillError>
+pub fn rill_ml::bandit::Ucb1::reset(&mut self)
+pub fn rill_ml::bandit::Ucb1::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::Ucb1::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::Ucb1::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub trait rill_ml::bandit::ContextualBandit
+pub fn rill_ml::bandit::ContextualBandit::arm_count(&self) -> usize
+pub fn rill_ml::bandit::ContextualBandit::feature_count(&self) -> usize
+pub fn rill_ml::bandit::ContextualBandit::reset(&mut self)
+pub fn rill_ml::bandit::ContextualBandit::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::ContextualBandit::select(&self, &[f64], &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::ContextualBandit::update(&mut self, usize, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::bandit::ContextualBandit for rill_ml::bandit::LinUcb
+pub fn rill_ml::bandit::LinUcb::arm_count(&self) -> usize
+pub fn rill_ml::bandit::LinUcb::feature_count(&self) -> usize
+pub fn rill_ml::bandit::LinUcb::reset(&mut self)
+pub fn rill_ml::bandit::LinUcb::samples_seen(&self) -> u64
+pub fn rill_ml::bandit::LinUcb::select(&self, &[f64], &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
+pub fn rill_ml::bandit::LinUcb::update(&mut self, usize, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub mod rill_ml::diagnostics
+#[non_exhaustive] pub enum rill_ml::diagnostics::Confidence
+pub rill_ml::diagnostics::Confidence::High
+pub rill_ml::diagnostics::Confidence::Low
+pub rill_ml::diagnostics::Confidence::Medium
+pub rill_ml::diagnostics::Confidence::None
+impl rill_ml::diagnostics::Confidence
+pub const fn rill_ml::diagnostics::Confidence::as_str(&self) -> &'static str
+pub enum rill_ml::diagnostics::SwitchReason
+pub rill_ml::diagnostics::SwitchReason::InsufficientData
+pub rill_ml::diagnostics::SwitchReason::LowerError
+pub rill_ml::diagnostics::SwitchReason::Tie
+#[non_exhaustive] pub enum rill_ml::diagnostics::WarmupState
+pub rill_ml::diagnostics::WarmupState::Degraded
+pub rill_ml::diagnostics::WarmupState::NoData
+pub rill_ml::diagnostics::WarmupState::Stable
+pub rill_ml::diagnostics::WarmupState::Usable
+pub rill_ml::diagnostics::WarmupState::WarmingUp
+impl rill_ml::diagnostics::WarmupState
+pub fn rill_ml::diagnostics::WarmupState::as_str(&self) -> &'static str
+pub fn rill_ml::diagnostics::WarmupState::is_ready(&self) -> bool
+pub struct rill_ml::diagnostics::BaselineComparator
+impl rill_ml::diagnostics::BaselineComparator
+pub fn rill_ml::diagnostics::BaselineComparator::best_error(&self) -> core::option::Option<f64>
+pub const fn rill_ml::diagnostics::BaselineComparator::best_index(&self) -> core::option::Option<usize>
+pub fn rill_ml::diagnostics::BaselineComparator::best_name(&self) -> core::option::Option<&str>
+pub fn rill_ml::diagnostics::BaselineComparator::entry(&self, usize) -> core::option::Option<&rill_ml::diagnostics::ComparatorEntry>
+pub fn rill_ml::diagnostics::BaselineComparator::entry_count(&self) -> usize
+pub const fn rill_ml::diagnostics::BaselineComparator::last_switch_reason(&self) -> core::option::Option<rill_ml::diagnostics::SwitchReason>
+pub fn rill_ml::diagnostics::BaselineComparator::new(&[&str], usize) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::BaselineComparator::record(&mut self, usize, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::BaselineComparator::reset(&mut self)
+pub const fn rill_ml::diagnostics::BaselineComparator::switch_count(&self) -> u64
+pub fn rill_ml::diagnostics::BaselineComparator::update_best(&mut self) -> core::option::Option<usize>
+pub struct rill_ml::diagnostics::ComparatorEntry
+impl rill_ml::diagnostics::ComparatorEntry
+pub fn rill_ml::diagnostics::ComparatorEntry::name(&self) -> &str
+pub fn rill_ml::diagnostics::ComparatorEntry::rolling_mae(&self) -> core::option::Option<f64>
+pub const fn rill_ml::diagnostics::ComparatorEntry::total_samples(&self) -> u64
+pub struct rill_ml::diagnostics::ModelHealthReport
+impl rill_ml::diagnostics::ModelHealthReport
+pub fn rill_ml::diagnostics::ModelHealthReport::from_parameters(&[f64], core::option::Option<f64>) -> Self
+pub const fn rill_ml::diagnostics::ModelHealthReport::has_infinity(&self) -> bool
+pub const fn rill_ml::diagnostics::ModelHealthReport::has_nan(&self) -> bool
+pub fn rill_ml::diagnostics::ModelHealthReport::is_healthy(&self) -> bool
+pub const fn rill_ml::diagnostics::ModelHealthReport::parameter_count(&self) -> usize
+pub const fn rill_ml::diagnostics::ModelHealthReport::state_size_bytes(&self) -> usize
+pub const fn rill_ml::diagnostics::ModelHealthReport::weight_max(&self) -> core::option::Option<f64>
+pub const fn rill_ml::diagnostics::ModelHealthReport::weight_min(&self) -> core::option::Option<f64>
+pub fn rill_ml::diagnostics::ModelHealthReport::weight_range(&self) -> core::option::Option<f64>
+pub struct rill_ml::diagnostics::OnlineModelSelector
+impl rill_ml::diagnostics::OnlineModelSelector
+pub const fn rill_ml::diagnostics::OnlineModelSelector::current_best(&self) -> core::option::Option<usize>
+pub fn rill_ml::diagnostics::OnlineModelSelector::current_best_name(&self) -> core::option::Option<&str>
+pub fn rill_ml::diagnostics::OnlineModelSelector::entry_count(&self) -> usize
+pub fn rill_ml::diagnostics::OnlineModelSelector::entry_metrics(&self, usize) -> core::option::Option<&rill_ml::diagnostics::ComparatorEntry>
+pub fn rill_ml::diagnostics::OnlineModelSelector::new(&[&str], rill_ml::diagnostics::SelectorConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::OnlineModelSelector::record(&mut self, usize, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::OnlineModelSelector::reset(&mut self)
+pub fn rill_ml::diagnostics::OnlineModelSelector::select(&mut self) -> core::option::Option<usize>
+pub const fn rill_ml::diagnostics::OnlineModelSelector::switch_count(&self) -> u64
+pub struct rill_ml::diagnostics::PredictionInterval
+impl rill_ml::diagnostics::PredictionInterval
+pub fn rill_ml::diagnostics::PredictionInterval::contains(&self, f64) -> bool
+pub const fn rill_ml::diagnostics::PredictionInterval::lower(&self) -> f64
+pub const fn rill_ml::diagnostics::PredictionInterval::upper(&self) -> f64
+pub struct rill_ml::diagnostics::PredictionReport
+impl rill_ml::diagnostics::PredictionReport
+pub const fn rill_ml::diagnostics::PredictionReport::baseline_error(&self) -> core::option::Option<f64>
+pub const fn rill_ml::diagnostics::PredictionReport::beats_baseline(&self) -> core::option::Option<bool>
+pub const fn rill_ml::diagnostics::PredictionReport::confidence(&self) -> rill_ml::diagnostics::Confidence
+pub const fn rill_ml::diagnostics::PredictionReport::lower_bound(&self) -> core::option::Option<f64>
+pub const fn rill_ml::diagnostics::PredictionReport::prediction(&self) -> f64
+pub const fn rill_ml::diagnostics::PredictionReport::recent_error(&self) -> core::option::Option<f64>
+pub const fn rill_ml::diagnostics::PredictionReport::samples_seen(&self) -> u64
+pub const fn rill_ml::diagnostics::PredictionReport::upper_bound(&self) -> core::option::Option<f64>
+pub const fn rill_ml::diagnostics::PredictionReport::warmup_state(&self) -> rill_ml::diagnostics::WarmupState
+pub struct rill_ml::diagnostics::PredictionReporter
+impl rill_ml::diagnostics::PredictionReporter
+pub fn rill_ml::diagnostics::PredictionReporter::new(rill_ml::diagnostics::ResidualIntervalConfig, rill_ml::diagnostics::WarmupConfig, rill_ml::diagnostics::TrainingSummaryConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::PredictionReporter::observe(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::PredictionReporter::recent_error(&self) -> core::option::Option<f64>
+pub fn rill_ml::diagnostics::PredictionReporter::report(&self, f64) -> core::result::Result<rill_ml::diagnostics::PredictionReport, rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::PredictionReporter::reset(&mut self)
+pub fn rill_ml::diagnostics::PredictionReporter::set_baseline(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::PredictionReporter::summary(&self) -> &rill_ml::diagnostics::TrainingSummary
+pub fn rill_ml::diagnostics::PredictionReporter::warmup_state(&self) -> rill_ml::diagnostics::WarmupState
+impl core::default::Default for rill_ml::diagnostics::PredictionReporter
+pub fn rill_ml::diagnostics::PredictionReporter::default() -> Self
+pub struct rill_ml::diagnostics::ResidualInterval
+impl rill_ml::diagnostics::ResidualInterval
+pub fn rill_ml::diagnostics::ResidualInterval::interval(&self, f64) -> core::result::Result<rill_ml::diagnostics::PredictionInterval, rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::ResidualInterval::new(rill_ml::diagnostics::ResidualIntervalConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::ResidualInterval::observe(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::ResidualInterval::recent_error(&self) -> core::option::Option<f64>
+pub fn rill_ml::diagnostics::ResidualInterval::reset(&mut self)
+pub fn rill_ml::diagnostics::ResidualInterval::samples_seen(&self) -> u64
+impl core::default::Default for rill_ml::diagnostics::ResidualInterval
+pub fn rill_ml::diagnostics::ResidualInterval::default() -> Self
+#[non_exhaustive] pub struct rill_ml::diagnostics::ResidualIntervalConfig
+pub rill_ml::diagnostics::ResidualIntervalConfig::alpha: f64
+pub rill_ml::diagnostics::ResidualIntervalConfig::k: f64
+impl core::default::Default for rill_ml::diagnostics::ResidualIntervalConfig
+pub fn rill_ml::diagnostics::ResidualIntervalConfig::default() -> Self
+#[non_exhaustive] pub struct rill_ml::diagnostics::SelectorConfig
+pub rill_ml::diagnostics::SelectorConfig::cooling_period: u64
+pub rill_ml::diagnostics::SelectorConfig::min_samples_before_switch: u64
+pub rill_ml::diagnostics::SelectorConfig::window_size: usize
+impl core::default::Default for rill_ml::diagnostics::SelectorConfig
+pub fn rill_ml::diagnostics::SelectorConfig::default() -> Self
+pub struct rill_ml::diagnostics::TrainingSummary
+impl rill_ml::diagnostics::TrainingSummary
+pub const fn rill_ml::diagnostics::TrainingSummary::baseline_error(&self) -> core::option::Option<f64>
+pub fn rill_ml::diagnostics::TrainingSummary::beats_baseline(&self) -> core::option::Option<bool>
+pub const fn rill_ml::diagnostics::TrainingSummary::best_error(&self) -> core::option::Option<f64>
+pub const fn rill_ml::diagnostics::TrainingSummary::load_failures(&self) -> u64
+pub const fn rill_ml::diagnostics::TrainingSummary::model_switches(&self) -> u64
+pub fn rill_ml::diagnostics::TrainingSummary::new(rill_ml::diagnostics::TrainingSummaryConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::TrainingSummary::recent_error(&self) -> core::option::Option<f64>
+pub fn rill_ml::diagnostics::TrainingSummary::record_error(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::TrainingSummary::record_load_failure(&mut self) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::TrainingSummary::record_rejection(&mut self) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::TrainingSummary::record_reset(&mut self) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::TrainingSummary::record_sample(&mut self) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::TrainingSummary::record_switch(&mut self) -> core::result::Result<(), rill_ml::error::RillError>
+pub const fn rill_ml::diagnostics::TrainingSummary::rejected_samples(&self) -> u64
+pub fn rill_ml::diagnostics::TrainingSummary::reset(&mut self)
+pub const fn rill_ml::diagnostics::TrainingSummary::reset_count(&self) -> u64
+pub fn rill_ml::diagnostics::TrainingSummary::set_baseline_error(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub const fn rill_ml::diagnostics::TrainingSummary::total_samples(&self) -> u64
+impl core::default::Default for rill_ml::diagnostics::TrainingSummary
+pub fn rill_ml::diagnostics::TrainingSummary::default() -> Self
+#[non_exhaustive] pub struct rill_ml::diagnostics::TrainingSummaryConfig
+pub rill_ml::diagnostics::TrainingSummaryConfig::error_alpha: f64
+impl core::default::Default for rill_ml::diagnostics::TrainingSummaryConfig
+pub fn rill_ml::diagnostics::TrainingSummaryConfig::default() -> Self
+#[non_exhaustive] pub struct rill_ml::diagnostics::WarmupConfig
+pub rill_ml::diagnostics::WarmupConfig::degraded_error_ratio: f64
+pub rill_ml::diagnostics::WarmupConfig::stable_threshold: u64
+pub rill_ml::diagnostics::WarmupConfig::usable_threshold: u64
+pub rill_ml::diagnostics::WarmupConfig::warming_up_threshold: u64
+impl core::default::Default for rill_ml::diagnostics::WarmupConfig
+pub fn rill_ml::diagnostics::WarmupConfig::default() -> Self
+pub struct rill_ml::diagnostics::WarmupTracker
+impl rill_ml::diagnostics::WarmupTracker
+pub const fn rill_ml::diagnostics::WarmupTracker::baseline_error(&self) -> core::option::Option<f64>
+pub fn rill_ml::diagnostics::WarmupTracker::new(rill_ml::diagnostics::WarmupConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::WarmupTracker::observe_sample(&mut self, core::option::Option<f64>) -> core::result::Result<(), rill_ml::error::RillError>
+pub const fn rill_ml::diagnostics::WarmupTracker::recent_error(&self) -> core::option::Option<f64>
+pub fn rill_ml::diagnostics::WarmupTracker::reset(&mut self)
+pub const fn rill_ml::diagnostics::WarmupTracker::samples(&self) -> u64
+pub fn rill_ml::diagnostics::WarmupTracker::set_baseline(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::diagnostics::WarmupTracker::state(&self) -> rill_ml::diagnostics::WarmupState
+impl core::default::Default for rill_ml::diagnostics::WarmupTracker
+pub fn rill_ml::diagnostics::WarmupTracker::default() -> Self
+pub mod rill_ml::drift
+#[non_exhaustive] pub enum rill_ml::drift::DriftAction
+pub rill_ml::drift::DriftAction::IncreaseAdaptationRate
+pub rill_ml::drift::DriftAction::NotifyOnly
+pub rill_ml::drift::DriftAction::ReduceConfidence
+pub rill_ml::drift::DriftAction::ReplaceWithBaseline
+pub rill_ml::drift::DriftAction::ResetModel
+pub rill_ml::drift::DriftAction::ResetPreprocessor
+impl rill_ml::drift::DriftAction
+pub const fn rill_ml::drift::DriftAction::as_str(&self) -> &'static str
+pub const fn rill_ml::drift::DriftAction::is_destructive(self) -> bool
+#[non_exhaustive] pub enum rill_ml::drift::DriftLevel
+pub rill_ml::drift::DriftLevel::Drift
+pub rill_ml::drift::DriftLevel::None
+pub rill_ml::drift::DriftLevel::Warning
+impl rill_ml::drift::DriftLevel
+pub const fn rill_ml::drift::DriftLevel::as_str(&self) -> &'static str
+pub const fn rill_ml::drift::DriftLevel::is_change(self) -> bool
+pub struct rill_ml::drift::Adwin
+impl rill_ml::drift::Adwin
+pub const fn rill_ml::drift::Adwin::config(&self) -> &rill_ml::drift::AdwinConfig
+pub fn rill_ml::drift::Adwin::new(rill_ml::drift::AdwinConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::drift::Adwin::window_mean(&self) -> f64
+pub fn rill_ml::drift::Adwin::window_size(&self) -> usize
+impl core::default::Default for rill_ml::drift::Adwin
+pub fn rill_ml::drift::Adwin::default() -> Self
+impl rill_ml::drift::DriftDetector for rill_ml::drift::Adwin
+pub fn rill_ml::drift::Adwin::detected(&self) -> bool
+pub fn rill_ml::drift::Adwin::last_value(&self) -> f64
+pub fn rill_ml::drift::Adwin::level(&self) -> rill_ml::drift::DriftLevel
+pub fn rill_ml::drift::Adwin::reset(&mut self)
+pub fn rill_ml::drift::Adwin::samples_seen(&self) -> u64
+pub fn rill_ml::drift::Adwin::update(&mut self, f64) -> core::result::Result<rill_ml::drift::DriftLevel, rill_ml::error::RillError>
+pub fn rill_ml::drift::Adwin::warning(&self) -> bool
+#[non_exhaustive] pub struct rill_ml::drift::AdwinConfig
+pub rill_ml::drift::AdwinConfig::delta: f64
+pub rill_ml::drift::AdwinConfig::max_window: usize
+pub rill_ml::drift::AdwinConfig::min_samples: u64
+pub rill_ml::drift::AdwinConfig::warning_delta: f64
+impl core::default::Default for rill_ml::drift::AdwinConfig
+pub fn rill_ml::drift::AdwinConfig::default() -> Self
+pub struct rill_ml::drift::DriftAwareModel<M, D, A> where D: rill_ml::drift::DriftDetector, A: rill_ml::drift::DriftStrategy
+impl<M, D, A> rill_ml::drift::DriftAwareModel<M, D, A> where M: rill_ml::traits::OnlineRegressor, D: rill_ml::drift::DriftDetector, A: rill_ml::drift::DriftStrategy
+pub const fn rill_ml::drift::DriftAwareModel<M, D, A>::detector(&self) -> &D
+pub fn rill_ml::drift::DriftAwareModel<M, D, A>::events(&self) -> &[rill_ml::drift::DriftEvent]
+pub const fn rill_ml::drift::DriftAwareModel<M, D, A>::last_action(&self) -> core::option::Option<rill_ml::drift::DriftAction>
+pub fn rill_ml::drift::DriftAwareModel<M, D, A>::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub const fn rill_ml::drift::DriftAwareModel<M, D, A>::max_events(&self) -> usize
+pub const fn rill_ml::drift::DriftAwareModel<M, D, A>::model(&self) -> &M
+pub fn rill_ml::drift::DriftAwareModel<M, D, A>::new(M, D, A) -> Self
+pub fn rill_ml::drift::DriftAwareModel<M, D, A>::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::drift::DriftAwareModel<M, D, A>::reset(&mut self)
+pub const fn rill_ml::drift::DriftAwareModel<M, D, A>::samples_seen(&self) -> u64
+pub const fn rill_ml::drift::DriftAwareModel<M, D, A>::strategy(&self) -> &A
+pub fn rill_ml::drift::DriftAwareModel<M, D, A>::with_max_events(M, D, A, usize) -> core::result::Result<Self, rill_ml::error::RillError>
+pub struct rill_ml::drift::DriftEvent
+pub rill_ml::drift::DriftEvent::action: rill_ml::drift::DriftAction
+pub rill_ml::drift::DriftEvent::detector_value: f64
+pub rill_ml::drift::DriftEvent::level: rill_ml::drift::DriftLevel
+pub rill_ml::drift::DriftEvent::sample_index: u64
+impl rill_ml::drift::DriftEvent
+pub const fn rill_ml::drift::DriftEvent::new(u64, rill_ml::drift::DriftLevel, rill_ml::drift::DriftAction, f64) -> Self
+pub struct rill_ml::drift::FixedWindowBuffer
+impl rill_ml::drift::FixedWindowBuffer
+pub const fn rill_ml::drift::FixedWindowBuffer::capacity(&self) -> usize
+pub const fn rill_ml::drift::FixedWindowBuffer::is_empty(&self) -> bool
+pub const fn rill_ml::drift::FixedWindowBuffer::is_full(&self) -> bool
+pub fn rill_ml::drift::FixedWindowBuffer::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = &f64>
+pub const fn rill_ml::drift::FixedWindowBuffer::len(&self) -> usize
+pub fn rill_ml::drift::FixedWindowBuffer::mean(&self) -> core::option::Option<f64>
+pub fn rill_ml::drift::FixedWindowBuffer::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::drift::FixedWindowBuffer::push(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::drift::FixedWindowBuffer::reset(&mut self)
+pub struct rill_ml::drift::Kswin
+impl rill_ml::drift::Kswin
+pub const fn rill_ml::drift::Kswin::config(&self) -> &rill_ml::drift::KswinConfig
+pub fn rill_ml::drift::Kswin::current_window_len(&self) -> usize
+pub const fn rill_ml::drift::Kswin::last_pvalue(&self) -> f64
+pub const fn rill_ml::drift::Kswin::last_statistic(&self) -> f64
+pub fn rill_ml::drift::Kswin::new(rill_ml::drift::KswinConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::drift::Kswin::reference_window_len(&self) -> usize
+impl core::default::Default for rill_ml::drift::Kswin
+pub fn rill_ml::drift::Kswin::default() -> Self
+impl rill_ml::drift::DriftDetector for rill_ml::drift::Kswin
+pub fn rill_ml::drift::Kswin::detected(&self) -> bool
+pub fn rill_ml::drift::Kswin::last_value(&self) -> f64
+pub fn rill_ml::drift::Kswin::level(&self) -> rill_ml::drift::DriftLevel
+pub fn rill_ml::drift::Kswin::reset(&mut self)
+pub fn rill_ml::drift::Kswin::samples_seen(&self) -> u64
+pub fn rill_ml::drift::Kswin::update(&mut self, f64) -> core::result::Result<rill_ml::drift::DriftLevel, rill_ml::error::RillError>
+pub fn rill_ml::drift::Kswin::warning(&self) -> bool
+#[non_exhaustive] pub struct rill_ml::drift::KswinConfig
+pub rill_ml::drift::KswinConfig::alpha: f64
+pub rill_ml::drift::KswinConfig::check_interval: usize
+pub rill_ml::drift::KswinConfig::window_size: usize
+impl core::default::Default for rill_ml::drift::KswinConfig
+pub fn rill_ml::drift::KswinConfig::default() -> Self
+pub struct rill_ml::drift::LearningRateScheduler
+impl rill_ml::drift::LearningRateScheduler
+pub const fn rill_ml::drift::LearningRateScheduler::base_lr(&self) -> f64
+pub fn rill_ml::drift::LearningRateScheduler::current_lr(&self) -> f64
+pub const fn rill_ml::drift::LearningRateScheduler::current_state(&self) -> rill_ml::drift::DriftLevel
+pub const fn rill_ml::drift::LearningRateScheduler::drift_multiplier(&self) -> f64
+pub fn rill_ml::drift::LearningRateScheduler::new(f64, f64, f64) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::drift::LearningRateScheduler::on_drift_level(&mut self, rill_ml::drift::DriftLevel)
+pub fn rill_ml::drift::LearningRateScheduler::reset(&mut self)
+pub const fn rill_ml::drift::LearningRateScheduler::warning_multiplier(&self) -> f64
+impl core::default::Default for rill_ml::drift::LearningRateScheduler
+pub fn rill_ml::drift::LearningRateScheduler::default() -> Self
+pub struct rill_ml::drift::PageHinkley
+impl rill_ml::drift::PageHinkley
+pub const fn rill_ml::drift::PageHinkley::config(&self) -> &rill_ml::drift::PageHinkleyConfig
+pub const fn rill_ml::drift::PageHinkley::cum_sum(&self) -> f64
+pub const fn rill_ml::drift::PageHinkley::mean(&self) -> f64
+pub fn rill_ml::drift::PageHinkley::new(rill_ml::drift::PageHinkleyConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub const fn rill_ml::drift::PageHinkley::ph_statistic(&self) -> f64
+impl core::default::Default for rill_ml::drift::PageHinkley
+pub fn rill_ml::drift::PageHinkley::default() -> Self
+impl rill_ml::drift::DriftDetector for rill_ml::drift::PageHinkley
+pub fn rill_ml::drift::PageHinkley::detected(&self) -> bool
+pub fn rill_ml::drift::PageHinkley::last_value(&self) -> f64
+pub fn rill_ml::drift::PageHinkley::level(&self) -> rill_ml::drift::DriftLevel
+pub fn rill_ml::drift::PageHinkley::reset(&mut self)
+pub fn rill_ml::drift::PageHinkley::samples_seen(&self) -> u64
+pub fn rill_ml::drift::PageHinkley::update(&mut self, f64) -> core::result::Result<rill_ml::drift::DriftLevel, rill_ml::error::RillError>
+pub fn rill_ml::drift::PageHinkley::warning(&self) -> bool
+#[non_exhaustive] pub struct rill_ml::drift::PageHinkleyConfig
+pub rill_ml::drift::PageHinkleyConfig::alpha: f64
+pub rill_ml::drift::PageHinkleyConfig::delta: f64
+pub rill_ml::drift::PageHinkleyConfig::min_samples: u64
+pub rill_ml::drift::PageHinkleyConfig::threshold: f64
+pub rill_ml::drift::PageHinkleyConfig::warning_threshold: f64
+impl core::default::Default for rill_ml::drift::PageHinkleyConfig
+pub fn rill_ml::drift::PageHinkleyConfig::default() -> Self
+pub struct rill_ml::drift::StaticStrategy
+pub rill_ml::drift::StaticStrategy::drift_action: rill_ml::drift::DriftAction
+pub rill_ml::drift::StaticStrategy::warning_action: rill_ml::drift::DriftAction
+impl rill_ml::drift::StaticStrategy
+pub const fn rill_ml::drift::StaticStrategy::new(rill_ml::drift::DriftAction, rill_ml::drift::DriftAction) -> Self
+impl core::default::Default for rill_ml::drift::StaticStrategy
+pub fn rill_ml::drift::StaticStrategy::default() -> Self
+impl rill_ml::drift::DriftStrategy for rill_ml::drift::StaticStrategy
+pub fn rill_ml::drift::StaticStrategy::decide(&self, rill_ml::drift::DriftLevel, u64) -> rill_ml::drift::DriftAction
+pub struct rill_ml::drift::TimeDecayedMean
+impl rill_ml::drift::TimeDecayedMean
+pub const fn rill_ml::drift::TimeDecayedMean::decay(&self) -> f64
+pub const fn rill_ml::drift::TimeDecayedMean::last_time(&self) -> core::option::Option<f64>
+pub fn rill_ml::drift::TimeDecayedMean::new(f64) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::drift::TimeDecayedMean::reset(&mut self)
+pub fn rill_ml::drift::TimeDecayedMean::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::drift::TimeDecayedMean::value(&self) -> core::option::Option<f64>
+pub const fn rill_ml::drift::TimeDecayedMean::weight_total(&self) -> f64
+pub trait rill_ml::drift::DriftDetector
+pub fn rill_ml::drift::DriftDetector::detected(&self) -> bool
+pub fn rill_ml::drift::DriftDetector::last_value(&self) -> f64
+pub fn rill_ml::drift::DriftDetector::level(&self) -> rill_ml::drift::DriftLevel
+pub fn rill_ml::drift::DriftDetector::reset(&mut self)
+pub fn rill_ml::drift::DriftDetector::samples_seen(&self) -> u64
+pub fn rill_ml::drift::DriftDetector::update(&mut self, f64) -> core::result::Result<rill_ml::drift::DriftLevel, rill_ml::error::RillError>
+pub fn rill_ml::drift::DriftDetector::warning(&self) -> bool
+impl rill_ml::drift::DriftDetector for rill_ml::drift::Adwin
+pub fn rill_ml::drift::Adwin::detected(&self) -> bool
+pub fn rill_ml::drift::Adwin::last_value(&self) -> f64
+pub fn rill_ml::drift::Adwin::level(&self) -> rill_ml::drift::DriftLevel
+pub fn rill_ml::drift::Adwin::reset(&mut self)
+pub fn rill_ml::drift::Adwin::samples_seen(&self) -> u64
+pub fn rill_ml::drift::Adwin::update(&mut self, f64) -> core::result::Result<rill_ml::drift::DriftLevel, rill_ml::error::RillError>
+pub fn rill_ml::drift::Adwin::warning(&self) -> bool
+impl rill_ml::drift::DriftDetector for rill_ml::drift::Kswin
+pub fn rill_ml::drift::Kswin::detected(&self) -> bool
+pub fn rill_ml::drift::Kswin::last_value(&self) -> f64
+pub fn rill_ml::drift::Kswin::level(&self) -> rill_ml::drift::DriftLevel
+pub fn rill_ml::drift::Kswin::reset(&mut self)
+pub fn rill_ml::drift::Kswin::samples_seen(&self) -> u64
+pub fn rill_ml::drift::Kswin::update(&mut self, f64) -> core::result::Result<rill_ml::drift::DriftLevel, rill_ml::error::RillError>
+pub fn rill_ml::drift::Kswin::warning(&self) -> bool
+impl rill_ml::drift::DriftDetector for rill_ml::drift::PageHinkley
+pub fn rill_ml::drift::PageHinkley::detected(&self) -> bool
+pub fn rill_ml::drift::PageHinkley::last_value(&self) -> f64
+pub fn rill_ml::drift::PageHinkley::level(&self) -> rill_ml::drift::DriftLevel
+pub fn rill_ml::drift::PageHinkley::reset(&mut self)
+pub fn rill_ml::drift::PageHinkley::samples_seen(&self) -> u64
+pub fn rill_ml::drift::PageHinkley::update(&mut self, f64) -> core::result::Result<rill_ml::drift::DriftLevel, rill_ml::error::RillError>
+pub fn rill_ml::drift::PageHinkley::warning(&self) -> bool
+pub trait rill_ml::drift::DriftStrategy
+pub fn rill_ml::drift::DriftStrategy::decide(&self, rill_ml::drift::DriftLevel, u64) -> rill_ml::drift::DriftAction
+impl rill_ml::drift::DriftStrategy for rill_ml::drift::StaticStrategy
+pub fn rill_ml::drift::StaticStrategy::decide(&self, rill_ml::drift::DriftLevel, u64) -> rill_ml::drift::DriftAction
+pub mod rill_ml::error
+#[non_exhaustive] pub enum rill_ml::error::RillError
+pub rill_ml::error::RillError::DimensionMismatch
+pub rill_ml::error::RillError::DimensionMismatch::actual: usize
+pub rill_ml::error::RillError::DimensionMismatch::expected: usize
+pub rill_ml::error::RillError::DuplicateFeatureId(u64)
+pub rill_ml::error::RillError::EmptyFeatures
+pub rill_ml::error::RillError::IncompatibleStateVersion
+pub rill_ml::error::RillError::IncompatibleStateVersion::actual: u32
+pub rill_ml::error::RillError::IncompatibleStateVersion::expected: u32
+pub rill_ml::error::RillError::InsufficientData
+pub rill_ml::error::RillError::InvalidArm
+pub rill_ml::error::RillError::InvalidArm::actual: usize
+pub rill_ml::error::RillError::InvalidArm::expected: usize
+pub rill_ml::error::RillError::InvalidArmCount(usize)
+pub rill_ml::error::RillError::InvalidCapacity(usize)
+pub rill_ml::error::RillError::InvalidEpsilon(f64)
+pub rill_ml::error::RillError::InvalidFeatureCount(usize)
+pub rill_ml::error::RillError::InvalidHashDimension(usize)
+pub rill_ml::error::RillError::InvalidLearningRate(f64)
+pub rill_ml::error::RillError::InvalidParameter
+pub rill_ml::error::RillError::InvalidParameter::name: &'static str
+pub rill_ml::error::RillError::InvalidParameter::value: f64
+pub rill_ml::error::RillError::InvalidProbability(f64)
+pub rill_ml::error::RillError::InvalidReward(f64)
+pub rill_ml::error::RillError::InvalidSignificanceLevel(f64)
+pub rill_ml::error::RillError::InvalidState(alloc::string::String)
+pub rill_ml::error::RillError::InvalidWindowSize
+pub rill_ml::error::RillError::MissingValue
+pub rill_ml::error::RillError::MissingValue::index: usize
+pub rill_ml::error::RillError::NonFiniteValue
+pub rill_ml::error::RillError::NonFiniteValue::field: &'static str
+pub rill_ml::error::RillError::NonFiniteValue::value: f64
+pub rill_ml::error::RillError::UnknownCategory(alloc::string::String)
+pub rill_ml::error::RillError::UnsortedFeatureIds
+pub mod rill_ml::evaluate
+pub struct rill_ml::evaluate::BinaryClassificationSample
+pub rill_ml::evaluate::BinaryClassificationSample::features: alloc::vec::Vec<f64>
+pub rill_ml::evaluate::BinaryClassificationSample::target: bool
+pub struct rill_ml::evaluate::ProgressiveStep
+pub rill_ml::evaluate::ProgressiveStep::index: usize
+pub rill_ml::evaluate::ProgressiveStep::metric_value: core::option::Option<f64>
+pub struct rill_ml::evaluate::RegressionSample
+pub rill_ml::evaluate::RegressionSample::features: alloc::vec::Vec<f64>
+pub rill_ml::evaluate::RegressionSample::target: f64
+pub fn rill_ml::evaluate::evaluate_binary_classification<M, Met>(&mut M, &mut Met, impl core::iter::traits::collect::IntoIterator<Item = rill_ml::BinaryClassificationSample>) -> core::result::Result<core::option::Option<f64>, rill_ml::error::RillError> where M: rill_ml::traits::OnlineBinaryClassifier, Met: rill_ml::traits::Metric<Truth = bool, Prediction = bool>
+pub fn rill_ml::evaluate::evaluate_regression<M, Met>(&mut M, &mut Met, impl core::iter::traits::collect::IntoIterator<Item = rill_ml::RegressionSample>) -> core::result::Result<core::option::Option<f64>, rill_ml::error::RillError> where M: rill_ml::traits::OnlineRegressor, Met: rill_ml::traits::Metric<Truth = f64, Prediction = f64>
+pub fn rill_ml::evaluate::evaluate_regression_with_steps<M, Met>(&mut M, &mut Met, impl core::iter::traits::collect::IntoIterator<Item = rill_ml::RegressionSample>) -> core::result::Result<(core::option::Option<f64>, alloc::vec::Vec<rill_ml::evaluate::ProgressiveStep>), rill_ml::error::RillError> where M: rill_ml::traits::OnlineRegressor, Met: rill_ml::traits::Metric<Truth = f64, Prediction = f64>
+pub mod rill_ml::feature_hasher
+pub struct rill_ml::feature_hasher::FeatureHasher
+impl rill_ml::feature_hasher::FeatureHasher
+pub const fn rill_ml::feature_hasher::FeatureHasher::dimension(&self) -> usize
+pub fn rill_ml::feature_hasher::FeatureHasher::hash_string(&self, &str) -> rill_ml::sparse::FeatureId
+pub fn rill_ml::feature_hasher::FeatureHasher::hash_strings(&self, &[(&str, f64)]) -> core::result::Result<rill_ml::sparse::SparseFeatures, rill_ml::error::RillError>
+pub fn rill_ml::feature_hasher::FeatureHasher::new(usize, u64) -> core::result::Result<Self, rill_ml::error::RillError>
+pub const fn rill_ml::feature_hasher::FeatureHasher::seed(&self) -> u64
+pub const fn rill_ml::feature_hasher::FeatureHasher::signed(&self) -> bool
+pub fn rill_ml::feature_hasher::FeatureHasher::transform(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::feature_hasher::FeatureHasher::with_config(rill_ml::feature_hasher::FeatureHasherConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::feature_hasher::FeatureHasher
+pub fn rill_ml::feature_hasher::FeatureHasher::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+#[non_exhaustive] pub struct rill_ml::feature_hasher::FeatureHasherConfig
+pub rill_ml::feature_hasher::FeatureHasherConfig::dimension: usize
+pub rill_ml::feature_hasher::FeatureHasherConfig::seed: u64
+pub rill_ml::feature_hasher::FeatureHasherConfig::signed: bool
+impl core::default::Default for rill_ml::feature_hasher::FeatureHasherConfig
+pub fn rill_ml::feature_hasher::FeatureHasherConfig::default() -> Self
+pub mod rill_ml::loss
+#[non_exhaustive] pub enum rill_ml::loss::RegressionLoss
+pub rill_ml::loss::RegressionLoss::Huber(rill_ml::loss::HuberLoss)
+pub rill_ml::loss::RegressionLoss::SquaredError
+impl rill_ml::loss::RegressionLoss
+pub fn rill_ml::loss::RegressionLoss::gradient(&self, f64, f64) -> f64
+pub fn rill_ml::loss::RegressionLoss::loss(&self, f64, f64) -> f64
+pub struct rill_ml::loss::BinaryLogLoss
+impl rill_ml::loss::BinaryLogLoss
+pub fn rill_ml::loss::BinaryLogLoss::clip(&self, f64) -> f64
+pub const fn rill_ml::loss::BinaryLogLoss::epsilon(&self) -> f64
+pub fn rill_ml::loss::BinaryLogLoss::gradient_wrt_logit(&self, f64, bool) -> f64
+pub fn rill_ml::loss::BinaryLogLoss::loss(&self, f64, bool) -> f64
+pub const fn rill_ml::loss::BinaryLogLoss::new() -> Self
+pub fn rill_ml::loss::BinaryLogLoss::with_epsilon(f64) -> core::result::Result<Self, rill_ml::error::RillError>
+impl core::default::Default for rill_ml::loss::BinaryLogLoss
+pub fn rill_ml::loss::BinaryLogLoss::default() -> Self
+pub struct rill_ml::loss::HuberLoss
+impl rill_ml::loss::HuberLoss
+pub const fn rill_ml::loss::HuberLoss::delta(&self) -> f64
+pub fn rill_ml::loss::HuberLoss::gradient(&self, f64, f64) -> f64
+pub fn rill_ml::loss::HuberLoss::loss(&self, f64, f64) -> f64
+pub fn rill_ml::loss::HuberLoss::new(f64) -> core::result::Result<Self, rill_ml::error::RillError>
+impl core::default::Default for rill_ml::loss::HuberLoss
+pub fn rill_ml::loss::HuberLoss::default() -> Self
+pub struct rill_ml::loss::SquaredError
+impl rill_ml::loss::SquaredError
+pub fn rill_ml::loss::SquaredError::gradient(f64, f64) -> f64
+pub fn rill_ml::loss::SquaredError::loss(f64, f64) -> f64
+pub const fn rill_ml::loss::SquaredError::new() -> Self
+pub fn rill_ml::loss::SquaredError::validate(f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub mod rill_ml::metrics
+pub struct rill_ml::metrics::Accuracy
+impl rill_ml::traits::Metric for rill_ml::metrics::Accuracy
+pub type rill_ml::metrics::Accuracy::Prediction = bool
+pub type rill_ml::metrics::Accuracy::Truth = bool
+pub fn rill_ml::metrics::Accuracy::reset(&mut self)
+pub fn rill_ml::metrics::Accuracy::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Accuracy::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Accuracy::value(&self) -> core::option::Option<f64>
+pub struct rill_ml::metrics::F1Score
+impl rill_ml::traits::Metric for rill_ml::metrics::F1Score
+pub type rill_ml::metrics::F1Score::Prediction = bool
+pub type rill_ml::metrics::F1Score::Truth = bool
+pub fn rill_ml::metrics::F1Score::reset(&mut self)
+pub fn rill_ml::metrics::F1Score::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::F1Score::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::F1Score::value(&self) -> core::option::Option<f64>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::metrics::F1Score
+pub fn rill_ml::metrics::F1Score::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::metrics::LogLoss
+impl core::default::Default for rill_ml::metrics::LogLoss
+pub fn rill_ml::metrics::LogLoss::default() -> Self
+impl rill_ml::traits::Metric for rill_ml::metrics::LogLoss
+pub type rill_ml::metrics::LogLoss::Prediction = f64
+pub type rill_ml::metrics::LogLoss::Truth = bool
+pub fn rill_ml::metrics::LogLoss::reset(&mut self)
+pub fn rill_ml::metrics::LogLoss::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::LogLoss::update(&mut self, bool, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::LogLoss::value(&self) -> core::option::Option<f64>
+pub struct rill_ml::metrics::Mae
+impl rill_ml::metrics::Mae
+pub const fn rill_ml::metrics::Mae::new() -> Self
+impl rill_ml::traits::Metric for rill_ml::metrics::Mae
+pub type rill_ml::metrics::Mae::Prediction = f64
+pub type rill_ml::metrics::Mae::Truth = f64
+pub fn rill_ml::metrics::Mae::reset(&mut self)
+pub fn rill_ml::metrics::Mae::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Mae::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Mae::value(&self) -> core::option::Option<f64>
+pub struct rill_ml::metrics::Mse
+impl rill_ml::metrics::Mse
+pub const fn rill_ml::metrics::Mse::new() -> Self
+impl rill_ml::traits::Metric for rill_ml::metrics::Mse
+pub type rill_ml::metrics::Mse::Prediction = f64
+pub type rill_ml::metrics::Mse::Truth = f64
+pub fn rill_ml::metrics::Mse::reset(&mut self)
+pub fn rill_ml::metrics::Mse::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Mse::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Mse::value(&self) -> core::option::Option<f64>
+pub struct rill_ml::metrics::Precision
+impl rill_ml::traits::Metric for rill_ml::metrics::Precision
+pub type rill_ml::metrics::Precision::Prediction = bool
+pub type rill_ml::metrics::Precision::Truth = bool
+pub fn rill_ml::metrics::Precision::reset(&mut self)
+pub fn rill_ml::metrics::Precision::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Precision::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Precision::value(&self) -> core::option::Option<f64>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::metrics::Precision
+pub fn rill_ml::metrics::Precision::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::metrics::R2
+impl rill_ml::metrics::R2
+pub const fn rill_ml::metrics::R2::new() -> Self
+impl rill_ml::traits::Metric for rill_ml::metrics::R2
+pub type rill_ml::metrics::R2::Prediction = f64
+pub type rill_ml::metrics::R2::Truth = f64
+pub fn rill_ml::metrics::R2::reset(&mut self)
+pub fn rill_ml::metrics::R2::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::R2::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::R2::value(&self) -> core::option::Option<f64>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::metrics::R2
+pub fn rill_ml::metrics::R2::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::metrics::Recall
+impl rill_ml::traits::Metric for rill_ml::metrics::Recall
+pub type rill_ml::metrics::Recall::Prediction = bool
+pub type rill_ml::metrics::Recall::Truth = bool
+pub fn rill_ml::metrics::Recall::reset(&mut self)
+pub fn rill_ml::metrics::Recall::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Recall::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Recall::value(&self) -> core::option::Option<f64>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::metrics::Recall
+pub fn rill_ml::metrics::Recall::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::metrics::Rmse
+impl rill_ml::metrics::Rmse
+pub const fn rill_ml::metrics::Rmse::new() -> Self
+impl rill_ml::traits::Metric for rill_ml::metrics::Rmse
+pub type rill_ml::metrics::Rmse::Prediction = f64
+pub type rill_ml::metrics::Rmse::Truth = f64
+pub fn rill_ml::metrics::Rmse::reset(&mut self)
+pub fn rill_ml::metrics::Rmse::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Rmse::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Rmse::value(&self) -> core::option::Option<f64>
+pub struct rill_ml::metrics::RollingAccuracy
+impl rill_ml::metrics::RollingAccuracy
+pub fn rill_ml::metrics::RollingAccuracy::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Metric for rill_ml::metrics::RollingAccuracy
+pub type rill_ml::metrics::RollingAccuracy::Prediction = bool
+pub type rill_ml::metrics::RollingAccuracy::Truth = bool
+pub fn rill_ml::metrics::RollingAccuracy::reset(&mut self)
+pub fn rill_ml::metrics::RollingAccuracy::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::RollingAccuracy::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::RollingAccuracy::value(&self) -> core::option::Option<f64>
+pub struct rill_ml::metrics::RollingMae
+impl rill_ml::metrics::RollingMae
+pub fn rill_ml::metrics::RollingMae::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Metric for rill_ml::metrics::RollingMae
+pub type rill_ml::metrics::RollingMae::Prediction = f64
+pub type rill_ml::metrics::RollingMae::Truth = f64
+pub fn rill_ml::metrics::RollingMae::reset(&mut self)
+pub fn rill_ml::metrics::RollingMae::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::RollingMae::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::RollingMae::value(&self) -> core::option::Option<f64>
+pub struct rill_ml::metrics::RollingMse
+impl rill_ml::metrics::RollingMse
+pub fn rill_ml::metrics::RollingMse::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Metric for rill_ml::metrics::RollingMse
+pub type rill_ml::metrics::RollingMse::Prediction = f64
+pub type rill_ml::metrics::RollingMse::Truth = f64
+pub fn rill_ml::metrics::RollingMse::reset(&mut self)
+pub fn rill_ml::metrics::RollingMse::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::RollingMse::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::RollingMse::value(&self) -> core::option::Option<f64>
+pub mod rill_ml::models
+#[non_exhaustive] pub enum rill_ml::models::NewFeaturePolicy
+pub rill_ml::models::NewFeaturePolicy::Ignore
+pub rill_ml::models::NewFeaturePolicy::Reject
+#[non_exhaustive] pub struct rill_ml::models::BaselineConfig
+pub rill_ml::models::BaselineConfig::initial_prediction: f64
+impl core::default::Default for rill_ml::models::BaselineConfig
+pub fn rill_ml::models::BaselineConfig::default() -> Self
+pub struct rill_ml::models::BernoulliNaiveBayes
+impl rill_ml::models::BernoulliNaiveBayes
+pub fn rill_ml::models::BernoulliNaiveBayes::new(usize, rill_ml::models::NaiveBayesConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::BernoulliNaiveBayes
+pub fn rill_ml::models::BernoulliNaiveBayes::feature_count(&self) -> usize
+pub fn rill_ml::models::BernoulliNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::BernoulliNaiveBayes::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::BernoulliNaiveBayes::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::BernoulliNaiveBayes::reset(&mut self)
+pub fn rill_ml::models::BernoulliNaiveBayes::samples_seen(&self) -> u64
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::models::BernoulliNaiveBayes
+pub fn rill_ml::models::BernoulliNaiveBayes::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::models::ExponentiallyWeightedMeanRegressor
+impl rill_ml::models::ExponentiallyWeightedMeanRegressor
+pub const fn rill_ml::models::ExponentiallyWeightedMeanRegressor::alpha(&self) -> f64
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::new(f64, rill_ml::models::BaselineConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub const fn rill_ml::models::ExponentiallyWeightedMeanRegressor::value(&self) -> f64
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::ExponentiallyWeightedMeanRegressor
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::reset(&mut self)
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::samples_seen(&self) -> u64
+pub struct rill_ml::models::FtrlClassifier
+impl rill_ml::models::FtrlClassifier
+pub const fn rill_ml::models::FtrlClassifier::config(&self) -> &rill_ml::models::FtrlConfig
+pub fn rill_ml::models::FtrlClassifier::feature_count(&self) -> usize
+pub fn rill_ml::models::FtrlClassifier::intercept(&self) -> f64
+pub fn rill_ml::models::FtrlClassifier::new(rill_ml::models::FtrlConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::weights(&self) -> alloc::vec::Vec<(rill_ml::sparse::FeatureId, f64)>
+impl rill_ml::traits::SparseClassifier for rill_ml::models::FtrlClassifier
+pub fn rill_ml::models::FtrlClassifier::learn(&mut self, &rill_ml::sparse::SparseFeatures, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::predict_proba(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::reset(&mut self)
+pub fn rill_ml::models::FtrlClassifier::samples_seen(&self) -> u64
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::models::FtrlClassifier
+pub fn rill_ml::models::FtrlClassifier::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+#[non_exhaustive] pub struct rill_ml::models::FtrlConfig
+pub rill_ml::models::FtrlConfig::alpha: f64
+pub rill_ml::models::FtrlConfig::beta: f64
+pub rill_ml::models::FtrlConfig::l1: f64
+pub rill_ml::models::FtrlConfig::l2: f64
+pub rill_ml::models::FtrlConfig::max_features: core::option::Option<usize>
+pub rill_ml::models::FtrlConfig::new_feature_policy: rill_ml::models::NewFeaturePolicy
+impl core::default::Default for rill_ml::models::FtrlConfig
+pub fn rill_ml::models::FtrlConfig::default() -> Self
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::models::FtrlConfig
+pub fn rill_ml::models::FtrlConfig::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::models::FtrlRegressor
+impl rill_ml::models::FtrlRegressor
+pub const fn rill_ml::models::FtrlRegressor::config(&self) -> &rill_ml::models::FtrlConfig
+pub fn rill_ml::models::FtrlRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::FtrlRegressor::intercept(&self) -> f64
+pub fn rill_ml::models::FtrlRegressor::new(rill_ml::models::FtrlConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlRegressor::weights(&self) -> alloc::vec::Vec<(rill_ml::sparse::FeatureId, f64)>
+impl rill_ml::traits::SparseRegressor for rill_ml::models::FtrlRegressor
+pub fn rill_ml::models::FtrlRegressor::learn(&mut self, &rill_ml::sparse::SparseFeatures, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlRegressor::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlRegressor::reset(&mut self)
+pub fn rill_ml::models::FtrlRegressor::samples_seen(&self) -> u64
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::models::FtrlRegressor
+pub fn rill_ml::models::FtrlRegressor::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::models::GaussianNaiveBayes
+impl rill_ml::models::GaussianNaiveBayes
+pub const fn rill_ml::models::GaussianNaiveBayes::alpha(&self) -> f64
+pub fn rill_ml::models::GaussianNaiveBayes::new(usize, rill_ml::models::NaiveBayesConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::GaussianNaiveBayes
+pub fn rill_ml::models::GaussianNaiveBayes::feature_count(&self) -> usize
+pub fn rill_ml::models::GaussianNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::GaussianNaiveBayes::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::GaussianNaiveBayes::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::GaussianNaiveBayes::reset(&mut self)
+pub fn rill_ml::models::GaussianNaiveBayes::samples_seen(&self) -> u64
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::models::GaussianNaiveBayes
+pub fn rill_ml::models::GaussianNaiveBayes::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::models::LastValueRegressor
+impl rill_ml::models::LastValueRegressor
+pub const fn rill_ml::models::LastValueRegressor::last_value(&self) -> core::option::Option<f64>
+pub fn rill_ml::models::LastValueRegressor::new(rill_ml::models::BaselineConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl core::default::Default for rill_ml::models::LastValueRegressor
+pub fn rill_ml::models::LastValueRegressor::default() -> Self
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::LastValueRegressor
+pub fn rill_ml::models::LastValueRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::LastValueRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::LastValueRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::LastValueRegressor::reset(&mut self)
+pub fn rill_ml::models::LastValueRegressor::samples_seen(&self) -> u64
+pub struct rill_ml::models::LinearRegression
+impl rill_ml::models::LinearRegression
+pub const fn rill_ml::models::LinearRegression::intercept(&self) -> f64
+pub fn rill_ml::models::LinearRegression::new(usize, rill_ml::models::LinearRegressionConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::models::LinearRegression::weights(&self) -> &[f64]
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::LinearRegression
+pub fn rill_ml::models::LinearRegression::feature_count(&self) -> usize
+pub fn rill_ml::models::LinearRegression::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::LinearRegression::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::LinearRegression::reset(&mut self)
+pub fn rill_ml::models::LinearRegression::samples_seen(&self) -> u64
+#[non_exhaustive] pub struct rill_ml::models::LinearRegressionConfig
+pub rill_ml::models::LinearRegressionConfig::loss: rill_ml::loss::RegressionLoss
+pub rill_ml::models::LinearRegressionConfig::optimizer: rill_ml::optim::Optimizer
+impl core::default::Default for rill_ml::models::LinearRegressionConfig
+pub fn rill_ml::models::LinearRegressionConfig::default() -> Self
+pub struct rill_ml::models::LogisticRegression
+impl rill_ml::models::LogisticRegression
+pub const fn rill_ml::models::LogisticRegression::intercept(&self) -> f64
+pub fn rill_ml::models::LogisticRegression::new(usize, rill_ml::models::LogisticRegressionConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::weights(&self) -> &[f64]
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::LogisticRegression
+pub fn rill_ml::models::LogisticRegression::feature_count(&self) -> usize
+pub fn rill_ml::models::LogisticRegression::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::reset(&mut self)
+pub fn rill_ml::models::LogisticRegression::samples_seen(&self) -> u64
+#[non_exhaustive] pub struct rill_ml::models::LogisticRegressionConfig
+pub rill_ml::models::LogisticRegressionConfig::loss: rill_ml::loss::BinaryLogLoss
+pub rill_ml::models::LogisticRegressionConfig::optimizer: rill_ml::optim::Optimizer
+impl core::default::Default for rill_ml::models::LogisticRegressionConfig
+pub fn rill_ml::models::LogisticRegressionConfig::default() -> Self
+pub struct rill_ml::models::MeanRegressor
+impl rill_ml::models::MeanRegressor
+pub const fn rill_ml::models::MeanRegressor::mean(&self) -> f64
+pub fn rill_ml::models::MeanRegressor::new(rill_ml::models::BaselineConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl core::default::Default for rill_ml::models::MeanRegressor
+pub fn rill_ml::models::MeanRegressor::default() -> Self
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::MeanRegressor
+pub fn rill_ml::models::MeanRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::MeanRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::MeanRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::MeanRegressor::reset(&mut self)
+pub fn rill_ml::models::MeanRegressor::samples_seen(&self) -> u64
+pub struct rill_ml::models::MultinomialNaiveBayes
+impl rill_ml::models::MultinomialNaiveBayes
+pub fn rill_ml::models::MultinomialNaiveBayes::new(usize, rill_ml::models::NaiveBayesConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::MultinomialNaiveBayes
+pub fn rill_ml::models::MultinomialNaiveBayes::feature_count(&self) -> usize
+pub fn rill_ml::models::MultinomialNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::MultinomialNaiveBayes::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::MultinomialNaiveBayes::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::MultinomialNaiveBayes::reset(&mut self)
+pub fn rill_ml::models::MultinomialNaiveBayes::samples_seen(&self) -> u64
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::models::MultinomialNaiveBayes
+pub fn rill_ml::models::MultinomialNaiveBayes::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+#[non_exhaustive] pub struct rill_ml::models::NaiveBayesConfig
+pub rill_ml::models::NaiveBayesConfig::alpha: f64
+impl core::default::Default for rill_ml::models::NaiveBayesConfig
+pub fn rill_ml::models::NaiveBayesConfig::default() -> Self
+pub mod rill_ml::optim
+#[non_exhaustive] pub enum rill_ml::optim::Optimizer
+pub rill_ml::optim::Optimizer::AdaGrad(rill_ml::optim::AdaGrad)
+pub rill_ml::optim::Optimizer::Sgd(rill_ml::optim::Sgd)
+impl rill_ml::optim::Optimizer
+pub fn rill_ml::optim::Optimizer::adagrad(usize, rill_ml::optim::AdaGradConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::optim::Optimizer::param_count(&self) -> usize
+pub fn rill_ml::optim::Optimizer::reset(&mut self)
+pub fn rill_ml::optim::Optimizer::samples_seen(&self) -> u64
+pub fn rill_ml::optim::Optimizer::sgd(usize, rill_ml::optim::SgdConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::optim::Optimizer::step(&mut self, &mut [f64], &mut f64, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::optim::AdaGrad
+impl rill_ml::optim::AdaGrad
+pub fn rill_ml::optim::AdaGrad::new(usize, rill_ml::optim::AdaGradConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub const fn rill_ml::optim::AdaGrad::param_count(&self) -> usize
+pub fn rill_ml::optim::AdaGrad::reset(&mut self)
+pub const fn rill_ml::optim::AdaGrad::samples_seen(&self) -> u64
+pub fn rill_ml::optim::AdaGrad::step(&mut self, &mut [f64], &mut f64, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+#[non_exhaustive] pub struct rill_ml::optim::AdaGradConfig
+pub rill_ml::optim::AdaGradConfig::epsilon: f64
+pub rill_ml::optim::AdaGradConfig::l2: f64
+pub rill_ml::optim::AdaGradConfig::learning_rate: f64
+impl core::default::Default for rill_ml::optim::AdaGradConfig
+pub fn rill_ml::optim::AdaGradConfig::default() -> Self
+pub struct rill_ml::optim::Sgd
+impl rill_ml::optim::Sgd
+pub const fn rill_ml::optim::Sgd::l2(&self) -> f64
+pub const fn rill_ml::optim::Sgd::learning_rate(&self) -> f64
+pub fn rill_ml::optim::Sgd::new(usize, rill_ml::optim::SgdConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub const fn rill_ml::optim::Sgd::param_count(&self) -> usize
+pub fn rill_ml::optim::Sgd::reset(&mut self)
+pub const fn rill_ml::optim::Sgd::samples_seen(&self) -> u64
+pub fn rill_ml::optim::Sgd::step(&mut self, &mut [f64], &mut f64, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+#[non_exhaustive] pub struct rill_ml::optim::SgdConfig
+pub rill_ml::optim::SgdConfig::l2: f64
+pub rill_ml::optim::SgdConfig::learning_rate: f64
+impl core::default::Default for rill_ml::optim::SgdConfig
+pub fn rill_ml::optim::SgdConfig::default() -> Self
+pub mod rill_ml::persistence
+pub struct rill_ml::persistence::Snapshot<T>
+pub rill_ml::persistence::Snapshot::format_version: u32
+pub rill_ml::persistence::Snapshot::model: T
+impl<T> rill_ml::persistence::Snapshot<T>
+pub fn rill_ml::persistence::Snapshot<T>::into_model(self) -> core::result::Result<T, rill_ml::error::RillError>
+pub fn rill_ml::persistence::Snapshot<T>::into_model_with_validation<F>(self, F) -> core::result::Result<T, rill_ml::error::RillError> where F: core::ops::function::FnOnce(&T) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::persistence::Snapshot<T>::new(T) -> Self
+pub const rill_ml::persistence::SNAPSHOT_FORMAT_VERSION: u32
+pub mod rill_ml::pipeline
+pub struct rill_ml::pipeline::ClassificationPipeline<T, M>
+impl<T, M> rill_ml::pipeline::ClassificationPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineBinaryClassifier
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::learn_transactional(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError> where T: core::clone::Clone, M: core::clone::Clone
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::model(&self) -> &M
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::new(T, M) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::transformer(&self) -> &T
+impl<T, M> rill_ml::traits::OnlineBinaryClassifier for rill_ml::pipeline::ClassificationPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineBinaryClassifier
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::feature_count(&self) -> usize
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::reset(&mut self)
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::samples_seen(&self) -> u64
+pub struct rill_ml::pipeline::RegressionPipeline<T, M>
+impl<T, M> rill_ml::pipeline::RegressionPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineRegressor
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::learn_transactional(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError> where T: core::clone::Clone, M: core::clone::Clone
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::model(&self) -> &M
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::new(T, M) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::transformer(&self) -> &T
+impl<T, M> rill_ml::traits::OnlineRegressor for rill_ml::pipeline::RegressionPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineRegressor
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::feature_count(&self) -> usize
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::reset(&mut self)
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::samples_seen(&self) -> u64
+pub mod rill_ml::preprocessing
+pub struct rill_ml::preprocessing::Clipper
+impl rill_ml::preprocessing::Clipper
+pub const fn rill_ml::preprocessing::Clipper::max(&self) -> f64
+pub const fn rill_ml::preprocessing::Clipper::min(&self) -> f64
+pub fn rill_ml::preprocessing::Clipper::new(usize, f64, f64) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::Clipper
+pub fn rill_ml::preprocessing::Clipper::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::Clipper::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::Clipper::reset(&mut self)
+pub fn rill_ml::preprocessing::Clipper::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::Clipper::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::Clipper::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::preprocessing::ConstantImputer
+impl rill_ml::preprocessing::ConstantImputer
+pub fn rill_ml::preprocessing::ConstantImputer::fill_value(&self) -> f64
+pub fn rill_ml::preprocessing::ConstantImputer::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::ConstantImputer::with_config(usize, rill_ml::preprocessing::ConstantImputerConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::ConstantImputer
+pub fn rill_ml::preprocessing::ConstantImputer::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ConstantImputer::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ConstantImputer::reset(&mut self)
+pub fn rill_ml::preprocessing::ConstantImputer::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::ConstantImputer::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::ConstantImputer::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+#[non_exhaustive] pub struct rill_ml::preprocessing::ConstantImputerConfig
+pub rill_ml::preprocessing::ConstantImputerConfig::fill_value: f64
+impl core::default::Default for rill_ml::preprocessing::ConstantImputerConfig
+pub fn rill_ml::preprocessing::ConstantImputerConfig::default() -> Self
+pub struct rill_ml::preprocessing::ForwardFill
+impl rill_ml::preprocessing::ForwardFill
+pub fn rill_ml::preprocessing::ForwardFill::last_values(&self) -> &[core::option::Option<f64>]
+pub fn rill_ml::preprocessing::ForwardFill::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::ForwardFill
+pub fn rill_ml::preprocessing::ForwardFill::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ForwardFill::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ForwardFill::reset(&mut self)
+pub fn rill_ml::preprocessing::ForwardFill::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::ForwardFill::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::ForwardFill::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::preprocessing::FrequencyEncoder
+impl rill_ml::preprocessing::FrequencyEncoder
+pub fn rill_ml::preprocessing::FrequencyEncoder::category_counts(&self) -> &alloc::collections::btree::map::BTreeMap<alloc::string::String, u64>
+pub fn rill_ml::preprocessing::FrequencyEncoder::new() -> Self
+pub fn rill_ml::preprocessing::FrequencyEncoder::reset(&mut self)
+pub fn rill_ml::preprocessing::FrequencyEncoder::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::FrequencyEncoder::total(&self) -> u64
+pub fn rill_ml::preprocessing::FrequencyEncoder::transform_strs(&self, &[&str]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::FrequencyEncoder::update_strs(&mut self, &[&str]) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::preprocessing::MeanImputer
+impl rill_ml::preprocessing::MeanImputer
+pub fn rill_ml::preprocessing::MeanImputer::counts(&self) -> &[u64]
+pub fn rill_ml::preprocessing::MeanImputer::means(&self) -> &[f64]
+pub fn rill_ml::preprocessing::MeanImputer::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::MeanImputer
+pub fn rill_ml::preprocessing::MeanImputer::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MeanImputer::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MeanImputer::reset(&mut self)
+pub fn rill_ml::preprocessing::MeanImputer::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::MeanImputer::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MeanImputer::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::preprocessing::MinMaxScaler
+impl rill_ml::preprocessing::MinMaxScaler
+pub fn rill_ml::preprocessing::MinMaxScaler::maxs(&self) -> alloc::vec::Vec<core::option::Option<f64>>
+pub fn rill_ml::preprocessing::MinMaxScaler::mins(&self) -> alloc::vec::Vec<core::option::Option<f64>>
+pub fn rill_ml::preprocessing::MinMaxScaler::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MinMaxScaler::with_range(usize, f64, f64) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::MinMaxScaler
+pub fn rill_ml::preprocessing::MinMaxScaler::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MinMaxScaler::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MinMaxScaler::reset(&mut self)
+pub fn rill_ml::preprocessing::MinMaxScaler::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::MinMaxScaler::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MinMaxScaler::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::preprocessing::MissingIndicator
+impl rill_ml::preprocessing::MissingIndicator
+pub fn rill_ml::preprocessing::MissingIndicator::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::MissingIndicator
+pub fn rill_ml::preprocessing::MissingIndicator::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MissingIndicator::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MissingIndicator::reset(&mut self)
+pub fn rill_ml::preprocessing::MissingIndicator::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::MissingIndicator::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MissingIndicator::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::preprocessing::OneHotEncoder
+impl rill_ml::preprocessing::OneHotEncoder
+pub fn rill_ml::preprocessing::OneHotEncoder::categories(&self) -> &[alloc::string::String]
+pub fn rill_ml::preprocessing::OneHotEncoder::category_index(&self, &str) -> core::option::Option<usize>
+pub fn rill_ml::preprocessing::OneHotEncoder::fit_one(&mut self, &str)
+pub fn rill_ml::preprocessing::OneHotEncoder::new() -> Self
+pub fn rill_ml::preprocessing::OneHotEncoder::reset(&mut self)
+pub fn rill_ml::preprocessing::OneHotEncoder::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::OneHotEncoder::transform_strs(&self, &[&str]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::OneHotEncoder::update_strs(&mut self, &[&str]) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::preprocessing::OrdinalEncoder
+impl rill_ml::preprocessing::OrdinalEncoder
+pub fn rill_ml::preprocessing::OrdinalEncoder::categories(&self) -> &[alloc::string::String]
+pub fn rill_ml::preprocessing::OrdinalEncoder::category_index(&self, &str) -> core::option::Option<usize>
+pub fn rill_ml::preprocessing::OrdinalEncoder::fit_one(&mut self, &str)
+pub fn rill_ml::preprocessing::OrdinalEncoder::new() -> Self
+pub fn rill_ml::preprocessing::OrdinalEncoder::reset(&mut self)
+pub fn rill_ml::preprocessing::OrdinalEncoder::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::OrdinalEncoder::transform_strs(&self, &[&str]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::OrdinalEncoder::update_strs(&mut self, &[&str]) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::preprocessing::StandardScaler
+impl rill_ml::preprocessing::StandardScaler
+pub fn rill_ml::preprocessing::StandardScaler::means(&self) -> &[f64]
+pub fn rill_ml::preprocessing::StandardScaler::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::StandardScaler::scales(&self) -> alloc::vec::Vec<f64>
+pub fn rill_ml::preprocessing::StandardScaler::std_devs(&self) -> alloc::vec::Vec<f64>
+pub fn rill_ml::preprocessing::StandardScaler::transform_into(&self, &[f64], &mut alloc::vec::Vec<f64>) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::StandardScaler::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::StandardScaler::variances(&self) -> alloc::vec::Vec<f64>
+pub fn rill_ml::preprocessing::StandardScaler::with_config(usize, rill_ml::preprocessing::StandardScalerConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::StandardScaler
+pub fn rill_ml::preprocessing::StandardScaler::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::StandardScaler::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::StandardScaler::reset(&mut self)
+pub fn rill_ml::preprocessing::StandardScaler::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::StandardScaler::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::StandardScaler::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::preprocessing::StandardScaler
+pub fn rill_ml::preprocessing::StandardScaler::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+#[non_exhaustive] pub struct rill_ml::preprocessing::StandardScalerConfig
+pub rill_ml::preprocessing::StandardScalerConfig::epsilon: f64
+pub rill_ml::preprocessing::StandardScalerConfig::with_mean: bool
+pub rill_ml::preprocessing::StandardScalerConfig::with_std: bool
+impl core::default::Default for rill_ml::preprocessing::StandardScalerConfig
+pub fn rill_ml::preprocessing::StandardScalerConfig::default() -> Self
+pub mod rill_ml::sparse
+pub struct rill_ml::sparse::SparseFeatures
+impl rill_ml::sparse::SparseFeatures
+pub fn rill_ml::sparse::SparseFeatures::from_sorted(alloc::vec::Vec<(rill_ml::sparse::FeatureId, f64)>) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::sparse::SparseFeatures::from_unsorted(alloc::vec::Vec<(rill_ml::sparse::FeatureId, f64)>) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::sparse::SparseFeatures::get(&self, rill_ml::sparse::FeatureId) -> core::option::Option<f64>
+pub fn rill_ml::sparse::SparseFeatures::is_empty(&self) -> bool
+pub fn rill_ml::sparse::SparseFeatures::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = (rill_ml::sparse::FeatureId, f64)> + '_
+pub fn rill_ml::sparse::SparseFeatures::len(&self) -> usize
+pub fn rill_ml::sparse::SparseFeatures::new() -> Self
+pub fn rill_ml::sparse::SparseFeatures::push(&mut self, rill_ml::sparse::FeatureId, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::sparse::SparseFeatures::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::sparse::SparseFeatures::values(&self) -> &[(rill_ml::sparse::FeatureId, f64)]
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::sparse::SparseFeatures
+pub fn rill_ml::sparse::SparseFeatures::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub type rill_ml::sparse::FeatureId = u64
+pub mod rill_ml::stats
+pub enum rill_ml::stats::VarianceKind
+pub rill_ml::stats::VarianceKind::Population
+pub rill_ml::stats::VarianceKind::Sample
+pub struct rill_ml::stats::Count
+impl rill_ml::stats::Count
+pub const fn rill_ml::stats::Count::new() -> Self
+pub const fn rill_ml::stats::Count::value(&self) -> u64
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Count
+pub fn rill_ml::stats::Count::reset(&mut self)
+pub fn rill_ml::stats::Count::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Count::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::ExponentiallyWeightedMean
+impl rill_ml::stats::ExponentiallyWeightedMean
+pub const fn rill_ml::stats::ExponentiallyWeightedMean::alpha(&self) -> f64
+pub const fn rill_ml::stats::ExponentiallyWeightedMean::count(&self) -> u64
+pub fn rill_ml::stats::ExponentiallyWeightedMean::new(f64) -> core::result::Result<Self, rill_ml::error::RillError>
+pub const fn rill_ml::stats::ExponentiallyWeightedMean::value(&self) -> f64
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::ExponentiallyWeightedMean
+pub fn rill_ml::stats::ExponentiallyWeightedMean::reset(&mut self)
+pub fn rill_ml::stats::ExponentiallyWeightedMean::samples_seen(&self) -> u64
+pub fn rill_ml::stats::ExponentiallyWeightedMean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::Max
+impl rill_ml::stats::Max
+pub const fn rill_ml::stats::Max::new() -> Self
+pub const fn rill_ml::stats::Max::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Max
+pub fn rill_ml::stats::Max::reset(&mut self)
+pub fn rill_ml::stats::Max::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Max::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::Mean
+impl rill_ml::stats::Mean
+pub const fn rill_ml::stats::Mean::count(&self) -> u64
+pub const fn rill_ml::stats::Mean::new() -> Self
+pub const fn rill_ml::stats::Mean::value(&self) -> f64
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Mean
+pub fn rill_ml::stats::Mean::reset(&mut self)
+pub fn rill_ml::stats::Mean::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Mean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::Min
+impl rill_ml::stats::Min
+pub const fn rill_ml::stats::Min::new() -> Self
+pub const fn rill_ml::stats::Min::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Min
+pub fn rill_ml::stats::Min::reset(&mut self)
+pub fn rill_ml::stats::Min::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Min::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::RollingMean
+impl rill_ml::stats::RollingMean
+pub const fn rill_ml::stats::RollingMean::capacity(&self) -> usize
+pub fn rill_ml::stats::RollingMean::is_empty(&self) -> bool
+pub fn rill_ml::stats::RollingMean::len(&self) -> usize
+pub fn rill_ml::stats::RollingMean::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::stats::RollingMean::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingMean
+pub fn rill_ml::stats::RollingMean::reset(&mut self)
+pub fn rill_ml::stats::RollingMean::samples_seen(&self) -> u64
+pub fn rill_ml::stats::RollingMean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::RollingVariance
+impl rill_ml::stats::RollingVariance
+pub const fn rill_ml::stats::RollingVariance::capacity(&self) -> usize
+pub fn rill_ml::stats::RollingVariance::is_empty(&self) -> bool
+pub const fn rill_ml::stats::RollingVariance::kind(&self) -> rill_ml::stats::VarianceKind
+pub fn rill_ml::stats::RollingVariance::len(&self) -> usize
+pub fn rill_ml::stats::RollingVariance::mean(&self) -> core::option::Option<f64>
+pub fn rill_ml::stats::RollingVariance::new(usize, rill_ml::stats::VarianceKind) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::stats::RollingVariance::std_dev(&self) -> core::option::Option<f64>
+pub fn rill_ml::stats::RollingVariance::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingVariance
+pub fn rill_ml::stats::RollingVariance::reset(&mut self)
+pub fn rill_ml::stats::RollingVariance::samples_seen(&self) -> u64
+pub fn rill_ml::stats::RollingVariance::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::Sum
+impl rill_ml::stats::Sum
+pub const fn rill_ml::stats::Sum::count(&self) -> u64
+pub const fn rill_ml::stats::Sum::new() -> Self
+pub const fn rill_ml::stats::Sum::value(&self) -> f64
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Sum
+pub fn rill_ml::stats::Sum::reset(&mut self)
+pub fn rill_ml::stats::Sum::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Sum::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::Variance
+impl rill_ml::stats::Variance
+pub const fn rill_ml::stats::Variance::count(&self) -> u64
+pub const fn rill_ml::stats::Variance::kind(&self) -> rill_ml::stats::VarianceKind
+pub const fn rill_ml::stats::Variance::mean(&self) -> f64
+pub const fn rill_ml::stats::Variance::new(rill_ml::stats::VarianceKind) -> Self
+pub fn rill_ml::stats::Variance::std_dev(&self) -> core::option::Option<f64>
+pub fn rill_ml::stats::Variance::value(&self) -> core::option::Option<f64>
+impl core::default::Default for rill_ml::stats::Variance
+pub fn rill_ml::stats::Variance::default() -> Self
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Variance
+pub fn rill_ml::stats::Variance::reset(&mut self)
+pub fn rill_ml::stats::Variance::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Variance::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub mod rill_ml::traits
+pub trait rill_ml::traits::Metric
+pub type rill_ml::traits::Metric::Prediction
+pub type rill_ml::traits::Metric::Truth
+pub fn rill_ml::traits::Metric::reset(&mut self)
+pub fn rill_ml::traits::Metric::samples_seen(&self) -> u64
+pub fn rill_ml::traits::Metric::update(&mut self, Self::Truth, Self::Prediction) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::traits::Metric::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Accuracy
+pub type rill_ml::metrics::Accuracy::Prediction = bool
+pub type rill_ml::metrics::Accuracy::Truth = bool
+pub fn rill_ml::metrics::Accuracy::reset(&mut self)
+pub fn rill_ml::metrics::Accuracy::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Accuracy::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Accuracy::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::F1Score
+pub type rill_ml::metrics::F1Score::Prediction = bool
+pub type rill_ml::metrics::F1Score::Truth = bool
+pub fn rill_ml::metrics::F1Score::reset(&mut self)
+pub fn rill_ml::metrics::F1Score::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::F1Score::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::F1Score::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::LogLoss
+pub type rill_ml::metrics::LogLoss::Prediction = f64
+pub type rill_ml::metrics::LogLoss::Truth = bool
+pub fn rill_ml::metrics::LogLoss::reset(&mut self)
+pub fn rill_ml::metrics::LogLoss::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::LogLoss::update(&mut self, bool, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::LogLoss::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Mae
+pub type rill_ml::metrics::Mae::Prediction = f64
+pub type rill_ml::metrics::Mae::Truth = f64
+pub fn rill_ml::metrics::Mae::reset(&mut self)
+pub fn rill_ml::metrics::Mae::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Mae::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Mae::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Mse
+pub type rill_ml::metrics::Mse::Prediction = f64
+pub type rill_ml::metrics::Mse::Truth = f64
+pub fn rill_ml::metrics::Mse::reset(&mut self)
+pub fn rill_ml::metrics::Mse::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Mse::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Mse::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Precision
+pub type rill_ml::metrics::Precision::Prediction = bool
+pub type rill_ml::metrics::Precision::Truth = bool
+pub fn rill_ml::metrics::Precision::reset(&mut self)
+pub fn rill_ml::metrics::Precision::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Precision::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Precision::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::R2
+pub type rill_ml::metrics::R2::Prediction = f64
+pub type rill_ml::metrics::R2::Truth = f64
+pub fn rill_ml::metrics::R2::reset(&mut self)
+pub fn rill_ml::metrics::R2::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::R2::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::R2::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Recall
+pub type rill_ml::metrics::Recall::Prediction = bool
+pub type rill_ml::metrics::Recall::Truth = bool
+pub fn rill_ml::metrics::Recall::reset(&mut self)
+pub fn rill_ml::metrics::Recall::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Recall::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Recall::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Rmse
+pub type rill_ml::metrics::Rmse::Prediction = f64
+pub type rill_ml::metrics::Rmse::Truth = f64
+pub fn rill_ml::metrics::Rmse::reset(&mut self)
+pub fn rill_ml::metrics::Rmse::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Rmse::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Rmse::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::RollingAccuracy
+pub type rill_ml::metrics::RollingAccuracy::Prediction = bool
+pub type rill_ml::metrics::RollingAccuracy::Truth = bool
+pub fn rill_ml::metrics::RollingAccuracy::reset(&mut self)
+pub fn rill_ml::metrics::RollingAccuracy::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::RollingAccuracy::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::RollingAccuracy::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::RollingMae
+pub type rill_ml::metrics::RollingMae::Prediction = f64
+pub type rill_ml::metrics::RollingMae::Truth = f64
+pub fn rill_ml::metrics::RollingMae::reset(&mut self)
+pub fn rill_ml::metrics::RollingMae::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::RollingMae::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::RollingMae::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::RollingMse
+pub type rill_ml::metrics::RollingMse::Prediction = f64
+pub type rill_ml::metrics::RollingMse::Truth = f64
+pub fn rill_ml::metrics::RollingMse::reset(&mut self)
+pub fn rill_ml::metrics::RollingMse::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::RollingMse::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::RollingMse::value(&self) -> core::option::Option<f64>
+pub trait rill_ml::traits::OnlineBinaryClassifier
+pub fn rill_ml::traits::OnlineBinaryClassifier::feature_count(&self) -> usize
+pub fn rill_ml::traits::OnlineBinaryClassifier::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::traits::OnlineBinaryClassifier::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::traits::OnlineBinaryClassifier::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::traits::OnlineBinaryClassifier::reset(&mut self)
+pub fn rill_ml::traits::OnlineBinaryClassifier::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::BernoulliNaiveBayes
+pub fn rill_ml::models::BernoulliNaiveBayes::feature_count(&self) -> usize
+pub fn rill_ml::models::BernoulliNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::BernoulliNaiveBayes::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::BernoulliNaiveBayes::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::BernoulliNaiveBayes::reset(&mut self)
+pub fn rill_ml::models::BernoulliNaiveBayes::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::GaussianNaiveBayes
+pub fn rill_ml::models::GaussianNaiveBayes::feature_count(&self) -> usize
+pub fn rill_ml::models::GaussianNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::GaussianNaiveBayes::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::GaussianNaiveBayes::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::GaussianNaiveBayes::reset(&mut self)
+pub fn rill_ml::models::GaussianNaiveBayes::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::LogisticRegression
+pub fn rill_ml::models::LogisticRegression::feature_count(&self) -> usize
+pub fn rill_ml::models::LogisticRegression::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::reset(&mut self)
+pub fn rill_ml::models::LogisticRegression::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::MultinomialNaiveBayes
+pub fn rill_ml::models::MultinomialNaiveBayes::feature_count(&self) -> usize
+pub fn rill_ml::models::MultinomialNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::MultinomialNaiveBayes::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::MultinomialNaiveBayes::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::MultinomialNaiveBayes::reset(&mut self)
+pub fn rill_ml::models::MultinomialNaiveBayes::samples_seen(&self) -> u64
+impl<T, M> rill_ml::traits::OnlineBinaryClassifier for rill_ml::pipeline::ClassificationPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineBinaryClassifier
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::feature_count(&self) -> usize
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::reset(&mut self)
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::samples_seen(&self) -> u64
+pub trait rill_ml::traits::OnlineRegressor
+pub fn rill_ml::traits::OnlineRegressor::feature_count(&self) -> usize
+pub fn rill_ml::traits::OnlineRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::traits::OnlineRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::traits::OnlineRegressor::reset(&mut self)
+pub fn rill_ml::traits::OnlineRegressor::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::ExponentiallyWeightedMeanRegressor
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::reset(&mut self)
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::LastValueRegressor
+pub fn rill_ml::models::LastValueRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::LastValueRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::LastValueRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::LastValueRegressor::reset(&mut self)
+pub fn rill_ml::models::LastValueRegressor::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::LinearRegression
+pub fn rill_ml::models::LinearRegression::feature_count(&self) -> usize
+pub fn rill_ml::models::LinearRegression::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::LinearRegression::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::LinearRegression::reset(&mut self)
+pub fn rill_ml::models::LinearRegression::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::MeanRegressor
+pub fn rill_ml::models::MeanRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::MeanRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::MeanRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::MeanRegressor::reset(&mut self)
+pub fn rill_ml::models::MeanRegressor::samples_seen(&self) -> u64
+impl<T, M> rill_ml::traits::OnlineRegressor for rill_ml::pipeline::RegressionPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineRegressor
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::feature_count(&self) -> usize
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::reset(&mut self)
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::samples_seen(&self) -> u64
+pub trait rill_ml::traits::OnlineStatistic
+pub fn rill_ml::traits::OnlineStatistic::reset(&mut self)
+pub fn rill_ml::traits::OnlineStatistic::samples_seen(&self) -> u64
+pub fn rill_ml::traits::OnlineStatistic::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Count
+pub fn rill_ml::stats::Count::reset(&mut self)
+pub fn rill_ml::stats::Count::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Count::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::ExponentiallyWeightedMean
+pub fn rill_ml::stats::ExponentiallyWeightedMean::reset(&mut self)
+pub fn rill_ml::stats::ExponentiallyWeightedMean::samples_seen(&self) -> u64
+pub fn rill_ml::stats::ExponentiallyWeightedMean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Max
+pub fn rill_ml::stats::Max::reset(&mut self)
+pub fn rill_ml::stats::Max::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Max::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Mean
+pub fn rill_ml::stats::Mean::reset(&mut self)
+pub fn rill_ml::stats::Mean::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Mean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Min
+pub fn rill_ml::stats::Min::reset(&mut self)
+pub fn rill_ml::stats::Min::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Min::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingMean
+pub fn rill_ml::stats::RollingMean::reset(&mut self)
+pub fn rill_ml::stats::RollingMean::samples_seen(&self) -> u64
+pub fn rill_ml::stats::RollingMean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingVariance
+pub fn rill_ml::stats::RollingVariance::reset(&mut self)
+pub fn rill_ml::stats::RollingVariance::samples_seen(&self) -> u64
+pub fn rill_ml::stats::RollingVariance::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Sum
+pub fn rill_ml::stats::Sum::reset(&mut self)
+pub fn rill_ml::stats::Sum::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Sum::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Variance
+pub fn rill_ml::stats::Variance::reset(&mut self)
+pub fn rill_ml::stats::Variance::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Variance::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub trait rill_ml::traits::SparseClassifier
+pub fn rill_ml::traits::SparseClassifier::learn(&mut self, &rill_ml::sparse::SparseFeatures, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::traits::SparseClassifier::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::traits::SparseClassifier::predict_proba(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::traits::SparseClassifier::reset(&mut self)
+pub fn rill_ml::traits::SparseClassifier::samples_seen(&self) -> u64
+impl rill_ml::traits::SparseClassifier for rill_ml::models::FtrlClassifier
+pub fn rill_ml::models::FtrlClassifier::learn(&mut self, &rill_ml::sparse::SparseFeatures, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::predict_proba(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::reset(&mut self)
+pub fn rill_ml::models::FtrlClassifier::samples_seen(&self) -> u64
+pub trait rill_ml::traits::SparseRegressor
+pub fn rill_ml::traits::SparseRegressor::learn(&mut self, &rill_ml::sparse::SparseFeatures, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::traits::SparseRegressor::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::traits::SparseRegressor::reset(&mut self)
+pub fn rill_ml::traits::SparseRegressor::samples_seen(&self) -> u64
+impl rill_ml::traits::SparseRegressor for rill_ml::models::FtrlRegressor
+pub fn rill_ml::models::FtrlRegressor::learn(&mut self, &rill_ml::sparse::SparseFeatures, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlRegressor::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlRegressor::reset(&mut self)
+pub fn rill_ml::models::FtrlRegressor::samples_seen(&self) -> u64
+pub trait rill_ml::traits::Transformer
+pub fn rill_ml::traits::Transformer::input_dim(&self) -> usize
+pub fn rill_ml::traits::Transformer::output_dim(&self) -> usize
+pub fn rill_ml::traits::Transformer::reset(&mut self)
+pub fn rill_ml::traits::Transformer::samples_seen(&self) -> u64
+pub fn rill_ml::traits::Transformer::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::traits::Transformer::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::Clipper
+pub fn rill_ml::preprocessing::Clipper::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::Clipper::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::Clipper::reset(&mut self)
+pub fn rill_ml::preprocessing::Clipper::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::Clipper::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::Clipper::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::ConstantImputer
+pub fn rill_ml::preprocessing::ConstantImputer::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ConstantImputer::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ConstantImputer::reset(&mut self)
+pub fn rill_ml::preprocessing::ConstantImputer::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::ConstantImputer::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::ConstantImputer::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::ForwardFill
+pub fn rill_ml::preprocessing::ForwardFill::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ForwardFill::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ForwardFill::reset(&mut self)
+pub fn rill_ml::preprocessing::ForwardFill::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::ForwardFill::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::ForwardFill::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::MeanImputer
+pub fn rill_ml::preprocessing::MeanImputer::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MeanImputer::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MeanImputer::reset(&mut self)
+pub fn rill_ml::preprocessing::MeanImputer::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::MeanImputer::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MeanImputer::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::MinMaxScaler
+pub fn rill_ml::preprocessing::MinMaxScaler::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MinMaxScaler::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MinMaxScaler::reset(&mut self)
+pub fn rill_ml::preprocessing::MinMaxScaler::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::MinMaxScaler::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MinMaxScaler::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::MissingIndicator
+pub fn rill_ml::preprocessing::MissingIndicator::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MissingIndicator::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MissingIndicator::reset(&mut self)
+pub fn rill_ml::preprocessing::MissingIndicator::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::MissingIndicator::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MissingIndicator::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::StandardScaler
+pub fn rill_ml::preprocessing::StandardScaler::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::StandardScaler::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::StandardScaler::reset(&mut self)
+pub fn rill_ml::preprocessing::StandardScaler::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::StandardScaler::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::StandardScaler::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+#[non_exhaustive] pub enum rill_ml::RillError
+pub rill_ml::RillError::DimensionMismatch
+pub rill_ml::RillError::DimensionMismatch::actual: usize
+pub rill_ml::RillError::DimensionMismatch::expected: usize
+pub rill_ml::RillError::DuplicateFeatureId(u64)
+pub rill_ml::RillError::EmptyFeatures
+pub rill_ml::RillError::IncompatibleStateVersion
+pub rill_ml::RillError::IncompatibleStateVersion::actual: u32
+pub rill_ml::RillError::IncompatibleStateVersion::expected: u32
+pub rill_ml::RillError::InsufficientData
+pub rill_ml::RillError::InvalidArm
+pub rill_ml::RillError::InvalidArm::actual: usize
+pub rill_ml::RillError::InvalidArm::expected: usize
+pub rill_ml::RillError::InvalidArmCount(usize)
+pub rill_ml::RillError::InvalidCapacity(usize)
+pub rill_ml::RillError::InvalidEpsilon(f64)
+pub rill_ml::RillError::InvalidFeatureCount(usize)
+pub rill_ml::RillError::InvalidHashDimension(usize)
+pub rill_ml::RillError::InvalidLearningRate(f64)
+pub rill_ml::RillError::InvalidParameter
+pub rill_ml::RillError::InvalidParameter::name: &'static str
+pub rill_ml::RillError::InvalidParameter::value: f64
+pub rill_ml::RillError::InvalidProbability(f64)
+pub rill_ml::RillError::InvalidReward(f64)
+pub rill_ml::RillError::InvalidSignificanceLevel(f64)
+pub rill_ml::RillError::InvalidState(alloc::string::String)
+pub rill_ml::RillError::InvalidWindowSize
+pub rill_ml::RillError::MissingValue
+pub rill_ml::RillError::MissingValue::index: usize
+pub rill_ml::RillError::NonFiniteValue
+pub rill_ml::RillError::NonFiniteValue::field: &'static str
+pub rill_ml::RillError::NonFiniteValue::value: f64
+pub rill_ml::RillError::UnknownCategory(alloc::string::String)
+pub rill_ml::RillError::UnsortedFeatureIds
+pub struct rill_ml::BinaryClassificationSample
+pub rill_ml::BinaryClassificationSample::features: alloc::vec::Vec<f64>
+pub rill_ml::BinaryClassificationSample::target: bool
+pub struct rill_ml::RegressionSample
+pub rill_ml::RegressionSample::features: alloc::vec::Vec<f64>
+pub rill_ml::RegressionSample::target: f64
+pub trait rill_ml::Metric
+pub type rill_ml::Metric::Prediction
+pub type rill_ml::Metric::Truth
+pub fn rill_ml::Metric::reset(&mut self)
+pub fn rill_ml::Metric::samples_seen(&self) -> u64
+pub fn rill_ml::Metric::update(&mut self, Self::Truth, Self::Prediction) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::Metric::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Accuracy
+pub type rill_ml::metrics::Accuracy::Prediction = bool
+pub type rill_ml::metrics::Accuracy::Truth = bool
+pub fn rill_ml::metrics::Accuracy::reset(&mut self)
+pub fn rill_ml::metrics::Accuracy::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Accuracy::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Accuracy::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::F1Score
+pub type rill_ml::metrics::F1Score::Prediction = bool
+pub type rill_ml::metrics::F1Score::Truth = bool
+pub fn rill_ml::metrics::F1Score::reset(&mut self)
+pub fn rill_ml::metrics::F1Score::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::F1Score::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::F1Score::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::LogLoss
+pub type rill_ml::metrics::LogLoss::Prediction = f64
+pub type rill_ml::metrics::LogLoss::Truth = bool
+pub fn rill_ml::metrics::LogLoss::reset(&mut self)
+pub fn rill_ml::metrics::LogLoss::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::LogLoss::update(&mut self, bool, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::LogLoss::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Mae
+pub type rill_ml::metrics::Mae::Prediction = f64
+pub type rill_ml::metrics::Mae::Truth = f64
+pub fn rill_ml::metrics::Mae::reset(&mut self)
+pub fn rill_ml::metrics::Mae::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Mae::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Mae::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Mse
+pub type rill_ml::metrics::Mse::Prediction = f64
+pub type rill_ml::metrics::Mse::Truth = f64
+pub fn rill_ml::metrics::Mse::reset(&mut self)
+pub fn rill_ml::metrics::Mse::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Mse::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Mse::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Precision
+pub type rill_ml::metrics::Precision::Prediction = bool
+pub type rill_ml::metrics::Precision::Truth = bool
+pub fn rill_ml::metrics::Precision::reset(&mut self)
+pub fn rill_ml::metrics::Precision::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Precision::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Precision::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::R2
+pub type rill_ml::metrics::R2::Prediction = f64
+pub type rill_ml::metrics::R2::Truth = f64
+pub fn rill_ml::metrics::R2::reset(&mut self)
+pub fn rill_ml::metrics::R2::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::R2::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::R2::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Recall
+pub type rill_ml::metrics::Recall::Prediction = bool
+pub type rill_ml::metrics::Recall::Truth = bool
+pub fn rill_ml::metrics::Recall::reset(&mut self)
+pub fn rill_ml::metrics::Recall::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Recall::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Recall::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::Rmse
+pub type rill_ml::metrics::Rmse::Prediction = f64
+pub type rill_ml::metrics::Rmse::Truth = f64
+pub fn rill_ml::metrics::Rmse::reset(&mut self)
+pub fn rill_ml::metrics::Rmse::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::Rmse::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::Rmse::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::RollingAccuracy
+pub type rill_ml::metrics::RollingAccuracy::Prediction = bool
+pub type rill_ml::metrics::RollingAccuracy::Truth = bool
+pub fn rill_ml::metrics::RollingAccuracy::reset(&mut self)
+pub fn rill_ml::metrics::RollingAccuracy::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::RollingAccuracy::update(&mut self, bool, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::RollingAccuracy::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::RollingMae
+pub type rill_ml::metrics::RollingMae::Prediction = f64
+pub type rill_ml::metrics::RollingMae::Truth = f64
+pub fn rill_ml::metrics::RollingMae::reset(&mut self)
+pub fn rill_ml::metrics::RollingMae::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::RollingMae::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::RollingMae::value(&self) -> core::option::Option<f64>
+impl rill_ml::traits::Metric for rill_ml::metrics::RollingMse
+pub type rill_ml::metrics::RollingMse::Prediction = f64
+pub type rill_ml::metrics::RollingMse::Truth = f64
+pub fn rill_ml::metrics::RollingMse::reset(&mut self)
+pub fn rill_ml::metrics::RollingMse::samples_seen(&self) -> u64
+pub fn rill_ml::metrics::RollingMse::update(&mut self, f64, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::metrics::RollingMse::value(&self) -> core::option::Option<f64>
+pub trait rill_ml::OnlineBinaryClassifier
+pub fn rill_ml::OnlineBinaryClassifier::feature_count(&self) -> usize
+pub fn rill_ml::OnlineBinaryClassifier::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::OnlineBinaryClassifier::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::OnlineBinaryClassifier::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::OnlineBinaryClassifier::reset(&mut self)
+pub fn rill_ml::OnlineBinaryClassifier::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::BernoulliNaiveBayes
+pub fn rill_ml::models::BernoulliNaiveBayes::feature_count(&self) -> usize
+pub fn rill_ml::models::BernoulliNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::BernoulliNaiveBayes::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::BernoulliNaiveBayes::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::BernoulliNaiveBayes::reset(&mut self)
+pub fn rill_ml::models::BernoulliNaiveBayes::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::GaussianNaiveBayes
+pub fn rill_ml::models::GaussianNaiveBayes::feature_count(&self) -> usize
+pub fn rill_ml::models::GaussianNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::GaussianNaiveBayes::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::GaussianNaiveBayes::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::GaussianNaiveBayes::reset(&mut self)
+pub fn rill_ml::models::GaussianNaiveBayes::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::LogisticRegression
+pub fn rill_ml::models::LogisticRegression::feature_count(&self) -> usize
+pub fn rill_ml::models::LogisticRegression::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::LogisticRegression::reset(&mut self)
+pub fn rill_ml::models::LogisticRegression::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::MultinomialNaiveBayes
+pub fn rill_ml::models::MultinomialNaiveBayes::feature_count(&self) -> usize
+pub fn rill_ml::models::MultinomialNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::MultinomialNaiveBayes::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::MultinomialNaiveBayes::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::MultinomialNaiveBayes::reset(&mut self)
+pub fn rill_ml::models::MultinomialNaiveBayes::samples_seen(&self) -> u64
+impl<T, M> rill_ml::traits::OnlineBinaryClassifier for rill_ml::pipeline::ClassificationPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineBinaryClassifier
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::feature_count(&self) -> usize
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::predict(&self, &[f64]) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::predict_proba(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::reset(&mut self)
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::samples_seen(&self) -> u64
+pub trait rill_ml::OnlineRegressor
+pub fn rill_ml::OnlineRegressor::feature_count(&self) -> usize
+pub fn rill_ml::OnlineRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::OnlineRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::OnlineRegressor::reset(&mut self)
+pub fn rill_ml::OnlineRegressor::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::ExponentiallyWeightedMeanRegressor
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::reset(&mut self)
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::LastValueRegressor
+pub fn rill_ml::models::LastValueRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::LastValueRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::LastValueRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::LastValueRegressor::reset(&mut self)
+pub fn rill_ml::models::LastValueRegressor::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::LinearRegression
+pub fn rill_ml::models::LinearRegression::feature_count(&self) -> usize
+pub fn rill_ml::models::LinearRegression::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::LinearRegression::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::LinearRegression::reset(&mut self)
+pub fn rill_ml::models::LinearRegression::samples_seen(&self) -> u64
+impl rill_ml::traits::OnlineRegressor for rill_ml::models::MeanRegressor
+pub fn rill_ml::models::MeanRegressor::feature_count(&self) -> usize
+pub fn rill_ml::models::MeanRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::MeanRegressor::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::MeanRegressor::reset(&mut self)
+pub fn rill_ml::models::MeanRegressor::samples_seen(&self) -> u64
+impl<T, M> rill_ml::traits::OnlineRegressor for rill_ml::pipeline::RegressionPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineRegressor
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::feature_count(&self) -> usize
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::predict(&self, &[f64]) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::reset(&mut self)
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::samples_seen(&self) -> u64
+pub trait rill_ml::OnlineStatistic
+pub fn rill_ml::OnlineStatistic::reset(&mut self)
+pub fn rill_ml::OnlineStatistic::samples_seen(&self) -> u64
+pub fn rill_ml::OnlineStatistic::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Count
+pub fn rill_ml::stats::Count::reset(&mut self)
+pub fn rill_ml::stats::Count::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Count::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::ExponentiallyWeightedMean
+pub fn rill_ml::stats::ExponentiallyWeightedMean::reset(&mut self)
+pub fn rill_ml::stats::ExponentiallyWeightedMean::samples_seen(&self) -> u64
+pub fn rill_ml::stats::ExponentiallyWeightedMean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Max
+pub fn rill_ml::stats::Max::reset(&mut self)
+pub fn rill_ml::stats::Max::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Max::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Mean
+pub fn rill_ml::stats::Mean::reset(&mut self)
+pub fn rill_ml::stats::Mean::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Mean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Min
+pub fn rill_ml::stats::Min::reset(&mut self)
+pub fn rill_ml::stats::Min::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Min::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingMean
+pub fn rill_ml::stats::RollingMean::reset(&mut self)
+pub fn rill_ml::stats::RollingMean::samples_seen(&self) -> u64
+pub fn rill_ml::stats::RollingMean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingVariance
+pub fn rill_ml::stats::RollingVariance::reset(&mut self)
+pub fn rill_ml::stats::RollingVariance::samples_seen(&self) -> u64
+pub fn rill_ml::stats::RollingVariance::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Sum
+pub fn rill_ml::stats::Sum::reset(&mut self)
+pub fn rill_ml::stats::Sum::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Sum::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Variance
+pub fn rill_ml::stats::Variance::reset(&mut self)
+pub fn rill_ml::stats::Variance::samples_seen(&self) -> u64
+pub fn rill_ml::stats::Variance::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub trait rill_ml::SparseClassifier
+pub fn rill_ml::SparseClassifier::learn(&mut self, &rill_ml::sparse::SparseFeatures, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::SparseClassifier::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::SparseClassifier::predict_proba(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::SparseClassifier::reset(&mut self)
+pub fn rill_ml::SparseClassifier::samples_seen(&self) -> u64
+impl rill_ml::traits::SparseClassifier for rill_ml::models::FtrlClassifier
+pub fn rill_ml::models::FtrlClassifier::learn(&mut self, &rill_ml::sparse::SparseFeatures, bool) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<bool, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::predict_proba(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::reset(&mut self)
+pub fn rill_ml::models::FtrlClassifier::samples_seen(&self) -> u64
+pub trait rill_ml::SparseRegressor
+pub fn rill_ml::SparseRegressor::learn(&mut self, &rill_ml::sparse::SparseFeatures, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::SparseRegressor::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::SparseRegressor::reset(&mut self)
+pub fn rill_ml::SparseRegressor::samples_seen(&self) -> u64
+impl rill_ml::traits::SparseRegressor for rill_ml::models::FtrlRegressor
+pub fn rill_ml::models::FtrlRegressor::learn(&mut self, &rill_ml::sparse::SparseFeatures, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlRegressor::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlRegressor::reset(&mut self)
+pub fn rill_ml::models::FtrlRegressor::samples_seen(&self) -> u64
+pub trait rill_ml::Transformer
+pub fn rill_ml::Transformer::input_dim(&self) -> usize
+pub fn rill_ml::Transformer::output_dim(&self) -> usize
+pub fn rill_ml::Transformer::reset(&mut self)
+pub fn rill_ml::Transformer::samples_seen(&self) -> u64
+pub fn rill_ml::Transformer::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::Transformer::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::Clipper
+pub fn rill_ml::preprocessing::Clipper::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::Clipper::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::Clipper::reset(&mut self)
+pub fn rill_ml::preprocessing::Clipper::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::Clipper::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::Clipper::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::ConstantImputer
+pub fn rill_ml::preprocessing::ConstantImputer::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ConstantImputer::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ConstantImputer::reset(&mut self)
+pub fn rill_ml::preprocessing::ConstantImputer::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::ConstantImputer::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::ConstantImputer::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::ForwardFill
+pub fn rill_ml::preprocessing::ForwardFill::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ForwardFill::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::ForwardFill::reset(&mut self)
+pub fn rill_ml::preprocessing::ForwardFill::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::ForwardFill::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::ForwardFill::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::MeanImputer
+pub fn rill_ml::preprocessing::MeanImputer::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MeanImputer::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MeanImputer::reset(&mut self)
+pub fn rill_ml::preprocessing::MeanImputer::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::MeanImputer::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MeanImputer::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::MinMaxScaler
+pub fn rill_ml::preprocessing::MinMaxScaler::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MinMaxScaler::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MinMaxScaler::reset(&mut self)
+pub fn rill_ml::preprocessing::MinMaxScaler::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::MinMaxScaler::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MinMaxScaler::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::MissingIndicator
+pub fn rill_ml::preprocessing::MissingIndicator::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MissingIndicator::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::MissingIndicator::reset(&mut self)
+pub fn rill_ml::preprocessing::MissingIndicator::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::MissingIndicator::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::MissingIndicator::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::Transformer for rill_ml::preprocessing::StandardScaler
+pub fn rill_ml::preprocessing::StandardScaler::input_dim(&self) -> usize
+pub fn rill_ml::preprocessing::StandardScaler::output_dim(&self) -> usize
+pub fn rill_ml::preprocessing::StandardScaler::reset(&mut self)
+pub fn rill_ml::preprocessing::StandardScaler::samples_seen(&self) -> u64
+pub fn rill_ml::preprocessing::StandardScaler::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
+pub fn rill_ml::preprocessing::StandardScaler::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>

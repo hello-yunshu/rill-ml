@@ -236,7 +236,7 @@ fn echo_handler_metadata_mismatch_rejected() {
 #[test]
 fn wasm_handler_rejects_oversized_output() {
     let _guard = wasm_test_guard();
-    use rill_runtime::handler::wasm::MAX_IO_BYTES;
+    use rill_runtime::MAX_IO_BYTES;
     // 1 MiB, matching the IPC limit per HANDLER-RFC §5.
     assert_eq!(MAX_IO_BYTES, 1024 * 1024);
 }
@@ -250,7 +250,7 @@ fn wasm_handler_rejects_oversized_output() {
 #[test]
 fn wasm_handler_sandbox_limits_verified() {
     let _guard = wasm_test_guard();
-    use rill_runtime::handler::wasm::{
+    use rill_runtime::{
         CONFIGURE_FUEL, EPOCH_DEADLINE, EPOCH_TICK_INTERVAL, INVOKE_FUEL, MAX_IO_BYTES,
         MAX_MEMORY_BYTES, MAX_TABLE_ELEMENTS,
     };

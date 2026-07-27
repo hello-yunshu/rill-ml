@@ -24,6 +24,7 @@ use std::hash::{Hash, Hasher};
 /// Configuration for [`FeatureHasher`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct FeatureHasherConfig {
     /// Output dimension. Must be > 0.
     pub dimension: usize,

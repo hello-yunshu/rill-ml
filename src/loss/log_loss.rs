@@ -8,7 +8,7 @@
 use crate::error::{RillError, ensure_finite};
 
 /// Default clipping epsilon for probabilities.
-pub const DEFAULT_EPSILON: f64 = 1e-15;
+pub(crate) const DEFAULT_EPSILON: f64 = 1e-15;
 
 /// Binary cross-entropy (log) loss.
 #[derive(Debug, Clone)]
@@ -73,7 +73,7 @@ impl Default for BinaryLogLoss {
 ///
 /// For `z >= 0`: `1 / (1 + exp(-z))`.
 /// For `z < 0`: `exp(z) / (1 + exp(z))`.
-pub fn sigmoid(z: f64) -> f64 {
+pub(crate) fn sigmoid(z: f64) -> f64 {
     if z >= 0.0 {
         1.0 / (1.0 + (-z).exp())
     } else {
