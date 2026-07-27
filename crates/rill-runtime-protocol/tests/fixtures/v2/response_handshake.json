@@ -1,0 +1,1 @@
+{"kind":"handshake","requestId":"v2-handshake-fixture","apiVersion":2,"runtimeVersion":"0.7.0","modelPackId":"rillml.example.default","modelPackVersion":"0.7.0","capabilities":["rillml.example"],"handlerId":"org.example.handler","handlerVersion":"1.0.0","handlerApiVersion":1,"effectiveCapabilities":["rillml.example"]}

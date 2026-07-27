@@ -34,6 +34,71 @@ pub const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 pub const RUNTIME_ARTIFACT_ID: &str = "rill-runtime";
 
 // ---------------------------------------------------------------------------
+// Stable IPC error codes
+// ---------------------------------------------------------------------------
+
+/// Stable IPC error code constants.
+///
+/// Every `RuntimeResponse::Error` / `RuntimeResponseV2::Error` `code` field
+/// produced by the runtime is one of the constants in this module. The codes
+/// are frozen for the entire 1.x cycle: existing codes are never renamed, and
+/// new codes may only be added (additive).
+///
+/// The runtime constructs error responses exclusively from these constants.
+/// Hosts and clients may switch on the string values; the constants are
+/// exported so that downstream Rust code does not have to inline string
+/// literals.
+pub mod error_code {
+    /// Request body was not valid protocol JSON.
+    pub const INVALID_JSON: &str = "invalidJson";
+    /// `requestId` was missing, empty, or longer than 128 characters.
+    pub const INVALID_REQUEST_ID: &str = "invalidRequestId";
+    /// `apiVersion` was outside `[MIN_RUNTIME_API_VERSION, RUNTIME_API_VERSION]`.
+    pub const INCOMPATIBLE_API_VERSION: &str = "incompatibleApiVersion";
+    /// `clientName` / `clientVersion` failed length or emptiness checks.
+    pub const INVALID_CLIENT_IDENTITY: &str = "invalidClientIdentity";
+    /// `Invoke` capability is not in the effective capability set.
+    pub const UNSUPPORTED_CAPABILITY: &str = "unsupportedCapability";
+    /// `Invoke` was issued but no handler is registered.
+    pub const NO_INVOKE_HANDLER: &str = "noInvokeHandler";
+    /// Handler exceeded the wall-clock deadline. Retryable.
+    pub const HANDLER_TIMEOUT: &str = "handlerTimeout";
+    /// Handler trapped (unreachable, out-of-bounds, stack overflow, …).
+    pub const HANDLER_TRAP: &str = "handlerTrap";
+    /// Handler output exceeded the host-side size limit.
+    pub const HANDLER_OUTPUT_TOO_LARGE: &str = "handlerOutputTooLarge";
+    /// Handler output was not valid JSON.
+    pub const HANDLER_INVALID_OUTPUT: &str = "handlerInvalidOutput";
+    /// Handler reported an internal error (covers all four WIT
+    /// `handler-error` variants on the wire for backwards compatibility).
+    pub const HANDLER_INTERNAL_ERROR: &str = "handlerInternalError";
+
+    /// All frozen error codes in alphabetical order.
+    ///
+    /// This slice is used by tests and by the runtime's error-code allowlist
+    /// check. Adding a new code requires appending to this slice; the order
+    /// is part of the frozen surface so test fixtures remain stable.
+    pub const FROZEN_CODES: &[&str] = &[
+        HANDLER_INTERNAL_ERROR,
+        HANDLER_INVALID_OUTPUT,
+        HANDLER_OUTPUT_TOO_LARGE,
+        HANDLER_TIMEOUT,
+        HANDLER_TRAP,
+        INCOMPATIBLE_API_VERSION,
+        INVALID_CLIENT_IDENTITY,
+        INVALID_JSON,
+        INVALID_REQUEST_ID,
+        NO_INVOKE_HANDLER,
+        UNSUPPORTED_CAPABILITY,
+    ];
+
+    /// Returns `true` if `code` is one of the frozen 1.x error codes.
+    pub fn is_frozen(code: &str) -> bool {
+        FROZEN_CODES.contains(&code)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Model pack manifest
 // ---------------------------------------------------------------------------
 
