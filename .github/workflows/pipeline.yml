@@ -464,11 +464,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          # Accept both stable (v1.0.0) and prerelease (v1.0.0-rc.1) SemVer
+          # tags. The prerelease suffix is required for candidate-channel
+          # routing: a version containing a hyphen publishes to the
+          # candidate pointer and never updates the stable pointer.
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
           version="${RELEASE_TAG#v}"
           test "$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n1)" = "$version"
           test "$(python3 -c 'import json; print(json.load(open("models/example-default/manifest.json"))["version"])')" = "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          # SemVer 2.0: a prerelease version contains a hyphen after the
+          # patch number (e.g. 1.0.0-rc.1). Stable versions do not.
+          if [[ "$version" == *-* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "channel=candidate" >> "$GITHUB_OUTPUT"
+            echo "index_file=candidate-index.json" >> "$GITHUB_OUTPUT"
+            echo "pointer_release=local-ai-candidate" >> "$GITHUB_OUTPUT"
+            echo "pointer_title=Rill Local AI candidate index" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+            echo "index_file=stable-index.json" >> "$GITHUB_OUTPUT"
+            echo "pointer_release=local-ai-stable" >> "$GITHUB_OUTPUT"
+            echo "pointer_title=Rill Local AI stable index" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build signing tool
         run: cargo build --locked --release -p rill-runtime --bin rill-pack
       - name: Publish to crates.io
@@ -502,26 +521,35 @@ jobs:
               exit 1
             fi
           done
-      - name: Verify existing stable index when present
+      - name: Verify existing channel index when present
         env:
           GH_TOKEN: ${{ github.token }}
+          POINTER_RELEASE: ${{ steps.version.outputs.pointer_release }}
+          INDEX_FILE: ${{ steps.version.outputs.index_file }}
         shell: bash
         run: |
           set -euo pipefail
-          if gh release download local-ai-stable --pattern stable-index.json --dir dist; then
-            mv dist/stable-index.json dist/current-stable-index.json
+          # Download the existing index from the channel-appropriate pointer
+          # release (local-ai-stable for stable, local-ai-candidate for
+          # prerelease). The downloaded file is used as the merge base so a
+          # newer model/handler from a prior release in the same channel is
+          # retained. A candidate release never reads or writes the stable
+          # pointer.
+          if gh release download "$POINTER_RELEASE" --pattern "$INDEX_FILE" --dir dist; then
+            mv "dist/$INDEX_FILE" dist/current-index.json
             if ! target/release/rill-pack verify-index \
-              --index dist/current-stable-index.json \
+              --index dist/current-index.json \
               --key-id "$PUBLISHER_KEY_ID" \
               --public-key-hex "$RILL_PUBLIC_KEY_HEX"; then
-              echo "::warning::Existing stable index could not be verified (possibly incompatible schema). Treating as fresh release."
-              rm -f dist/current-stable-index.json
+              echo "::warning::Existing $INDEX_FILE could not be verified (possibly incompatible schema). Treating as fresh release."
+              rm -f dist/current-index.json
             fi
           fi
       - name: Reuse immutable versioned assets when present
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
+          INDEX_FILE: ${{ steps.version.outputs.index_file }}
         shell: bash
         run: |
           set -euo pipefail
@@ -534,19 +562,19 @@ jobs:
               --clobber
             mkdir -p dist/versioned-release
             gh release download "$RELEASE_TAG" \
-              --pattern stable-index.json \
+              --pattern "$INDEX_FILE" \
               --dir dist/versioned-release \
-              --clobber
-            if target/release/rill-pack verify-index \
-              --index dist/versioned-release/stable-index.json \
+              --clobber || true
+            if [ -f "dist/versioned-release/$INDEX_FILE" ] && target/release/rill-pack verify-index \
+              --index "dist/versioned-release/$INDEX_FILE" \
               --key-id "$PUBLISHER_KEY_ID" \
               --public-key-hex "$RILL_PUBLIC_KEY_HEX"; then
               python3 scripts/verify-release-assets.py \
-                --index dist/versioned-release/stable-index.json \
+                --index "dist/versioned-release/$INDEX_FILE" \
                 --release-dir dist \
                 --version "$VERSION"
             else
-              echo "::warning::Versioned stable-index could not be verified (possibly incompatible schema). Skipping asset-matching check; individual assets are still verified in the next step."
+              echo "::warning::Versioned $INDEX_FILE could not be verified (possibly incompatible schema or first release in channel). Skipping asset-matching check; individual assets are still verified in the next step."
             fi
           fi
       - name: Create signed model package
@@ -594,17 +622,19 @@ jobs:
               --module target/echo-handler.wasm \
               --output "dist/echo-handler-${VERSION}.rillhandler"
           fi
-      - name: Build and sign stable index
+      - name: Build and sign release index
         env:
           RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
           VERSION: ${{ steps.version.outputs.version }}
+          CHANNEL: ${{ steps.version.outputs.channel }}
+          INDEX_FILE: ${{ steps.version.outputs.index_file }}
         shell: bash
         run: |
           set -euo pipefail
           generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           extra=()
-          if [ -f dist/current-stable-index.json ]; then
-            extra+=(--existing-index dist/current-stable-index.json)
+          if [ -f dist/current-index.json ]; then
+            extra+=(--existing-index dist/current-index.json)
           fi
           python3 scripts/build-release-index.py \
             --release-dir dist \
@@ -613,14 +643,16 @@ jobs:
             --repository "$GITHUB_REPOSITORY" \
             --publisher-key-id "$PUBLISHER_KEY_ID" \
             --generated-at "$generated_at" \
-            --output dist/stable-index-payload.json \
+            --channel "$CHANNEL" \
+            --output dist/index-payload.json \
             "${extra[@]}"
           target/release/rill-pack sign-index \
-            --payload dist/stable-index-payload.json \
-            --output dist/stable-index.json
+            --payload dist/index-payload.json \
+            --output "dist/$INDEX_FILE"
       - name: Verify signed outputs before publishing
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          INDEX_FILE: ${{ steps.version.outputs.index_file }}
         shell: bash
         run: |
           set -euo pipefail
@@ -633,20 +665,26 @@ jobs:
             --key-id "$PUBLISHER_KEY_ID" \
             --public-key-hex "$RILL_PUBLIC_KEY_HEX"
           target/release/rill-pack verify-index \
-            --index dist/stable-index.json \
+            --index "dist/$INDEX_FILE" \
             --key-id "$PUBLISHER_KEY_ID" \
             --public-key-hex "$RILL_PUBLIC_KEY_HEX"
       - name: Publish immutable versioned release
         env:
           GH_TOKEN: ${{ github.token }}
+          INDEX_FILE: ${{ steps.version.outputs.index_file }}
+          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
         shell: bash
         run: |
           set -euo pipefail
+          prerelease_args=()
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            prerelease_args+=(--prerelease)
+          fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             mapfile -t existing_assets < <(
               gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name'
             )
-            for asset in dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler dist/stable-index.json; do
+            for asset in dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE"; do
               name="$(basename "$asset")"
               present=false
               for existing in "${existing_assets[@]}"; do
@@ -662,20 +700,36 @@ jobs:
               fi
             done
           else
-            gh release create "$RELEASE_TAG" dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler dist/stable-index.json \
+            gh release create "$RELEASE_TAG" dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" \
               --verify-tag \
               --title "Rill ML ${{ steps.version.outputs.version }}" \
-              --generate-notes
+              --generate-notes \
+              "${prerelease_args[@]}"
           fi
-      - name: Move signed stable-index pointer
+      - name: Move signed index pointer
         env:
           GH_TOKEN: ${{ github.token }}
+          POINTER_RELEASE: ${{ steps.version.outputs.pointer_release }}
+          POINTER_TITLE: ${{ steps.version.outputs.pointer_title }}
+          INDEX_FILE: ${{ steps.version.outputs.index_file }}
+          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
         shell: bash
         run: |
           set -euo pipefail
-          gh release view local-ai-stable >/dev/null 2>&1 || \
-            gh release create local-ai-stable --title "Rill Local AI stable index" --notes "Machine-readable signed update index."
-          gh release upload local-ai-stable dist/stable-index.json --clobber
+          # Route the signed index to the channel-appropriate pointer
+          # release. A prerelease (candidate) version updates only
+          # local-ai-candidate and never touches local-ai-stable; a stable
+          # version updates only local-ai-stable. The two channels are
+          # intentionally independent so users tracking the stable pointer
+          # never see an RC version appear.
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            echo "Prerelease detected: updating candidate pointer only (local-ai-stable is untouched)."
+          else
+            echo "Stable release detected: updating stable pointer only (local-ai-candidate is untouched)."
+          fi
+          gh release view "$POINTER_RELEASE" >/dev/null 2>&1 || \
+            gh release create "$POINTER_RELEASE" --title "$POINTER_TITLE" --notes "Machine-readable signed update index."
+          gh release upload "$POINTER_RELEASE" "dist/$INDEX_FILE" --clobber
 
   publish-python:
     name: Publish Python bindings to PyPI
@@ -687,9 +741,35 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
+      - name: Check whether Python version matches the release tag
+        id: python_version_check
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The Python crate is in the Preview version group and may carry a
+          # different version from the Stable group (the tag version). Only
+          # publish to PyPI when the two match; otherwise the job would try
+          # to re-upload an already-published Preview version and fail the
+          # visibility check against the wrong version. The 1.0 RC cycle
+          # (Stable=1.0.0-rc.x, Preview=0.13.0) skips PyPI entirely; the
+          # Python crate is not a 1.0 blocking artifact (see STABILITY.md).
+          tag_version="${RELEASE_TAG#v}"
+          python_version="$(python3 -c 'import tomllib; print(tomllib.loads(open("crates/rill-ml-python/pyproject.toml","rb").read().decode())["project"]["version"])')"
+          echo "tag_version=$tag_version" >> "$GITHUB_OUTPUT"
+          echo "python_version=$python_version" >> "$GITHUB_OUTPUT"
+          if [ "$tag_version" = "$python_version" ]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "Python version ($python_version) matches tag ($tag_version); will publish."
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "Python version ($python_version) differs from tag ($tag_version); skipping PyPI publish (Preview crate is not a 1.0 blocking artifact)."
+          fi
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.python_version_check.outputs.should_publish == 'true'
       - uses: Swatinem/rust-cache@v2
+        if: steps.python_version_check.outputs.should_publish == 'true'
       - name: Install Python build toolchain (compatible range)
+        if: steps.python_version_check.outputs.should_publish == 'true'
         # ``requirements-dev.txt`` is the source of truth for the
         # maturin and pytest compatible-range constraints used by both
         # CI and release. This is NOT exact pinning — ``pip install``
@@ -701,6 +781,7 @@ jobs:
           maturin --version
           pytest --version
       - name: Verify PyPI token is configured
+        if: steps.python_version_check.outputs.should_publish == 'true'
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.MATURIN_PYPI_TOKEN }}
         run: |
@@ -710,16 +791,18 @@ jobs:
             exit 1
           fi
       - name: maturin publish
+        if: steps.python_version_check.outputs.should_publish == 'true'
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.MATURIN_PYPI_TOKEN }}
         working-directory: crates/rill-ml-python
         run: maturin publish --no-sdist
       - name: Verify PyPI release is visible
+        if: steps.python_version_check.outputs.should_publish == 'true'
         env:
-          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          PYTHON_VERSION: ${{ steps.python_version_check.outputs.python_version }}
         run: |
           set -euo pipefail
-          version="${RELEASE_TAG#v}"
+          version="$PYTHON_VERSION"
           # PyPI's JSON API may lag a few seconds behind the upload. Retry
           # for up to a minute before reporting the publish as failed.
           package="rill-ml-python"

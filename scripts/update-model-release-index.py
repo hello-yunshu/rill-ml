@@ -77,6 +77,11 @@ def main() -> None:
     payload = envelope["payload"]
     if payload["publisherKeyId"] != args.publisher_key_id:
         raise SystemExit("existing index publisher does not match")
+    # Preserve the channel of the existing index so a model-only update
+    # cannot accidentally downgrade a candidate index to stable or vice
+    # versa. The bootstrap release sets the channel; subsequent model-only
+    # updates inherit it.
+    existing_channel = payload.get("channel", "stable")
     runtimes = [item for item in payload["artifacts"] if item["kind"] == "runtime"]
     if not runtimes:
         raise SystemExit("stable index has no runtime; publish the bootstrap runtime release first")
@@ -116,7 +121,7 @@ def main() -> None:
     )
     next_payload = {
         "schemaVersion": 2,
-        "channel": "stable",
+        "channel": existing_channel,
         "generatedAt": args.generated_at,
         "publisherKeyId": args.publisher_key_id,
         "artifacts": retained,
