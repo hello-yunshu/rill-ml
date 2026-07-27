@@ -11,6 +11,7 @@
 //! produced *before* any state update).
 
 use crate::error::{RillError, ensure_finite_target};
+#[cfg(feature = "serde")]
 use crate::persistence::ValidateState;
 use crate::traits::{OnlineBinaryClassifier, OnlineRegressor, Transformer};
 

@@ -5,6 +5,7 @@
 //! See <https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm>.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
 use crate::persistence::ValidateState;
 use crate::traits::OnlineStatistic;
 

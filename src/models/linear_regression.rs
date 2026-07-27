@@ -10,6 +10,7 @@ use crate::error::{
 };
 use crate::loss::RegressionLoss;
 use crate::optim::Optimizer;
+#[cfg(feature = "serde")]
 use crate::persistence::ValidateState;
 use crate::traits::OnlineRegressor;
 
