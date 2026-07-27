@@ -38,10 +38,10 @@ enum Command {
         #[arg(long)]
         pack: PathBuf,
         /// Trusted Ed25519 public key for model packs, as KEY_ID=64_HEX_CHARS.
-        /// May be repeated. `--model-trust-key` is the documented name;
-        /// `--trust-key` is a deprecated alias.
-        #[arg(long = "trust-key", alias = "model-trust-key")]
-        trust_keys: Vec<String>,
+        /// May be repeated. `--model-trust-key` is the primary name;
+        /// `--trust-key` is a deprecated alias kept for 1.x compatibility.
+        #[arg(long = "model-trust-key", alias = "trust-key")]
+        model_trust_keys: Vec<String>,
         /// Trusted Ed25519 public key for handler packs, as KEY_ID=64_HEX_CHARS.
         /// May be repeated.
         #[arg(long = "handler-trust-key")]
@@ -51,8 +51,8 @@ enum Command {
         #[arg(long)]
         handler: Option<PathBuf>,
         /// Select a built-in handler by name. Currently only
-        /// `linear-regression` is supported. Mutually exclusive with
-        /// `--handler`.
+        /// `linear-regression` is supported, and is retained as an explicit
+        /// compatibility path. Mutually exclusive with `--handler`.
         #[arg(long)]
         builtin_handler: Option<String>,
     },
@@ -60,7 +60,7 @@ enum Command {
     InspectPack {
         #[arg(long)]
         pack: PathBuf,
-        #[arg(long = "trust-key", alias = "model-trust-key", required = true)]
+        #[arg(long = "model-trust-key", alias = "trust-key", required = true)]
         trust_keys: Vec<String>,
     },
     /// Verify and print metadata for a signed handler package.
@@ -92,6 +92,12 @@ enum CliError {
     ConflictingHandlerOption,
     #[error("unknown built-in handler: {0}")]
     UnknownBuiltinHandler(String),
+    #[error(
+        "no --handler or --builtin-handler specified; \
+         pass --handler PATH to load a signed .rillhandler, \
+         or --builtin-handler linear-regression for the deprecated built-in path"
+    )]
+    MissingHandlerOption,
 }
 
 fn main() {
@@ -105,7 +111,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
     match cli.command {
         Command::Serve {
             pack,
-            trust_keys,
+            model_trust_keys,
             handler_trust_keys,
             handler,
             builtin_handler,
@@ -113,7 +119,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
             if handler.is_some() && builtin_handler.is_some() {
                 return Err(CliError::ConflictingHandlerOption);
             }
-            let model_trust = parse_trust_store(&trust_keys)?;
+            let model_trust = parse_trust_store(&model_trust_keys)?;
             let (loaded, _) = load_model_pack(File::open(&pack)?, &model_trust)?;
 
             let (invoke_handler, identity) = match (&handler, &builtin_handler) {
@@ -143,19 +149,12 @@ fn run(cli: Cli) -> Result<(), CliError> {
                     (Arc::new(handler) as Arc<dyn InvokeHandler>, identity)
                 }
                 (None, None) => {
-                    eprintln!(
-                        "rill-runtime: no --handler or --builtin-handler specified; \
-                         defaulting to built-in linear-regression (deprecated)"
-                    );
-                    let handler = LinearRegressionInvokeHandler::from_pack(&loaded)
-                        .map_err(CliError::Handler)?;
-                    let identity = HandlerIdentity {
-                        handler_id: "rillml.builtin.linear-regression".into(),
-                        handler_version: env!("CARGO_PKG_VERSION").into(),
-                        handler_api_version: 0,
-                        effective_capabilities: loaded.manifest.capabilities.clone(),
-                    };
-                    (Arc::new(handler) as Arc<dyn InvokeHandler>, identity)
+                    // 1.0 contract: no implicit fallback. The runtime must
+                    // fail to start when neither --handler nor
+                    // --builtin-handler is passed. The previous behaviour
+                    // silently fell back to the deprecated built-in handler,
+                    // which contradicted the 1.0 deprecation policy.
+                    return Err(CliError::MissingHandlerOption);
                 }
                 _ => return Err(CliError::ConflictingHandlerOption),
             };
