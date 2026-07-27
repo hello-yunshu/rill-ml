@@ -78,37 +78,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     // --- Baseline 1: MeanRegressor ---
-    let mut mean_model = MeanRegressor::new(BaselineConfig {
-        initial_prediction: 2.0,
-    })?;
+    let mut baseline_config = BaselineConfig::default();
+    baseline_config.initial_prediction = 2.0;
+    let mut mean_model = MeanRegressor::new(baseline_config)?;
     let mut mean_mae = Mae::default();
     let mean_final = evaluate_regression(&mut mean_model, &mut mean_mae, samples.clone())?;
 
     // --- Baseline 2: ExponentiallyWeightedMeanRegressor ---
-    let mut ew_model = ExponentiallyWeightedMeanRegressor::new(
-        0.3,
-        BaselineConfig {
-            initial_prediction: 2.0,
-        },
-    )?;
+    let mut ew_baseline_config = BaselineConfig::default();
+    ew_baseline_config.initial_prediction = 2.0;
+    let mut ew_model = ExponentiallyWeightedMeanRegressor::new(0.3, ew_baseline_config)?;
     let mut ew_mae = Mae::default();
     let ew_final = evaluate_regression(&mut ew_model, &mut ew_mae, samples.clone())?;
 
     // --- Linear regression pipeline ---
     let scaler = StandardScaler::new(d)?;
-    let model = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.02,
-                    l2: 0.001,
-                },
-            )?,
-            loss: Default::default(),
-        },
-    )?;
+    let mut sgd = SgdConfig::default();
+    sgd.learning_rate = 0.02;
+    sgd.l2 = 0.001;
+    let mut lr_config = LinearRegressionConfig::default();
+    lr_config.optimizer = Optimizer::sgd(d, sgd)?;
+    let model = LinearRegression::new(d, lr_config)?;
     let mut pipeline = RegressionPipeline::new(scaler, model)?;
     let mut lr_mae = Mae::default();
     let mut lr_rolling = RollingMae::new(50)?;
@@ -116,19 +106,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Also track rolling MAE separately (requires another pass).
     let scaler2 = StandardScaler::new(d)?;
-    let model2 = LinearRegression::new(
-        d,
-        LinearRegressionConfig {
-            optimizer: Optimizer::sgd(
-                d,
-                SgdConfig {
-                    learning_rate: 0.02,
-                    l2: 0.001,
-                },
-            )?,
-            loss: Default::default(),
-        },
-    )?;
+    let mut sgd2 = SgdConfig::default();
+    sgd2.learning_rate = 0.02;
+    sgd2.l2 = 0.001;
+    let mut lr_config2 = LinearRegressionConfig::default();
+    lr_config2.optimizer = Optimizer::sgd(d, sgd2)?;
+    let model2 = LinearRegression::new(d, lr_config2)?;
     let mut pipeline2 = RegressionPipeline::new(scaler2, model2)?;
     // Manually run to track rolling MAE.
     for s in &samples {

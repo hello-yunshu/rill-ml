@@ -240,22 +240,14 @@ pub struct PyLinearRegression {
 impl PyLinearRegression {
     #[new]
     fn new(py: Python, feature_count: usize, learning_rate: f64) -> PyResult<Self> {
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(|e| to_err(py, e))?;
-        let model = LinearRegression::new(
-            feature_count,
-            LinearRegressionConfig {
-                optimizer,
-                loss: RegressionLoss::default(),
-            },
-        )
-        .map_err(|e| to_err(py, e))?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        sgd.l2 = 0.0;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(|e| to_err(py, e))?;
+        let mut lr = LinearRegressionConfig::default();
+        lr.optimizer = optimizer;
+        lr.loss = RegressionLoss::default();
+        let model = LinearRegression::new(feature_count, lr).map_err(|e| to_err(py, e))?;
         Ok(PyLinearRegression { inner: model })
     }
 
@@ -304,22 +296,14 @@ pub struct PyLogisticRegression {
 impl PyLogisticRegression {
     #[new]
     fn new(py: Python, feature_count: usize, learning_rate: f64) -> PyResult<Self> {
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(|e| to_err(py, e))?;
-        let model = LogisticRegression::new(
-            feature_count,
-            LogisticRegressionConfig {
-                optimizer,
-                loss: BinaryLogLoss::new(),
-            },
-        )
-        .map_err(|e| to_err(py, e))?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        sgd.l2 = 0.0;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(|e| to_err(py, e))?;
+        let mut lr = LogisticRegressionConfig::default();
+        lr.optimizer = optimizer;
+        lr.loss = BinaryLogLoss::new();
+        let model = LogisticRegression::new(feature_count, lr).map_err(|e| to_err(py, e))?;
         Ok(PyLogisticRegression { inner: model })
     }
 
@@ -374,22 +358,14 @@ impl PyRegressionPipeline {
     #[new]
     fn new(py: Python, feature_count: usize, learning_rate: f64) -> PyResult<Self> {
         let scaler = StandardScaler::new(feature_count).map_err(|e| to_err(py, e))?;
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(|e| to_err(py, e))?;
-        let model = LinearRegression::new(
-            feature_count,
-            LinearRegressionConfig {
-                optimizer,
-                loss: RegressionLoss::default(),
-            },
-        )
-        .map_err(|e| to_err(py, e))?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        sgd.l2 = 0.0;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(|e| to_err(py, e))?;
+        let mut lr = LinearRegressionConfig::default();
+        lr.optimizer = optimizer;
+        lr.loss = RegressionLoss::default();
+        let model = LinearRegression::new(feature_count, lr).map_err(|e| to_err(py, e))?;
         let pipe = RegressionPipeline::new(scaler, model).map_err(|e| to_err(py, e))?;
         Ok(PyRegressionPipeline { inner: pipe })
     }
@@ -435,22 +411,14 @@ impl PyClassificationPipeline {
     #[new]
     fn new(py: Python, feature_count: usize, learning_rate: f64) -> PyResult<Self> {
         let scaler = StandardScaler::new(feature_count).map_err(|e| to_err(py, e))?;
-        let optimizer = Optimizer::sgd(
-            feature_count,
-            SgdConfig {
-                learning_rate,
-                l2: 0.0,
-            },
-        )
-        .map_err(|e| to_err(py, e))?;
-        let model = LogisticRegression::new(
-            feature_count,
-            LogisticRegressionConfig {
-                optimizer,
-                loss: BinaryLogLoss::new(),
-            },
-        )
-        .map_err(|e| to_err(py, e))?;
+        let mut sgd = SgdConfig::default();
+        sgd.learning_rate = learning_rate;
+        sgd.l2 = 0.0;
+        let optimizer = Optimizer::sgd(feature_count, sgd).map_err(|e| to_err(py, e))?;
+        let mut lr = LogisticRegressionConfig::default();
+        lr.optimizer = optimizer;
+        lr.loss = BinaryLogLoss::new();
+        let model = LogisticRegression::new(feature_count, lr).map_err(|e| to_err(py, e))?;
         let pipe = ClassificationPipeline::new(scaler, model).map_err(|e| to_err(py, e))?;
         Ok(PyClassificationPipeline { inner: pipe })
     }

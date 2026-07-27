@@ -11,6 +11,7 @@ use crate::traits::{OnlineRegressor, OnlineStatistic};
 /// Configuration shared by baseline regressors.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct BaselineConfig {
     /// Prediction returned before any target has been observed.
     pub initial_prediction: f64,

@@ -8,6 +8,7 @@ use thiserror::Error;
 
 /// The unified error type returned by all RillML public APIs.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum RillError {
     /// A feature slice did not match the expected dimension.
     #[error("dimension mismatch: expected {expected}, got {actual}")]

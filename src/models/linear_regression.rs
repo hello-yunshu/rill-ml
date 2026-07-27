@@ -15,6 +15,7 @@ use crate::traits::OnlineRegressor;
 /// Configuration for [`LinearRegression`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct LinearRegressionConfig {
     /// The optimizer to use (SGD or AdaGrad).
     pub optimizer: Optimizer,
@@ -39,21 +40,16 @@ impl Default for LinearRegressionConfig {
 /// use rill_ml::{
 ///     models::{LinearRegression, LinearRegressionConfig},
 ///     optim::{Optimizer, SgdConfig},
-///     loss::RegressionLoss,
 ///     OnlineRegressor,
 /// };
 ///
 /// let feature_count = 2;
-/// let mut model = LinearRegression::new(
-///     feature_count,
-///     LinearRegressionConfig {
-///         optimizer: Optimizer::sgd(feature_count, SgdConfig {
-///             learning_rate: 0.1,
-///             l2: 0.0,
-///         }).unwrap(),
-///         loss: RegressionLoss::default(),
-///     },
-/// ).unwrap();
+/// let mut sgd = SgdConfig::default();
+/// sgd.learning_rate = 0.1;
+/// sgd.l2 = 0.0;
+/// let mut lr_config = LinearRegressionConfig::default();
+/// lr_config.optimizer = Optimizer::sgd(feature_count, sgd).unwrap();
+/// let mut model = LinearRegression::new(feature_count, lr_config).unwrap();
 ///
 /// let prediction = model.predict(&[1.0, 2.0]).unwrap();
 /// model.learn(&[1.0, 2.0], 3.0).unwrap();

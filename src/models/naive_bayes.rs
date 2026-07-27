@@ -17,6 +17,7 @@ use crate::traits::OnlineBinaryClassifier;
 /// Configuration for Naive Bayes classifiers.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct NaiveBayesConfig {
     /// Laplace smoothing parameter (alpha). Must be `> 0`.
     ///

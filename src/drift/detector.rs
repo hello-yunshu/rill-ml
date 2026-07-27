@@ -12,6 +12,7 @@ use crate::error::RillError;
 /// The severity level reported by a drift detector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum DriftLevel {
     /// No drift detected; the stream appears stable.
     #[default]

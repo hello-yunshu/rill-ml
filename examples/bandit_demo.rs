@@ -61,15 +61,11 @@ fn scenario_a_non_contextual() {
 
     // EpsilonGreedy with decay.
     let mut eg_rng = ChaCha8Rng::seed_from_u64(42);
-    let mut eg = EpsilonGreedy::new(
-        3,
-        EpsilonGreedyConfig {
-            epsilon: 0.2,
-            decay: 0.995,
-            min_epsilon: 0.01,
-        },
-    )
-    .unwrap();
+    let mut eg_config = EpsilonGreedyConfig::default();
+    eg_config.epsilon = 0.2;
+    eg_config.decay = 0.995;
+    eg_config.min_epsilon = 0.01;
+    let mut eg = EpsilonGreedy::new(3, eg_config).unwrap();
     let (eg_total, eg_pulls) = run_non_contextual(&mut eg, steps, &mut eg_rng);
 
     // UCB1.
@@ -124,12 +120,11 @@ fn scenario_b_contextual() {
     // 2 arms, 2-d context. Arm 0 is optimal when context[0] > context[1];
     // arm 1 is optimal when context[1] > context[0].
     let mut rng = ChaCha8Rng::seed_from_u64(42);
-    let mut bandit = LinUcb::new(LinUcbConfig {
-        alpha: 1.0,
-        arm_count: 2,
-        feature_count: 2,
-    })
-    .unwrap();
+    let mut linucb_config = LinUcbConfig::default();
+    linucb_config.alpha = 1.0;
+    linucb_config.arm_count = 2;
+    linucb_config.feature_count = 2;
+    let mut bandit = LinUcb::new(linucb_config).unwrap();
 
     let steps = 300;
     let mut correct = 0usize;
