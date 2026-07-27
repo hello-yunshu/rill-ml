@@ -34,6 +34,7 @@ use crate::error::{RillError, checked_increment};
 /// Configuration for [`OnlineModelSelector`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct SelectorConfig {
     /// Rolling window size passed to the underlying [`BaselineComparator`].
     ///
