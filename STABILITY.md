@@ -274,5 +274,13 @@ remains at `0.13.0` until the final `1.0.0` release.
 ## Prerelease versioning
 
 Prerelease versions follow SemVer `1.0.0-rc.N`. The version tooling
-(`scripts/sync_version.py`, `scripts/release_version.py`) supports
-prerelease versions via the `semver` crate rather than loose regex.
+(`scripts/sync_version.py`, `scripts/release_version.py`,
+`scripts/release_version_compare.py`) accepts prerelease identifiers
+via strict SemVer 2.0 regex patterns. `build-release-index.py` routes
+the signed index to the candidate channel via `--channel candidate`.
+The release workflow (`pipeline.yml`) detects prerelease versions
+(contains a `-` after the patch number), passes `--prerelease` to
+`gh release create`, uploads `candidate-index.json` to the
+`local-ai-candidate` pointer release, and never touches
+`local-ai-stable`. The Python crate is in the Preview version group
+and is not published to PyPI during the 1.0 RC cycle.
