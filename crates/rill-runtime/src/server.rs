@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rill_runtime_protocol::{
     MIN_RUNTIME_API_VERSION, RUNTIME_API_VERSION, RuntimeRequest, RuntimeResponse,
-    RuntimeResponseV2,
+    RuntimeResponseV2, error_code,
 };
 use serde_json::Value;
 
@@ -115,11 +115,11 @@ impl InvokeError {
     /// logging and diagnostics.
     pub const fn stable_code(&self) -> &'static str {
         match self.kind {
-            InvokeErrorKind::Internal => "handlerInternalError",
-            InvokeErrorKind::Timeout => "handlerTimeout",
-            InvokeErrorKind::Trap => "handlerTrap",
-            InvokeErrorKind::OutputTooLarge => "handlerOutputTooLarge",
-            InvokeErrorKind::InvalidOutput => "handlerInvalidOutput",
+            InvokeErrorKind::Internal => error_code::HANDLER_INTERNAL_ERROR,
+            InvokeErrorKind::Timeout => error_code::HANDLER_TIMEOUT,
+            InvokeErrorKind::Trap => error_code::HANDLER_TRAP,
+            InvokeErrorKind::OutputTooLarge => error_code::HANDLER_OUTPUT_TOO_LARGE,
+            InvokeErrorKind::InvalidOutput => error_code::HANDLER_INVALID_OUTPUT,
             // Guest-reported WIT `handler-error` variants all collapse to
             // `handlerInternalError` on the wire, matching the previous
             // `map_invoke_error` behaviour that mapped
@@ -127,7 +127,7 @@ impl InvokeError {
             InvokeErrorKind::InvalidModel
             | InvokeErrorKind::InvalidInput
             | InvokeErrorKind::UnsupportedCapability
-            | InvokeErrorKind::ExecutionFailed => "handlerInternalError",
+            | InvokeErrorKind::ExecutionFailed => error_code::HANDLER_INTERNAL_ERROR,
         }
     }
 
@@ -422,13 +422,18 @@ impl RuntimeEngine {
     pub fn handle(&self, request: RuntimeRequest) -> EngineResponse {
         let request_id = request.request_id().to_string();
         if request_id.is_empty() || request_id.len() > 128 {
-            return self.error(request_id, "invalidRequestId", "invalid request id", false);
+            return self.error(
+                request_id,
+                error_code::INVALID_REQUEST_ID,
+                "invalid request id",
+                false,
+            );
         }
         let api_version = request.api_version();
         if !(MIN_RUNTIME_API_VERSION..=RUNTIME_API_VERSION).contains(&api_version) {
             return self.error(
                 request_id,
-                "incompatibleApiVersion",
+                error_code::INCOMPATIBLE_API_VERSION,
                 "runtime API version is not supported",
                 false,
             );
@@ -448,7 +453,7 @@ impl RuntimeEngine {
                 {
                     return self.error(
                         request_id,
-                        "invalidClientIdentity",
+                        error_code::INVALID_CLIENT_IDENTITY,
                         "invalid client identity",
                         false,
                     );
@@ -477,7 +482,7 @@ impl RuntimeEngine {
                 if !self.is_capability_allowed(&capability) {
                     return self.error(
                         request_id,
-                        "unsupportedCapability",
+                        error_code::UNSUPPORTED_CAPABILITY,
                         "capability is not in the effective set",
                         false,
                     );
@@ -485,7 +490,7 @@ impl RuntimeEngine {
                 let Some(handler) = &self.invoke_handler else {
                     return self.error(
                         request_id,
-                        "noInvokeHandler",
+                        error_code::NO_INVOKE_HANDLER,
                         "no invoke handler registered",
                         false,
                     );
