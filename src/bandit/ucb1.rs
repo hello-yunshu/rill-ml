@@ -28,6 +28,8 @@ use crate::bandit::{
     validate_sample_count,
 };
 use crate::error::RillError;
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use rand::Rng;
 
 /// Configuration for [`Ucb1`].
@@ -274,6 +276,13 @@ impl<'de> serde::Deserialize<'de> for Ucb1 {
         };
         bandit.validate().map_err(serde::de::Error::custom)?;
         Ok(bandit)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for Ucb1 {
+    fn validate_state(&self) -> Result<(), RillError> {
+        Ucb1::validate(self)
     }
 }
 

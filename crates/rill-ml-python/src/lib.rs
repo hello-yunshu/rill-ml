@@ -65,9 +65,8 @@ impl PyMean {
 
     #[staticmethod]
     fn from_json(py: Python, json: &str) -> PyResult<Self> {
-        let snap: Snapshot<Mean> = serde_json::from_str(json).map_err(|e| to_err(py, e))?;
         Ok(PyMean {
-            inner: snap.into_model().map_err(|e| to_err(py, e))?,
+            inner: Snapshot::from_json_validated(json).map_err(|e| to_err(py, e))?,
         })
     }
 }
@@ -135,9 +134,8 @@ impl PyVariance {
 
     #[staticmethod]
     fn from_json(py: Python, json: &str) -> PyResult<Self> {
-        let snap: Snapshot<Variance> = serde_json::from_str(json).map_err(|e| to_err(py, e))?;
         Ok(PyVariance {
-            inner: snap.into_model().map_err(|e| to_err(py, e))?,
+            inner: Snapshot::from_json_validated(json).map_err(|e| to_err(py, e))?,
         })
     }
 }
@@ -173,10 +171,8 @@ impl PyEWMean {
 
     #[staticmethod]
     fn from_json(py: Python, json: &str) -> PyResult<Self> {
-        let snap: Snapshot<ExponentiallyWeightedMean> =
-            serde_json::from_str(json).map_err(|e| to_err(py, e))?;
         Ok(PyEWMean {
-            inner: snap.into_model().map_err(|e| to_err(py, e))?,
+            inner: Snapshot::from_json_validated(json).map_err(|e| to_err(py, e))?,
         })
     }
 }
@@ -222,10 +218,8 @@ impl PyStandardScaler {
 
     #[staticmethod]
     fn from_json(py: Python, json: &str) -> PyResult<Self> {
-        let snap: Snapshot<StandardScaler> =
-            serde_json::from_str(json).map_err(|e| to_err(py, e))?;
         Ok(PyStandardScaler {
-            inner: snap.into_model().map_err(|e| to_err(py, e))?,
+            inner: Snapshot::from_json_validated(json).map_err(|e| to_err(py, e))?,
         })
     }
 }
@@ -278,10 +272,8 @@ impl PyLinearRegression {
 
     #[staticmethod]
     fn from_json(py: Python, json: &str) -> PyResult<Self> {
-        let snap: Snapshot<LinearRegression> =
-            serde_json::from_str(json).map_err(|e| to_err(py, e))?;
         Ok(PyLinearRegression {
-            inner: snap.into_model().map_err(|e| to_err(py, e))?,
+            inner: Snapshot::from_json_validated(json).map_err(|e| to_err(py, e))?,
         })
     }
 }
@@ -339,10 +331,8 @@ impl PyLogisticRegression {
 
     #[staticmethod]
     fn from_json(py: Python, json: &str) -> PyResult<Self> {
-        let snap: Snapshot<LogisticRegression> =
-            serde_json::from_str(json).map_err(|e| to_err(py, e))?;
         Ok(PyLogisticRegression {
-            inner: snap.into_model().map_err(|e| to_err(py, e))?,
+            inner: Snapshot::from_json_validated(json).map_err(|e| to_err(py, e))?,
         })
     }
 }
@@ -392,10 +382,8 @@ impl PyRegressionPipeline {
 
     #[staticmethod]
     fn from_json(py: Python, json: &str) -> PyResult<Self> {
-        let snap: Snapshot<RegressionPipeline<StandardScaler, LinearRegression>> =
-            serde_json::from_str(json).map_err(|e| to_err(py, e))?;
         Ok(PyRegressionPipeline {
-            inner: snap.into_model().map_err(|e| to_err(py, e))?,
+            inner: Snapshot::from_json_validated(json).map_err(|e| to_err(py, e))?,
         })
     }
 }
@@ -450,10 +438,8 @@ impl PyClassificationPipeline {
 
     #[staticmethod]
     fn from_json(py: Python, json: &str) -> PyResult<Self> {
-        let snap: Snapshot<ClassificationPipeline<StandardScaler, LogisticRegression>> =
-            serde_json::from_str(json).map_err(|e| to_err(py, e))?;
         Ok(PyClassificationPipeline {
-            inner: snap.into_model().map_err(|e| to_err(py, e))?,
+            inner: Snapshot::from_json_validated(json).map_err(|e| to_err(py, e))?,
         })
     }
 }

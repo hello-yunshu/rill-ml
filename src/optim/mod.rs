@@ -74,4 +74,14 @@ impl Optimizer {
     }
 }
 
+#[cfg(feature = "serde")]
+impl crate::persistence::ValidateState for Optimizer {
+    fn validate_state(&self) -> Result<(), RillError> {
+        match self {
+            Optimizer::Sgd(o) => o.validate_state(),
+            Optimizer::AdaGrad(o) => o.validate_state(),
+        }
+    }
+}
+
 use crate::error::RillError;

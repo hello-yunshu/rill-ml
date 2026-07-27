@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "model": {
+    "feature_count": 2,
+    "counts": [
+      2,
+      1
+    ],
+    "means": [
+      2.0,
+      2.0
+    ],
+    "samples_seen": 2
+  }
+}
