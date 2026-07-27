@@ -1,4 +1,18 @@
 pub mod rill_runtime_protocol
+pub mod rill_runtime_protocol::error_code
+pub const rill_runtime_protocol::error_code::FROZEN_CODES: &[&str]
+pub const rill_runtime_protocol::error_code::HANDLER_INTERNAL_ERROR: &str
+pub const rill_runtime_protocol::error_code::HANDLER_INVALID_OUTPUT: &str
+pub const rill_runtime_protocol::error_code::HANDLER_OUTPUT_TOO_LARGE: &str
+pub const rill_runtime_protocol::error_code::HANDLER_TIMEOUT: &str
+pub const rill_runtime_protocol::error_code::HANDLER_TRAP: &str
+pub const rill_runtime_protocol::error_code::INCOMPATIBLE_API_VERSION: &str
+pub const rill_runtime_protocol::error_code::INVALID_CLIENT_IDENTITY: &str
+pub const rill_runtime_protocol::error_code::INVALID_JSON: &str
+pub const rill_runtime_protocol::error_code::INVALID_REQUEST_ID: &str
+pub const rill_runtime_protocol::error_code::NO_INVOKE_HANDLER: &str
+pub const rill_runtime_protocol::error_code::UNSUPPORTED_CAPABILITY: &str
+pub fn rill_runtime_protocol::error_code::is_frozen(&str) -> bool
 pub enum rill_runtime_protocol::ReleaseArtifactKind
 pub rill_runtime_protocol::ReleaseArtifactKind::Handler
 pub rill_runtime_protocol::ReleaseArtifactKind::Model

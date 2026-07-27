@@ -23,6 +23,8 @@ pub fn rill_ml::bandit::EpsilonGreedy::reset(&mut self)
 pub fn rill_ml::bandit::EpsilonGreedy::samples_seen(&self) -> u64
 pub fn rill_ml::bandit::EpsilonGreedy::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
 pub fn rill_ml::bandit::EpsilonGreedy::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::EpsilonGreedy
+pub fn rill_ml::bandit::EpsilonGreedy::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl<'de> serde_core::de::Deserialize<'de> for rill_ml::bandit::EpsilonGreedy
 pub fn rill_ml::bandit::EpsilonGreedy::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 #[non_exhaustive] pub struct rill_ml::bandit::EpsilonGreedyConfig
@@ -47,6 +49,8 @@ pub fn rill_ml::bandit::LinUcb::reset(&mut self)
 pub fn rill_ml::bandit::LinUcb::samples_seen(&self) -> u64
 pub fn rill_ml::bandit::LinUcb::select(&self, &[f64], &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
 pub fn rill_ml::bandit::LinUcb::update(&mut self, usize, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::LinUcb
+pub fn rill_ml::bandit::LinUcb::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl<'de> serde_core::de::Deserialize<'de> for rill_ml::bandit::LinUcb
 pub fn rill_ml::bandit::LinUcb::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 #[non_exhaustive] pub struct rill_ml::bandit::LinUcbConfig
@@ -78,6 +82,8 @@ pub fn rill_ml::bandit::ThompsonSampling::reset(&mut self)
 pub fn rill_ml::bandit::ThompsonSampling::samples_seen(&self) -> u64
 pub fn rill_ml::bandit::ThompsonSampling::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
 pub fn rill_ml::bandit::ThompsonSampling::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::ThompsonSampling
+pub fn rill_ml::bandit::ThompsonSampling::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl<'de> serde_core::de::Deserialize<'de> for rill_ml::bandit::ThompsonSampling
 pub fn rill_ml::bandit::ThompsonSampling::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub struct rill_ml::bandit::Ucb1
@@ -93,6 +99,8 @@ pub fn rill_ml::bandit::Ucb1::reset(&mut self)
 pub fn rill_ml::bandit::Ucb1::samples_seen(&self) -> u64
 pub fn rill_ml::bandit::Ucb1::select(&self, &mut impl rand::rng::Rng) -> core::result::Result<usize, rill_ml::error::RillError>
 pub fn rill_ml::bandit::Ucb1::update(&mut self, usize, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::Ucb1
+pub fn rill_ml::bandit::Ucb1::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl<'de> serde_core::de::Deserialize<'de> for rill_ml::bandit::Ucb1
 pub fn rill_ml::bandit::Ucb1::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 #[non_exhaustive] pub struct rill_ml::bandit::Ucb1Config
@@ -716,6 +724,8 @@ pub fn rill_ml::models::BaselineConfig::default() -> Self
 pub struct rill_ml::models::BernoulliNaiveBayes
 impl rill_ml::models::BernoulliNaiveBayes
 pub fn rill_ml::models::BernoulliNaiveBayes::new(usize, rill_ml::models::NaiveBayesConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::BernoulliNaiveBayes
+pub fn rill_ml::models::BernoulliNaiveBayes::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::BernoulliNaiveBayes
 pub fn rill_ml::models::BernoulliNaiveBayes::feature_count(&self) -> usize
 pub fn rill_ml::models::BernoulliNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
@@ -730,6 +740,8 @@ impl rill_ml::models::ExponentiallyWeightedMeanRegressor
 pub const fn rill_ml::models::ExponentiallyWeightedMeanRegressor::alpha(&self) -> f64
 pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::new(f64, rill_ml::models::BaselineConfig) -> core::result::Result<Self, rill_ml::error::RillError>
 pub const fn rill_ml::models::ExponentiallyWeightedMeanRegressor::value(&self) -> f64
+impl rill_ml::persistence::ValidateState for rill_ml::models::ExponentiallyWeightedMeanRegressor
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineRegressor for rill_ml::models::ExponentiallyWeightedMeanRegressor
 pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::feature_count(&self) -> usize
 pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
@@ -743,6 +755,8 @@ pub fn rill_ml::models::FtrlClassifier::feature_count(&self) -> usize
 pub fn rill_ml::models::FtrlClassifier::intercept(&self) -> f64
 pub fn rill_ml::models::FtrlClassifier::new(rill_ml::models::FtrlConfig) -> core::result::Result<Self, rill_ml::error::RillError>
 pub fn rill_ml::models::FtrlClassifier::weights(&self) -> alloc::vec::Vec<(rill_ml::sparse::FeatureId, f64)>
+impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlClassifier
+pub fn rill_ml::models::FtrlClassifier::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::SparseClassifier for rill_ml::models::FtrlClassifier
 pub fn rill_ml::models::FtrlClassifier::learn(&mut self, &rill_ml::sparse::SparseFeatures, bool) -> core::result::Result<(), rill_ml::error::RillError>
 pub fn rill_ml::models::FtrlClassifier::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<bool, rill_ml::error::RillError>
@@ -760,6 +774,8 @@ pub rill_ml::models::FtrlConfig::max_features: core::option::Option<usize>
 pub rill_ml::models::FtrlConfig::new_feature_policy: rill_ml::models::NewFeaturePolicy
 impl core::default::Default for rill_ml::models::FtrlConfig
 pub fn rill_ml::models::FtrlConfig::default() -> Self
+impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlConfig
+pub fn rill_ml::models::FtrlConfig::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl<'de> serde_core::de::Deserialize<'de> for rill_ml::models::FtrlConfig
 pub fn rill_ml::models::FtrlConfig::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub struct rill_ml::models::FtrlRegressor
@@ -769,6 +785,8 @@ pub fn rill_ml::models::FtrlRegressor::feature_count(&self) -> usize
 pub fn rill_ml::models::FtrlRegressor::intercept(&self) -> f64
 pub fn rill_ml::models::FtrlRegressor::new(rill_ml::models::FtrlConfig) -> core::result::Result<Self, rill_ml::error::RillError>
 pub fn rill_ml::models::FtrlRegressor::weights(&self) -> alloc::vec::Vec<(rill_ml::sparse::FeatureId, f64)>
+impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlRegressor
+pub fn rill_ml::models::FtrlRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::SparseRegressor for rill_ml::models::FtrlRegressor
 pub fn rill_ml::models::FtrlRegressor::learn(&mut self, &rill_ml::sparse::SparseFeatures, f64) -> core::result::Result<(), rill_ml::error::RillError>
 pub fn rill_ml::models::FtrlRegressor::predict(&self, &rill_ml::sparse::SparseFeatures) -> core::result::Result<f64, rill_ml::error::RillError>
@@ -780,6 +798,8 @@ pub struct rill_ml::models::GaussianNaiveBayes
 impl rill_ml::models::GaussianNaiveBayes
 pub const fn rill_ml::models::GaussianNaiveBayes::alpha(&self) -> f64
 pub fn rill_ml::models::GaussianNaiveBayes::new(usize, rill_ml::models::NaiveBayesConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::GaussianNaiveBayes
+pub fn rill_ml::models::GaussianNaiveBayes::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::GaussianNaiveBayes
 pub fn rill_ml::models::GaussianNaiveBayes::feature_count(&self) -> usize
 pub fn rill_ml::models::GaussianNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
@@ -795,6 +815,8 @@ pub const fn rill_ml::models::LastValueRegressor::last_value(&self) -> core::opt
 pub fn rill_ml::models::LastValueRegressor::new(rill_ml::models::BaselineConfig) -> core::result::Result<Self, rill_ml::error::RillError>
 impl core::default::Default for rill_ml::models::LastValueRegressor
 pub fn rill_ml::models::LastValueRegressor::default() -> Self
+impl rill_ml::persistence::ValidateState for rill_ml::models::LastValueRegressor
+pub fn rill_ml::models::LastValueRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineRegressor for rill_ml::models::LastValueRegressor
 pub fn rill_ml::models::LastValueRegressor::feature_count(&self) -> usize
 pub fn rill_ml::models::LastValueRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
@@ -806,6 +828,8 @@ impl rill_ml::models::LinearRegression
 pub const fn rill_ml::models::LinearRegression::intercept(&self) -> f64
 pub fn rill_ml::models::LinearRegression::new(usize, rill_ml::models::LinearRegressionConfig) -> core::result::Result<Self, rill_ml::error::RillError>
 pub fn rill_ml::models::LinearRegression::weights(&self) -> &[f64]
+impl rill_ml::persistence::ValidateState for rill_ml::models::LinearRegression
+pub fn rill_ml::models::LinearRegression::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineRegressor for rill_ml::models::LinearRegression
 pub fn rill_ml::models::LinearRegression::feature_count(&self) -> usize
 pub fn rill_ml::models::LinearRegression::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
@@ -822,6 +846,8 @@ impl rill_ml::models::LogisticRegression
 pub const fn rill_ml::models::LogisticRegression::intercept(&self) -> f64
 pub fn rill_ml::models::LogisticRegression::new(usize, rill_ml::models::LogisticRegressionConfig) -> core::result::Result<Self, rill_ml::error::RillError>
 pub fn rill_ml::models::LogisticRegression::weights(&self) -> &[f64]
+impl rill_ml::persistence::ValidateState for rill_ml::models::LogisticRegression
+pub fn rill_ml::models::LogisticRegression::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::LogisticRegression
 pub fn rill_ml::models::LogisticRegression::feature_count(&self) -> usize
 pub fn rill_ml::models::LogisticRegression::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
@@ -840,6 +866,8 @@ pub const fn rill_ml::models::MeanRegressor::mean(&self) -> f64
 pub fn rill_ml::models::MeanRegressor::new(rill_ml::models::BaselineConfig) -> core::result::Result<Self, rill_ml::error::RillError>
 impl core::default::Default for rill_ml::models::MeanRegressor
 pub fn rill_ml::models::MeanRegressor::default() -> Self
+impl rill_ml::persistence::ValidateState for rill_ml::models::MeanRegressor
+pub fn rill_ml::models::MeanRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineRegressor for rill_ml::models::MeanRegressor
 pub fn rill_ml::models::MeanRegressor::feature_count(&self) -> usize
 pub fn rill_ml::models::MeanRegressor::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
@@ -849,6 +877,8 @@ pub fn rill_ml::models::MeanRegressor::samples_seen(&self) -> u64
 pub struct rill_ml::models::MultinomialNaiveBayes
 impl rill_ml::models::MultinomialNaiveBayes
 pub fn rill_ml::models::MultinomialNaiveBayes::new(usize, rill_ml::models::NaiveBayesConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::MultinomialNaiveBayes
+pub fn rill_ml::models::MultinomialNaiveBayes::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineBinaryClassifier for rill_ml::models::MultinomialNaiveBayes
 pub fn rill_ml::models::MultinomialNaiveBayes::feature_count(&self) -> usize
 pub fn rill_ml::models::MultinomialNaiveBayes::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
@@ -873,6 +903,8 @@ pub fn rill_ml::optim::Optimizer::reset(&mut self)
 pub fn rill_ml::optim::Optimizer::samples_seen(&self) -> u64
 pub fn rill_ml::optim::Optimizer::sgd(usize, rill_ml::optim::SgdConfig) -> core::result::Result<Self, rill_ml::error::RillError>
 pub fn rill_ml::optim::Optimizer::step(&mut self, &mut [f64], &mut f64, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::optim::Optimizer
+pub fn rill_ml::optim::Optimizer::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 pub struct rill_ml::optim::AdaGrad
 impl rill_ml::optim::AdaGrad
 pub fn rill_ml::optim::AdaGrad::new(usize, rill_ml::optim::AdaGradConfig) -> core::result::Result<Self, rill_ml::error::RillError>
@@ -880,6 +912,8 @@ pub const fn rill_ml::optim::AdaGrad::param_count(&self) -> usize
 pub fn rill_ml::optim::AdaGrad::reset(&mut self)
 pub const fn rill_ml::optim::AdaGrad::samples_seen(&self) -> u64
 pub fn rill_ml::optim::AdaGrad::step(&mut self, &mut [f64], &mut f64, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::optim::AdaGrad
+pub fn rill_ml::optim::AdaGrad::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 #[non_exhaustive] pub struct rill_ml::optim::AdaGradConfig
 pub rill_ml::optim::AdaGradConfig::epsilon: f64
 pub rill_ml::optim::AdaGradConfig::l2: f64
@@ -895,6 +929,8 @@ pub const fn rill_ml::optim::Sgd::param_count(&self) -> usize
 pub fn rill_ml::optim::Sgd::reset(&mut self)
 pub const fn rill_ml::optim::Sgd::samples_seen(&self) -> u64
 pub fn rill_ml::optim::Sgd::step(&mut self, &mut [f64], &mut f64, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::optim::Sgd
+pub fn rill_ml::optim::Sgd::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 #[non_exhaustive] pub struct rill_ml::optim::SgdConfig
 pub rill_ml::optim::SgdConfig::l2: f64
 pub rill_ml::optim::SgdConfig::learning_rate: f64
@@ -904,11 +940,79 @@ pub mod rill_ml::persistence
 pub struct rill_ml::persistence::Snapshot<T>
 pub rill_ml::persistence::Snapshot::format_version: u32
 pub rill_ml::persistence::Snapshot::model: T
+impl<T: rill_ml::persistence::ValidateState> rill_ml::persistence::Snapshot<T>
+pub fn rill_ml::persistence::Snapshot<T>::from_json_validated(&str) -> core::result::Result<T, rill_ml::error::RillError> where T: serde_core::de::DeserializeOwned
+pub fn rill_ml::persistence::Snapshot<T>::into_validated_model(self) -> core::result::Result<T, rill_ml::error::RillError>
 impl<T> rill_ml::persistence::Snapshot<T>
 pub fn rill_ml::persistence::Snapshot<T>::into_model(self) -> core::result::Result<T, rill_ml::error::RillError>
 pub fn rill_ml::persistence::Snapshot<T>::into_model_with_validation<F>(self, F) -> core::result::Result<T, rill_ml::error::RillError> where F: core::ops::function::FnOnce(&T) -> core::result::Result<(), rill_ml::error::RillError>
 pub fn rill_ml::persistence::Snapshot<T>::new(T) -> Self
+pub const rill_ml::persistence::MAX_SNAPSHOT_JSON_BYTES: usize
 pub const rill_ml::persistence::SNAPSHOT_FORMAT_VERSION: u32
+pub trait rill_ml::persistence::ValidateState
+pub fn rill_ml::persistence::ValidateState::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::EpsilonGreedy
+pub fn rill_ml::bandit::EpsilonGreedy::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::LinUcb
+pub fn rill_ml::bandit::LinUcb::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::ThompsonSampling
+pub fn rill_ml::bandit::ThompsonSampling::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::Ucb1
+pub fn rill_ml::bandit::Ucb1::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::BernoulliNaiveBayes
+pub fn rill_ml::models::BernoulliNaiveBayes::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::ExponentiallyWeightedMeanRegressor
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlClassifier
+pub fn rill_ml::models::FtrlClassifier::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlConfig
+pub fn rill_ml::models::FtrlConfig::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlRegressor
+pub fn rill_ml::models::FtrlRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::GaussianNaiveBayes
+pub fn rill_ml::models::GaussianNaiveBayes::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::LastValueRegressor
+pub fn rill_ml::models::LastValueRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::LinearRegression
+pub fn rill_ml::models::LinearRegression::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::LogisticRegression
+pub fn rill_ml::models::LogisticRegression::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::MeanRegressor
+pub fn rill_ml::models::MeanRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::MultinomialNaiveBayes
+pub fn rill_ml::models::MultinomialNaiveBayes::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::optim::AdaGrad
+pub fn rill_ml::optim::AdaGrad::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::optim::Optimizer
+pub fn rill_ml::optim::Optimizer::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::optim::Sgd
+pub fn rill_ml::optim::Sgd::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::ConstantImputer
+pub fn rill_ml::preprocessing::ConstantImputer::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::ForwardFill
+pub fn rill_ml::preprocessing::ForwardFill::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::FrequencyEncoder
+pub fn rill_ml::preprocessing::FrequencyEncoder::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::MeanImputer
+pub fn rill_ml::preprocessing::MeanImputer::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::MissingIndicator
+pub fn rill_ml::preprocessing::MissingIndicator::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::OneHotEncoder
+pub fn rill_ml::preprocessing::OneHotEncoder::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::OrdinalEncoder
+pub fn rill_ml::preprocessing::OrdinalEncoder::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::StandardScaler
+pub fn rill_ml::preprocessing::StandardScaler::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::stats::ExponentiallyWeightedMean
+pub fn rill_ml::stats::ExponentiallyWeightedMean::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::stats::Mean
+pub fn rill_ml::stats::Mean::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::stats::Variance
+pub fn rill_ml::stats::Variance::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl<T, M> rill_ml::persistence::ValidateState for rill_ml::pipeline::ClassificationPipeline<T, M> where T: rill_ml::traits::Transformer + rill_ml::persistence::ValidateState, M: rill_ml::traits::OnlineBinaryClassifier + rill_ml::persistence::ValidateState
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl<T, M> rill_ml::persistence::ValidateState for rill_ml::pipeline::RegressionPipeline<T, M> where T: rill_ml::traits::Transformer + rill_ml::persistence::ValidateState, M: rill_ml::traits::OnlineRegressor + rill_ml::persistence::ValidateState
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 pub mod rill_ml::pipeline
 pub struct rill_ml::pipeline::ClassificationPipeline<T, M>
 impl<T, M> rill_ml::pipeline::ClassificationPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineBinaryClassifier
@@ -916,6 +1020,8 @@ pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::learn_transactional(&mut
 pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::model(&self) -> &M
 pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::new(T, M) -> core::result::Result<Self, rill_ml::error::RillError>
 pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::transformer(&self) -> &T
+impl<T, M> rill_ml::persistence::ValidateState for rill_ml::pipeline::ClassificationPipeline<T, M> where T: rill_ml::traits::Transformer + rill_ml::persistence::ValidateState, M: rill_ml::traits::OnlineBinaryClassifier + rill_ml::persistence::ValidateState
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl<T, M> rill_ml::traits::OnlineBinaryClassifier for rill_ml::pipeline::ClassificationPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineBinaryClassifier
 pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::feature_count(&self) -> usize
 pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::learn(&mut self, &[f64], bool) -> core::result::Result<(), rill_ml::error::RillError>
@@ -929,6 +1035,8 @@ pub fn rill_ml::pipeline::RegressionPipeline<T, M>::learn_transactional(&mut sel
 pub fn rill_ml::pipeline::RegressionPipeline<T, M>::model(&self) -> &M
 pub fn rill_ml::pipeline::RegressionPipeline<T, M>::new(T, M) -> core::result::Result<Self, rill_ml::error::RillError>
 pub fn rill_ml::pipeline::RegressionPipeline<T, M>::transformer(&self) -> &T
+impl<T, M> rill_ml::persistence::ValidateState for rill_ml::pipeline::RegressionPipeline<T, M> where T: rill_ml::traits::Transformer + rill_ml::persistence::ValidateState, M: rill_ml::traits::OnlineRegressor + rill_ml::persistence::ValidateState
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl<T, M> rill_ml::traits::OnlineRegressor for rill_ml::pipeline::RegressionPipeline<T, M> where T: rill_ml::traits::Transformer, M: rill_ml::traits::OnlineRegressor
 pub fn rill_ml::pipeline::RegressionPipeline<T, M>::feature_count(&self) -> usize
 pub fn rill_ml::pipeline::RegressionPipeline<T, M>::learn(&mut self, &[f64], f64) -> core::result::Result<(), rill_ml::error::RillError>
@@ -953,6 +1061,8 @@ impl rill_ml::preprocessing::ConstantImputer
 pub fn rill_ml::preprocessing::ConstantImputer::fill_value(&self) -> f64
 pub fn rill_ml::preprocessing::ConstantImputer::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
 pub fn rill_ml::preprocessing::ConstantImputer::with_config(usize, rill_ml::preprocessing::ConstantImputerConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::ConstantImputer
+pub fn rill_ml::preprocessing::ConstantImputer::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::Transformer for rill_ml::preprocessing::ConstantImputer
 pub fn rill_ml::preprocessing::ConstantImputer::input_dim(&self) -> usize
 pub fn rill_ml::preprocessing::ConstantImputer::output_dim(&self) -> usize
@@ -968,6 +1078,8 @@ pub struct rill_ml::preprocessing::ForwardFill
 impl rill_ml::preprocessing::ForwardFill
 pub fn rill_ml::preprocessing::ForwardFill::last_values(&self) -> &[core::option::Option<f64>]
 pub fn rill_ml::preprocessing::ForwardFill::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::ForwardFill
+pub fn rill_ml::preprocessing::ForwardFill::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::Transformer for rill_ml::preprocessing::ForwardFill
 pub fn rill_ml::preprocessing::ForwardFill::input_dim(&self) -> usize
 pub fn rill_ml::preprocessing::ForwardFill::output_dim(&self) -> usize
@@ -984,11 +1096,15 @@ pub fn rill_ml::preprocessing::FrequencyEncoder::samples_seen(&self) -> u64
 pub fn rill_ml::preprocessing::FrequencyEncoder::total(&self) -> u64
 pub fn rill_ml::preprocessing::FrequencyEncoder::transform_strs(&self, &[&str]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
 pub fn rill_ml::preprocessing::FrequencyEncoder::update_strs(&mut self, &[&str]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::FrequencyEncoder
+pub fn rill_ml::preprocessing::FrequencyEncoder::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 pub struct rill_ml::preprocessing::MeanImputer
 impl rill_ml::preprocessing::MeanImputer
 pub fn rill_ml::preprocessing::MeanImputer::counts(&self) -> &[u64]
 pub fn rill_ml::preprocessing::MeanImputer::means(&self) -> &[f64]
 pub fn rill_ml::preprocessing::MeanImputer::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::MeanImputer
+pub fn rill_ml::preprocessing::MeanImputer::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::Transformer for rill_ml::preprocessing::MeanImputer
 pub fn rill_ml::preprocessing::MeanImputer::input_dim(&self) -> usize
 pub fn rill_ml::preprocessing::MeanImputer::output_dim(&self) -> usize
@@ -1012,6 +1128,8 @@ pub fn rill_ml::preprocessing::MinMaxScaler::update(&mut self, &[f64]) -> core::
 pub struct rill_ml::preprocessing::MissingIndicator
 impl rill_ml::preprocessing::MissingIndicator
 pub fn rill_ml::preprocessing::MissingIndicator::new(usize) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::MissingIndicator
+pub fn rill_ml::preprocessing::MissingIndicator::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::Transformer for rill_ml::preprocessing::MissingIndicator
 pub fn rill_ml::preprocessing::MissingIndicator::input_dim(&self) -> usize
 pub fn rill_ml::preprocessing::MissingIndicator::output_dim(&self) -> usize
@@ -1029,6 +1147,8 @@ pub fn rill_ml::preprocessing::OneHotEncoder::reset(&mut self)
 pub fn rill_ml::preprocessing::OneHotEncoder::samples_seen(&self) -> u64
 pub fn rill_ml::preprocessing::OneHotEncoder::transform_strs(&self, &[&str]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
 pub fn rill_ml::preprocessing::OneHotEncoder::update_strs(&mut self, &[&str]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::OneHotEncoder
+pub fn rill_ml::preprocessing::OneHotEncoder::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 pub struct rill_ml::preprocessing::OrdinalEncoder
 impl rill_ml::preprocessing::OrdinalEncoder
 pub fn rill_ml::preprocessing::OrdinalEncoder::categories(&self) -> &[alloc::string::String]
@@ -1039,6 +1159,8 @@ pub fn rill_ml::preprocessing::OrdinalEncoder::reset(&mut self)
 pub fn rill_ml::preprocessing::OrdinalEncoder::samples_seen(&self) -> u64
 pub fn rill_ml::preprocessing::OrdinalEncoder::transform_strs(&self, &[&str]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
 pub fn rill_ml::preprocessing::OrdinalEncoder::update_strs(&mut self, &[&str]) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::OrdinalEncoder
+pub fn rill_ml::preprocessing::OrdinalEncoder::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 pub struct rill_ml::preprocessing::StandardScaler
 impl rill_ml::preprocessing::StandardScaler
 pub fn rill_ml::preprocessing::StandardScaler::means(&self) -> &[f64]
@@ -1049,6 +1171,8 @@ pub fn rill_ml::preprocessing::StandardScaler::transform_into(&self, &[f64], &mu
 pub fn rill_ml::preprocessing::StandardScaler::validate(&self) -> core::result::Result<(), rill_ml::error::RillError>
 pub fn rill_ml::preprocessing::StandardScaler::variances(&self) -> alloc::vec::Vec<f64>
 pub fn rill_ml::preprocessing::StandardScaler::with_config(usize, rill_ml::preprocessing::StandardScalerConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::StandardScaler
+pub fn rill_ml::preprocessing::StandardScaler::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::Transformer for rill_ml::preprocessing::StandardScaler
 pub fn rill_ml::preprocessing::StandardScaler::input_dim(&self) -> usize
 pub fn rill_ml::preprocessing::StandardScaler::output_dim(&self) -> usize
@@ -1098,6 +1222,8 @@ pub const fn rill_ml::stats::ExponentiallyWeightedMean::alpha(&self) -> f64
 pub const fn rill_ml::stats::ExponentiallyWeightedMean::count(&self) -> u64
 pub fn rill_ml::stats::ExponentiallyWeightedMean::new(f64) -> core::result::Result<Self, rill_ml::error::RillError>
 pub const fn rill_ml::stats::ExponentiallyWeightedMean::value(&self) -> f64
+impl rill_ml::persistence::ValidateState for rill_ml::stats::ExponentiallyWeightedMean
+pub fn rill_ml::stats::ExponentiallyWeightedMean::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineStatistic for rill_ml::stats::ExponentiallyWeightedMean
 pub fn rill_ml::stats::ExponentiallyWeightedMean::reset(&mut self)
 pub fn rill_ml::stats::ExponentiallyWeightedMean::samples_seen(&self) -> u64
@@ -1115,6 +1241,8 @@ impl rill_ml::stats::Mean
 pub const fn rill_ml::stats::Mean::count(&self) -> u64
 pub const fn rill_ml::stats::Mean::new() -> Self
 pub const fn rill_ml::stats::Mean::value(&self) -> f64
+impl rill_ml::persistence::ValidateState for rill_ml::stats::Mean
+pub fn rill_ml::stats::Mean::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Mean
 pub fn rill_ml::stats::Mean::reset(&mut self)
 pub fn rill_ml::stats::Mean::samples_seen(&self) -> u64
@@ -1171,6 +1299,8 @@ pub fn rill_ml::stats::Variance::std_dev(&self) -> core::option::Option<f64>
 pub fn rill_ml::stats::Variance::value(&self) -> core::option::Option<f64>
 impl core::default::Default for rill_ml::stats::Variance
 pub fn rill_ml::stats::Variance::default() -> Self
+impl rill_ml::persistence::ValidateState for rill_ml::stats::Variance
+pub fn rill_ml::stats::Variance::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Variance
 pub fn rill_ml::stats::Variance::reset(&mut self)
 pub fn rill_ml::stats::Variance::samples_seen(&self) -> u64
@@ -1503,6 +1633,18 @@ pub rill_ml::BinaryClassificationSample::target: bool
 pub struct rill_ml::RegressionSample
 pub rill_ml::RegressionSample::features: alloc::vec::Vec<f64>
 pub rill_ml::RegressionSample::target: f64
+pub struct rill_ml::Snapshot<T>
+pub rill_ml::Snapshot::format_version: u32
+pub rill_ml::Snapshot::model: T
+impl<T: rill_ml::persistence::ValidateState> rill_ml::persistence::Snapshot<T>
+pub fn rill_ml::persistence::Snapshot<T>::from_json_validated(&str) -> core::result::Result<T, rill_ml::error::RillError> where T: serde_core::de::DeserializeOwned
+pub fn rill_ml::persistence::Snapshot<T>::into_validated_model(self) -> core::result::Result<T, rill_ml::error::RillError>
+impl<T> rill_ml::persistence::Snapshot<T>
+pub fn rill_ml::persistence::Snapshot<T>::into_model(self) -> core::result::Result<T, rill_ml::error::RillError>
+pub fn rill_ml::persistence::Snapshot<T>::into_model_with_validation<F>(self, F) -> core::result::Result<T, rill_ml::error::RillError> where F: core::ops::function::FnOnce(&T) -> core::result::Result<(), rill_ml::error::RillError>
+pub fn rill_ml::persistence::Snapshot<T>::new(T) -> Self
+pub const rill_ml::MAX_SNAPSHOT_JSON_BYTES: usize
+pub const rill_ml::SNAPSHOT_FORMAT_VERSION: u32
 pub trait rill_ml::Metric
 pub type rill_ml::Metric::Prediction
 pub type rill_ml::Metric::Truth
@@ -1790,3 +1932,67 @@ pub fn rill_ml::preprocessing::StandardScaler::reset(&mut self)
 pub fn rill_ml::preprocessing::StandardScaler::samples_seen(&self) -> u64
 pub fn rill_ml::preprocessing::StandardScaler::transform(&self, &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, rill_ml::error::RillError>
 pub fn rill_ml::preprocessing::StandardScaler::update(&mut self, &[f64]) -> core::result::Result<(), rill_ml::error::RillError>
+pub trait rill_ml::ValidateState
+pub fn rill_ml::ValidateState::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::EpsilonGreedy
+pub fn rill_ml::bandit::EpsilonGreedy::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::LinUcb
+pub fn rill_ml::bandit::LinUcb::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::ThompsonSampling
+pub fn rill_ml::bandit::ThompsonSampling::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::bandit::Ucb1
+pub fn rill_ml::bandit::Ucb1::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::BernoulliNaiveBayes
+pub fn rill_ml::models::BernoulliNaiveBayes::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::ExponentiallyWeightedMeanRegressor
+pub fn rill_ml::models::ExponentiallyWeightedMeanRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlClassifier
+pub fn rill_ml::models::FtrlClassifier::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlConfig
+pub fn rill_ml::models::FtrlConfig::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlRegressor
+pub fn rill_ml::models::FtrlRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::GaussianNaiveBayes
+pub fn rill_ml::models::GaussianNaiveBayes::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::LastValueRegressor
+pub fn rill_ml::models::LastValueRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::LinearRegression
+pub fn rill_ml::models::LinearRegression::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::LogisticRegression
+pub fn rill_ml::models::LogisticRegression::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::MeanRegressor
+pub fn rill_ml::models::MeanRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::models::MultinomialNaiveBayes
+pub fn rill_ml::models::MultinomialNaiveBayes::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::optim::AdaGrad
+pub fn rill_ml::optim::AdaGrad::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::optim::Optimizer
+pub fn rill_ml::optim::Optimizer::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::optim::Sgd
+pub fn rill_ml::optim::Sgd::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::ConstantImputer
+pub fn rill_ml::preprocessing::ConstantImputer::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::ForwardFill
+pub fn rill_ml::preprocessing::ForwardFill::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::FrequencyEncoder
+pub fn rill_ml::preprocessing::FrequencyEncoder::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::MeanImputer
+pub fn rill_ml::preprocessing::MeanImputer::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::MissingIndicator
+pub fn rill_ml::preprocessing::MissingIndicator::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::OneHotEncoder
+pub fn rill_ml::preprocessing::OneHotEncoder::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::OrdinalEncoder
+pub fn rill_ml::preprocessing::OrdinalEncoder::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::preprocessing::StandardScaler
+pub fn rill_ml::preprocessing::StandardScaler::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::stats::ExponentiallyWeightedMean
+pub fn rill_ml::stats::ExponentiallyWeightedMean::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::stats::Mean
+pub fn rill_ml::stats::Mean::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::stats::Variance
+pub fn rill_ml::stats::Variance::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl<T, M> rill_ml::persistence::ValidateState for rill_ml::pipeline::ClassificationPipeline<T, M> where T: rill_ml::traits::Transformer + rill_ml::persistence::ValidateState, M: rill_ml::traits::OnlineBinaryClassifier + rill_ml::persistence::ValidateState
+pub fn rill_ml::pipeline::ClassificationPipeline<T, M>::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl<T, M> rill_ml::persistence::ValidateState for rill_ml::pipeline::RegressionPipeline<T, M> where T: rill_ml::traits::Transformer + rill_ml::persistence::ValidateState, M: rill_ml::traits::OnlineRegressor + rill_ml::persistence::ValidateState
+pub fn rill_ml::pipeline::RegressionPipeline<T, M>::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
