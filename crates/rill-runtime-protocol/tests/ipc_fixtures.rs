@@ -32,7 +32,7 @@ fn read_fixture(version: &str, name: &str) -> String {
     let path = fixture_dir(version).join(format!("{name}.json"));
     fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("read fixture {version}/{name}: {e}"))
-        .trim_end_matches('\n')
+        .trim_end_matches(['\n', '\r'])
         .to_owned()
 }
 
