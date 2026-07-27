@@ -4,6 +4,7 @@
 //! passed through unchanged. This imputer has no learnable state.
 
 use crate::error::{RillError, checked_increment, ensure_finite};
+#[cfg(feature = "serde")]
 use crate::persistence::ValidateState;
 use crate::traits::Transformer;
 
