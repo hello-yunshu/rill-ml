@@ -100,18 +100,10 @@ jobs:
           fi
 
           if [ "$tag_exists" = "false" ]; then
-            latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+            # Match stable and prerelease SemVer tags (v1.0.0, v1.0.0-rc.1, ...).
+            latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)"
             if [ -n "$latest_tag" ]; then
-              python3 - "$VERSION" "${latest_tag#v}" <<'PY'
-          import sys
-
-          current = tuple(map(int, sys.argv[1].split(".")))
-          previous = tuple(map(int, sys.argv[2].split(".")))
-          if current <= previous:
-              raise SystemExit(
-                  f"release version {sys.argv[1]} must be newer than {sys.argv[2]}"
-              )
-          PY
+              python3 scripts/release_version_compare.py "$VERSION" "${latest_tag#v}"
             fi
 
             git config user.name "github-actions[bot]"
