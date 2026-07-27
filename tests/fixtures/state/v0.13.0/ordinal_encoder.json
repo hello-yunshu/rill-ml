@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "model": {
+    "categories": [
+      "high",
+      "low",
+      "mid"
+    ],
+    "samples_seen": 1
+  }
+}

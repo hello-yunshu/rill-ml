@@ -10,6 +10,7 @@ use crate::error::{
 };
 use crate::loss::RegressionLoss;
 use crate::optim::Optimizer;
+use crate::persistence::ValidateState;
 use crate::traits::OnlineRegressor;
 
 /// Configuration for [`LinearRegression`].
@@ -164,6 +165,35 @@ impl OnlineRegressor for LinearRegression {
         self.intercept = 0.0;
         self.optimizer.reset();
         self.samples_seen = 0;
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for LinearRegression {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.feature_count == 0 {
+            return Err(RillError::EmptyFeatures);
+        }
+        if self.weights.len() != self.feature_count {
+            return Err(RillError::InvalidState(format!(
+                "linear regression weights length {} does not match feature_count {}",
+                self.weights.len(),
+                self.feature_count
+            )));
+        }
+        if self.optimizer.param_count() != self.feature_count + 1 {
+            return Err(RillError::InvalidState(format!(
+                "linear regression optimizer param_count {} does not match feature_count+1 {}",
+                self.optimizer.param_count(),
+                self.feature_count + 1
+            )));
+        }
+        ensure_finite("intercept", self.intercept)?;
+        for &w in &self.weights {
+            ensure_finite("weights", w)?;
+        }
+        self.optimizer.validate_state()?;
+        Ok(())
     }
 }
 

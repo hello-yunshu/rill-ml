@@ -34,6 +34,8 @@ use crate::bandit::{
     ContextualBandit, checked_finite_add, checked_increment, validate_arm, validate_reward_finite,
 };
 use crate::error::RillError;
+#[cfg(feature = "serde")]
+use crate::persistence::ValidateState;
 use rand::Rng;
 
 /// Configuration for [`LinUcb`].
@@ -384,6 +386,13 @@ impl<'de> serde::Deserialize<'de> for LinUcb {
         };
         bandit.validate().map_err(serde::de::Error::custom)?;
         Ok(bandit)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for LinUcb {
+    fn validate_state(&self) -> Result<(), RillError> {
+        LinUcb::validate(self)
     }
 }
 

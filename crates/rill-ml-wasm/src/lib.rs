@@ -62,9 +62,8 @@ impl WasmMean {
     }
 
     pub fn from_json(json: &str) -> Result<WasmMean, JsValue> {
-        let snap: Snapshot<Mean> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmMean {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -126,9 +125,8 @@ impl WasmVariance {
     }
 
     pub fn from_json(json: &str) -> Result<WasmVariance, JsValue> {
-        let snap: Snapshot<Variance> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmVariance {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -161,10 +159,8 @@ impl WasmEWMean {
     }
 
     pub fn from_json(json: &str) -> Result<WasmEWMean, JsValue> {
-        let snap: Snapshot<ExponentiallyWeightedMean> =
-            serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmEWMean {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -208,9 +204,8 @@ impl WasmStandardScaler {
     }
 
     pub fn from_json(json: &str) -> Result<WasmStandardScaler, JsValue> {
-        let snap: Snapshot<StandardScaler> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmStandardScaler {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -255,9 +250,8 @@ impl WasmLinearRegression {
     }
 
     pub fn from_json(json: &str) -> Result<WasmLinearRegression, JsValue> {
-        let snap: Snapshot<LinearRegression> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmLinearRegression {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -309,9 +303,8 @@ impl WasmLogisticRegression {
     }
 
     pub fn from_json(json: &str) -> Result<WasmLogisticRegression, JsValue> {
-        let snap: Snapshot<LogisticRegression> = serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmLogisticRegression {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -357,10 +350,8 @@ impl WasmRegressionPipeline {
     }
 
     pub fn from_json(json: &str) -> Result<WasmRegressionPipeline, JsValue> {
-        let snap: Snapshot<RegressionPipeline<StandardScaler, LinearRegression>> =
-            serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmRegressionPipeline {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }
@@ -410,10 +401,8 @@ impl WasmClassificationPipeline {
     }
 
     pub fn from_json(json: &str) -> Result<WasmClassificationPipeline, JsValue> {
-        let snap: Snapshot<ClassificationPipeline<StandardScaler, LogisticRegression>> =
-            serde_json::from_str(json).map_err(js_err)?;
         Ok(WasmClassificationPipeline {
-            inner: snap.into_model().map_err(js_err)?,
+            inner: Snapshot::from_json_validated(json).map_err(js_err)?,
         })
     }
 }

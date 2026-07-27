@@ -4,6 +4,7 @@
 //! update/transform: `O(d)`. Space complexity: `O(d)`.
 
 use crate::error::{RillError, checked_increment, ensure_finite, validate_features};
+use crate::persistence::ValidateState;
 use crate::traits::Transformer;
 
 /// Configuration for [`StandardScaler`].
@@ -367,6 +368,13 @@ impl<'de> serde::Deserialize<'de> for StandardScaler {
         };
         scaler.validate().map_err(serde::de::Error::custom)?;
         Ok(scaler)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl ValidateState for StandardScaler {
+    fn validate_state(&self) -> Result<(), RillError> {
+        StandardScaler::validate(self)
     }
 }
 
