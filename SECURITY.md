@@ -85,11 +85,13 @@ This policy does **not** cover:
 ### macOS signing policy
 
 Official `rill-runtime` macOS release assets are Apple Silicon (ARM64) only
-and must be codesigned. The release workflow fails when the signing
-secrets are missing rather than silently publishing unsigned assets. An
-unsigned macOS binary is never advertised as an official stable or
-candidate release artifact. See [`STABILITY.md`](STABILITY.md) §Platform
-support for the full platform matrix.
+and are published even when Apple Developer ID credentials are absent.
+The permanent default is an unsigned, non-notarized binary accompanied by
+`*.unsigned.json` status metadata; missing signing credentials never block
+a candidate or stable release. Model packs, handler packs, and release
+indexes remain Ed25519-signed and hash-verified independently of Apple code
+signing. See [`STABILITY.md`](STABILITY.md) §Platform support for the full
+platform matrix and first-launch authorization guidance.
 
 ### Wasmtime security upgrade policy
 

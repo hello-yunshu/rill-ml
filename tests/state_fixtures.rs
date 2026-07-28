@@ -16,6 +16,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use rill_ml::RillError;
+use rill_ml::drift::FixedWindowBuffer;
 use rill_ml::persistence::{MAX_SNAPSHOT_JSON_BYTES, Snapshot, ValidateState};
 use rill_ml::{
     bandit::{EpsilonGreedy, LinUcb, ThompsonSampling, Ucb1},
@@ -294,6 +295,30 @@ fn load_v1_multinomial_naive_bayes() {
 }
 
 #[test]
+fn load_v1_optimizer_sgd() {
+    let json = load_raw("v1", "optimizer_sgd");
+    let _: Optimizer = serde_json::from_str(&json).expect("deserialize optimizer");
+}
+
+#[test]
+fn load_v1_regression_loss() {
+    let json = load_raw("v1", "regression_loss");
+    let _: RegressionLoss = serde_json::from_str(&json).expect("deserialize loss");
+}
+
+#[test]
+fn load_v1_sparse_features() {
+    let json = load_raw("v1", "sparse_features");
+    let _: SparseFeatures = serde_json::from_str(&json).expect("deserialize sparse");
+}
+
+#[test]
+fn load_v1_feature_hasher() {
+    let json = load_raw("v1", "feature_hasher");
+    let _: FeatureHasher = serde_json::from_str(&json).expect("deserialize hasher");
+}
+
+#[test]
 fn load_v1_epsilon_greedy() {
     let _: EpsilonGreedy = load_fixture("v1", "epsilon_greedy");
 }
@@ -463,5 +488,59 @@ fn sgd_invalid_learning_rate_rejected() {
     assert!(
         result.is_err(),
         "must reject non-positive learning rate in Sgd state"
+    );
+}
+
+#[test]
+fn encoder_mapping_inconsistency_rejected() {
+    let json = r#"{
+      "format_version":1,
+      "model":{
+        "categories":["beta","alpha"],
+        "samples_seen":2
+      }
+    }"#;
+    let result: Result<OneHotEncoder, _> = Snapshot::from_json_validated(json);
+    assert!(
+        result.is_err(),
+        "must reject unsorted encoder categories because indices would be inconsistent"
+    );
+}
+
+#[test]
+fn bandit_arm_count_mismatch_rejected() {
+    let json = r#"{
+      "format_version":1,
+      "model":{
+        "arm_count":3,
+        "config":{"epsilon":0.1,"decay":1.0,"min_epsilon":0.0},
+        "pulls":[1,2],
+        "total_rewards":[1.0,2.0],
+        "samples_seen":3,
+        "current_epsilon":0.1
+      }
+    }"#;
+    let result: Result<EpsilonGreedy, _> = Snapshot::from_json_validated(json);
+    assert!(
+        result.is_err(),
+        "must reject bandit vectors that do not match arm_count"
+    );
+}
+
+#[test]
+fn drift_buffer_capacity_overflow_rejected() {
+    let json = r#"{
+      "format_version":1,
+      "model":{
+        "buffer":[1.0,2.0,3.0],
+        "capacity":3,
+        "head":1,
+        "len":4
+      }
+    }"#;
+    let result: Result<Snapshot<FixedWindowBuffer>, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "must reject a drift buffer whose length exceeds its capacity"
     );
 }
