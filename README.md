@@ -69,7 +69,7 @@ cargo add rill-ml --features serde
 因此 `cargo install rill-runtime` 行为与官方 GitHub 二进制一致。如需 WASM-free 构建：
 `cargo install rill-runtime --no-default-features`（无法加载 `.rillhandler`）。
 
-版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.0.0-rc.6`（候选），Preview 组保持 `0.13.0`。
+版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.0.0`，Preview 组保持 `0.13.0`。
 
 **环境要求：** Rust 1.94+（Edition 2024），无需 nightly。
 
@@ -222,9 +222,9 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](
 - **v0.5** — 在线决策：多臂老虎机、上下文老虎机。
 - **v0.6** — 平台与生态：WASM、Python 绑定、Tokio Stream 适配。
 - **v0.7** — 可插拔 WASM handler：签名 `.rillhandler` 包、Wasmtime 沙箱、IPC v2。
-- **v0.13.0** — 最后一个 0.x 稳定版本（`local-ai-stable` 指针仍指向此版本）。
-- **v1.0.0-rc.1** — 1.0 候选版本：API、状态格式、IPC、WIT、Runtime、发布通道全部冻结。`local-ai-candidate` 指针指向此版本；`local-ai-stable` 指针不变。
-- **v1.0.0** — 最终稳定版本（候选准入全部通过后发布）。
+- **v0.13.0** — 最后一个 0.x 稳定版本。
+- **v1.0.0-rc.1** — 1.0 候选周期开始：API、状态格式、IPC、WIT、Runtime、发布通道全部冻结。
+- **v1.0.0** — 首个 1.x 正式稳定版本；不可变公开资产通过独立 host smoke 后才推进 `local-ai-stable`。
 
 ## 正确性与验证
 
