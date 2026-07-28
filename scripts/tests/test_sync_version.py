@@ -130,6 +130,31 @@ class SyncVersionHelpersTest(unittest.TestCase):
             self.assertEqual(sync_version.sync_pyproject(pyproject, "0.8.1"), 0)
             self.assertEqual(sync_version.sync_pyproject(pyproject, "0.8.1"), 0)
 
+    def test_sync_lock_package_version_updates_only_named_package(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            cargo_lock = pathlib.Path(temp_name) / "Cargo.lock"
+            cargo_lock.write_text(
+                'version = 4\n\n'
+                '[[package]]\nname = "echo-handler"\nversion = "1.0.0-rc.6"\n\n'
+                '[[package]]\nname = "dependency"\nversion = "1.0.0-rc.6"\n',
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                sync_version.sync_lock_package_version(
+                    cargo_lock, "echo-handler", "1.0.0"
+                ),
+                1,
+            )
+            text = cargo_lock.read_text(encoding="utf-8")
+            self.assertIn('name = "echo-handler"\nversion = "1.0.0"', text)
+            self.assertIn('name = "dependency"\nversion = "1.0.0-rc.6"', text)
+            self.assertEqual(
+                sync_version.sync_lock_package_version(
+                    cargo_lock, "echo-handler", "1.0.0"
+                ),
+                0,
+            )
+
     def test_sync_roadmap_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp = pathlib.Path(temp_name)

@@ -12,13 +12,14 @@ in publish order (one per line), with full validation:
 - When ``--tag`` is provided, the Stable version must match the tag version
   (after stripping the ``v`` prefix).
 
-Used by the Release workflow's ``publish`` job to drive the crates.io publish
-list — only the Stable group is published; Preview crates are never published
-by an RC tag.
+Used by the Release workflow's package and publish jobs. Only the Stable group
+is packaged and published; Preview crates are never published by this release
+plan.
 
 Usage::
 
     python3 scripts/parse_release_plan.py --list-stable
+    python3 scripts/parse_release_plan.py --list-stable-paths
     python3 scripts/parse_release_plan.py --list-stable --tag v1.0.0-rc.6
 """
 
@@ -57,6 +58,50 @@ def workspace_member_names(root: pathlib.Path) -> set[str]:
         raise RuntimeError(f"cargo metadata failed:\n{result.stderr.strip()}")
     metadata = json.loads(result.stdout)
     return {pkg["name"] for pkg in metadata["packages"] if pkg["id"] in set(metadata["workspace_members"])}
+
+
+def workspace_member_paths(root: pathlib.Path) -> dict[str, pathlib.Path]:
+    """Return workspace crate names mapped to repository-relative directories."""
+    result = subprocess.run(
+        ["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"cargo metadata failed:\n{result.stderr.strip()}")
+    metadata = json.loads(result.stdout)
+    workspace_members = set(metadata["workspace_members"])
+    paths: dict[str, pathlib.Path] = {}
+    for package in metadata["packages"]:
+        if package["id"] not in workspace_members:
+            continue
+        manifest_dir = pathlib.Path(package["manifest_path"]).resolve().parent
+        try:
+            relative = manifest_dir.relative_to(root.resolve())
+        except ValueError as error:
+            raise RuntimeError(
+                f"workspace crate {package['name']!r} is outside repository root"
+            ) from error
+        paths[package["name"]] = relative
+    return paths
+
+
+def stable_package_paths(
+    root: pathlib.Path, stable_crates: list[str]
+) -> list[tuple[str, pathlib.Path]]:
+    """Return Stable crates and their repository-relative package directories."""
+    known_paths = workspace_member_paths(root)
+    result: list[tuple[str, pathlib.Path]] = []
+    for name in stable_crates:
+        if name not in known_paths:
+            raise RuntimeError(
+                f"release-plan.toml [stable] references unknown crate {name!r} "
+                "(no workspace package path)"
+            )
+        result.append((name, known_paths[name]))
+    return result
 
 
 def validate_release_plan(root: pathlib.Path, tag_version: str | None = None) -> list[str]:
@@ -152,6 +197,14 @@ def main() -> int:
         help="Print the Preview crate list (for verification that Preview is not published).",
     )
     parser.add_argument(
+        "--list-stable-paths",
+        action="store_true",
+        help=(
+            "Print each Stable crate and its repository-relative package "
+            "directory, separated by a tab."
+        ),
+    )
+    parser.add_argument(
         "--tag",
         type=str,
         default=None,
@@ -174,12 +227,20 @@ def main() -> int:
     if args.list_stable:
         for name in stable_crates:
             print(name)
+    if args.list_stable_paths:
+        try:
+            package_paths = stable_package_paths(root, stable_crates)
+        except RuntimeError as error:
+            print(f"parse_release_plan: {error}", file=sys.stderr)
+            return 1
+        for name, path in package_paths:
+            print(f"{name}\t{path if path.parts else '.'}")
     if args.list_preview:
         plan = sync_version.load_release_plan(root)
         for name in plan["preview"]["crates"]:  # type: ignore[index]
             print(name)
 
-    if not args.list_stable and not args.list_preview:
+    if not args.list_stable and not args.list_preview and not args.list_stable_paths:
         print("parse_release_plan: validation passed.")
         print(f"  Stable version: {sync_version.load_release_plan(root)['stable']['version']}")  # type: ignore[index]
         print(f"  Stable crates:  {stable_crates}")
