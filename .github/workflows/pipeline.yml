@@ -144,15 +144,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust (nightly-2026-07-17)
-        # Pinned nightly version. cargo-semver-checks and cargo-public-api
-        # both depend on trustfall-rustdoc-adapter to parse rustdoc JSON,
-        # and newer nightly toolchains can introduce breaking changes
-        # (e.g. removed built-in traits) that cause the adapter to panic.
-        # v0.49.0 / v0.52.x were released against nightly-2026-07-17.
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-2026-07-17
+      - name: Install Rust (nightly)
+        # cargo-public-api uses the nightly toolchain to build rustdoc JSON.
+        # The baseline files were generated against a recent nightly, so we
+        # use `nightly` (latest) here to stay in sync. The semver-checks job
+        # pins a specific nightly because cargo-semver-checks has tighter
+        # compatibility constraints with the rustdoc JSON format version.
+        uses: dtolnay/rust-toolchain@nightly
       - name: Record resolved nightly toolchain version
         run: rustc --version
       - name: Install cargo-public-api
