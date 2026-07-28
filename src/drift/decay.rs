@@ -284,6 +284,7 @@ impl Default for LearningRateScheduler {
 /// ```
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(try_from = "PersistedFixedWindowBuffer"))]
 pub struct FixedWindowBuffer {
     buffer: Vec<f64>,
     capacity: usize,
@@ -364,6 +365,71 @@ impl FixedWindowBuffer {
     pub fn reset(&mut self) {
         self.head = 0;
         self.len = 0;
+    }
+}
+
+#[cfg(feature = "serde")]
+impl FixedWindowBuffer {
+    fn validate_persisted_state(&self) -> Result<(), RillError> {
+        if self.capacity == 0 {
+            return Err(RillError::InvalidState(
+                "fixed-window capacity must be greater than zero".into(),
+            ));
+        }
+        if self.buffer.len() != self.capacity {
+            return Err(RillError::InvalidState(format!(
+                "fixed-window backing length {} does not match capacity {}",
+                self.buffer.len(),
+                self.capacity
+            )));
+        }
+        if self.len > self.capacity {
+            return Err(RillError::InvalidState(format!(
+                "fixed-window length {} exceeds capacity {}",
+                self.len, self.capacity
+            )));
+        }
+        if self.head >= self.capacity {
+            return Err(RillError::InvalidState(format!(
+                "fixed-window head {} is outside capacity {}",
+                self.head, self.capacity
+            )));
+        }
+        if self.len < self.capacity && self.head != self.len {
+            return Err(RillError::InvalidState(format!(
+                "fixed-window head {} must equal length {} before the buffer is full",
+                self.head, self.len
+            )));
+        }
+        for value in self.buffer.iter().take(self.len) {
+            ensure_finite("buffer value", *value)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+#[derive(serde::Deserialize)]
+struct PersistedFixedWindowBuffer {
+    buffer: Vec<f64>,
+    capacity: usize,
+    head: usize,
+    len: usize,
+}
+
+#[cfg(feature = "serde")]
+impl TryFrom<PersistedFixedWindowBuffer> for FixedWindowBuffer {
+    type Error = RillError;
+
+    fn try_from(persisted: PersistedFixedWindowBuffer) -> Result<Self, Self::Error> {
+        let buffer = Self {
+            buffer: persisted.buffer,
+            capacity: persisted.capacity,
+            head: persisted.head,
+            len: persisted.len,
+        };
+        buffer.validate_persisted_state()?;
+        Ok(buffer)
     }
 }
 

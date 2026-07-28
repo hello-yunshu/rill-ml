@@ -1,5 +1,10 @@
 # RillML 1.0 Freeze Audit Report
 
+> **Historical RC5 snapshot.** This report records the state observed during
+> the RC5 audit and is not the current release decision. RC6 superseded its
+> macOS signing, state-whitelist, run-ID, asset, and promotion conclusions.
+> Use `RILL_ML_1_0_RC6_FINAL_CLOSEOUT.md` for current evidence.
+
 **Audit date:** 2026-07-28
 **Auditor:** TRAE Agent
 **Prompt:** `RILL_ML_TRAE_1_0_FREEZE_AND_RC_PROMPT.md`
@@ -56,7 +61,7 @@ Source: `STABILITY.md` § Stability matrix.
 
 | Artifact | 1.0 status | Stable commitment |
 |---|---|---|
-| `rill-ml` | Stable | Rust public API, serde model state |
+| `rill-ml` | Stable | Rust public API; selected serde state whitelist |
 | `rill-runtime-protocol` | Stable | IPC v1/v2 JSON wire schema, release-index schema |
 | `rill-handler-api` | Stable | WIT ABI v1, handler ABI constants |
 | `rill-runtime` | Stable | Rust public API, CLI, model/handler pack loading |
@@ -294,15 +299,11 @@ to start with `MissingHandlerOption` instead.
 
 ## 23. macOS 签名结果
 
-macOS official runtime assets are Apple Silicon only and must be codesigned.
-When Apple Developer ID secrets are not configured in the release workflow,
-the macOS build is skipped and the release index does not claim macOS support
-for that release.
-
-For v1.0.0-rc.5, macOS assets were intentionally skipped (secrets not
-configured). The `candidate-index.json` contains only Linux x86_64 and
-Windows x86_64 runtime artifacts. `strategy.fail-fast: false` ensures a
-skipped macOS matrix entry does not abort the whole release.
+This RC5 observation was superseded by the permanent RC6 policy. Official
+macOS Apple Silicon assets are now always built and uploaded. When Apple
+Developer ID credentials are absent, the binary is unsigned and not
+notarized, and a `*.unsigned.json` sidecar records that status. Missing Apple
+credentials are not a release blocker.
 
 ## 24. prerelease 版本验证
 
@@ -486,7 +487,7 @@ the RC publication process.
 
 ## 41. 是否允许进入最终 `1.0.0`
 
-**Conditionally allowed.**
+**Superseded by the RC6 closeout decision.**
 
 All 1.0 freeze conditions are met:
 - Stability matrix defined and enforced
@@ -497,15 +498,9 @@ All 1.0 freeze conditions are met:
 - Cross-version compatibility verified
 - Malicious-state defences in place
 
-**Conditions for final 1.0.0 promotion:**
-1. Configure Apple Developer ID signing secrets so macOS assets are published
-   with the final 1.0.0 release (or accept and document that macOS is not
-   supported at 1.0.0).
-2. After the RC cycle accumulates real-world usage feedback, create the final
-   `1.0.0` tag and release. The `local-ai-stable` pointer must be updated to
-   `1.0.0` at that time.
-3. No breaking changes may be introduced between rc.5 and 1.0.0; only
-   additive changes or bug fixes are permitted.
+Apple Developer ID signing is explicitly not a condition for final 1.0.0.
+The current promotion decision, including independent released-asset smoke
+evidence, is maintained in `RILL_ML_1_0_RC6_FINAL_CLOSEOUT.md`.
 
 ---
 

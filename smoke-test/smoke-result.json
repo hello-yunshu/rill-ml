@@ -1,0 +1,247 @@
+{
+  "host_name": "external-host-smoke",
+  "host_commit": "49d0155ff763f268082c91eae420aa31dacfc079",
+  "os": "darwin",
+  "architecture": "arm64",
+  "index_url": "https://github.com/hello-yunshu/rill-ml/releases/download/local-ai-candidate/candidate-index.json",
+  "index_sha256": "5b1f7061c4c336eeb8f84fdb8a89c0a66fa58d3fc3db9755fca45ce2713a2fb7",
+  "index_channel": "candidate",
+  "index_publisher_key_id": "rillml-examples-2026-001",
+  "expected_version": "1.0.0-rc.6",
+  "runtime_version": "1.0.0-rc.6",
+  "model_pack_id": "rillml.example.default",
+  "model_pack_version": "1.0.0-rc.6",
+  "handler_id": "rillml.echo.handler",
+  "handler_version": "1.0.0-rc.6",
+  "artifacts": [
+    {
+      "kind": "runtime",
+      "name": "rill-runtime-1.0.0-rc.6-macos-aarch64",
+      "version": "1.0.0-rc.6",
+      "url": "https://github.com/hello-yunshu/rill-ml/releases/download/v1.0.0-rc.6/rill-runtime-1.0.0-rc.6-macos-aarch64",
+      "sha256": "d91e983bc402de82dbb41230625d82082279f3a6720885ae2891a6b8d7219a67",
+      "size": 13901248
+    },
+    {
+      "kind": "model",
+      "name": "example-default-1.0.0-rc.6.rillpack",
+      "version": "1.0.0-rc.6",
+      "url": "https://github.com/hello-yunshu/rill-ml/releases/download/v1.0.0-rc.6/example-default-1.0.0-rc.6.rillpack",
+      "sha256": "9744f72d3902fbec7ed2dfe0a6d9b3efe5a0bd508aaf4caf84cc1547b4343ab5",
+      "size": 928
+    },
+    {
+      "kind": "handler",
+      "name": "echo-handler-1.0.0-rc.6.rillhandler",
+      "version": "1.0.0-rc.6",
+      "url": "https://github.com/hello-yunshu/rill-ml/releases/download/v1.0.0-rc.6/echo-handler-1.0.0-rc.6.rillhandler",
+      "sha256": "9a69d2356cc635dae5259c0eee7a58236d620bf41efe890df1880e2cb0a0c25c",
+      "size": 8845
+    }
+  ],
+  "commands": [
+    [
+      "target/release/rill-pack",
+      "verify-index",
+      "--index",
+      "/var/folders/ng/57pdwsd97zl6qbjwh_sqrts80000gn/T/rill-host-smoke-t_8l8fvt/candidate-index.json",
+      "--key-id",
+      "rillml-examples-2026-001",
+      "--public-key-hex",
+      "29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e"
+    ],
+    [
+      "target/release/rill-pack",
+      "verify",
+      "--pack",
+      "/var/folders/ng/57pdwsd97zl6qbjwh_sqrts80000gn/T/rill-host-smoke-t_8l8fvt/example-default-1.0.0-rc.6.rillpack",
+      "--key-id",
+      "rillml-examples-2026-001",
+      "--public-key-hex",
+      "29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e"
+    ],
+    [
+      "target/release/rill-pack",
+      "inspect-handler",
+      "--handler",
+      "/var/folders/ng/57pdwsd97zl6qbjwh_sqrts80000gn/T/rill-host-smoke-t_8l8fvt/echo-handler-1.0.0-rc.6.rillhandler",
+      "--key-id",
+      "rillml-examples-2026-001",
+      "--public-key-hex",
+      "29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e"
+    ],
+    [
+      "/var/folders/ng/57pdwsd97zl6qbjwh_sqrts80000gn/T/rill-host-smoke-t_8l8fvt/rill-runtime-1.0.0-rc.6-macos-aarch64",
+      "serve",
+      "--pack",
+      "/var/folders/ng/57pdwsd97zl6qbjwh_sqrts80000gn/T/rill-host-smoke-t_8l8fvt/example-default-1.0.0-rc.6.rillpack",
+      "--model-trust-key",
+      "rillml-examples-2026-001=29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e",
+      "--handler",
+      "/var/folders/ng/57pdwsd97zl6qbjwh_sqrts80000gn/T/rill-host-smoke-t_8l8fvt/echo-handler-1.0.0-rc.6.rillhandler",
+      "--handler-trust-key",
+      "rillml-examples-2026-001=29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e"
+    ]
+  ],
+  "checks": [
+    {
+      "name": "download_signed_index",
+      "passed": true,
+      "duration_ms": 1226.5558749786578,
+      "detail": "downloaded https://github.com/hello-yunshu/rill-ml/releases/download/local-ai-candidate/candidate-index.json",
+      "request": null,
+      "response": null
+    },
+    {
+      "name": "verify_index_signature",
+      "passed": true,
+      "duration_ms": 12.921916000777856,
+      "detail": "{\n  \"schemaVersion\": 2,\n  \"channel\": \"candidate\",\n  \"generatedAt\": \"2026-07-28T08:52:44Z\",\n  \"publisherKeyId\": \"rillml-examples-2026-001\",\n  \"artifacts\": [\n    {\n      \"kind\": \"runtime\",\n      \"id\": \"rill-runtime\",\n      \"version\": \"1.0.0-rc.6\",\n      \"runtimeApiVersion\": 2,\n      \"targetOs\": \"linux\",\n      \"targetArch\": \"x86_64\",\n      \"url\": \"https://github.com/hello-yunshu/rill-ml/releases/download/v1.0.0-rc.6/rill-runtime-1.0.0-rc.6-linux-x86_64\",\n      \"sha256\": \"59752af7e0a15f5fbe0a13924abf80188555beda4edd18baa99bb3258122fc74\",\n      \"size\": 19035144\n    },\n    {\n      \"kind\": \"runtime\",\n      \"id\": \"rill-runtime\",\n      \"version\": \"1.0.0-rc.6\",\n      \"runtimeApiVersion\": 2,\n      \"targetOs\": \"macos\",\n      \"targetArch\": \"aarch64\",\n      \"url\": \"https://github.com/hello-yunshu/rill-ml/releases/download/v1.0.0-rc.6/rill-runtime-1.0.0-rc.6-macos-aarch64\",\n      \"sha256\": \"d91e983bc402de82dbb41230625d82082279f3a6720885ae2891a6b8d7219a67\",\n      \"size\": 13901248\n    },\n    {\n      \"kind\": \"runtime\",\n      \"id\": \"rill-runtime\",\n      \"version\": \"1.0.0-rc.6\",\n      \"runtimeApiVersion\": 2,\n      \"targetOs\": \"windows\",\n      \"targetArch\": \"x86_64\",\n      \"url\": \"https://github.com/hello-yunshu/rill-ml/releases/download/v1.0.0-rc.6/rill-runtime-1.0.0-rc.6-windows-x86_64.exe\",\n      \"sha256\": \"0660d28d3ead6c3d8ed23a7c7555814ed6a415ce9f4562f1e9fae65c3cd0d364\",\n      \"size\": 14404608\n    },\n    {\n      \"kind\": \"model\",\n      \"id\": \"rillml.example.default\",\n      \"version\": \"1.0.0-rc.6\",\n      \"runtimeApiVersion\": 2,\n      \"url\": \"https://github.com/hello-yunshu/rill-ml/releases/download/v1.0.0-rc.6/example-default-1.0.0-rc.6.rillpack\",\n      \"sha256\": \"9744f72d3902fbec7ed2dfe0a6d9b3efe5a0bd508aaf4caf84cc1547b4343ab5\",\n      \"size\": 928\n    },\n    {\n      \"kind\": \"handler\",\n      \"id\": \"rillml.echo.handler\",\n      \"version\": \"1.0.0-rc.6\",\n      \"runtimeApiVersion\": 2,\n      \"handlerApiVersion\": 1,\n      \"minRuntimeVersion\": \"1.0.0-rc.6\",\n      \"url\": \"https://github.com/hello-yunshu/rill-ml/releases/download/v1.0.0-rc.6/echo-handler-1.0.0-rc.6.rillhandler\",\n      \"sha256\": \"9a69d2356cc635dae5259c0eee7a58236d620bf41efe890df1880e2cb0a0c25c\",\n      \"size\": 8845\n    }\n  ]\n}",
+      "request": null,
+      "response": null
+    },
+    {
+      "name": "download_verify_runtime",
+      "passed": true,
+      "duration_ms": 3305.5441250035074,
+      "detail": "rill-runtime-1.0.0-rc.6-macos-aarch64: size and SHA-256 match the signed index",
+      "request": null,
+      "response": null
+    },
+    {
+      "name": "download_verify_model",
+      "passed": true,
+      "duration_ms": 1577.888083003927,
+      "detail": "example-default-1.0.0-rc.6.rillpack: size and SHA-256 match the signed index",
+      "request": null,
+      "response": null
+    },
+    {
+      "name": "download_verify_handler",
+      "passed": true,
+      "duration_ms": 1427.1103339851834,
+      "detail": "echo-handler-1.0.0-rc.6.rillhandler: size and SHA-256 match the signed index",
+      "request": null,
+      "response": null
+    },
+    {
+      "name": "verify_model_signature",
+      "passed": true,
+      "duration_ms": 6.385790999047458,
+      "detail": "{\n  \"id\": \"rillml.example.default\",\n  \"version\": \"1.0.0-rc.6\",\n  \"publisherKeyId\": \"rillml-examples-2026-001\",\n  \"runtimeApiVersion\": 2,\n  \"capabilities\": [\n    \"rillml.linearRegression.predict\"\n  ],\n  \"signatureVerified\": true\n}",
+      "request": null,
+      "response": null
+    },
+    {
+      "name": "verify_handler_signature",
+      "passed": true,
+      "duration_ms": 5.556291987886652,
+      "detail": "{\n  \"id\": \"rillml.echo.handler\",\n  \"version\": \"1.0.0-rc.6\",\n  \"publisherKeyId\": \"rillml-examples-2026-001\",\n  \"handlerApiVersion\": 1,\n  \"minRuntimeVersion\": \"1.0.0-rc.6\",\n  \"capabilities\": [\n    \"rillml.linearRegression.predict\"\n  ],\n  \"moduleSha256\": \"f33ce3e4cd423cce7427f8e3bf2900aef47094ac65661cc334e1f0bd09b9dc3b\",\n  \"moduleSize\": 17680,\n  \"signatureVerified\": true\n}",
+      "request": null,
+      "response": null
+    },
+    {
+      "name": "ipc_handshake",
+      "passed": true,
+      "duration_ms": 747.2428340115584,
+      "detail": "v2 identities and effective capabilities verified",
+      "request": {
+        "method": "handshake",
+        "requestId": "smoke-handshake-001",
+        "apiVersion": 2,
+        "clientName": "external-host-smoke",
+        "clientVersion": "1.0.0"
+      },
+      "response": {
+        "kind": "handshake",
+        "requestId": "smoke-handshake-001",
+        "apiVersion": 2,
+        "runtimeVersion": "1.0.0-rc.6",
+        "modelPackId": "rillml.example.default",
+        "modelPackVersion": "1.0.0-rc.6",
+        "capabilities": [
+          "rillml.linearRegression.predict"
+        ],
+        "handlerId": "rillml.echo.handler",
+        "handlerVersion": "1.0.0-rc.6",
+        "handlerApiVersion": 1,
+        "effectiveCapabilities": [
+          "rillml.linearRegression.predict"
+        ]
+      }
+    },
+    {
+      "name": "ipc_health",
+      "passed": true,
+      "duration_ms": 0.07141701644286513,
+      "detail": "runtime reported healthy=true",
+      "request": {
+        "method": "health",
+        "requestId": "smoke-health-001",
+        "apiVersion": 2
+      },
+      "response": {
+        "kind": "health",
+        "requestId": "smoke-health-001",
+        "apiVersion": 2,
+        "healthy": true,
+        "modelPackId": "rillml.example.default",
+        "modelPackVersion": "1.0.0-rc.6"
+      }
+    },
+    {
+      "name": "ipc_invoke",
+      "passed": true,
+      "duration_ms": 0.04966699634678662,
+      "detail": "signed WASM handler returned a result",
+      "request": {
+        "method": "invoke",
+        "requestId": "smoke-invoke-001",
+        "apiVersion": 2,
+        "capability": "rillml.linearRegression.predict",
+        "input": {
+          "features": [
+            1.0,
+            2.0
+          ]
+        }
+      },
+      "response": {
+        "kind": "result",
+        "requestId": "smoke-invoke-001",
+        "apiVersion": 2,
+        "output": {
+          "features": [
+            1.0,
+            2.0
+          ]
+        }
+      }
+    },
+    {
+      "name": "ipc_invalid_json",
+      "passed": true,
+      "duration_ms": 0.05354199674911797,
+      "detail": "stable invalidJson error code verified",
+      "request": null,
+      "response": {
+        "kind": "error",
+        "requestId": "",
+        "apiVersion": 1,
+        "code": "invalidJson",
+        "message": "request is not valid protocol JSON",
+        "retryable": false
+      }
+    },
+    {
+      "name": "graceful_shutdown",
+      "passed": true,
+      "duration_ms": 1040.8178330108058,
+      "detail": "runtime exited with code 0",
+      "request": null,
+      "response": null
+    }
+  ],
+  "timestamp": "2026-07-28T09:29:22Z",
+  "all_passed": true
+}
