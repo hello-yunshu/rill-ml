@@ -1,0 +1,182 @@
+# State schema stability manifest.
+#
+# This file is the single source of truth for which serde model state types
+# are covered by the 1.x state-freeze contract (Stable state schema) and
+# which remain in the Preview group (no cross-version fixture coverage).
+#
+# `scripts/check_state_fixture_coverage.py` reads this file and validates:
+#   - Every Stable type has a v0.13.0 fixture.
+#   - Every Stable type has a v1 fixture.
+#   - Every Stable type implements `ValidateState`.
+#   - Fixture files exist on disk.
+#   - No duplicate entries in either group.
+#   - No overlap between Stable and Preview groups.
+#
+# Rust API Stable does NOT imply serde state schema Stable. A type can have
+# a Stable public API but a Preview state schema (e.g. drift detectors).
+# Preview types can still be serialized, but their state schema is not
+# guaranteed to be compatible across 1.x versions.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stable state schema types (26 types with full v0.13.0 + v1 fixture coverage)
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[stable_state]]
+type = "Mean"
+fixture = "mean"
+
+[[stable_state]]
+type = "Variance"
+fixture = "variance"
+
+[[stable_state]]
+type = "ExponentiallyWeightedMean"
+fixture = "ew_mean"
+
+[[stable_state]]
+type = "StandardScaler"
+fixture = "standard_scaler"
+
+[[stable_state]]
+type = "OneHotEncoder"
+fixture = "one_hot_encoder"
+
+[[stable_state]]
+type = "OrdinalEncoder"
+fixture = "ordinal_encoder"
+
+[[stable_state]]
+type = "FrequencyEncoder"
+fixture = "frequency_encoder"
+
+[[stable_state]]
+type = "ConstantImputer"
+fixture = "constant_imputer"
+
+[[stable_state]]
+type = "ForwardFill"
+fixture = "forward_fill"
+
+[[stable_state]]
+type = "MeanImputer"
+fixture = "mean_imputer"
+
+[[stable_state]]
+type = "MissingIndicator"
+fixture = "missing_indicator"
+
+[[stable_state]]
+type = "FeatureHasher"
+fixture = "feature_hasher"
+validation = "deserialize"  # Custom Deserialize impl enforces invariants during deserialization.
+
+[[stable_state]]
+type = "SparseFeatures"
+fixture = "sparse_features"
+validation = "deserialize"  # Custom Deserialize impl enforces invariants during deserialization.
+
+[[stable_state]]
+type = "RegressionLoss"
+fixture = "regression_loss"
+validation = "derive"  # Simple enum; serde rejects unknown variants. No state to validate.
+
+[[stable_state]]
+type = "LinearRegression"
+fixture = "linear_regression"
+
+[[stable_state]]
+type = "MeanRegressor"
+fixture = "mean_regressor"
+
+[[stable_state]]
+type = "FtrlClassifier"
+fixture = "ftrl_classifier"
+
+[[stable_state]]
+type = "FtrlRegressor"
+fixture = "ftrl_regressor"
+
+[[stable_state]]
+type = "GaussianNaiveBayes"
+fixture = "gaussian_naive_bayes"
+
+[[stable_state]]
+type = "BernoulliNaiveBayes"
+fixture = "bernoulli_naive_bayes"
+
+[[stable_state]]
+type = "MultinomialNaiveBayes"
+fixture = "multinomial_naive_bayes"
+
+[[stable_state]]
+type = "Sgd"
+fixture = "optimizer_sgd"
+
+[[stable_state]]
+type = "EpsilonGreedy"
+fixture = "epsilon_greedy"
+
+[[stable_state]]
+type = "Ucb1"
+fixture = "ucb1"
+
+[[stable_state]]
+type = "ThompsonSampling"
+fixture = "thompson_sampling"
+
+[[stable_state]]
+type = "LinUcb"
+fixture = "linucb"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Preview state schema types (serializable but not covered by cross-version
+# fixture coverage; state schema may change within 1.x)
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[preview_state]]
+type = "PageHinkley"
+reason = "Drift detector state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "Adwin"
+reason = "Drift detector state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "Kswin"
+reason = "Drift detector state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "DriftAwareModel"
+reason = "Composite drift-aware model state schema remains preview; depends on Preview drift detector state."
+
+[[preview_state]]
+type = "DriftEvent"
+reason = "Drift event state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "StaticStrategy"
+reason = "Static drift strategy state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "TimeDecayedMean"
+reason = "Time-decayed mean state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "LearningRateScheduler"
+reason = "Learning rate scheduler state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "FixedWindowBuffer"
+reason = "Fixed window buffer state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "LogisticRegression"
+reason = "Logistic regression state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "ExponentiallyWeightedMeanRegressor"
+reason = "EW mean regressor state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "LastValueRegressor"
+reason = "Last value regressor state schema remains preview; no cross-version fixture coverage."
