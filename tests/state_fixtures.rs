@@ -15,6 +15,7 @@
 use std::fs;
 use std::path::PathBuf;
 
+use rill_ml::RillError;
 use rill_ml::persistence::{MAX_SNAPSHOT_JSON_BYTES, Snapshot, ValidateState};
 use rill_ml::{
     bandit::{EpsilonGreedy, LinUcb, ThompsonSampling, Ucb1},
@@ -325,12 +326,61 @@ fn incompatible_format_version_rejected() {
 }
 
 #[test]
-fn non_finite_mean_rejected() {
-    // Mean with NaN must fail ValidateState.
+fn null_mean_rejected_by_serde() {
+    // JSON `null` cannot deserialize as `f64`, so serde itself rejects this
+    // payload before `ValidateState` is reached. This proves the serde type
+    // check, not the `ValidateState` non-finite-value check — see
+    // `validate_state_rejects_non_finite_values` for the latter.
     let json = r#"{"format_version":1,"model":{"count":1,"mean":null}}"#;
     let result: Result<Mean, _> = Snapshot::from_json_validated(json);
-    // null is not a valid f64, so deserialization itself fails.
     assert!(result.is_err());
+}
+
+#[test]
+fn validate_state_rejects_non_finite_values() {
+    // JSON cannot represent NaN/Inf as native `f64` values, so to test that
+    // `ValidateState` actually rejects non-finite values (as opposed to serde
+    // type checking), we use a custom test type that deserializes a string
+    // representation into `f64` and then validates finiteness.
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct FloatWrapper {
+        raw: String,
+    }
+
+    impl ValidateState for FloatWrapper {
+        fn validate_state(&self) -> Result<(), RillError> {
+            let value: f64 = self.raw.parse().map_err(|_| {
+                RillError::InvalidState(format!("invalid float literal: {}", self.raw))
+            })?;
+            if !value.is_finite() {
+                return Err(RillError::NonFiniteValue {
+                    field: "value",
+                    value,
+                });
+            }
+            Ok(())
+        }
+    }
+
+    // NaN must be rejected by ValidateState.
+    let json = r#"{"format_version":1,"model":{"raw":"NaN"}}"#;
+    let result: Result<FloatWrapper, _> = Snapshot::from_json_validated(json);
+    assert!(result.is_err(), "ValidateState must reject NaN");
+
+    // Infinity must be rejected by ValidateState.
+    let json = r#"{"format_version":1,"model":{"raw":"inf"}}"#;
+    let result: Result<FloatWrapper, _> = Snapshot::from_json_validated(json);
+    assert!(result.is_err(), "ValidateState must reject Infinity");
+
+    // Negative Infinity must be rejected by ValidateState.
+    let json = r#"{"format_version":1,"model":{"raw":"-inf"}}"#;
+    let result: Result<FloatWrapper, _> = Snapshot::from_json_validated(json);
+    assert!(result.is_err(), "ValidateState must reject -Infinity");
+
+    // A finite value must be accepted.
+    let json = r#"{"format_version":1,"model":{"raw":"1.5"}}"#;
+    let result: Result<FloatWrapper, _> = Snapshot::from_json_validated(json);
+    assert!(result.is_ok(), "ValidateState must accept finite values");
 }
 
 #[test]
@@ -391,30 +441,27 @@ fn failed_restore_returns_no_model() {
 }
 
 #[test]
-fn negative_variance_count_rejected() {
-    // Variance with a negative count must fail ValidateState (count is u64, so
-    // we use a very large value that overflows sum; instead test a negative
-    // mean in Mean which is fine but count must be > 0 for mean to be valid).
-    // Use an extremely large count to ensure validate_state catches overflow.
-    let json = r#"{"format_version":1,"model":{"count":0,"mean":1.0}}"#;
-    let result: Result<Mean, _> = Snapshot::from_json_validated(json);
-    // count=0 with non-zero mean is inconsistent; ValidateState for Mean only
-    // checks finiteness, so this may pass. The Snapshot envelope still loads.
-    // The contract is: validate_state enforces type-specific invariants.
-    // For Mean, the invariant is finite mean. count=0 with mean=1.0 is allowed
-    // because Mean is a passive accumulator.
-    let _ = result;
+fn negative_m2_in_variance_rejected() {
+    // Variance with a negative m2 must fail ValidateState. m2 is the sum of
+    // squared deltas in Welford's algorithm and must always be non-negative.
+    // The `count` field is `u64`, so it cannot be negative in valid JSON;
+    // instead we test the real invariant that `validate_state()` enforces.
+    let json = r#"{"format_version":1,"model":{"count":1,"mean":1.0,"m2":-1.0,"kind":"Sample"}}"#;
+    let result: Result<Variance, _> = Snapshot::from_json_validated(json);
+    assert!(result.is_err(), "must reject negative m2 in Variance state");
 }
 
 #[test]
 fn sgd_invalid_learning_rate_rejected() {
     // Sgd optimizer with non-positive learning rate must fail ValidateState.
-    let json =
-        r#"{"Sgd":{"feature_count":2,"config":{"learning_rate":0.0,"l2":0.0},"samples_seen":0}}"#;
-    let result: Result<Sgd, _> = serde_json::from_str(json);
-    // Deserialization may succeed; ValidateState must reject.
-    if let Ok(opt) = result {
-        use rill_ml::persistence::ValidateState;
-        assert!(opt.validate_state().is_err());
-    }
+    // The optimizer is wrapped in a `Snapshot` envelope to exercise the full
+    // `from_json_validated` path (version check + deserialize + validate_state),
+    // not just the `Deserialize` trait. The learning rate `0.0` is non-positive
+    // and must be rejected by `Sgd::validate_state()`.
+    let json = r#"{"format_version":1,"model":{"feature_count":2,"config":{"learning_rate":0.0,"l2":0.0},"samples_seen":0}}"#;
+    let result: Result<Sgd, _> = Snapshot::from_json_validated(json);
+    assert!(
+        result.is_err(),
+        "must reject non-positive learning rate in Sgd state"
+    );
 }

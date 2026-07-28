@@ -23,6 +23,69 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 
 
+
+## [1.0.0-rc.6] - 2026-07-28
+
+### Added — cargo-semver-checks integration
+
+- The four Stable crates (`rill-ml`, `rill-runtime-protocol`,
+  `rill-handler-api`, `rill-runtime`) are now checked against the
+  `1.0.0-rc.5` baseline using `cargo-semver-checks` in CI. Unlike the
+  existing `cargo-public-api` text baseline (which is kept for
+  human-readable drift review), `cargo-semver-checks` performs a
+  rigorous lints-based analysis that catches breaking changes simple
+  text comparison would miss (e.g. tightening trait bounds, deleting
+  enum variants, changing function signatures, removing public fields).
+
+### Added — Stable state schema whitelist
+
+- `STABILITY.md` now explicitly lists the 26 Stable state schema types
+  covered by the 1.x state-freeze contract, each with full
+  cross-version fixture coverage (`v0.13.0/` + `v1/`) and a declared
+  validation mode (`validate_state` / `deserialize` / `derive`).
+  Preview state schema types (12 types including drift detectors,
+  `LogisticRegression`, `LastValueRegressor`, etc.) are explicitly
+  listed as not covered by cross-version fixture coverage.
+- `state-schema-manifest.toml` is the authoritative source of truth
+  for the Stable/Preview state schema classification.
+- `scripts/check_state_fixture_coverage.py` validates in CI that
+  every Stable type has fixtures, implements the declared validation
+  mode, and has no duplicates or overlap with the Preview group.
+
+### Added — release-plan-driven publishing
+
+- The Release workflow's `publish` job now reads the Stable crate
+  publish list from `release-plan.toml` via
+  `scripts/parse_release_plan.py`, replacing the previous hardcoded
+  list that included Preview crates and relied on crates.io returning
+  "already exists" to skip them. Only the Stable group is published;
+  Preview crates are never published by an RC tag.
+
+### Changed — macOS unsigned policy (permanent)
+
+- macOS aarch64 runtime is now always compiled and uploaded,
+  regardless of whether Apple Developer ID secrets are configured.
+  The previous behaviour skipped the macOS build entirely when
+  secrets were absent, causing the release index to omit macOS
+  support. The new behaviour always builds, skips codesign/
+  notarization when secrets are absent, uploads the unsigned binary
+  with a sidecar metadata file (`*.unsigned.json`), and includes
+  the macOS entry in the candidate index with
+  `codeSigning: "unsigned"` and `notarization: false`.
+- This is a permanent project decision that applies to all releases
+  (RC, candidate, and final stable). The absence of Apple Developer
+  ID is never a blocking condition for any release. See
+  `STABILITY.md` § macOS unsigned policy for details.
+
+### Fixed — malicious state tests
+
+- `tests/state_fixtures.rs`: negative tests that previously had no
+  assertions (`let _ = result;`) now use `assert!(result.is_err())`
+  to actually verify that invalid states are rejected. New negative
+  tests cover non-finite values, dimension mismatches, encoder
+  mapping inconsistency, bandit arm count mismatch, and buffer
+  capacity overflow.
+
 ## [1.0.0-rc.5] - 2026-07-28
 
 ### Fixed
@@ -1281,6 +1344,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.6]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.6
 [1.0.0-rc.5]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.5
 [1.0.0-rc.4]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.3

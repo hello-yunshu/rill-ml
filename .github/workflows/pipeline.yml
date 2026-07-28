@@ -129,9 +129,14 @@ jobs:
 
   public-api:
     name: public API baseline
-    # 1.0 freeze: verify that the public Rust API of each Stable crate
-    # still matches the frozen baseline under `api-baseline/`. Additive
-    # additions are allowed within 1.x; breaking changes must fail CI.
+    # 1.0 freeze: `cargo-public-api` baseline is used for precise drift
+    # review — it catches unexpected API additions/removals that require
+    # human judgement. `cargo-semver-checks` (see the `semver-checks`
+    # job below) is the authoritative tool for judging SemVer
+    # compatibility. The two tools are complementary: this job produces
+    # the human-readable diff evidence, the `semver-checks` job enforces
+    # the compatibility contract.
+    #
     # `cargo-public-api` requires the nightly toolchain to build the
     # rustdoc JSON that backs the listing.
     if: github.event_name != 'workflow_dispatch'
@@ -141,6 +146,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install Rust (nightly)
         uses: dtolnay/rust-toolchain@nightly
+      - name: Record resolved nightly toolchain version
+        run: rustc --version
       - name: Install cargo-public-api
         # Compatible-range policy: ``~0.52`` allows patch upgrades within
         # the 0.52 minor line; ``--locked`` pins transitive dependencies.
@@ -150,6 +157,49 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Verify Stable-crate public API baseline
         run: python3 scripts/generate_api_baseline.py --verify
+
+  semver-checks:
+    name: cargo semver-checks
+    # 1.0 freeze: the authoritative SemVer compatibility gate. Unlike
+    # `cargo-public-api` (which produces a human-readable text diff for
+    # review), `cargo-semver-checks` performs a rigorous lints-based
+    # analysis that catches breaking changes that simple text comparison
+    # would miss (e.g. tightening trait bounds, deleting enum variants,
+    # changing function signatures, removing public fields).
+    #
+    # The baseline is the most recently published RC (1.0.0-rc.5) on
+    # crates.io. The four Stable crates are checked individually:
+    #   rill-ml, rill-runtime-protocol, rill-handler-api, rill-runtime
+    #
+    # `cargo-semver-checks` requires the nightly toolchain to build the
+    # rustdoc JSON that backs the analysis.
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust (nightly)
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Record resolved nightly toolchain version
+        run: rustc --version
+      - name: Install cargo-semver-checks
+        # Compatible-range policy: ``~0.49`` allows patch upgrades within
+        # the 0.49 minor line; ``--locked`` pins transitive dependencies.
+        # v0.49+ is required because the workspace uses ``resolver = "3"``
+        # (Edition 2024); older versions like 0.35 fail to parse the
+        # ``Cargo.toml`` with "unknown variant `3`".
+        run: cargo install cargo-semver-checks --locked --version "~0.49"
+      - name: Record resolved cargo-semver-checks version
+        run: cargo semver-checks --version
+      - uses: Swatinem/rust-cache@v2
+      - name: Run semver-checks for rill-ml (baseline 1.0.0-rc.5)
+        run: cargo semver-checks --package rill-ml --baseline-version 1.0.0-rc.5 --all-features
+      - name: Run semver-checks for rill-handler-api (baseline 1.0.0-rc.5)
+        run: cargo semver-checks --package rill-handler-api --baseline-version 1.0.0-rc.5
+      - name: Run semver-checks for rill-runtime-protocol (baseline 1.0.0-rc.5)
+        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.0.0-rc.5
+      - name: Run semver-checks for rill-runtime (baseline 1.0.0-rc.5)
+        run: cargo semver-checks --package rill-runtime --baseline-version 1.0.0-rc.5
 
   install-smoke:
     name: cargo install default-feature smoke
@@ -185,6 +235,22 @@ jobs:
       - uses: actions/checkout@v7
       - name: Verify model/runtime index update behavior
         run: python3 -m unittest discover -s scripts/tests -v
+
+  state-schema-coverage:
+    name: state schema fixture coverage gate
+    # 1.0 freeze: validates that every Stable state schema type listed in
+    # ``state-schema-manifest.toml`` has full cross-version fixture coverage
+    # (v0.13.0 + v1) and implements the declared validation mode
+    # (ValidateState / custom Deserialize / derive). This closes the gap
+    # between the STABILITY.md state-freeze contract and the actual fixture
+    # coverage on disk. Preview types are explicitly listed as not covered.
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate Stable state schema fixture coverage
+        run: python3 scripts/check_state_fixture_coverage.py
 
   wasm-build:
     name: WASM build + test
@@ -452,11 +518,10 @@ jobs:
           if [ -n "${APPLE_CERTIFICATE_P12_BASE64:-}" ] && [ -n "${APPLE_CERTIFICATE_PASSWORD:-}" ] && [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Apple Developer ID secrets are not configured. macOS release assets will be skipped for this release. Configure APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD and APPLE_SIGNING_IDENTITY in the repository secrets to enable macOS builds. The release index will not claim macOS support."
+            echo "::warning::Apple Developer ID secrets are not configured. macOS aarch64 runtime will still be built and uploaded, but the binary will be unsigned and not notarized. This is the accepted permanent project policy (see STABILITY.md § macOS unsigned policy). Configure APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD and APPLE_SIGNING_IDENTITY in the repository secrets to enable optional codesign."
             echo "has_secrets=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Build runtime (with wasm feature for handler support)
-        if: matrix.target_os != 'macos' || steps.apple_secrets.outputs.has_secrets == 'true'
         run: cargo build --locked --release --target ${{ matrix.rust_target }} -p rill-runtime --bin rill-runtime --features wasm
       - name: Import Apple Developer ID certificate
         if: matrix.target_os == 'macos' && steps.apple_secrets.outputs.has_secrets == 'true'
@@ -486,8 +551,35 @@ jobs:
           set -euo pipefail
           codesign --force --timestamp --options runtime --sign "$APPLE_SIGNING_IDENTITY" "target/${{ matrix.rust_target }}/release/rill-runtime"
           codesign --verify --strict --verbose=2 "target/${{ matrix.rust_target }}/release/rill-runtime"
+      - name: Mark unsigned macOS asset
+        # Permanent project policy: macOS aarch64 runtime is always built
+        # and uploaded. When Apple Developer ID secrets are absent, the
+        # binary is unsigned and not notarized. This step writes a
+        # sidecar metadata file so the release index and release notes
+        # can accurately reflect the unsigned status without modifying
+        # the frozen release-index schema.
+        if: matrix.target_os == 'macos' && steps.apple_secrets.outputs.has_secrets == 'false'
+        shell: bash
+        env:
+          VERSION: ${{ env.RELEASE_TAG }}
+          TARGET: ${{ matrix.rust_target }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          mkdir -p dist
+          cat > "dist/rill-runtime-${version}-macos-aarch64.unsigned.json" <<EOF
+          {
+            "artifact": "rill-runtime-${version}-macos-aarch64",
+            "platform": "macos",
+            "arch": "aarch64",
+            "version": "${version}",
+            "codeSigning": "unsigned",
+            "notarization": false,
+            "reason": "Apple Developer ID Application certificate is not configured. This is the accepted permanent project policy (see STABILITY.md § macOS unsigned policy). The binary is still functional; macOS users may need to bypass Gatekeeper via Finder right-click → Open or System Settings → Privacy & Security → Allow."
+          }
+          EOF
+          echo "macOS aarch64 runtime will be uploaded as unsigned (not notarized)."
       - name: Stage asset
-        if: matrix.target_os != 'macos' || steps.apple_secrets.outputs.has_secrets == 'true'
         shell: python
         env:
           VERSION: ${{ env.RELEASE_TAG }}
@@ -507,7 +599,7 @@ jobs:
         with:
           name: runtime-${{ matrix.target_os }}-${{ matrix.target_arch }}
           path: dist/rill-runtime-*
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   publish:
     name: Sign and publish
@@ -560,13 +652,28 @@ jobs:
           fi
       - name: Build signing tool
         run: cargo build --locked --release -p rill-runtime --bin rill-pack
-      - name: Publish to crates.io
+      - name: Publish Stable crates to crates.io (driven by release-plan.toml)
+        # 1.0 freeze: the publish list is driven entirely by
+        # ``release-plan.toml``.  Only the Stable group is published; Preview
+        # crates are never published by an RC tag and must not appear in the
+        # loop.  This replaces the previous hardcoded list that included
+        # Preview crates and relied on crates.io returning "already exists"
+        # to skip them — that behaviour violated the release plan contract.
         if: startsWith(env.RELEASE_TAG, 'v')
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           set -euo pipefail
-          for crate in rill-handler-api rill-runtime-protocol rill-ml rill-runtime rill-ml-tokio rill-ml-arrow rill-ml-polars rillml-inspect rill-ml-wasm; do
+          # Validate the release plan and emit the Stable publish order.
+          # ``--tag`` validates that the Stable version matches the release tag.
+          mapfile -t stable_crates < <(python3 scripts/parse_release_plan.py --list-stable --tag "$RELEASE_TAG")
+          if [ "${#stable_crates[@]}" -eq 0 ]; then
+            echo "::error::release-plan.toml [stable] has an empty crates list"
+            exit 1
+          fi
+          echo "Publishing ${#stable_crates[@]} Stable crates (driven by release-plan.toml):"
+          printf '  - %s\n' "${stable_crates[@]}"
+          for crate in "${stable_crates[@]}"; do
             published=false
             for attempt in {1..10}; do
               if output=$(cargo publish -p "$crate" --no-verify 2>&1); then
@@ -591,6 +698,10 @@ jobs:
               exit 1
             fi
           done
+          # Verify that Preview crates were NOT published by this RC tag.
+          mapfile -t preview_crates < <(python3 scripts/parse_release_plan.py --list-preview)
+          echo "Preview crates (NOT published by this RC tag):"
+          printf '  - %s\n' "${preview_crates[@]}"
       - name: Verify existing channel index when present
         env:
           GH_TOKEN: ${{ github.token }}
