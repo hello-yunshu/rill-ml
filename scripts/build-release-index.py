@@ -124,11 +124,18 @@ def main() -> None:
     artifacts: list[dict[str, object]] = []
     for target_os, target_arch, pattern in RUNTIMES:
         name = pattern.format(version=args.version)
+        asset_path = args.release_dir / name
+        if not asset_path.is_file():
+            # A platform asset may be intentionally skipped by the release
+            # workflow (e.g. macOS builds are skipped when Apple Developer ID
+            # secrets are not configured). The release index must not claim
+            # support for a platform whose asset was not produced.
+            continue
         url = f"{base_url}/{name}"
         validate_release_url(url)
         artifacts.append(
             artifact(
-                args.release_dir / name,
+                asset_path,
                 kind="runtime",
                 id="rill-runtime",
                 version=args.version,
