@@ -621,6 +621,13 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+      channel: ${{ steps.version.outputs.channel }}
+      index_file: ${{ steps.version.outputs.index_file }}
+      pointer_release: ${{ steps.version.outputs.pointer_release }}
+      pointer_title: ${{ steps.version.outputs.pointer_title }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -646,22 +653,29 @@ jobs:
           version="${RELEASE_TAG#v}"
           test "$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n1)" = "$version"
           test "$(python3 -c 'import json; print(json.load(open("models/example-default/manifest.json"))["version"])')" = "$version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
           # SemVer 2.0: a prerelease version contains a hyphen after the
           # patch number (e.g. 1.0.0-rc.1). Stable versions do not.
           if [[ "$version" == *-* ]]; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "channel=candidate" >> "$GITHUB_OUTPUT"
-            echo "index_file=candidate-index.json" >> "$GITHUB_OUTPUT"
-            echo "pointer_release=local-ai-candidate" >> "$GITHUB_OUTPUT"
-            echo "pointer_title=Rill Local AI candidate index" >> "$GITHUB_OUTPUT"
+            is_prerelease=true
+            channel=candidate
+            index_file=candidate-index.json
+            pointer_release=local-ai-candidate
+            pointer_title="Rill Local AI candidate index"
           else
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "channel=stable" >> "$GITHUB_OUTPUT"
-            echo "index_file=stable-index.json" >> "$GITHUB_OUTPUT"
-            echo "pointer_release=local-ai-stable" >> "$GITHUB_OUTPUT"
-            echo "pointer_title=Rill Local AI stable index" >> "$GITHUB_OUTPUT"
+            is_prerelease=false
+            channel=stable
+            index_file=stable-index.json
+            pointer_release=local-ai-stable
+            pointer_title="Rill Local AI stable index"
           fi
+          {
+            echo "version=$version"
+            echo "is_prerelease=$is_prerelease"
+            echo "channel=$channel"
+            echo "index_file=$index_file"
+            echo "pointer_release=$pointer_release"
+            echo "pointer_title=$pointer_title"
+          } >> "$GITHUB_OUTPUT"
       - name: Build signing tool
         run: cargo build --locked --release -p rill-runtime --bin rill-pack
       - name: Publish Stable crates to crates.io (driven by release-plan.toml)
@@ -896,29 +910,91 @@ jobs:
             gh release create "$RELEASE_TAG" dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" \
               --verify-tag \
               --title "Rill ML ${{ steps.version.outputs.version }}" \
+              --notes "macOS aarch64 runtime policy: the official asset is published without Apple Developer ID signing or notarization when signing credentials are absent. This is an accepted, non-blocking policy; the accompanying .unsigned.json sidecar records the exact status. Users can authorize first launch through Finder → Open or System Settings → Privacy & Security." \
               --generate-notes \
               "${prerelease_args[@]}"
           fi
-      - name: Move signed index pointer
-        env:
-          GH_TOKEN: ${{ github.token }}
-          POINTER_RELEASE: ${{ steps.version.outputs.pointer_release }}
-          POINTER_TITLE: ${{ steps.version.outputs.pointer_title }}
-          INDEX_FILE: ${{ steps.version.outputs.index_file }}
-          IS_PRERELEASE: ${{ steps.version.outputs.is_prerelease }}
+  release-host-smoke:
+    name: Independent released-asset host smoke
+    if: github.event_name == 'workflow_dispatch'
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.94.0
+      - name: Build public package verifier
+        run: cargo build --locked --release -p rill-runtime --bin rill-pack
+      - name: Exercise published runtime, model, and handler
         shell: bash
         run: |
           set -euo pipefail
-          # Route the signed index to the channel-appropriate pointer
-          # release. A prerelease (candidate) version updates only
-          # local-ai-candidate and never touches local-ai-stable; a stable
-          # version updates only local-ai-stable. The two channels are
-          # intentionally independent so users tracking the stable pointer
-          # never see an RC version appear.
+          python3 smoke-test/host_smoke.py \
+            --index-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${{ needs.publish.outputs.index_file }}" \
+            --expected-version "${{ needs.publish.outputs.version }}" \
+            --expected-channel "${{ needs.publish.outputs.channel }}" \
+            --rill-pack-bin target/release/rill-pack \
+            --log smoke-test/smoke-result.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: released-asset-host-smoke-${{ needs.publish.outputs.version }}
+          path: smoke-test/smoke-result.json
+          if-no-files-found: error
+
+  move-index-pointer:
+    name: Promote verified signed index pointer
+    if: github.event_name == 'workflow_dispatch'
+    needs: [publish, release-host-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.94.0
+      - name: Build public package verifier
+        run: cargo build --locked --release -p rill-runtime --bin rill-pack
+      - name: Download and verify immutable release index
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INDEX_FILE: ${{ needs.publish.outputs.index_file }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "$RELEASE_TAG" --pattern "$INDEX_FILE" --dir dist
+          target/release/rill-pack verify-index \
+            --index "dist/$INDEX_FILE" \
+            --key-id "$PUBLISHER_KEY_ID" \
+            --public-key-hex "$RILL_PUBLIC_KEY_HEX"
+      - name: Move signed index pointer after released-asset smoke
+        env:
+          GH_TOKEN: ${{ github.token }}
+          POINTER_RELEASE: ${{ needs.publish.outputs.pointer_release }}
+          POINTER_TITLE: ${{ needs.publish.outputs.pointer_title }}
+          INDEX_FILE: ${{ needs.publish.outputs.index_file }}
+          IS_PRERELEASE: ${{ needs.publish.outputs.is_prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A prerelease updates only local-ai-candidate; a stable release
+          # updates only local-ai-stable. The pointer does not move until the
+          # immutable release assets pass the independent external-host smoke.
           if [ "$IS_PRERELEASE" = "true" ]; then
-            echo "Prerelease detected: updating candidate pointer only (local-ai-stable is untouched)."
+            echo "Prerelease verified: updating candidate pointer only."
           else
-            echo "Stable release detected: updating stable pointer only (local-ai-candidate is untouched)."
+            echo "Stable release verified: updating stable pointer only."
           fi
           gh release view "$POINTER_RELEASE" >/dev/null 2>&1 || \
             gh release create "$POINTER_RELEASE" --title "$POINTER_TITLE" --notes "Machine-readable signed update index."
@@ -927,7 +1003,7 @@ jobs:
   publish-python:
     name: Publish Python bindings to PyPI
     if: github.event_name == 'workflow_dispatch'
-    needs: publish
+    needs: move-index-pointer
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
