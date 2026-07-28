@@ -21,6 +21,18 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 
 
+
+## [1.0.0-rc.4] - 2026-07-28
+
+### Fixed
+
+- `scripts/build-release-index.py` failed with `FileNotFoundError` when a
+  platform runtime asset was intentionally skipped by the release workflow
+  (e.g. macOS builds skipped due to missing Apple Developer ID secrets). The
+  script now skips missing platform assets instead of aborting, so the
+  release index does not claim support for a platform whose asset was not
+  produced — matching the skip behaviour documented in `STABILITY.md`.
+
 ## [1.0.0-rc.3] - 2026-07-28
 
 ### Fixed
@@ -1258,6 +1270,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.4]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.1
