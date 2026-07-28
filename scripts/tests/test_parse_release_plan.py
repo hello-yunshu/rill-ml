@@ -89,6 +89,34 @@ crates = ["rill-ml-python"]
                 ["rill-ml", "rill-handler-api", "rill-runtime", "rill-runtime-protocol"],
             )
 
+    def test_stable_package_paths_preserve_order_and_root(self) -> None:
+        paths = {
+            "rill-handler-api": pathlib.Path("crates/rill-handler-api"),
+            "rill-ml": pathlib.Path("."),
+            "rill-runtime": pathlib.Path("crates/rill-runtime"),
+        }
+        with patch.object(
+            parse_release_plan, "workspace_member_paths", return_value=paths
+        ):
+            result = parse_release_plan.stable_package_paths(
+                ROOT, ["rill-handler-api", "rill-ml", "rill-runtime"]
+            )
+        self.assertEqual(
+            result,
+            [
+                ("rill-handler-api", pathlib.Path("crates/rill-handler-api")),
+                ("rill-ml", pathlib.Path(".")),
+                ("rill-runtime", pathlib.Path("crates/rill-runtime")),
+            ],
+        )
+
+    def test_stable_package_paths_reject_unknown_crate(self) -> None:
+        with patch.object(
+            parse_release_plan, "workspace_member_paths", return_value={}
+        ):
+            with self.assertRaisesRegex(RuntimeError, "no workspace package path"):
+                parse_release_plan.stable_package_paths(ROOT, ["rill-ml"])
+
     def test_preview_not_in_stable_output(self) -> None:
         """Preview crates must not appear in the Stable return list."""
         with tempfile.TemporaryDirectory() as temp_name:

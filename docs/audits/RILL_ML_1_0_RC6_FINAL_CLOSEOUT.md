@@ -15,11 +15,10 @@ not trust the handler key, four v1 fixtures existed but were not loaded by
 the cross-version test target, and documentation contradicted the permanent
 unsigned-macOS policy.
 
-This closeout branch repairs those gaps and additionally prevents a channel
+The merged closeout repairs those gaps and additionally prevents a channel
 pointer from moving until the immutable published assets pass an independent
-host smoke. Final `1.0.0` promotion is allowed only after these repairs pass
-the complete local and remote gates. Apple Developer ID signing is not a
-blocker.
+host smoke. The complete local and remote closeout gates passed, so final
+`1.0.0` promotion is approved. Apple Developer ID signing is not a blocker.
 
 ## Immutable RC6 identity
 
@@ -133,6 +132,26 @@ The signed release-index schema remains frozen. It records the macOS artifact,
 size, and SHA-256. The separate `*.unsigned.json` release asset records
 `codeSigning: "unsigned"` and `notarization: false`.
 
+## Formal-promotion preflight findings
+
+The `1.0.0` version bump exposed two additional release-path problems before
+any immutable tag or registry upload:
+
+- the excluded echo and malicious-handler lockfiles still recorded RC6 after
+  their manifests advanced, allowing a stale locally generated echo component
+  to report RC6 metadata against a `1.0.0` manifest;
+- the package-check job attempted to package every Preview workspace crate.
+  Those Preview crates depend on the not-yet-published `rill-ml 1.0.0`, so a
+  first-attempt final release would fail before publishing. RC retries could
+  mask this because their internal versions might already be indexed.
+
+The version synchronizer now updates both excluded-handler lockfiles and has a
+regression test for named-package-only lock updates. The package-check job is
+now driven by the Stable list and paths in `release-plan.toml`; it verifies all
+four Stable archives with all features while patching unpublished internal
+dependencies to the exact checked-out tag. Preview crates are excluded. The
+repaired package path and `rill-ml` crates.io publish dry-run pass locally.
+
 ## macOS delivery policy
 
 Official macOS runtime assets are Apple Silicon only. Missing Apple Developer
@@ -164,5 +183,17 @@ Promotion to `1.0.0` requires:
 5. post-release verification of the tag, GitHub assets, crates.io packages,
    signed stable index, pointer contents, and smoke artifact.
 
-Until all five are evidenced, the correct decision is **do not publish final
-1.0.0 yet**. Once they pass, no known RC6 closeout blocker remains.
+Closeout repair PR `#17` merged as
+`dacf7f2e30aed637917b874857ee47098342f2af`. Its PR checks and the subsequent
+`main` runs all passed:
+
+- CI / Release: `30347458228`
+- Security audit: `30347458229`
+- Docs: `30347458314`
+
+Items 1–3 are therefore complete and no known RC6 closeout blocker remains.
+The decision is **approved to promote `1.0.0`**. Items 4–5 remain mandatory
+post-tag publication gates: the stable pointer must not move before the
+released-asset smoke passes, and the release is not considered complete until
+the public tag, assets, registries, signed index, pointer, and smoke evidence
+are verified.

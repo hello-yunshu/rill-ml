@@ -6,7 +6,7 @@
 # to decide which version to apply to each workspace member.
 
 [stable]
-version = "1.0.0-rc.6"
+version = "1.0.0"
 crates = [
   "rill-handler-api",
   "rill-runtime-protocol",

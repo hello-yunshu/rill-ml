@@ -71,7 +71,7 @@ behaviour. For a WASM-free build: `cargo install rill-runtime --no-default-featu
 load `.rillhandler`).
 
 The version tracks `[workspace.package].version`; query the current release via `cargo metadata`
-or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.0.0-rc.6` (candidate);
+or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.0.0`;
 the Preview group remains at `0.13.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
@@ -225,9 +225,9 @@ RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for th
 - **v0.5** — Online decision-making: multi-armed bandits, contextual bandits.
 - **v0.6** — Platform and ecosystem: WASM, Python bindings, Tokio Stream adapters.
 - **v0.7** — Pluggable WASM handlers: signed `.rillhandler` packs, Wasmtime sandbox, IPC v2.
-- **v0.13.0** — Last 0.x stable release (the `local-ai-stable` pointer still points here).
-- **v1.0.0-rc.1** — 1.0 release candidate: API, state format, IPC, WIT, runtime, and release channel are all frozen. The `local-ai-candidate` pointer tracks this version; `local-ai-stable` is unchanged.
-- **v1.0.0** — Final stable release (ships once all candidate admission criteria pass).
+- **v0.13.0** — Last 0.x stable release.
+- **v1.0.0-rc.1** — Start of the 1.0 candidate cycle: API, state format, IPC, WIT, runtime, and release channels were frozen.
+- **v1.0.0** — First stable 1.x release; `local-ai-stable` advances only after the immutable public assets pass the independent host smoke.
 
 ## Correctness and validation
 
