@@ -1,4 +1,4 @@
-# RillML 1.0 RC6 Final Closeout Report
+# RillML 1.0 Final Closeout Report
 
 **Audit date:** 2026-07-28
 
@@ -17,8 +17,10 @@ unsigned-macOS policy.
 
 The merged closeout repairs those gaps and additionally prevents a channel
 pointer from moving until the immutable published assets pass an independent
-host smoke. The complete local and remote closeout gates passed, so final
-`1.0.0` promotion is approved. Apple Developer ID signing is not a blocker.
+host smoke. The complete local and remote closeout gates passed, and final
+`1.0.0` was subsequently published successfully. Its immutable released
+assets passed the independent host smoke before the signed Stable pointer
+moved. Apple Developer ID signing remains an explicit non-blocking policy.
 
 ## Immutable RC6 identity
 
@@ -170,7 +172,7 @@ handler, and release-index cryptographic verification remains mandatory.
 
 RC6 did not modify the stable channel.
 
-## Final promotion gate
+## Final 1.0.0 promotion
 
 Promotion to `1.0.0` requires:
 
@@ -191,9 +193,57 @@ Closeout repair PR `#17` merged as
 - Security audit: `30347458229`
 - Docs: `30347458314`
 
-Items 1–3 are therefore complete and no known RC6 closeout blocker remains.
-The decision is **approved to promote `1.0.0`**. Items 4–5 remain mandatory
-post-tag publication gates: the stable pointer must not move before the
-released-asset smoke passes, and the release is not considered complete until
-the public tag, assets, registries, signed index, pointer, and smoke evidence
-are verified.
+The formal promotion PR `#18` passed its complete PR matrix and merged as
+`b726543e19fd610736739cefac89e0ecb101e5b2`:
+
+- PR CI / Release: `30349428060`
+- PR Security audit: `30349427891`
+- PR Docs: `30349427940`
+- `main` CI / Release: `30350178707`
+- `main` Security audit: `30350178724`
+- `main` Docs: `30350178705`
+
+Auto Release run `30350650510` confirmed that the successful CI commit was
+still `main`, validated version `1.0.0`, created the annotated `v1.0.0` tag
+at the merge commit using `git tag -a`, and dispatched the tagged release.
+
+Release run `30350663967` completed successfully. Its authoritative gates
+proved all of the following:
+
+- all four Stable crate archives packaged and verified successfully;
+- the `rill-ml` crates.io publish request passed before publication;
+- `rill-handler-api`, `rill-runtime-protocol`, `rill-ml`, and `rill-runtime`
+  were published in the order declared by `release-plan.toml`;
+- Linux x86_64, Windows x86_64, and macOS aarch64 runtime assets built and
+  uploaded;
+- the macOS aarch64 asset followed the accepted unsigned/non-notarized path
+  and emitted the unsigned-policy annotation;
+- the model, handler, and Stable index were signed and verified before the
+  immutable GitHub Release was created;
+- the independent released-asset host smoke downloaded and exercised the
+  public runtime, model, and handler successfully, then uploaded
+  `released-asset-host-smoke-1.0.0`;
+- the immutable Stable index was downloaded and signature-verified again
+  before `local-ai-stable/stable-index.json` was replaced;
+- the Python publish gate detected the independent Preview version `0.13.0`
+  and correctly skipped PyPI publication.
+
+The release workflow therefore satisfied promotion requirements 1–5 in the
+required order. The post-promotion channel state is:
+
+| Channel | Pointer | Version |
+|---|---|---|
+| stable | `local-ai-stable/stable-index.json` | `1.0.0` |
+| candidate | `local-ai-candidate/candidate-index.json` | `1.0.0-rc.6` |
+
+## Final decision
+
+**RillML `1.0.0` is formally released.** There is no known RC6 closeout,
+state-schema, public-API, SemVer, packaging, registry, runtime-asset,
+signature, host-smoke, or channel-promotion blocker.
+
+The only intentional delivery caveat is the permanent macOS policy: the
+official Apple Silicon runtime is unsigned and not notarized when Apple
+Developer ID credentials are absent. That status is explicit in the workflow,
+release notes, documentation, and sidecar metadata and does not weaken the
+mandatory Ed25519 verification of the model, handler, or release index.
