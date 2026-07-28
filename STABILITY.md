@@ -90,10 +90,14 @@ sections document any remaining condition.
 ### Version model
 
 `Snapshot<T>` carries an outer `format_version` (currently `1`). Each
-serializable model type additionally implements `ValidateState` to enforce
-type-specific invariants (dimensions, finite values, non-negative counts,
-optimizer parameter counts, FTRL `max_features`, encoder mapping
-consistency, pipeline dimensions, bandit arm state, drift detector buffer).
+Stable state schema type listed in the whitelist below implements
+`ValidateState` (or an equivalent custom `Deserialize` / derive-based
+validator) to enforce type-specific invariants (dimensions, finite values,
+non-negative counts, optimizer parameter counts, FTRL `max_features`,
+encoder mapping consistency, pipeline dimensions, bandit arm state).
+
+Preview state schema types are serializable but their state schema is not
+guaranteed to be compatible across 1.x versions.
 
 ### Restore contract
 
@@ -112,8 +116,82 @@ Golden state fixtures live under `tests/fixtures/state/`:
 - `v0.13.0/` — representative state produced by the immutable `v0.13.0` tag.
 - `v1/` — state produced by the 1.0 RC candidate code.
 
-RC and all future 1.x CI must load every fixture. A schema bump requires a
-migration note in `CHANGELOG.md` and a new fixture set.
+RC and all future 1.x CI must load every fixture for Stable state schema
+types. A schema bump requires a migration note in `CHANGELOG.md` and a new
+fixture set.
+
+### Stable state schema types
+
+The following 26 types are covered by the 1.x state-freeze contract. Each
+has full cross-version fixture coverage (`v0.13.0/` + `v1/`) and implements
+state validation via one of three modes:
+
+- `validate_state` — implements `ValidateState` trait.
+- `deserialize` — custom `Deserialize` impl enforces invariants during
+  deserialization.
+- `derive` — serde-derived `Deserialize` for simple enums that automatically
+  rejects unknown variants.
+
+| Type | Fixture | Validation |
+|---|---|---|
+| `Mean` | `mean` | `validate_state` |
+| `Variance` | `variance` | `validate_state` |
+| `ExponentiallyWeightedMean` | `ew_mean` | `validate_state` |
+| `StandardScaler` | `standard_scaler` | `validate_state` |
+| `OneHotEncoder` | `one_hot_encoder` | `validate_state` |
+| `OrdinalEncoder` | `ordinal_encoder` | `validate_state` |
+| `FrequencyEncoder` | `frequency_encoder` | `validate_state` |
+| `ConstantImputer` | `constant_imputer` | `validate_state` |
+| `ForwardFill` | `forward_fill` | `validate_state` |
+| `MeanImputer` | `mean_imputer` | `validate_state` |
+| `MissingIndicator` | `missing_indicator` | `validate_state` |
+| `FeatureHasher` | `feature_hasher` | `deserialize` |
+| `SparseFeatures` | `sparse_features` | `deserialize` |
+| `RegressionLoss` | `regression_loss` | `derive` |
+| `LinearRegression` | `linear_regression` | `validate_state` |
+| `MeanRegressor` | `mean_regressor` | `validate_state` |
+| `FtrlClassifier` | `ftrl_classifier` | `validate_state` |
+| `FtrlRegressor` | `ftrl_regressor` | `validate_state` |
+| `GaussianNaiveBayes` | `gaussian_naive_bayes` | `validate_state` |
+| `BernoulliNaiveBayes` | `bernoulli_naive_bayes` | `validate_state` |
+| `MultinomialNaiveBayes` | `multinomial_naive_bayes` | `validate_state` |
+| `Sgd` | `optimizer_sgd` | `validate_state` |
+| `EpsilonGreedy` | `epsilon_greedy` | `validate_state` |
+| `Ucb1` | `ucb1` | `validate_state` |
+| `ThompsonSampling` | `thompson_sampling` | `validate_state` |
+| `LinUcb` | `linucb` | `validate_state` |
+
+### Preview state schema types
+
+The following types are serializable but their state schema is not covered
+by cross-version fixture coverage. Their state schema may change within
+1.x without requiring a major version bump:
+
+- `PageHinkley` (drift detector)
+- `Adwin` (drift detector)
+- `Kswin` (drift detector)
+- `DriftAwareModel` (composite drift-aware model)
+- `DriftEvent`
+- `StaticStrategy`
+- `TimeDecayedMean`
+- `LearningRateScheduler`
+- `FixedWindowBuffer`
+- `LogisticRegression`
+- `ExponentiallyWeightedMeanRegressor`
+- `LastValueRegressor`
+
+### State schema manifest
+
+The authoritative source of truth for the Stable/Preview state schema
+classification is `state-schema-manifest.toml`. The
+`scripts/check_state_fixture_coverage.py` script validates in CI that:
+
+- Every Stable type has a `v0.13.0` fixture.
+- Every Stable type has a `v1` fixture.
+- Every Stable type implements the declared validation mode.
+- Fixture files exist on disk.
+- No duplicate entries in either group.
+- No overlap between Stable and Preview groups.
 
 ## IPC v1/v2
 
@@ -233,14 +311,48 @@ enforced in CI. An MSRV bump is a minor breaking change and requires a
 |---|---|---|
 | Linux x86_64 | Stable | Stable |
 | Windows x86_64 | Stable | Stable |
-| macOS aarch64 (Apple Silicon) | Stable (signed) | Stable |
+| macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | Not published | Stable |
 
-macOS official runtime assets are Apple Silicon only and must be codesigned.
-Unsigned macOS assets are not published as official stable or candidate
-artifacts. When Apple Developer ID secrets are not configured in the release
-workflow, the macOS build is skipped and the release index does not claim
-macOS support for that release.
+### macOS unsigned policy (permanent)
+
+macOS official runtime assets are Apple Silicon only. The project does not
+have an Apple Developer ID Application certificate and does not require one
+for any release — RC, candidate, or final stable. This is a permanent project
+decision that applies to the entire 1.x cycle and beyond.
+
+When Apple Developer ID secrets are not configured in the release workflow
+(the permanent default), the macOS aarch64 runtime is:
+
+- **Always compiled.** The build step runs unconditionally; it is never
+  skipped due to missing signing secrets.
+- **Uploaded as unsigned.** The binary is not codesigned or notarized.
+  A sidecar metadata file (`*.unsigned.json`) is uploaded alongside the
+  binary so the release index and release notes can accurately reflect the
+  unsigned status without modifying the frozen release-index schema.
+- **Included in the candidate index.** The release index contains a macOS
+  entry with `codeSigning: "unsigned"` and `notarization: false` in the
+  artifact metadata.
+- **Not a release blocker.** The absence of Apple Developer ID is never a
+  blocking condition for any release.
+
+macOS users may need to bypass Gatekeeper to run the unsigned binary:
+
+1. **Finder method:** Right-click the binary in Finder and select "Open".
+   A confirmation dialog appears; click "Open" again to confirm.
+2. **System Settings method:** After the first launch attempt fails, open
+   "System Settings → Privacy & Security" and click "Allow Anyway" next to
+   the blocked binary notice.
+3. **Quarantine removal (optional):** Advanced users can remove the
+   quarantine extended attribute manually:
+   ```bash
+   xattr -d com.apple.quarantine /path/to/rill-runtime
+   ```
+
+Optional codesign remains supported: if Apple Developer ID secrets are
+configured in the repository, the release workflow performs codesign and
+notarization automatically. The presence or absence of secrets does not
+change the build, upload, or index inclusion behaviour.
 
 ## Deprecation policy
 
