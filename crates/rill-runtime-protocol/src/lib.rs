@@ -327,7 +327,7 @@ impl ReleaseIndexPayload {
         if self.schema_version != RELEASE_INDEX_SCHEMA_VERSION {
             return Err("unsupported release-index schema");
         }
-        if self.channel != "stable" {
+        if !matches!(self.channel.as_str(), "stable" | "candidate") {
             return Err("unsupported release channel");
         }
         if self.generated_at.is_empty() || self.generated_at.len() > 64 {
