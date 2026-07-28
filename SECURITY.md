@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-RillML is at the 1.0 Release Candidate stage. The Stable crates
+RillML is on the stable 1.x release line. The Stable crates
 (`rill-ml`, `rill-runtime`, `rill-runtime-protocol`, `rill-handler-api`)
 are under the 1.x compatibility freeze documented in
 [`STABILITY.md`](STABILITY.md). The Preview crates
@@ -12,14 +12,14 @@ the 1.x freeze.
 
 | Version line | Status | Supported | Channel |
 | ------------ | ------ | --------- | ------- |
-| `1.0.0-rc.x` | Current candidate | :white_check_mark: | `local-ai-candidate` |
-| `1.0.x` (final) | Not yet released | Will be supported on release | `local-ai-stable` (planned) |
-| `0.13.0` | Last 0.x stable | :white_check_mark: (security fixes only) | `local-ai-stable` |
+| `1.0.x` | Current stable | :white_check_mark: | `local-ai-stable` |
+| `1.0.0-rc.x` | Superseded candidate | :x: | `local-ai-candidate` |
+| `0.13.x` | Previous stable line | :white_check_mark: (security fixes only) | Immutable releases |
 | `< 0.13.0` | EOL | :x: | — |
 
-The `local-ai-stable` pointer continues to point at `0.13.0` until the
-final `1.0.0` release ships. The `local-ai-candidate` pointer tracks the
-latest `1.0.0-rc.x`. A candidate release never updates the stable pointer.
+The `local-ai-stable` pointer tracks the latest independently smoked final
+release. The `local-ai-candidate` pointer preserves the latest RC. A candidate
+release never updates the stable pointer.
 
 ### Backport policy
 
@@ -28,9 +28,9 @@ latest `1.0.0-rc.x`. A candidate release never updates the stable pointer.
   table above.
 - Security fixes that only affect a Preview crate are applied
   forward-only; Preview crates do not carry a backport guarantee.
-- A fix lands on the `1.0.0-rc.x` candidate line first, then on `main`
-  for the next RC or the final `1.0.0`. If `0.13.0` is affected, the
-  same fix is cherry-picked to the `0.13.x` release branch.
+- A fix lands on `main` for the next `1.0.x` release. If the supported
+  `0.13.x` line is affected, the same fix is cherry-picked to that release
+  branch.
 
 ## Reporting a vulnerability
 
@@ -97,8 +97,8 @@ platform matrix and first-launch authorization guidance.
 
 `rill-runtime` with the `wasm` feature (the default) depends on
 `wasmtime`. A Wasmtime security advisory triggers an out-of-band release
-of the affected Stable release lines (`1.0.0-rc.x` and, once it ships,
-`1.0.x`; `0.13.0` only if the `wasm` feature is in scope for that line).
+of the affected Stable release lines (`1.0.x`; `0.13.x` only if the `wasm`
+feature is in scope for that line).
 Patch upgrades within the same wasmtime minor line are applied via
 Dependabot PRs and reviewed by maintainers. Minor upgrades require a
 maintainer review of the changelog before merge; the review note is

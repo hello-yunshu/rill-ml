@@ -6,13 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 with the Rust-specific convention that 0.x releases may break the public API.
 
-> **Status: 1.0 Release Candidate.**
+> **Status: 1.0 Stable.**
 > The Stable crates (`rill-ml`, `rill-runtime`, `rill-runtime-protocol`,
-> `rill-handler-api`) are now under the 1.x compatibility freeze. Preview
+> `rill-handler-api`) are released under the 1.x compatibility freeze. Preview
 > crates (`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`, `rill-ml-arrow`,
-> `rill-ml-polars`, `rillml-inspect`) remain at `0.x`. The `local-ai-stable`
-> pointer continues to point at `0.13.0` until the final `1.0.0` release; the
-> `local-ai-candidate` pointer tracks `1.0.0-rc.x`. Do not use RillML for
+> `rill-ml-polars`, `rillml-inspect`) remain at `0.x`. Final releases update
+> `local-ai-stable` only after their immutable public assets pass the
+> independent host smoke; `local-ai-candidate` remains the RC channel. Do not
+> use RillML for
 > safety-critical, medical, financial, or industrial-control decisions without
 > independent verification. Always keep a simple baseline and business-rule
 > fallback alongside model predictions.
@@ -23,6 +24,47 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 
 
+
+
+## [1.0.0] - 2026-07-28
+
+This is the first stable 1.x release. It promotes the four Stable crates from
+`1.0.0-rc.6` without changing their frozen Rust API, state schemas, IPC
+protocol, WIT ABI, pack formats, runtime CLI, default features, or MSRV.
+Preview crates remain at `0.13.0`.
+
+### Added — stable compatibility contract
+
+- The Stable group is `rill-ml`, `rill-runtime`, `rill-runtime-protocol`, and
+  `rill-handler-api`. The 1.x compatibility surface and additive-change rules
+  are defined in `STABILITY.md` and enforced by public-API baselines,
+  `cargo-semver-checks`, cross-version state fixtures, WIT checks, and
+  protocol/runtime integration tests.
+- The published runtime path includes signed model and handler packs, signed
+  release indexes, Linux x86_64, Windows x86_64, and macOS Apple Silicon
+  runtime assets, plus immutable versioned URLs and SHA-256 metadata.
+
+### Changed — verified stable promotion
+
+- The release workflow publishes an immutable `v1.0.0` release, runs an
+  independent external-host smoke against the public release assets, and only
+  then advances `local-ai-stable`. The smoke verifies index and package
+  signatures, asset hashes and sizes, IPC v2 handshake identities, health, a
+  real invoke result, the frozen `invalidJson` error code, and clean shutdown.
+- The package dry-run is driven by `release-plan.toml` and verifies only the
+  four Stable crate archives. Unpublished internal 1.0 dependencies are
+  patched to the exact checked-out tag during verification, so a first stable
+  release does not depend on registry indexing from an earlier failed attempt.
+- Preview crates, including `rill-ml-python`, retain version `0.13.0` and are
+  not promoted to 1.0 by this release.
+
+### Security — macOS delivery policy
+
+- The official macOS Apple Silicon runtime is intentionally allowed to be
+  unsigned and non-notarized. Missing Apple Developer ID credentials never
+  block a stable release. The release includes `*.unsigned.json` metadata and
+  first-launch authorization guidance; model, handler, and release-index
+  cryptographic verification remains mandatory.
 
 ## [1.0.0-rc.6] - 2026-07-28
 
@@ -1344,7 +1386,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0
 [1.0.0-rc.6]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.6
 [1.0.0-rc.5]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.5
 [1.0.0-rc.4]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.4

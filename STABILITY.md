@@ -386,8 +386,9 @@ Additive changes (new Stable APIs, new error codes, new config fields via
 | stable | `stable-index.json` | `local-ai-stable` | Final 1.0.0 and later |
 | candidate | `candidate-index.json` | `local-ai-candidate` | 1.0.0-rc.x prereleases |
 
-A candidate release never updates the stable pointer. The stable pointer
-remains at `0.13.0` until the final `1.0.0` release.
+A candidate release never updates the stable pointer. A final release advances
+the stable pointer only after its immutable public assets pass the independent
+released-asset host smoke.
 
 ## Prerelease versioning
 
@@ -400,5 +401,5 @@ The release workflow (`pipeline.yml`) detects prerelease versions
 (contains a `-` after the patch number), passes `--prerelease` to
 `gh release create`, uploads `candidate-index.json` to the
 `local-ai-candidate` pointer release, and never touches
-`local-ai-stable`. The Python crate is in the Preview version group
-and is not published to PyPI during the 1.0 RC cycle.
+`local-ai-stable`. The Python crate is in the Preview version group and is
+published to PyPI only when its independent Preview version changes.
