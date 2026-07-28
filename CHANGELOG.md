@@ -22,6 +22,17 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 
 
+
+## [1.0.0-rc.5] - 2026-07-28
+
+### Fixed
+
+- `ReleaseIndexPayload::validate_shape` in `rill-runtime-protocol` rejected
+  the `candidate` release channel, causing `rill-pack sign-index` to fail
+  with "unsupported release channel" when publishing a prerelease index.
+  The validator now accepts both `stable` and `candidate` channels, matching
+  the two-channel model documented in `STABILITY.md`.
+
 ## [1.0.0-rc.4] - 2026-07-28
 
 ### Fixed
@@ -1270,6 +1281,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.5]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.5
 [1.0.0-rc.4]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.2
