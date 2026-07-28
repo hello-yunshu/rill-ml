@@ -478,9 +478,53 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo package --workspace --exclude rill-ml-python
-      - run: cargo package --features serde
-      - run: cargo publish --dry-run --features serde
+      - name: Package and verify only Stable crates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t stable_crates < <(
+            python3 scripts/parse_release_plan.py \
+              --list-stable \
+              --tag "$RELEASE_TAG"
+          )
+          mapfile -t stable_paths < <(
+            python3 scripts/parse_release_plan.py \
+              --list-stable-paths \
+              --tag "$RELEASE_TAG"
+          )
+          if [ "${#stable_crates[@]}" -eq 0 ] ||
+             [ "${#stable_crates[@]}" -ne "${#stable_paths[@]}" ]; then
+            echo "::error::Stable package list/path mismatch"
+            exit 1
+          fi
+
+          # A first stable release cannot resolve its own unpublished internal
+          # dependency versions from crates.io. Patch those dependencies to
+          # the exact checked-out tag only for package verification. The
+          # generated crate manifests still contain normal crates.io version
+          # requirements, and the publish job uploads them in dependency order.
+          patch_args=()
+          for record in "${stable_paths[@]}"; do
+            IFS=$'\t' read -r crate relative_path <<< "$record"
+            test -n "$crate"
+            test -n "$relative_path"
+            patch_args+=(
+              --config
+              "patch.crates-io.${crate}.path=\"${GITHUB_WORKSPACE}/${relative_path}\""
+            )
+          done
+
+          echo "Packaging ${#stable_crates[@]} Stable crates:"
+          printf '  - %s\n' "${stable_crates[@]}"
+          for crate in "${stable_crates[@]}"; do
+            cargo package \
+              --locked \
+              --all-features \
+              -p "$crate" \
+              "${patch_args[@]}"
+          done
+      - name: Verify rill-ml crates.io publish request
+        run: cargo publish --locked --dry-run -p rill-ml --features serde
 
   build-runtime:
     name: Runtime ${{ matrix.target_os }} ${{ matrix.target_arch }}
@@ -681,7 +725,7 @@ jobs:
       - name: Publish Stable crates to crates.io (driven by release-plan.toml)
         # 1.0 freeze: the publish list is driven entirely by
         # ``release-plan.toml``.  Only the Stable group is published; Preview
-        # crates are never published by an RC tag and must not appear in the
+        # crates are never published by a Stable-version tag and must not appear in the
         # loop.  This replaces the previous hardcoded list that included
         # Preview crates and relied on crates.io returning "already exists"
         # to skip them — that behaviour violated the release plan contract.
@@ -724,9 +768,9 @@ jobs:
               exit 1
             fi
           done
-          # Verify that Preview crates were NOT published by this RC tag.
+          # Verify that Preview crates were NOT published by this release tag.
           mapfile -t preview_crates < <(python3 scripts/parse_release_plan.py --list-preview)
-          echo "Preview crates (NOT published by this RC tag):"
+          echo "Preview crates (NOT published by this release tag):"
           printf '  - %s\n' "${preview_crates[@]}"
       - name: Verify existing channel index when present
         env:
