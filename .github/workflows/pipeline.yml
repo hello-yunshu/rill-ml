@@ -172,8 +172,9 @@ jobs:
     # would miss (e.g. tightening trait bounds, deleting enum variants,
     # changing function signatures, removing public fields).
     #
-    # The baseline is the most recently published RC (1.0.0-rc.5) on
-    # crates.io. The four Stable crates are checked individually:
+    # The baseline is the most recently published Stable release
+    # (1.0.0) on crates.io. The four Stable crates are checked
+    # individually:
     #   rill-ml, rill-runtime-protocol, rill-handler-api, rill-runtime
     #
     # `cargo-semver-checks` requires the nightly toolchain to build the
@@ -204,14 +205,14 @@ jobs:
       - name: Record resolved cargo-semver-checks version
         run: cargo semver-checks --version
       - uses: Swatinem/rust-cache@v2
-      - name: Run semver-checks for rill-ml (baseline 1.0.0-rc.5)
-        run: cargo semver-checks --package rill-ml --baseline-version 1.0.0-rc.5 --all-features
-      - name: Run semver-checks for rill-handler-api (baseline 1.0.0-rc.5)
-        run: cargo semver-checks --package rill-handler-api --baseline-version 1.0.0-rc.5
-      - name: Run semver-checks for rill-runtime-protocol (baseline 1.0.0-rc.5)
-        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.0.0-rc.5
-      - name: Run semver-checks for rill-runtime (baseline 1.0.0-rc.5)
-        run: cargo semver-checks --package rill-runtime --baseline-version 1.0.0-rc.5
+      - name: Run semver-checks for rill-ml (baseline 1.0.0)
+        run: cargo semver-checks --package rill-ml --baseline-version 1.0.0 --all-features
+      - name: Run semver-checks for rill-handler-api (baseline 1.0.0)
+        run: cargo semver-checks --package rill-handler-api --baseline-version 1.0.0
+      - name: Run semver-checks for rill-runtime-protocol (baseline 1.0.0)
+        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.0.0
+      - name: Run semver-checks for rill-runtime (baseline 1.0.0)
+        run: cargo semver-checks --package rill-runtime --baseline-version 1.0.0
 
   install-smoke:
     name: cargo install default-feature smoke
