@@ -8,7 +8,7 @@ preview, and how each artifact may evolve.
 
 | Artifact | 1.0 status | Stable commitment |
 |---|---|---|
-| `rill-ml` | Stable | Rust public API, serde model state |
+| `rill-ml` | Stable | Rust public API; selected serde model state types listed below |
 | `rill-runtime-protocol` | Stable | IPC v1/v2 JSON wire schema, release-index schema |
 | `rill-handler-api` | Stable | WIT ABI v1, handler ABI constants |
 | `rill-runtime` | Stable | Rust public API, CLI, model/handler pack loading |
@@ -330,13 +330,16 @@ When Apple Developer ID secrets are not configured in the release workflow
   A sidecar metadata file (`*.unsigned.json`) is uploaded alongside the
   binary so the release index and release notes can accurately reflect the
   unsigned status without modifying the frozen release-index schema.
-- **Included in the candidate index.** The release index contains a macOS
-  entry with `codeSigning: "unsigned"` and `notarization: false` in the
-  artifact metadata.
+- **Included in the channel index.** The signed index contains the macOS
+  runtime artifact, its size, and SHA-256. The separate
+  `*.unsigned.json` release asset records `codeSigning: "unsigned"` and
+  `notarization: false`; these fields are intentionally not added to the
+  frozen release-index schema.
 - **Not a release blocker.** The absence of Apple Developer ID is never a
   blocking condition for any release.
 
-macOS users may need to bypass Gatekeeper to run the unsigned binary:
+macOS users may need to authorize the unsigned binary through standard
+macOS controls:
 
 1. **Finder method:** Right-click the binary in Finder and select "Open".
    A confirmation dialog appears; click "Open" again to confirm.
@@ -350,9 +353,10 @@ macOS users may need to bypass Gatekeeper to run the unsigned binary:
    ```
 
 Optional codesign remains supported: if Apple Developer ID secrets are
-configured in the repository, the release workflow performs codesign and
-notarization automatically. The presence or absence of secrets does not
-change the build, upload, or index inclusion behaviour.
+configured in the repository, the release workflow performs codesign.
+Notarization is not currently automated. The presence or absence of
+signing secrets does not change the build, upload, or index inclusion
+behaviour.
 
 ## Deprecation policy
 
