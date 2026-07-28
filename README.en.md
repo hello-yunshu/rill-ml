@@ -22,7 +22,7 @@
 
 RillML provides incremental learning primitives that can be embedded directly in native Rust applications: online statistics, preprocessors, linear/logistic regression, evaluation metrics, pipelines, progressive evaluation, and optional serde-based state persistence.
 
-The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, signed `.rillpack` model packages, and signed `.rillhandler` WASM handler packages. The runtime loads signature-verified WASM handlers in a sandbox; updating a handler no longer requires recompiling the runtime binary. Hosts can compile only the protocol crate and update the runtime, models, and handlers independently from the main application. Official macOS Runtime releases support Apple Silicon (ARM64) only; no Intel build is provided. The 1.0 stability matrix, frozen surface, and Stable/Preview split are documented in [`STABILITY.md`](STABILITY.md); see [`RUNTIME.md`](RUNTIME.md) for the runtime product and release boundary.
+The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, signed `.rillpack` model packages, and signed `.rillhandler` WASM handler packages. The runtime loads signature-verified WASM handlers in a sandbox; updating a handler no longer requires recompiling the runtime binary. Hosts can compile only the protocol crate and update the runtime, models, and handlers independently from the main application. Official macOS Runtime releases support Apple Silicon (ARM64) only; no Intel build is provided. The macOS aarch64 asset is unsigned — the project does not configure an Apple Developer ID certificate, and this is a permanent decision that does not block any release. macOS users may need to bypass Gatekeeper via Finder right-click → Open or System Settings → Privacy & Security → Allow; see [`STABILITY.md`](STABILITY.md) § macOS unsigned policy for details. The 1.0 stability matrix, frozen surface, and Stable/Preview split are documented in [`STABILITY.md`](STABILITY.md); see [`RUNTIME.md`](RUNTIME.md) for the runtime product and release boundary.
 
 > RillML is inspired by the online-learning workflow popularized by [River](https://riverml.xyz/). It is an independent Rust project and is not affiliated with or endorsed by River. It does not currently aim for API or model compatibility.
 
@@ -71,7 +71,7 @@ behaviour. For a WASM-free build: `cargo install rill-runtime --no-default-featu
 load `.rillhandler`).
 
 The version tracks `[workspace.package].version`; query the current release via `cargo metadata`
-or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.0.0-rc.1` (candidate);
+or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.0.0-rc.6` (candidate);
 the Preview group remains at `0.13.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
