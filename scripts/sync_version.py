@@ -8,9 +8,9 @@ Preview group version.  After editing those fields, run::
     python3 scripts/sync_version.py
 
 and the script propagates the version to every file that cannot inherit it
-at compile time (Python metadata, JSON manifests, excluded handler crates,
-documentation, CHANGELOG skeleton, and the ``[workspace.dependencies]``
-internal-version requirements).
+at compile time (workspace and excluded-handler lockfiles, Python metadata,
+JSON manifests, excluded handler crates, documentation, CHANGELOG skeleton, and the
+``[workspace.dependencies]`` internal-version requirements).
 
 Stable crates (rill-ml, rill-runtime-protocol, rill-handler-api,
 rill-runtime) follow ``[workspace.package] version`` and may carry SemVer
@@ -222,6 +222,26 @@ def sync_handler_cargo_toml(cargo_toml: pathlib.Path, version: str) -> int:
     return count
 
 
+def sync_lock_package_version(
+    cargo_lock: pathlib.Path, package_name: str, version: str
+) -> int:
+    """Update one local package version in a tracked Cargo.lock.
+
+    Excluded handler crates own independent lockfiles, so root
+    ``cargo metadata`` cannot refresh their package entries during a version
+    bump. Dependency versions are intentionally left untouched.
+    """
+    text = cargo_lock.read_text(encoding="utf-8")
+    pattern = re.compile(
+        rf'(?ms)(^\[\[package\]\]\nname = "{re.escape(package_name)}"\n'
+        r'version = ")[^"]+(")'
+    )
+    new_text, count = _replace(pattern, rf"\g<1>{version}\g<2>", text)
+    if count:
+        cargo_lock.write_text(new_text, encoding="utf-8")
+    return count
+
+
 def sync_roadmap(roadmap: pathlib.Path, version: str) -> int:
     """Update the ``状态：当前（vX.Y.Z，YYYY-MM-DD）`` status line."""
     text = roadmap.read_text(encoding="utf-8")
@@ -357,6 +377,20 @@ def main() -> int:
         root / "Cargo.toml",
         sync_workspace_deps(root / "Cargo.toml", stable),
     ))
+    root_lock_updates = sum(
+        sync_lock_package_version(root / "Cargo.lock", crate, stable)
+        for crate in (
+            "rill-handler-api",
+            "rill-runtime-protocol",
+            "rill-ml",
+            "rill-runtime",
+        )
+    )
+    targets.append((
+        "Cargo.lock [Stable packages]",
+        root / "Cargo.lock",
+        root_lock_updates,
+    ))
 
     # 2. Python pyproject.toml — Python is a Preview crate.
     targets.append((
@@ -379,6 +413,13 @@ def main() -> int:
         sync_handler_cargo_toml(root / "handlers/echo-handler/Cargo.toml", stable),
     ))
     targets.append((
+        "handlers/echo-handler/Cargo.lock",
+        root / "handlers/echo-handler/Cargo.lock",
+        sync_lock_package_version(
+            root / "handlers/echo-handler/Cargo.lock", "echo-handler", stable
+        ),
+    ))
+    targets.append((
         "handlers/echo-handler/manifest.json",
         root / "handlers/echo-handler/manifest.json",
         sync_json_manifest(root / "handlers/echo-handler/manifest.json", stable),
@@ -389,6 +430,15 @@ def main() -> int:
         "handlers/test-malicious-handler/Cargo.toml",
         root / "handlers/test-malicious-handler/Cargo.toml",
         sync_handler_cargo_toml(root / "handlers/test-malicious-handler/Cargo.toml", stable),
+    ))
+    targets.append((
+        "handlers/test-malicious-handler/Cargo.lock",
+        root / "handlers/test-malicious-handler/Cargo.lock",
+        sync_lock_package_version(
+            root / "handlers/test-malicious-handler/Cargo.lock",
+            "test-malicious-handler",
+            stable,
+        ),
     ))
 
     # 6. Documentation — follows Stable version.
