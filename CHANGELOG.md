@@ -20,6 +20,18 @@ with the Rust-specific convention that 0.x releases may break the public API.
 ## [Unreleased]
 
 
+
+## [1.0.0-rc.3] - 2026-07-28
+
+### Fixed
+
+- The release workflow failed hard when Apple Developer ID secrets were not
+  configured, blocking Linux and Windows assets behind a macOS-only secret
+  requirement. The workflow now detects missing secrets, skips the macOS build
+  with a warning, and the release index does not claim macOS support for that
+  release. `strategy.fail-fast` is now `false` so a skipped macOS matrix entry
+  does not abort the whole release. `STABILITY.md` documents the skip behaviour.
+
 ## [1.0.0-rc.2] - 2026-07-28
 
 ### Fixed
@@ -30,12 +42,6 @@ with the Rust-specific convention that 0.x releases may break the public API.
   `crates/rill-runtime/wit/rill-handler.wit` and the macro path updated to
   `wit/rill-handler.wit`. `scripts/check_wit_abi.py` now also verifies the copy
   stays byte-identical to the canonical source, preventing silent drift.
-- The release workflow failed hard when Apple Developer ID secrets were not
-  configured, blocking Linux and Windows assets behind a macOS-only secret
-  requirement. The workflow now detects missing secrets, skips the macOS build
-  with a warning, and the release index does not claim macOS support for that
-  release. `strategy.fail-fast` is now `false` so a skipped macOS matrix entry
-  does not abort the whole release. `STABILITY.md` documents the skip behaviour.
 
 ## [1.0.0-rc.1] - 2026-07-28
 
@@ -1252,6 +1258,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.3]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.1
 [0.13.0]: https://github.com/hello-yunshu/rill-ml/compare/v0.12.0...v0.13.0
