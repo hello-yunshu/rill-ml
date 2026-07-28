@@ -70,7 +70,8 @@ with the Rust-specific convention that 0.x releases may break the public API.
   support. The new behaviour always builds, skips codesign/
   notarization when secrets are absent, uploads the unsigned binary
   with a sidecar metadata file (`*.unsigned.json`), and includes
-  the macOS entry in the candidate index with
+  the macOS runtime entry, size, and SHA-256 in the signed candidate
+  index. The sidecar, rather than the frozen index schema, records
   `codeSigning: "unsigned"` and `notarization: false`.
 - This is a permanent project decision that applies to all releases
   (RC, candidate, and final stable). The absence of Apple Developer

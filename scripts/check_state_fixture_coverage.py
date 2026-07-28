@@ -28,6 +28,7 @@ import argparse
 import pathlib
 import re
 import sys
+import tomllib
 
 
 def parse_manifest(manifest_path: pathlib.Path) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
@@ -38,42 +39,50 @@ def parse_manifest(manifest_path: pathlib.Path) -> tuple[list[dict[str, str]], l
     if not manifest_path.exists():
         raise RuntimeError(f"state-schema-manifest.toml not found at {manifest_path}")
 
-    text = manifest_path.read_text(encoding="utf-8")
-    stable_entries: list[dict[str, str]] = []
-    preview_entries: list[dict[str, str]] = []
-    current: list[dict[str, str]] | None = None
-    current_entry: dict[str, str] = {}
+    try:
+        data = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise RuntimeError(f"failed to parse {manifest_path}: {exc}") from exc
+    return list(data.get("stable_state", [])), list(data.get("preview_state", []))
 
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
 
-        # Detect section headers.
-        if line == "[[stable_state]]":
-            if current_entry and current is not None:
-                current.append(current_entry)
-            current = stable_entries
-            current_entry = {}
-            continue
-        if line == "[[preview_state]]":
-            if current_entry and current is not None:
-                current.append(current_entry)
-            current = preview_entries
-            current_entry = {}
-            continue
+def parse_documented_types(stability_path: pathlib.Path) -> tuple[list[str], list[str]]:
+    """Return the Stable table and Preview bullet-list types from STABILITY.md."""
+    try:
+        text = stability_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"failed to read {stability_path}: {exc}") from exc
 
-        # Parse key = "value" pairs.
-        match = re.match(r'^(\w+)\s*=\s*"([^"]*)"', line)
-        if match and current is not None:
-            current_entry[match.group(1)] = match.group(2)
-            continue
+    stable_match = re.search(
+        r"^### Stable state schema types\s*$"
+        r"(?P<body>.*?)"
+        r"^### Preview state schema types\s*$",
+        text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    preview_match = re.search(
+        r"^### Preview state schema types\s*$"
+        r"(?P<body>.*?)"
+        r"^### State schema manifest\s*$",
+        text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if stable_match is None or preview_match is None:
+        raise RuntimeError(
+            "STABILITY.md is missing the Stable/Preview state schema sections"
+        )
 
-    # Don't forget the last entry.
-    if current_entry and current is not None:
-        current.append(current_entry)
-
-    return stable_entries, preview_entries
+    stable = re.findall(
+        r"^\|\s*`([^`]+)`\s*\|",
+        stable_match.group("body"),
+        flags=re.MULTILINE,
+    )
+    preview = re.findall(
+        r"^-\s+`([^`]+)`(?:\s|$)",
+        preview_match.group("body"),
+        flags=re.MULTILINE,
+    )
+    return stable, preview
 
 
 def grep_validate_state_impl(root: pathlib.Path, type_name: str) -> bool:
@@ -113,6 +122,7 @@ def validate_coverage(root: pathlib.Path) -> list[str]:
     errors: list[str] = []
     manifest_path = root / "state-schema-manifest.toml"
     fixture_dir = root / "tests" / "fixtures" / "state"
+    fixture_tests_path = root / "tests" / "state_fixtures.rs"
 
     try:
         stable_entries, preview_entries = parse_manifest(manifest_path)
@@ -156,6 +166,28 @@ def validate_coverage(root: pathlib.Path) -> list[str]:
         if not v1_path.exists():
             errors.append(f"Stable state type {t!r}: missing v1 fixture at {v1_path}")
 
+    # Fixture existence alone is insufficient: require both fixture generations
+    # to be exercised by the cross-version Rust test target.
+    try:
+        fixture_tests = fixture_tests_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        errors.append(f"failed to read fixture tests at {fixture_tests_path}: {exc}")
+        fixture_tests = ""
+    for entry in stable_entries:
+        fixture = entry.get("fixture", "")
+        if not fixture:
+            continue
+        for generation, function_prefix in (
+            ("v0.13.0", "load_v0_13_0"),
+            ("v1", "load_v1"),
+        ):
+            test_name = f"{function_prefix}_{fixture}"
+            if not re.search(rf"\bfn\s+{re.escape(test_name)}\s*\(", fixture_tests):
+                errors.append(
+                    f"Stable state type {entry['type']!r}: {generation} fixture "
+                    f"is not exercised by test function {test_name!r}"
+                )
+
     # --- Check that every Stable type implements ValidateState or has custom Deserialize --- #
     for entry in stable_entries:
         t = entry["type"]
@@ -185,13 +217,24 @@ def validate_coverage(root: pathlib.Path) -> list[str]:
                 f"(expected 'validate_state', 'deserialize', or 'derive')"
             )
 
-    # --- Check that Preview types do NOT have fixtures (they should be Preview) --- #
-    for entry in preview_entries:
-        t = entry["type"]
-        # Preview types should not have fixtures (if they do, they should be in Stable).
-        # We check if a fixture file exists with a snake_case name.
-        # This is a soft check — we don't require Preview types to have a fixture field.
-        pass  # No-op for now; Preview types are not required to have fixtures.
+    # --- Check that the human-facing whitelist exactly matches the manifest. --- #
+    try:
+        documented_stable, documented_preview = parse_documented_types(
+            root / "STABILITY.md"
+        )
+    except RuntimeError as exc:
+        errors.append(str(exc))
+    else:
+        if documented_stable != stable_types:
+            errors.append(
+                "STABILITY.md Stable state schema order/content differs from "
+                "state-schema-manifest.toml"
+            )
+        if documented_preview != preview_types:
+            errors.append(
+                "STABILITY.md Preview state schema order/content differs from "
+                "state-schema-manifest.toml"
+            )
 
     return errors
 
@@ -220,10 +263,13 @@ def main() -> int:
     # Print summary.
     manifest_path = root / "state-schema-manifest.toml"
     stable_entries, preview_entries = parse_manifest(manifest_path)
-    print(f"check_state_fixture_coverage: validation passed.")
+    print("check_state_fixture_coverage: validation passed.")
     print(f"  Stable state types: {len(stable_entries)}")
     print(f"  Preview state types: {len(preview_entries)}")
-    print(f"  All Stable types have v0.13.0 + v1 fixtures and implement ValidateState.")
+    print(
+        "  All Stable types have exercised v0.13.0 + v1 fixtures, declared "
+        "validation, and matching documentation."
+    )
     return 0
 
 
