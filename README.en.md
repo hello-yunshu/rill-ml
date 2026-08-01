@@ -180,7 +180,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 | Category | Modules |
 |---|---|
-| Statistics | Mean, Variance, Std, Count, Sum, Min, Max, EWMean, RollingMean, RollingVariance |
+| Statistics | Mean, Variance, Std, Count, Sum, Min, Max, EWMean, RollingMean, RollingVariance, P2Quantile, ClippedMean, weighted statistics |
 | Preprocessing | StandardScaler, MinMaxScaler, Clipper, OneHotEncoder, OrdinalEncoder, FrequencyEncoder, MissingIndicator, ConstantImputer, MeanImputer, ForwardFill |
 | Sparse features | SparseFeatures, FeatureHasher |
 | Models | LinearRegression, LogisticRegression, MeanRegressor, EWMeanRegressor, LastValueRegressor, FtrlRegressor, FtrlClassifier, GaussianNaiveBayes, BernoulliNaiveBayes, MultinomialNaiveBayes |
@@ -192,8 +192,9 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 | Evaluation | Progressive evaluation (predict → metric → learn) |
 | Persistence | `Snapshot<T>` with versioned envelope (serde feature) |
 | Diagnostics | TrainingSummary, WarmupTracker, BaselineComparator, OnlineModelSelector, ResidualInterval, ModelHealthReport, PredictionReporter |
-| Drift detection | PageHinkley, Adwin, Kswin, DriftAwareModel, DriftAction, DriftStrategy, TimeDecayedMean, LearningRateScheduler, FixedWindowBuffer |
-| Online decision-making | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb, ArmStats |
+| Drift detection | PageHinkley, Adwin, Kswin, portable state V1, DriftConsensus, DriftAwareModel, DriftAction, DriftStrategy |
+| Online decision-making | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb score breakdown, Preview LinUcbFast, DecisionLedger, DecisionReplayHarness |
+| Identity and weights | FeatureSchema, ModelDescriptor, WeightedStatistic/Regressor/Classifier |
 
 **Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count (unbounded by default; set `max_features` to bound); drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
 

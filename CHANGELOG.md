@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 with the Rust-specific convention that 0.x releases may break the public API.
 
-> **Status: 1.0 Stable.**
+> **Status: 1.x Stable.**
 > The Stable crates (`rill-ml`, `rill-runtime`, `rill-runtime-protocol`,
 > `rill-handler-api`) are released under the 1.x compatibility freeze. Preview
 > crates (`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`, `rill-ml-arrow`,
@@ -20,6 +20,76 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-02
+
+### Changed
+
+- The Stable crates advance additively to `1.1.0`; Preview workspace crates
+  advance to `0.15.0`. No 1.0 API, state, IPC V1/V2, or WIT v1 contract is
+  removed or rewritten.
+
+### Added — explainable and high-performance contextual decisions
+
+- `LinUcb` now exposes per-arm exploitation, alpha-adjusted exploration bonus,
+  and total score through additive inherent methods, plus a deterministic
+  lowest-index tie-break for replay. The existing randomized `select` contract
+  and frozen serde fields are unchanged.
+- Stable LinUCB scoring now uses positive-definite Cholesky solves instead of
+  explicitly forming an inverse, exposes a bounded condition indicator, and
+  rejects a numerically degenerate update before commit.
+- Preview `LinUcbFast` maintains inverse matrices with Sherman-Morrison for
+  `O(d^2)` scoring and updates. Cross-implementation tests constrain score
+  drift; a dedicated Criterion benchmark covers 2/8 arms and 8/32/128
+  features. Its serde state is explicitly Preview.
+
+### Added — portable drift state and consensus
+
+- Added Stable versioned portable continuity DTOs for Page-Hinkley, ADWIN and
+  KSWIN. Restore requires exact configuration matching and validates schema
+  version, finite values, counters, window bounds and detector invariants.
+  Direct detector serde layouts remain Preview.
+- Added `DriftConsensus`, a bounded Preview-state vote combiner with warning
+  and drift thresholds, consecutive confirmation, clear hysteresis, warming,
+  incomplete-data handling, cooldown, bounded event merging, generation
+  context, explainable results, reset, serde and failure-atomic updates.
+
+### Added — bounded online distribution statistics
+
+- Added constant-memory `P2Quantile` and bounded multi-quantile
+  `P2Quantiles`, including bootstrap exactness, state validation, serde
+  continuity, randomized offline-rank comparisons and explicit documentation
+  that P-square has no deterministic worst-case rank-error bound.
+- Added exact `ClippedMean` for fixed caller-provided bounds. An experimental
+  online median/MAD sketch was intentionally not retained after adversarial
+  outlier tests showed unacceptable contamination.
+
+### Added — delayed feedback, identity, and weighted learning
+
+- Added a bounded, caller-clocked `DecisionLedger` with exact registration
+  replay, strict delayed-feedback validation, explicit cleanup, tombstones,
+  failure-atomic LinUCB integration, serde validation, and capacity limits.
+- Added deterministic `FeatureSchema` hashing and algorithm/model descriptors
+  with bounded strings, ordered features, canonical metadata, golden fixtures,
+  and explicit schema-compatibility checks.
+- Added separate weighted statistic/regression/classification traits and
+  implementations for mean, population variance, EW mean, MAE, MSE, linear
+  regression, logistic regression, and pipelines. Frozen unweighted traits and
+  persisted fields are unchanged.
+
+### Added — Preview runtime, replay, and Python tooling
+
+- Added independent IPC V3 request/response types for handshake, health,
+  observe, decide, feedback, inspect, snapshot, and reset. V1/V2 types and
+  fixtures are unchanged; V3 has its own strict fixtures and JSON Schema.
+- Added the Preview `rill:handler@2.0.0` stateful WIT world and a no-WASI
+  Wasmtime host. The runtime owns bounded JSON state, schema version, checksum,
+  generation, timeout/trap handling, and atomic commits. WIT v1 is unchanged.
+- Added a bounded deterministic decision-replay harness with delayed/out-of-
+  order outcomes, checkpoint restore, generation/schema/drift boundaries,
+  reward/regret/baseline/latency summaries, and replay digests.
+- Added Preview Python LinUCB score/replay bindings and dependency-free
+  JSON/CSV, score-curve, drift-timeline, latency, baseline, and offline
+  quantile inspection helpers. Python remains outside the production Runtime.
 
 
 
@@ -1387,6 +1457,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0...HEAD
+[1.1.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.1.0
 [1.0.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0
 [1.0.0-rc.6]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.6
 [1.0.0-rc.5]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.5

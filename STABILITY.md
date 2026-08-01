@@ -179,6 +179,20 @@ by cross-version fixture coverage. Their state schema may change within
 - `LogisticRegression`
 - `ExponentiallyWeightedMeanRegressor`
 - `LastValueRegressor`
+- `DriftConsensus`
+- `P2Quantile`
+- `P2Quantiles`
+- `ClippedMean`
+- `LinUcbFast`
+- `DecisionLedger`
+- `FeatureSchema`
+- `ModelDescriptor`
+- `WeightedMean`
+- `WeightedVariance`
+- `WeightedExponentiallyWeightedMean`
+- `WeightedMae`
+- `WeightedMse`
+- `DecisionReplayHarness`
 
 ### State schema manifest
 
@@ -192,6 +206,32 @@ classification is `state-schema-manifest.toml`. The
 - Fixture files exist on disk.
 - No duplicate entries in either group.
 - No overlap between Stable and Preview groups.
+
+### Stable versioned portable detector state
+
+The detector structs `PageHinkley`, `Adwin`, and `Kswin` retain their Preview
+internal serde layouts. Stable continuity is instead provided by three
+explicit versioned DTOs: `PageHinkleyPortableStateV1`,
+`AdwinPortableStateV1`, and `KswinPortableStateV1`. Their `version = 1`
+schemas, exact configuration matching, bounded windows, finite-value checks,
+counter invariants, and golden fixtures under
+`tests/fixtures/state/portable-v1/` are compatibility commitments. A future
+breaking portable schema must introduce a new `V2` DTO; it must not mutate a
+`V1` field or meaning.
+
+`DriftConsensus`, `P2Quantile`, `P2Quantiles`, `ClippedMean`, `LinUcbFast`,
+`DecisionLedger`, the descriptor DTOs, weighted statistics, and
+`DecisionReplayHarness` are additive Rust APIs whose serialized
+implementation states remain Preview. `LinUcbFast` does not change or replace
+the frozen `LinUcb` state fields. Feature-schema hashes and their golden
+fixture are deterministic identity checks, not a promise that every descriptor
+DTO field is frozen for all 1.x releases.
+
+IPC V3 and Stateful Handler ABI v2 are separate, opt-in Preview protocol
+surfaces. They do not alter the frozen IPC v1/v2 JSON schemas, the top-level
+`RUNTIME_API_VERSION = 2`, or the WIT v1 package/world/hash. Stateful v2 state
+snapshots are runtime-owned and checksum-validated, but their ABI and snapshot
+format are not yet Stable.
 
 ## IPC v1/v2
 
