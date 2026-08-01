@@ -337,6 +337,13 @@ jobs:
           wasm-tools component new \
             target/wasm32-unknown-unknown/release/test-metadata-loop-handler.wasm \
             -o ../../target/test-metadata-loop-handler.wasm
+      - name: Build Stateful Handler ABI v2 test component
+        run: |
+          cd handlers/test-stateful-handler-v2
+          cargo build --locked --release --target wasm32-unknown-unknown
+          wasm-tools component new \
+            target/wasm32-unknown-unknown/release/test-stateful-handler-v2.wasm \
+            -o ../../target/test-stateful-handler-v2.wasm
       - name: Run WASM handler integration tests
         env:
           ECHO_HANDLER_WASM: ${{ github.workspace }}/target/echo-handler.wasm
@@ -347,6 +354,11 @@ jobs:
         env:
           ECHO_HANDLER_WASM: ${{ github.workspace }}/target/echo-handler.wasm
         run: cargo test --locked -p rill-runtime --features wasm --test runtime_process
+      - name: Run Stateful Handler ABI v2 integration tests
+        env:
+          RILL_RUN_WASM_FIXTURE_TESTS: "1"
+          STATEFUL_HANDLER_V2_WASM: ${{ github.workspace }}/target/test-stateful-handler-v2.wasm
+        run: cargo test --locked -p rill-runtime --features wasm --test stateful_handler_v2
       - name: Run internal WASM ticker lifecycle tests
         # Fifth-stage 5-A-01/5-A-02: the previous CI flow built the
         # WASM fixtures but only ran the *integration* tests

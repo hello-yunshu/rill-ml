@@ -39,6 +39,25 @@ pub const MAX_HANDLER_ID_LEN: usize = 96;
 /// Maximum length of a handler version string.
 pub const MAX_HANDLER_VERSION_LEN: usize = 48;
 
+/// Preview Stateful Handler ABI v2 declarations. The frozen top-level v1
+/// constants above intentionally retain their exact values.
+pub mod v2 {
+    /// Preview stateful handler ABI version.
+    pub const HANDLER_API_VERSION: u32 = 2;
+    /// WIT package name.
+    pub const WIT_PACKAGE: &str = "rill:handler";
+    /// WIT package version.
+    pub const WIT_VERSION: &str = "2.0.0";
+    /// Stateful WIT world name.
+    pub const WIT_WORLD: &str = "stateful-handler";
+    /// Event JSON byte limit.
+    pub const MAX_EVENT_BYTES: usize = 1024 * 1024;
+    /// Output JSON byte limit.
+    pub const MAX_OUTPUT_BYTES: usize = 1024 * 1024;
+    /// Persisted handler state byte limit.
+    pub const MAX_STATE_BYTES: usize = 256 * 1024;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -49,5 +68,13 @@ mod tests {
         assert_eq!(WIT_PACKAGE, "rill:handler");
         assert_eq!(WIT_VERSION, "1.0.0");
         assert_eq!(WIT_WORLD, "invoke-handler");
+    }
+
+    #[test]
+    fn preview_v2_constants_are_independent() {
+        assert_eq!(v2::HANDLER_API_VERSION, 2);
+        assert_eq!(v2::WIT_VERSION, "2.0.0");
+        assert_eq!(v2::WIT_WORLD, "stateful-handler");
+        assert_eq!(HANDLER_API_VERSION, 1);
     }
 }

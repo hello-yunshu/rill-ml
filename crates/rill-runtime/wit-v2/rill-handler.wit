@@ -1,0 +1,38 @@
+package rill:handler@2.0.0;
+
+/// Preview stateful handler ABI. V2 does not replace or extend the frozen
+/// `rill:handler@1.0.0` invoke-handler world.
+interface types {
+    record handler-metadata-v2 {
+        id: string,
+        version: string,
+        api-version: u32,
+        capabilities: list<string>,
+        state-schema-version: u32,
+    }
+
+    record handler-result-v2 {
+        output-json: list<u8>,
+        next-state: list<u8>,
+    }
+
+    variant handler-error-v2 {
+        invalid-model(string),
+        invalid-event(string),
+        invalid-state(string),
+        incompatible-version(string),
+        execution-failed(string),
+    }
+}
+
+world stateful-handler {
+    use types.{handler-metadata-v2, handler-result-v2, handler-error-v2};
+
+    export metadata: func() -> handler-metadata-v2;
+    export configure: func(model-json: list<u8>) -> result<_, handler-error-v2>;
+    export handle: func(
+        event-json: list<u8>,
+        current-state: list<u8>,
+        deterministic-seed: option<u64>,
+    ) -> result<handler-result-v2, handler-error-v2>;
+}

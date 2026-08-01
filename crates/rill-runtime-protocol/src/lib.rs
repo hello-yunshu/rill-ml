@@ -14,6 +14,10 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Preview IPC v3 types. This module is independent from the frozen v1/v2
+/// request and response types below.
+pub mod v3;
+
 /// Minimum IPC API version the runtime still accepts.
 pub const MIN_RUNTIME_API_VERSION: u32 = 1;
 /// Latest IPC API version supported by this crate.
