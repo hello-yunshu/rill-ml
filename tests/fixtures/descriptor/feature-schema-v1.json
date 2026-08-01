@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "features": [
+    {
+      "name": "latency",
+      "unit": "milliseconds",
+      "transform": "clip",
+      "constraint": {
+        "min": 0.0,
+        "max": 60000.0
+      },
+      "metadata": {
+        "kind": "continuous",
+        "source": "host"
+      }
+    }
+  ]
+}

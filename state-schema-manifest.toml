@@ -180,3 +180,85 @@ reason = "EW mean regressor state schema remains preview; no cross-version fixtu
 [[preview_state]]
 type = "LastValueRegressor"
 reason = "Last value regressor state schema remains preview; no cross-version fixture coverage."
+
+[[preview_state]]
+type = "DriftConsensus"
+reason = "Consensus implementation state remains Preview; callers must validate restored state."
+
+[[preview_state]]
+type = "P2Quantile"
+reason = "P2 estimator state remains Preview while its long-stream portability is evaluated."
+
+[[preview_state]]
+type = "P2Quantiles"
+reason = "Multi-quantile estimator state remains Preview and composes Preview P2Quantile state."
+
+[[preview_state]]
+type = "ClippedMean"
+reason = "Clipped statistic state is serializable but has not entered the cross-version freeze."
+
+[[preview_state]]
+type = "RollingMedianMad"
+reason = "Bounded rolling robust-statistic state is new in 1.1 and remains Preview while window semantics are evaluated."
+
+[[preview_state]]
+type = "LinUcbFast"
+reason = "Performance-oriented inverse-cache representation is explicitly Preview."
+
+[[preview_state]]
+type = "DecisionLedger"
+reason = "Delayed-feedback ledger state is new in 1.1 and remains Preview while replay compatibility is evaluated."
+
+[[preview_state]]
+type = "FeatureSchema"
+reason = "Feature identity is deterministic and fixture-tested, but its serialized DTO schema remains Preview."
+
+[[preview_state]]
+type = "ModelDescriptor"
+reason = "Model identity DTO state remains Preview; schema compatibility is checked explicitly by hash."
+
+[[preview_state]]
+type = "WeightedMean"
+reason = "Weighted statistic state is new in 1.1 and has not entered the cross-version freeze."
+
+[[preview_state]]
+type = "WeightedVariance"
+reason = "Weighted statistic state is new in 1.1 and has not entered the cross-version freeze."
+
+[[preview_state]]
+type = "WeightedExponentiallyWeightedMean"
+reason = "Weighted statistic state is new in 1.1 and has not entered the cross-version freeze."
+
+[[preview_state]]
+type = "WeightedMae"
+reason = "Weighted metric state is new in 1.1 and has not entered the cross-version freeze."
+
+[[preview_state]]
+type = "WeightedMse"
+reason = "Weighted metric state is new in 1.1 and has not entered the cross-version freeze."
+
+[[preview_state]]
+type = "DecisionReplayHarness"
+reason = "Replay checkpoint state is a development and verification format and remains Preview."
+
+# Versioned portable DTOs are Stable from their declared version onward. They
+# did not exist at v0.13.0, so they use their own golden-fixture generation
+# instead of pretending that a historical detector-internal fixture exists.
+
+[[portable_state]]
+type = "PageHinkleyPortableStateV1"
+fixture = "page_hinkley"
+generation = "portable-v1"
+stability = "stable"
+
+[[portable_state]]
+type = "AdwinPortableStateV1"
+fixture = "adwin"
+generation = "portable-v1"
+stability = "stable"
+
+[[portable_state]]
+type = "KswinPortableStateV1"
+fixture = "kswin"
+generation = "portable-v1"
+stability = "stable"

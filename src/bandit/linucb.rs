@@ -18,9 +18,10 @@
 //!
 //! ## Complexity
 //!
-//! - `select`: `O(arm_count * d^3)` — a matrix inversion per arm (cached
-//!   internally per call). For small `d` (typical: `d <= 32`) this is
-//!   negligible.
+//! - `select`: `O(arm_count * d^3)` — a Cholesky factorisation and two
+//!   triangular solves per arm. This avoids explicitly forming a matrix
+//!   inverse and is numerically safer for the symmetric positive-definite
+//!   ridge matrices maintained by LinUCB.
 //! - `update`: `O(d^2)` for the outer-product accumulation on the selected arm
 //!   (other arms are untouched).
 //! - Space: `O(arm_count * d^2)`.
@@ -33,8 +34,7 @@
 use crate::bandit::{
     ContextualBandit, checked_finite_add, checked_increment, validate_arm, validate_reward_finite,
 };
-use crate::error::RillError;
-#[cfg(feature = "serde")]
+use crate::error::{RillError, ensure_finite};
 use crate::persistence::ValidateState;
 use rand::Rng;
 
@@ -93,6 +93,39 @@ impl LinUcbConfig {
         }
         Ok(())
     }
+}
+
+/// Explainable score components for one LinUCB arm.
+///
+/// [`exploration_bonus`](Self::exploration_bonus) already includes the
+/// configured `alpha` multiplier, so
+/// `total_score = exploitation + exploration_bonus`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LinUcbArmScore {
+    /// Zero-based arm index.
+    pub arm: usize,
+    /// Estimated reward `theta_a^T x`.
+    pub exploitation: f64,
+    /// Confidence bonus `alpha * sqrt(x^T A_a^-1 x)`.
+    pub exploration_bonus: f64,
+    /// The exact score used by selection.
+    pub total_score: f64,
+}
+
+/// Numerical diagnostics for one LinUCB arm's ridge matrix.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LinUcbConditionDiagnostics {
+    /// Zero-based arm index.
+    pub arm: usize,
+    /// Smallest diagonal entry of the Cholesky factor.
+    pub min_cholesky_diagonal: f64,
+    /// Largest diagonal entry of the Cholesky factor.
+    pub max_cholesky_diagonal: f64,
+    /// A cheap condition indicator `(max_diag / min_diag)^2`.
+    ///
+    /// This is not an exact matrix condition number, but a large value is a
+    /// useful signal that the arm state is becoming poorly conditioned.
+    pub condition_indicator: f64,
 }
 
 /// LinUCB contextual multi-armed bandit.
@@ -256,30 +289,112 @@ impl LinUcb {
         Ok(())
     }
 
-    /// Compute the UCB score for a single arm given the context.
+    /// Compute the explainable UCB score for one arm.
     ///
-    /// Returns `(theta_dot_x, exploration_bonus)` where the score is
-    /// `theta_dot_x + alpha * sqrt(exploration_bonus)`.
-    fn arm_score(&self, arm: usize, context: &[f64]) -> Result<f64, RillError> {
-        let a_inv = matrix_inverse(&self.a_matrices[arm])?;
+    /// The returned exploration bonus already includes `alpha`.
+    pub fn score_arm(&self, arm: usize, context: &[f64]) -> Result<LinUcbArmScore, RillError> {
+        validate_arm(self.arm_count, arm)?;
+        self.validate_context(context)?;
+        self.score_arm_validated(arm, context)
+    }
+
+    /// Compute explainable UCB scores for every arm.
+    pub fn score_all(&self, context: &[f64]) -> Result<Vec<LinUcbArmScore>, RillError> {
+        self.validate_context(context)?;
+        (0..self.arm_count)
+            .map(|arm| self.score_arm_validated(arm, context))
+            .collect()
+    }
+
+    /// Select an arm with the existing randomized tie-break and return every
+    /// score used by that decision.
+    pub fn select_with_scores(
+        &self,
+        context: &[f64],
+        rng: &mut impl Rng,
+    ) -> Result<(usize, Vec<LinUcbArmScore>), RillError> {
+        let scores = self.score_all(context)?;
+        let arm = select_random_tie(&scores, rng);
+        Ok((arm, scores))
+    }
+
+    /// Select deterministically, resolving exact score ties to the lowest arm
+    /// index. This does not change the randomized [`ContextualBandit::select`]
+    /// contract and is intended for replay and audit paths.
+    pub fn select_deterministic(&self, context: &[f64]) -> Result<usize, RillError> {
+        self.validate_context(context)?;
+        let mut best_arm = 0usize;
+        let mut best_score = f64::NEG_INFINITY;
+        for arm in 0..self.arm_count {
+            let score = self.score_arm_validated(arm, context)?.total_score;
+            if score > best_score {
+                best_score = score;
+                best_arm = arm;
+            }
+        }
+        Ok(best_arm)
+    }
+
+    /// Return a bounded numerical condition diagnostic for one arm.
+    pub fn condition_diagnostics(
+        &self,
+        arm: usize,
+    ) -> Result<LinUcbConditionDiagnostics, RillError> {
+        validate_arm(self.arm_count, arm)?;
+        let lower = cholesky_factor(&self.a_matrices[arm])?;
+        let mut min_diagonal = f64::INFINITY;
+        let mut max_diagonal = 0.0_f64;
+        for (i, row) in lower.iter().enumerate() {
+            min_diagonal = min_diagonal.min(row[i]);
+            max_diagonal = max_diagonal.max(row[i]);
+        }
+        let ratio = max_diagonal / min_diagonal;
+        let condition_indicator = ratio * ratio;
+        if !condition_indicator.is_finite() {
+            return Err(RillError::InvalidState(
+                "LinUCB condition indicator is non-finite".to_owned(),
+            ));
+        }
+        Ok(LinUcbConditionDiagnostics {
+            arm,
+            min_cholesky_diagonal: min_diagonal,
+            max_cholesky_diagonal: max_diagonal,
+            condition_indicator,
+        })
+    }
+
+    fn score_arm_validated(
+        &self,
+        arm: usize,
+        context: &[f64],
+    ) -> Result<LinUcbArmScore, RillError> {
+        let lower = cholesky_factor(&self.a_matrices[arm])?;
         let b = &self.b_vectors[arm];
-        // theta = A^{-1} * b
-        let theta = matrix_vector_mul(&a_inv, b);
+        // Solve A * theta = b without explicitly forming A^-1.
+        let theta = cholesky_solve(&lower, b)?;
         // theta^T * x
-        let exploitation = dot(&theta, context);
-        // x^T * A^{-1} * x
-        let quad = quadratic_form(context, &a_inv);
+        let exploitation = checked_dot(&theta, context, "LinUCB exploitation")?;
+        // Solve A * z = x, then compute x^T z.
+        let solved_context = cholesky_solve(&lower, context)?;
+        let quad = checked_dot(context, &solved_context, "LinUCB exploration variance")?;
         // Numerical safety: the quadratic form should be non-negative for a
         // positive-definite A, but rounding can make it slightly negative.
         let quad_safe = if quad < 0.0 { 0.0 } else { quad };
-        let score = exploitation + self.alpha * quad_safe.sqrt();
-        if !score.is_finite() {
+        let exploration_bonus = self.alpha * quad_safe.sqrt();
+        if !exploration_bonus.is_finite() {
             return Err(RillError::NonFiniteValue {
-                field: "LinUCB score",
-                value: score,
+                field: "LinUCB exploration bonus",
+                value: exploration_bonus,
             });
         }
-        Ok(score)
+        let total_score =
+            checked_finite_add(exploitation, exploration_bonus, "LinUCB total score")?;
+        Ok(LinUcbArmScore {
+            arm,
+            exploitation,
+            exploration_bonus,
+            total_score,
+        })
     }
 }
 
@@ -298,19 +413,16 @@ impl ContextualBandit for LinUcb {
 
     fn select(&self, context: &[f64], rng: &mut impl Rng) -> Result<usize, RillError> {
         self.validate_context(context)?;
-
         let mut best_arm = 0usize;
         let mut best_score = f64::NEG_INFINITY;
         let mut tied = 0usize;
         for arm in 0..self.arm_count {
-            let score = self.arm_score(arm, context)?;
+            let score = self.score_arm_validated(arm, context)?.total_score;
             if score > best_score {
                 best_score = score;
                 best_arm = arm;
                 tied = 1;
             } else if score == best_score {
-                // Reservoir sampling avoids a permanent low-index bias while
-                // keeping selection allocation-free.
                 tied += 1;
                 if rng.gen_range(0..tied) == 0 {
                     best_arm = arm;
@@ -338,6 +450,10 @@ impl ContextualBandit for LinUcb {
             next_b[i] = checked_finite_add(next_b[i], reward * context[i], "b vector")?;
         }
         let next_samples = checked_increment(self.samples_seen, "samples_seen")?;
+        // A finite symmetric update can still become numerically unusable at
+        // extreme scales. Reject before commit so scoring never observes a
+        // non-positive-definite arm state.
+        cholesky_factor(&next_a)?;
 
         self.a_matrices[arm] = next_a;
         self.b_vectors[arm] = next_b;
@@ -355,6 +471,325 @@ impl ContextualBandit for LinUcb {
             }
         }
         self.samples_seen = 0;
+    }
+}
+
+/// Preview high-performance LinUCB implementation.
+///
+/// `LinUcbFast` maintains `A^-1` directly with the Sherman-Morrison rank-one
+/// update. Selection and update are `O(arm_count * d^2)` and `O(d^2)`
+/// respectively. Its serde state is Preview and is not part of the frozen
+/// [`LinUcb`] state schema.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct LinUcbFast {
+    arm_count: usize,
+    feature_count: usize,
+    alpha: f64,
+    inverse_matrices: Vec<Vec<Vec<f64>>>,
+    b_vectors: Vec<Vec<f64>>,
+    samples_seen: u64,
+}
+
+impl LinUcbFast {
+    /// Create an empty fast LinUCB from the same configuration as [`LinUcb`].
+    pub fn new(config: LinUcbConfig) -> Result<Self, RillError> {
+        config.validate()?;
+        let inverse_matrices = (0..config.arm_count)
+            .map(|_| identity_matrix(config.feature_count))
+            .collect();
+        let b_vectors = (0..config.arm_count)
+            .map(|_| vec![0.0; config.feature_count])
+            .collect();
+        Ok(Self {
+            arm_count: config.arm_count,
+            feature_count: config.feature_count,
+            alpha: config.alpha,
+            inverse_matrices,
+            b_vectors,
+            samples_seen: 0,
+        })
+    }
+
+    /// Convert a stable LinUCB state into the Preview fast representation.
+    pub fn from_linucb(source: &LinUcb) -> Result<Self, RillError> {
+        source.validate()?;
+        let mut inverse_matrices = Vec::with_capacity(source.arm_count);
+        for matrix in &source.a_matrices {
+            let lower = cholesky_factor(matrix)?;
+            inverse_matrices.push(inverse_from_cholesky(&lower)?);
+        }
+        let fast = Self {
+            arm_count: source.arm_count,
+            feature_count: source.feature_count,
+            alpha: source.alpha,
+            inverse_matrices,
+            b_vectors: source.b_vectors.clone(),
+            samples_seen: source.samples_seen,
+        };
+        fast.validate()?;
+        Ok(fast)
+    }
+
+    /// Borrow one cached inverse matrix.
+    pub fn inverse_matrix(&self, arm: usize) -> Result<&[Vec<f64>], RillError> {
+        validate_arm(self.arm_count, arm)?;
+        Ok(&self.inverse_matrices[arm])
+    }
+
+    /// Number of stored `f64` values, excluding allocator metadata.
+    pub const fn state_f64_count(&self) -> usize {
+        self.arm_count * (self.feature_count * self.feature_count + self.feature_count) + 1
+    }
+
+    /// Explain one arm score in `O(d^2)`.
+    pub fn score_arm(&self, arm: usize, context: &[f64]) -> Result<LinUcbArmScore, RillError> {
+        validate_arm(self.arm_count, arm)?;
+        self.validate_context(context)?;
+        self.score_arm_validated(arm, context)
+    }
+
+    /// Explain all arm scores in `O(arm_count * d^2)`.
+    pub fn score_all(&self, context: &[f64]) -> Result<Vec<LinUcbArmScore>, RillError> {
+        self.validate_context(context)?;
+        (0..self.arm_count)
+            .map(|arm| self.score_arm_validated(arm, context))
+            .collect()
+    }
+
+    /// Deterministic lowest-index tie-break for replay and audit.
+    pub fn select_deterministic(&self, context: &[f64]) -> Result<usize, RillError> {
+        self.validate_context(context)?;
+        let mut best_arm = 0;
+        let mut best_score = f64::NEG_INFINITY;
+        for arm in 0..self.arm_count {
+            let score = self.score_arm_validated(arm, context)?.total_score;
+            if score > best_score {
+                best_score = score;
+                best_arm = arm;
+            }
+        }
+        Ok(best_arm)
+    }
+
+    /// Validate dimensions, finite values, symmetry and positive definiteness.
+    pub fn validate(&self) -> Result<(), RillError> {
+        LinUcbConfig {
+            alpha: self.alpha,
+            arm_count: self.arm_count,
+            feature_count: self.feature_count,
+        }
+        .validate()?;
+        if self.inverse_matrices.len() != self.arm_count || self.b_vectors.len() != self.arm_count {
+            return Err(RillError::InvalidState(
+                "fast LinUCB arm state lengths are inconsistent".to_owned(),
+            ));
+        }
+        for arm in 0..self.arm_count {
+            let matrix = &self.inverse_matrices[arm];
+            let vector = &self.b_vectors[arm];
+            if matrix.len() != self.feature_count
+                || matrix.iter().any(|row| row.len() != self.feature_count)
+                || vector.len() != self.feature_count
+                || matrix.iter().flatten().any(|value| !value.is_finite())
+                || vector.iter().any(|value| !value.is_finite())
+            {
+                return Err(RillError::InvalidState(format!(
+                    "fast LinUCB arm {arm} has malformed dimensions or values"
+                )));
+            }
+            for (i, row) in matrix.iter().enumerate() {
+                for (j, &lower_value) in row.iter().take(i).enumerate() {
+                    let upper_value = matrix[j][i];
+                    let scale = lower_value.abs().max(upper_value.abs()).max(1.0);
+                    if (lower_value - upper_value).abs() > 1e-12 * scale {
+                        return Err(RillError::InvalidState(format!(
+                            "fast LinUCB inverse for arm {arm} is not symmetric"
+                        )));
+                    }
+                }
+            }
+            cholesky_factor(matrix)?;
+        }
+        Ok(())
+    }
+
+    fn validate_context(&self, context: &[f64]) -> Result<(), RillError> {
+        if context.len() != self.feature_count {
+            return Err(RillError::DimensionMismatch {
+                expected: self.feature_count,
+                actual: context.len(),
+            });
+        }
+        for &value in context {
+            ensure_finite("context", value)?;
+        }
+        Ok(())
+    }
+
+    fn score_arm_validated(
+        &self,
+        arm: usize,
+        context: &[f64],
+    ) -> Result<LinUcbArmScore, RillError> {
+        let inverse = &self.inverse_matrices[arm];
+        let theta = checked_matrix_vector_mul(inverse, &self.b_vectors[arm])?;
+        let exploitation = checked_dot(&theta, context, "fast LinUCB exploitation")?;
+        let solved_context = checked_matrix_vector_mul(inverse, context)?;
+        let variance = checked_dot(context, &solved_context, "fast LinUCB variance")?;
+        let exploration_bonus = self.alpha * variance.max(0.0).sqrt();
+        ensure_finite("fast LinUCB exploration bonus", exploration_bonus)?;
+        let total_score =
+            checked_finite_add(exploitation, exploration_bonus, "fast LinUCB total score")?;
+        Ok(LinUcbArmScore {
+            arm,
+            exploitation,
+            exploration_bonus,
+            total_score,
+        })
+    }
+}
+
+impl ContextualBandit for LinUcbFast {
+    fn arm_count(&self) -> usize {
+        self.arm_count
+    }
+
+    fn feature_count(&self) -> usize {
+        self.feature_count
+    }
+
+    fn samples_seen(&self) -> u64 {
+        self.samples_seen
+    }
+
+    fn select(&self, context: &[f64], rng: &mut impl Rng) -> Result<usize, RillError> {
+        self.validate_context(context)?;
+        let mut best_arm = 0;
+        let mut best_score = f64::NEG_INFINITY;
+        let mut tied = 0;
+        for arm in 0..self.arm_count {
+            let score = self.score_arm_validated(arm, context)?.total_score;
+            if score > best_score {
+                best_score = score;
+                best_arm = arm;
+                tied = 1;
+            } else if score == best_score {
+                tied += 1;
+                if rng.gen_range(0..tied) == 0 {
+                    best_arm = arm;
+                }
+            }
+        }
+        Ok(best_arm)
+    }
+
+    fn update(&mut self, arm: usize, context: &[f64], reward: f64) -> Result<(), RillError> {
+        validate_arm(self.arm_count, arm)?;
+        self.validate_context(context)?;
+        validate_reward_finite(reward)?;
+        let inverse = &self.inverse_matrices[arm];
+        let projected = checked_matrix_vector_mul(inverse, context)?;
+        let variance = checked_dot(context, &projected, "fast LinUCB update variance")?;
+        let variance_tolerance = 1e-12
+            * context
+                .iter()
+                .map(|value| value.abs())
+                .sum::<f64>()
+                .max(1.0);
+        if variance < -variance_tolerance {
+            return Err(RillError::InvalidState(
+                "fast LinUCB inverse produced a negative update variance".to_owned(),
+            ));
+        }
+        let denominator = checked_finite_add(1.0, variance, "Sherman-Morrison denominator")?;
+        if denominator <= f64::EPSILON {
+            return Err(RillError::InvalidState(
+                "fast LinUCB Sherman-Morrison denominator is not positive".to_owned(),
+            ));
+        }
+
+        let mut next_inverse = inverse.clone();
+        for i in 0..self.feature_count {
+            for j in 0..self.feature_count {
+                let adjustment = projected[i] * projected[j] / denominator;
+                next_inverse[i][j] = checked_finite_add(
+                    next_inverse[i][j],
+                    -adjustment,
+                    "fast LinUCB inverse update",
+                )?;
+            }
+        }
+        // Explicitly mirror the lower triangle to remove round-off asymmetry.
+        for i in 0..self.feature_count {
+            let (previous_rows, current_and_later) = next_inverse.split_at_mut(i);
+            let current_row = &mut current_and_later[0];
+            for (j, previous_row) in previous_rows.iter().enumerate() {
+                current_row[j] = previous_row[i];
+            }
+            if current_row[i] <= 0.0 {
+                return Err(RillError::InvalidState(
+                    "fast LinUCB inverse lost a positive diagonal".to_owned(),
+                ));
+            }
+        }
+
+        let mut next_b = self.b_vectors[arm].clone();
+        for i in 0..self.feature_count {
+            next_b[i] = checked_finite_add(next_b[i], reward * context[i], "fast LinUCB b vector")?;
+        }
+        let next_samples = checked_increment(self.samples_seen, "fast LinUCB samples_seen")?;
+        self.inverse_matrices[arm] = next_inverse;
+        self.b_vectors[arm] = next_b;
+        self.samples_seen = next_samples;
+        Ok(())
+    }
+
+    fn reset(&mut self) {
+        for matrix in &mut self.inverse_matrices {
+            *matrix = identity_matrix(self.feature_count);
+        }
+        for vector in &mut self.b_vectors {
+            vector.fill(0.0);
+        }
+        self.samples_seen = 0;
+    }
+}
+
+impl ValidateState for LinUcbFast {
+    fn validate_state(&self) -> Result<(), RillError> {
+        self.validate()
+    }
+}
+
+#[cfg(feature = "serde")]
+#[derive(serde::Deserialize)]
+struct LinUcbFastState {
+    arm_count: usize,
+    feature_count: usize,
+    alpha: f64,
+    inverse_matrices: Vec<Vec<Vec<f64>>>,
+    b_vectors: Vec<Vec<f64>>,
+    samples_seen: u64,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for LinUcbFast {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let state = LinUcbFastState::deserialize(deserializer)?;
+        let bandit = Self {
+            arm_count: state.arm_count,
+            feature_count: state.feature_count,
+            alpha: state.alpha,
+            inverse_matrices: state.inverse_matrices,
+            b_vectors: state.b_vectors,
+            samples_seen: state.samples_seen,
+        };
+        bandit.validate().map_err(serde::de::Error::custom)?;
+        Ok(bandit)
     }
 }
 
@@ -411,26 +846,153 @@ fn identity_matrix(d: usize) -> Vec<Vec<f64>> {
 
 /// Check positive definiteness via a Cholesky decomposition.
 fn matrix_is_positive_definite(matrix: &[Vec<f64>]) -> bool {
+    cholesky_factor(matrix).is_ok()
+}
+
+/// Compute the lower-triangular Cholesky factor `L` where `A = L L^T`.
+fn cholesky_factor(matrix: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, RillError> {
     let n = matrix.len();
+    if n == 0 || matrix.iter().any(|row| row.len() != n) {
+        return Err(RillError::InvalidState(
+            "LinUCB matrix must be non-empty and square".to_owned(),
+        ));
+    }
     let mut lower = vec![vec![0.0; n]; n];
     for i in 0..n {
         for j in 0..=i {
-            let correction: f64 = (0..j).map(|k| lower[i][k] * lower[j][k]).sum();
+            let mut correction = 0.0;
+            for (&left, &right) in lower[i][..j].iter().zip(&lower[j][..j]) {
+                correction =
+                    checked_finite_add(correction, left * right, "LinUCB Cholesky correction")?;
+            }
             let residual = matrix[i][j] - correction;
             if i == j {
                 if !residual.is_finite() || residual <= 0.0 {
-                    return false;
+                    return Err(RillError::InvalidState(
+                        "LinUCB matrix is not positive definite".to_owned(),
+                    ));
                 }
                 lower[i][j] = residual.sqrt();
             } else {
                 lower[i][j] = residual / lower[j][j];
                 if !lower[i][j].is_finite() {
-                    return false;
+                    return Err(RillError::InvalidState(
+                        "LinUCB Cholesky factor is non-finite".to_owned(),
+                    ));
                 }
             }
         }
     }
-    true
+    Ok(lower)
+}
+
+/// Solve `L L^T x = rhs` for a Cholesky factor `L`.
+fn cholesky_solve(lower: &[Vec<f64>], rhs: &[f64]) -> Result<Vec<f64>, RillError> {
+    let n = lower.len();
+    if rhs.len() != n {
+        return Err(RillError::DimensionMismatch {
+            expected: n,
+            actual: rhs.len(),
+        });
+    }
+    let mut intermediate = vec![0.0; n];
+    for i in 0..n {
+        let mut correction = 0.0;
+        for (j, value) in intermediate.iter().enumerate().take(i) {
+            correction =
+                checked_finite_add(correction, lower[i][j] * value, "LinUCB forward solve")?;
+        }
+        let value = (rhs[i] - correction) / lower[i][i];
+        if !value.is_finite() {
+            return Err(RillError::NonFiniteValue {
+                field: "LinUCB forward solve",
+                value,
+            });
+        }
+        intermediate[i] = value;
+    }
+
+    let mut solution = vec![0.0; n];
+    for i in (0..n).rev() {
+        let mut correction = 0.0;
+        for j in (i + 1)..n {
+            correction = checked_finite_add(
+                correction,
+                lower[j][i] * solution[j],
+                "LinUCB backward solve",
+            )?;
+        }
+        let value = (intermediate[i] - correction) / lower[i][i];
+        if !value.is_finite() {
+            return Err(RillError::NonFiniteValue {
+                field: "LinUCB backward solve",
+                value,
+            });
+        }
+        solution[i] = value;
+    }
+    Ok(solution)
+}
+
+fn inverse_from_cholesky(lower: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, RillError> {
+    let n = lower.len();
+    let mut inverse = vec![vec![0.0; n]; n];
+    for column in 0..n {
+        let mut basis = vec![0.0; n];
+        basis[column] = 1.0;
+        let solution = cholesky_solve(lower, &basis)?;
+        for row in 0..n {
+            inverse[row][column] = solution[row];
+        }
+    }
+    // The mathematical inverse is symmetric. Mirroring removes harmless
+    // solve-order round-off before it enters the fast-state validator.
+    for i in 0..n {
+        let (previous_rows, current_and_later) = inverse.split_at_mut(i);
+        let current_row = &mut current_and_later[0];
+        for (j, previous_row) in previous_rows.iter_mut().enumerate() {
+            let symmetric = (current_row[j] + previous_row[i]) / 2.0;
+            ensure_finite("LinUCB inverse", symmetric)?;
+            current_row[j] = symmetric;
+            previous_row[i] = symmetric;
+        }
+    }
+    Ok(inverse)
+}
+
+fn checked_matrix_vector_mul(matrix: &[Vec<f64>], vector: &[f64]) -> Result<Vec<f64>, RillError> {
+    let mut result = Vec::with_capacity(matrix.len());
+    for row in matrix {
+        result.push(checked_dot(row, vector, "LinUCB matrix-vector product")?);
+    }
+    Ok(result)
+}
+
+fn checked_dot(a: &[f64], b: &[f64], field: &'static str) -> Result<f64, RillError> {
+    let mut result = 0.0;
+    for (&left, &right) in a.iter().zip(b) {
+        result = checked_finite_add(result, left * right, field)?;
+    }
+    Ok(result)
+}
+
+fn select_random_tie(scores: &[LinUcbArmScore], rng: &mut impl Rng) -> usize {
+    let mut best_arm = scores[0].arm;
+    let mut best_score = scores[0].total_score;
+    let mut tied = 1usize;
+    for score in &scores[1..] {
+        if score.total_score > best_score {
+            best_score = score.total_score;
+            best_arm = score.arm;
+            tied = 1;
+        } else if score.total_score == best_score {
+            tied += 1;
+            if rng.gen_range(0..tied) == 0 {
+                best_arm = score.arm;
+            }
+        }
+    }
+    best_arm
 }
 
 /// Compute the inverse of a square matrix via Gauss-Jordan elimination with
@@ -439,6 +1001,7 @@ fn matrix_is_positive_definite(matrix: &[Vec<f64>]) -> bool {
 /// Returns an error if the matrix is singular (a zero pivot is encountered
 /// after pivoting).
 #[allow(clippy::needless_range_loop)]
+#[cfg(test)]
 fn matrix_inverse(matrix: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, RillError> {
     let n = matrix.len();
     // Build the augmented matrix [A | I].
@@ -501,6 +1064,7 @@ fn matrix_inverse(matrix: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, RillError> {
 }
 
 /// Matrix-vector multiplication: `result = matrix * vector`.
+#[cfg(test)]
 fn matrix_vector_mul(matrix: &[Vec<f64>], vector: &[f64]) -> Vec<f64> {
     let n = matrix.len();
     let vector = &vector[..n];
@@ -517,11 +1081,13 @@ fn matrix_vector_mul(matrix: &[Vec<f64>], vector: &[f64]) -> Vec<f64> {
 }
 
 /// Dot product of two slices.
+#[cfg(test)]
 fn dot(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
 }
 
 /// Quadratic form `x^T * matrix * x`.
+#[cfg(test)]
 fn quadratic_form(x: &[f64], matrix: &[Vec<f64>]) -> f64 {
     let n = x.len();
     let mut result = 0.0;
@@ -619,6 +1185,76 @@ mod tests {
     }
 
     #[test]
+    fn score_breakdown_is_finite_and_sums_to_total() {
+        let b = make_bandit();
+        let scores = b.score_all(&[0.5, 0.8]).unwrap();
+        assert_eq!(scores.len(), 3);
+        for (arm, score) in scores.iter().enumerate() {
+            assert_eq!(score.arm, arm);
+            assert!(score.exploitation.is_finite());
+            assert!(score.exploration_bonus.is_finite());
+            assert!(score.total_score.is_finite());
+            assert_eq!(
+                score.total_score,
+                score.exploitation + score.exploration_bonus
+            );
+            assert_eq!(score.exploitation, 0.0);
+            assert!((score.exploration_bonus - (0.5_f64 * 0.5 + 0.8 * 0.8).sqrt()).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn score_arm_validates_arm_context_and_dimension() {
+        let b = make_bandit();
+        assert!(matches!(
+            b.score_arm(3, &[0.5, 0.8]),
+            Err(RillError::InvalidArm { .. })
+        ));
+        assert!(matches!(
+            b.score_arm(0, &[0.5]),
+            Err(RillError::DimensionMismatch { .. })
+        ));
+        assert!(matches!(
+            b.score_arm(0, &[f64::NAN, 0.8]),
+            Err(RillError::NonFiniteValue { .. })
+        ));
+    }
+
+    #[test]
+    fn select_with_scores_matches_select_including_random_ties() {
+        let b = make_bandit();
+        for seed in 0..100 {
+            let mut select_rng = ChaCha8Rng::seed_from_u64(seed);
+            let mut scores_rng = ChaCha8Rng::seed_from_u64(seed);
+            let selected = b.select(&[0.5, 0.8], &mut select_rng).unwrap();
+            let (explained, scores) = b.select_with_scores(&[0.5, 0.8], &mut scores_rng).unwrap();
+            assert_eq!(explained, selected);
+            assert_eq!(scores.len(), 3);
+        }
+    }
+
+    #[test]
+    fn deterministic_selection_uses_lowest_index_for_exact_ties() {
+        let b = make_bandit();
+        assert_eq!(b.select_deterministic(&[0.5, 0.8]).unwrap(), 0);
+    }
+
+    #[test]
+    fn single_arm_scoring_and_selection() {
+        let b = LinUcb::new(LinUcbConfig {
+            alpha: 0.5,
+            arm_count: 1,
+            feature_count: 2,
+        })
+        .unwrap();
+        let score = b.score_arm(0, &[3.0, 4.0]).unwrap();
+        assert_eq!(score.arm, 0);
+        assert_eq!(score.exploitation, 0.0);
+        assert!((score.exploration_bonus - 2.5).abs() < 1e-12);
+        assert_eq!(b.select_deterministic(&[3.0, 4.0]).unwrap(), 0);
+    }
+
+    #[test]
     fn select_returns_valid_arm() {
         let b = make_bandit();
         let mut rng = ChaCha8Rng::seed_from_u64(42);
@@ -705,6 +1341,62 @@ mod tests {
         assert_eq!(b.a_matrices, before.a_matrices);
         assert_eq!(b.b_vectors, before.b_vectors);
         assert_eq!(b.samples_seen(), before.samples_seen());
+    }
+
+    #[test]
+    fn update_rejects_numerically_degenerate_matrix_without_mutating_state() {
+        let mut b = make_bandit();
+        let before = b.clone();
+        let result = b.update(0, &[1e150, 1e150], 1.0);
+        assert!(matches!(result, Err(RillError::InvalidState(_))));
+        assert_eq!(b.a_matrices, before.a_matrices);
+        assert_eq!(b.b_vectors, before.b_vectors);
+        assert_eq!(b.samples_seen(), before.samples_seen());
+    }
+
+    #[test]
+    fn scoring_is_side_effect_free() {
+        let mut b = make_bandit();
+        b.update(1, &[0.25, -0.75], 2.0).unwrap();
+        let before = b.clone();
+        let _ = b.score_all(&[0.75, 0.5]).unwrap();
+        let _ = b.select_deterministic(&[0.75, 0.5]).unwrap();
+        assert_eq!(b.a_matrices, before.a_matrices);
+        assert_eq!(b.b_vectors, before.b_vectors);
+        assert_eq!(b.samples_seen, before.samples_seen);
+    }
+
+    #[test]
+    fn cholesky_scores_match_explicit_inverse_reference() {
+        let mut b = make_bandit();
+        for i in 1..=50 {
+            let context = [i as f64 / 17.0, (i as f64).sin()];
+            b.update(i % 3, &context, (i as f64 / 7.0).cos()).unwrap();
+        }
+        let context = [0.75, -1.25];
+        for arm in 0..3 {
+            let inverse = matrix_inverse(&b.a_matrices[arm]).unwrap();
+            let theta = matrix_vector_mul(&inverse, &b.b_vectors[arm]);
+            let expected_exploitation = dot(&theta, &context);
+            let expected_bonus = b.alpha * quadratic_form(&context, &inverse).sqrt();
+            let score = b.score_arm(arm, &context).unwrap();
+            assert!((score.exploitation - expected_exploitation).abs() < 1e-10);
+            assert!((score.exploration_bonus - expected_bonus).abs() < 1e-10);
+        }
+    }
+
+    #[test]
+    fn condition_diagnostics_are_finite() {
+        let mut b = make_bandit();
+        for _ in 0..1000 {
+            b.update(0, &[1e-6, 1e3], 0.25).unwrap();
+        }
+        let diagnostics = b.condition_diagnostics(0).unwrap();
+        assert_eq!(diagnostics.arm, 0);
+        assert!(diagnostics.min_cholesky_diagonal > 0.0);
+        assert!(diagnostics.max_cholesky_diagonal.is_finite());
+        assert!(diagnostics.condition_indicator.is_finite());
+        assert!(diagnostics.condition_indicator >= 1.0);
     }
 
     #[test]
@@ -848,6 +1540,98 @@ mod tests {
         assert_eq!(final_arm, 0);
     }
 
+    #[test]
+    fn fast_linucb_matches_stable_scores_and_selection() {
+        let config = LinUcbConfig {
+            alpha: 0.35,
+            arm_count: 4,
+            feature_count: 6,
+        };
+        let mut stable = LinUcb::new(config.clone()).unwrap();
+        let mut fast = LinUcbFast::new(config).unwrap();
+        for step in 0..2000 {
+            let context: Vec<f64> = (0..6)
+                .map(|feature| ((step + feature * 17) as f64 / 23.0).sin())
+                .collect();
+            let arm = step % 4;
+            let reward = (arm as f64 + 1.0) * context[arm % 6] + 0.1;
+            stable.update(arm, &context, reward).unwrap();
+            fast.update(arm, &context, reward).unwrap();
+        }
+        let context = [0.75, -0.25, 1.0, 0.1, -0.5, 0.9];
+        let stable_scores = stable.score_all(&context).unwrap();
+        let fast_scores = fast.score_all(&context).unwrap();
+        for (stable_score, fast_score) in stable_scores.iter().zip(&fast_scores) {
+            assert_eq!(stable_score.arm, fast_score.arm);
+            assert!((stable_score.exploitation - fast_score.exploitation).abs() < 1e-8);
+            assert!((stable_score.exploration_bonus - fast_score.exploration_bonus).abs() < 1e-8);
+            assert!((stable_score.total_score - fast_score.total_score).abs() < 1e-8);
+        }
+        assert_eq!(
+            stable.select_deterministic(&context).unwrap(),
+            fast.select_deterministic(&context).unwrap()
+        );
+        assert_eq!(stable.samples_seen(), fast.samples_seen());
+        fast.validate().unwrap();
+    }
+
+    #[test]
+    fn fast_conversion_matches_stable_state() {
+        let mut stable = make_bandit();
+        for step in 0..100 {
+            let context = [(step as f64 / 11.0).sin(), (step as f64 / 7.0).cos()];
+            stable
+                .update(step % 3, &context, step as f64 / 100.0)
+                .unwrap();
+        }
+        let fast = LinUcbFast::from_linucb(&stable).unwrap();
+        let context = [0.25, -0.75];
+        for arm in 0..3 {
+            let stable_score = stable.score_arm(arm, &context).unwrap();
+            let fast_score = fast.score_arm(arm, &context).unwrap();
+            assert!((stable_score.total_score - fast_score.total_score).abs() < 1e-10);
+        }
+        assert_eq!(fast.state_f64_count(), 3 * (2 * 2 + 2) + 1);
+    }
+
+    #[test]
+    fn fast_update_failure_is_atomic() {
+        let mut fast = LinUcbFast::new(LinUcbConfig {
+            alpha: 1.0,
+            arm_count: 2,
+            feature_count: 2,
+        })
+        .unwrap();
+        let before = fast.clone();
+        assert!(fast.update(0, &[1e200, 1e200], 1.0).is_err());
+        assert_eq!(fast.inverse_matrices, before.inverse_matrices);
+        assert_eq!(fast.b_vectors, before.b_vectors);
+        assert_eq!(fast.samples_seen, before.samples_seen);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn fast_serde_roundtrip_preserves_future_continuity() {
+        let mut original = LinUcbFast::new(LinUcbConfig {
+            alpha: 0.5,
+            arm_count: 2,
+            feature_count: 3,
+        })
+        .unwrap();
+        original.update(0, &[1.0, 0.5, -0.5], 1.0).unwrap();
+        let json = serde_json::to_string(&original).unwrap();
+        let mut restored: LinUcbFast = serde_json::from_str(&json).unwrap();
+        for step in 0..100 {
+            let context = [step as f64 / 100.0, 0.25, -0.75];
+            original.update(step % 2, &context, 0.5).unwrap();
+            restored.update(step % 2, &context, 0.5).unwrap();
+            assert_eq!(
+                original.score_all(&context).unwrap(),
+                restored.score_all(&context).unwrap()
+            );
+        }
+    }
+
     #[cfg(feature = "serde")]
     #[test]
     fn serde_roundtrip() {
@@ -874,6 +1658,10 @@ mod tests {
                 assert!((o - r).abs() < 1e-12);
             }
         }
+        assert_eq!(
+            restored.score_all(&[0.2, -0.5, 1.0]).unwrap(),
+            b.score_all(&[0.2, -0.5, 1.0]).unwrap()
+        );
     }
 
     #[cfg(feature = "serde")]

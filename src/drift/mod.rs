@@ -57,6 +57,7 @@
 pub(crate) mod action;
 pub(crate) mod adwin;
 pub(crate) mod aware_model;
+pub(crate) mod consensus;
 pub(crate) mod decay;
 pub(crate) mod detector;
 pub(crate) mod kswin;
@@ -64,10 +65,15 @@ pub(crate) mod page_hinkley;
 pub(crate) mod strategy;
 
 pub use action::{DriftAction, DriftEvent};
-pub use adwin::{Adwin, AdwinConfig};
+pub use adwin::{ADWIN_PORTABLE_STATE_VERSION, Adwin, AdwinConfig, AdwinPortableStateV1};
 pub use aware_model::DriftAwareModel;
+pub use consensus::{
+    DriftConsensus, DriftConsensusConfig, DriftConsensusResult, DriftEventSummary, DriftVote,
+};
 pub use decay::{FixedWindowBuffer, LearningRateScheduler, TimeDecayedMean};
 pub use detector::{DriftDetector, DriftLevel};
-pub use kswin::{Kswin, KswinConfig};
-pub use page_hinkley::{PageHinkley, PageHinkleyConfig};
+pub use kswin::{KSWIN_PORTABLE_STATE_VERSION, Kswin, KswinConfig, KswinPortableStateV1};
+pub use page_hinkley::{
+    PAGE_HINKLEY_PORTABLE_STATE_VERSION, PageHinkley, PageHinkleyConfig, PageHinkleyPortableStateV1,
+};
 pub use strategy::{DriftStrategy, StaticStrategy};

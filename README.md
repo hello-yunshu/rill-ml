@@ -69,7 +69,7 @@ cargo add rill-ml --features serde
 因此 `cargo install rill-runtime` 行为与官方 GitHub 二进制一致。如需 WASM-free 构建：
 `cargo install rill-runtime --no-default-features`（无法加载 `.rillhandler`）。
 
-版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.0.0`，Preview 组保持 `0.13.0`。
+版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.1.0`，Preview 组为 `0.15.0`。
 
 **环境要求：** Rust 1.94+（Edition 2024），无需 nightly。
 
@@ -177,7 +177,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 | 类别 | 模块 |
 |---|---|
-| 统计 | Mean, Variance, Std, Count, Sum, Min, Max, EWMean, RollingMean, RollingVariance |
+| 统计 | Mean, Variance, Std, Count, Sum, Min, Max, EWMean, RollingMean, RollingVariance, P2Quantile, ClippedMean, bounded RollingMedianMad/modified-z, weighted statistics |
 | 预处理 | StandardScaler, MinMaxScaler, Clipper, OneHotEncoder, OrdinalEncoder, FrequencyEncoder, MissingIndicator, ConstantImputer, MeanImputer, ForwardFill |
 | 稀疏特征 | SparseFeatures, FeatureHasher |
 | 模型 | LinearRegression, LogisticRegression, MeanRegressor, EWMeanRegressor, LastValueRegressor, FtrlRegressor, FtrlClassifier, GaussianNaiveBayes, BernoulliNaiveBayes, MultinomialNaiveBayes |
@@ -189,8 +189,9 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 | 评估 | 渐进式评估（predict → metric → learn） |
 | 持久化 | `Snapshot<T>` 版本化封装（serde feature） |
 | 诊断 | TrainingSummary, WarmupTracker, BaselineComparator, OnlineModelSelector, ResidualInterval, ModelHealthReport, PredictionReporter |
-| 漂移检测 | PageHinkley, Adwin, Kswin, DriftAwareModel, DriftAction, DriftStrategy, TimeDecayedMean, LearningRateScheduler, FixedWindowBuffer |
-| 在线决策 | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb, ArmStats |
+| 漂移检测 | PageHinkley, Adwin, Kswin, portable state V1, DriftConsensus, DriftAwareModel, DriftAction, DriftStrategy |
+| 在线决策 | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb score breakdown, Preview LinUcbFast, DecisionLedger, DecisionReplayHarness |
+| 身份与权重 | FeatureSchema, ModelDescriptor, WeightedStatistic/Regressor/Classifier |
 
 **内存界限：** 非滚动统计量 O(1)；线性模型 O(d)；滚动统计量 O(window_size)；稀疏模型（FTRL）O(k)，k 为已见特征数（默认无上限，需设置 `max_features` 才能有界）；漂移检测器 O(1) 或 O(window_size)；LinUCB O(arm_count × d²)。
 
