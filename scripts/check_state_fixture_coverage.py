@@ -46,6 +46,12 @@ def parse_manifest(manifest_path: pathlib.Path) -> tuple[list[dict[str, str]], l
     return list(data.get("stable_state", [])), list(data.get("preview_state", []))
 
 
+def parse_portable_states(manifest_path: pathlib.Path) -> list[dict[str, str]]:
+    """Return explicitly versioned portable-state entries."""
+    data = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    return list(data.get("portable_state", []))
+
+
 def parse_documented_types(stability_path: pathlib.Path) -> tuple[list[str], list[str]]:
     """Return the Stable table and Preview bullet-list types from STABILITY.md."""
     try:
@@ -217,6 +223,36 @@ def validate_coverage(root: pathlib.Path) -> list[str]:
                 f"(expected 'validate_state', 'deserialize', or 'derive')"
             )
 
+    # --- Versioned portable DTOs have their own post-introduction fixtures. --- #
+    portable_entries = parse_portable_states(manifest_path)
+    portable_tests_path = root / "tests" / "portable_drift_state.rs"
+    try:
+        portable_tests = portable_tests_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        errors.append(f"failed to read portable-state tests at {portable_tests_path}: {exc}")
+        portable_tests = ""
+    seen_portable: set[str] = set()
+    for entry in portable_entries:
+        type_name = entry.get("type", "")
+        fixture = entry.get("fixture", "")
+        generation = entry.get("generation", "")
+        if not type_name or type_name in seen_portable:
+            errors.append(f"invalid or duplicate portable state type: {type_name!r}")
+            continue
+        seen_portable.add(type_name)
+        if entry.get("stability") != "stable":
+            errors.append(f"portable state {type_name!r} must declare stability='stable'")
+        path = fixture_dir / generation / f"{fixture}.json"
+        if not fixture or not generation or not path.exists():
+            errors.append(f"portable state {type_name!r}: missing golden fixture at {path}")
+        if not grep_validate_state_impl(root, type_name):
+            errors.append(f"portable state {type_name!r}: missing ValidateState implementation")
+        test_name = f"load_{generation.replace('-', '_')}_{fixture}"
+        if not re.search(rf"\bfn\s+{re.escape(test_name)}\s*\(", portable_tests):
+            errors.append(
+                f"portable state {type_name!r}: fixture is not exercised by {test_name!r}"
+            )
+
     # --- Check that the human-facing whitelist exactly matches the manifest. --- #
     try:
         documented_stable, documented_preview = parse_documented_types(
@@ -263,9 +299,11 @@ def main() -> int:
     # Print summary.
     manifest_path = root / "state-schema-manifest.toml"
     stable_entries, preview_entries = parse_manifest(manifest_path)
+    portable_entries = parse_portable_states(manifest_path)
     print("check_state_fixture_coverage: validation passed.")
     print(f"  Stable state types: {len(stable_entries)}")
     print(f"  Preview state types: {len(preview_entries)}")
+    print(f"  Stable portable state DTOs: {len(portable_entries)}")
     print(
         "  All Stable types have exercised v0.13.0 + v1 fixtures, declared "
         "validation, and matching documentation."
