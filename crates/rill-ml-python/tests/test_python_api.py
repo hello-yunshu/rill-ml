@@ -3,6 +3,8 @@
 Run via `pytest tests/ -v` after `maturin develop --release`.
 """
 
+import json
+
 import pytest
 
 
@@ -150,3 +152,33 @@ def test_snapshot_namespace():
     m.update(1.0)
     js = Snapshot.to_json(m)
     assert "format_version" in js
+
+
+def test_linucb_scores_and_replay_export():
+    from rill_ml import LinUcb, replay_decisions
+
+    bandit = LinUcb(2, 1, 1.0)
+    scores = bandit.score_all([1.0])
+    assert len(scores) == 2
+    assert all(len(score) == 4 for score in scores)
+    selected = bandit.select_deterministic([1.0])
+    assert bandit.samples_seen == 0
+    bandit.update(selected, [1.0], 0.75)
+    assert bandit.samples_seen == 1
+
+    records = [{
+        "timestamp": 0,
+        "decision_id": 1,
+        "context": [1.0],
+        "selected_arm": 0,
+        "outcome_time": 5,
+        "reward": 0.75,
+        "generation": 1,
+        "feature_schema_hash": "schema-a",
+        "baseline_reward": 0.25,
+        "optimal_reward": 1.0,
+        "drift": False,
+    }]
+    report = json.loads(replay_decisions(json.dumps(records), 2, 1, 1.0, 10, 1, "schema-a"))
+    assert report["cumulative_reward"] == 0.75
+    assert report["completed"] == 1

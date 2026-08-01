@@ -23,7 +23,11 @@
 //! incrementally so each update is `O(max_window)` in the worst case.
 
 use crate::drift::detector::{DriftDetector, DriftLevel};
-use crate::error::{RillError, ensure_finite};
+use crate::error::{RillError, checked_finite_add, checked_increment, ensure_finite};
+use crate::persistence::ValidateState;
+
+/// Portable ADWIN state schema version.
+pub const ADWIN_PORTABLE_STATE_VERSION: u32 = 1;
 
 /// Configuration for [`Adwin`].
 #[derive(Debug, Clone)]
@@ -46,6 +50,79 @@ pub struct AdwinConfig {
     /// Minimum number of samples before any detection is attempted.
     /// Must be greater than zero. Defaults to `10`.
     pub min_samples: u64,
+}
+
+/// Versioned, portable ADWIN state.
+///
+/// This is the stable continuity DTO. Direct serde of [`Adwin`] remains a
+/// Preview implementation detail.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct AdwinPortableStateV1 {
+    /// Portable schema version; always `1`.
+    pub version: u32,
+    /// Drift significance level from the originating configuration.
+    pub delta: f64,
+    /// Warning significance level from the originating configuration.
+    pub warning_delta: f64,
+    /// Maximum window length from the originating configuration.
+    pub max_window: usize,
+    /// Minimum samples from the originating configuration.
+    pub min_samples: u64,
+    /// Current adaptive window, oldest value first.
+    pub window: Vec<f64>,
+    /// Incrementally maintained sum of the window.
+    pub total: f64,
+    /// Total observations incorporated, including evicted observations.
+    pub samples: u64,
+    /// Last reported detector level.
+    pub current_level: DriftLevel,
+}
+
+impl ValidateState for AdwinPortableStateV1 {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.version != ADWIN_PORTABLE_STATE_VERSION {
+            return Err(RillError::IncompatibleStateVersion {
+                expected: ADWIN_PORTABLE_STATE_VERSION,
+                actual: self.version,
+            });
+        }
+        Adwin::new(AdwinConfig {
+            delta: self.delta,
+            warning_delta: self.warning_delta,
+            max_window: self.max_window,
+            min_samples: self.min_samples,
+        })?;
+        if self.window.len() > self.max_window {
+            return Err(RillError::InvalidState(
+                "ADWIN portable window exceeds max_window".to_owned(),
+            ));
+        }
+        if self.samples < self.window.len() as u64 {
+            return Err(RillError::InvalidState(
+                "ADWIN samples is smaller than the retained window".to_owned(),
+            ));
+        }
+        ensure_finite("portable ADWIN total", self.total)?;
+        let mut recomputed = 0.0;
+        for &value in &self.window {
+            ensure_finite("portable ADWIN window value", value)?;
+            recomputed = checked_finite_add(recomputed, value, "portable ADWIN window sum")?;
+        }
+        let tolerance = 1e-10 * recomputed.abs().max(self.total.abs()).max(1.0);
+        if (recomputed - self.total).abs() > tolerance {
+            return Err(RillError::InvalidState(
+                "ADWIN portable total does not match the retained window".to_owned(),
+            ));
+        }
+        if self.samples < self.min_samples && self.current_level != DriftLevel::None {
+            return Err(RillError::InvalidState(
+                "ADWIN state reports a level before min_samples".to_owned(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl Default for AdwinConfig {
@@ -161,6 +238,46 @@ impl Adwin {
         &self.config
     }
 
+    /// Export the stable portable state.
+    pub fn export_state_v1(&self) -> AdwinPortableStateV1 {
+        AdwinPortableStateV1 {
+            version: ADWIN_PORTABLE_STATE_VERSION,
+            delta: self.config.delta,
+            warning_delta: self.config.warning_delta,
+            max_window: self.config.max_window,
+            min_samples: self.config.min_samples,
+            window: self.window.iter().copied().collect(),
+            total: self.total,
+            samples: self.samples,
+            current_level: self.current_level,
+        }
+    }
+
+    /// Restore from a validated portable state with exact config matching.
+    pub fn restore_state_v1(
+        config: AdwinConfig,
+        state: AdwinPortableStateV1,
+    ) -> Result<Self, RillError> {
+        state.validate_state()?;
+        if config.delta != state.delta
+            || config.warning_delta != state.warning_delta
+            || config.max_window != state.max_window
+            || config.min_samples != state.min_samples
+        {
+            return Err(RillError::InvalidState(
+                "ADWIN portable state configuration mismatch".to_owned(),
+            ));
+        }
+        Adwin::new(config.clone())?;
+        Ok(Self {
+            config,
+            window: state.window.into(),
+            total: state.total,
+            samples: state.samples,
+            current_level: state.current_level,
+        })
+    }
+
     /// Compute the Hoeffding bound for a split with `n0` and `n1` elements
     /// at significance level `delta` with total stream length `n`.
     fn hoeffding_bound(n0: f64, n1: f64, n: u64, delta: f64) -> f64 {
@@ -232,16 +349,23 @@ impl Default for Adwin {
 impl DriftDetector for Adwin {
     fn update(&mut self, value: f64) -> Result<DriftLevel, RillError> {
         ensure_finite("value", value)?;
-        self.samples += 1;
-        // Add the new value to the window.
-        self.window.push_back(value);
-        self.total += value;
-        // Enforce the max window size by dropping the oldest element.
-        if self.window.len() > self.config.max_window
-            && let Some(v) = self.window.pop_front()
-        {
-            self.total -= v;
+        let next_samples = checked_increment(self.samples, "ADWIN samples")?;
+        let mut next_total = checked_finite_add(self.total, value, "ADWIN window total")?;
+        let evicted = if self.window.len() == self.config.max_window {
+            self.window.front().copied()
+        } else {
+            None
+        };
+        if let Some(oldest) = evicted {
+            next_total = checked_finite_add(next_total, -oldest, "ADWIN window total")?;
         }
+        self.samples = next_samples;
+        // Add the new value to the window.
+        if evicted.is_some() {
+            self.window.pop_front();
+        }
+        self.window.push_back(value);
+        self.total = next_total;
         // Gate detection by minimum samples.
         if self.samples < self.config.min_samples || self.window.len() < 2 {
             self.current_level = DriftLevel::None;
@@ -552,6 +676,48 @@ mod tests {
             b2,
             b1
         );
+    }
+
+    #[test]
+    fn portable_state_restore_preserves_future_results() {
+        let config = AdwinConfig {
+            delta: 0.05,
+            warning_delta: 0.1,
+            max_window: 80,
+            min_samples: 5,
+        };
+        let mut original = Adwin::new(config.clone()).unwrap();
+        for i in 0..60 {
+            original.update((i % 7) as f64 / 10.0).unwrap();
+        }
+        let state = original.export_state_v1();
+        state.validate_state().unwrap();
+        let mut restored = Adwin::restore_state_v1(config, state).unwrap();
+        for i in 0..100 {
+            let value = if i < 20 { 0.25 } else { 3.0 + i as f64 / 100.0 };
+            assert_eq!(
+                original.update(value).unwrap(),
+                restored.update(value).unwrap()
+            );
+            assert_eq!(original.export_state_v1(), restored.export_state_v1());
+        }
+    }
+
+    #[test]
+    fn portable_state_rejects_mismatch_and_corruption() {
+        let detector = Adwin::default();
+        let mut wrong_config = AdwinConfig::default();
+        wrong_config.max_window += 1;
+        assert!(Adwin::restore_state_v1(wrong_config, detector.export_state_v1()).is_err());
+
+        let mut corrupt = detector.export_state_v1();
+        corrupt.window.push(1.0);
+        corrupt.total = 2.0;
+        corrupt.samples = 1;
+        assert!(corrupt.validate_state().is_err());
+        let mut corrupt = detector.export_state_v1();
+        corrupt.version = 99;
+        assert!(corrupt.validate_state().is_err());
     }
 
     #[cfg(feature = "serde")]

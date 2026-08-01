@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "threshold": 50.0,
+  "warning_threshold": 25.0,
+  "alpha": 1.0,
+  "delta": 0.005,
+  "min_samples": 30,
+  "mean": 0.0,
+  "samples": 3,
+  "cumulative_sum": -0.015,
+  "minimum_cumulative_sum": -0.015,
+  "current_level": "None"
+}

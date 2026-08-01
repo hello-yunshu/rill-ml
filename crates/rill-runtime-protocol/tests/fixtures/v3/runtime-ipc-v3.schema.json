@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hello-yunshu/rill-ml/schemas/runtime-ipc-v3.schema.json",
+  "title": "Rill Runtime IPC V3 request envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requestId", "apiVersion", "clientIdentity", "modelGeneration", "stateGeneration", "payloadLimit", "request"],
+  "properties": {
+    "requestId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "apiVersion": {"const": 3},
+    "clientIdentity": {"$ref": "#/$defs/identity"},
+    "capability": {"type": "string", "minLength": 1, "maxLength": 96},
+    "deadlineUnixMs": {"type": "integer", "minimum": 0},
+    "featureSchemaHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "modelGeneration": {"type": "integer", "minimum": 0},
+    "stateGeneration": {"type": "integer", "minimum": 0},
+    "payloadLimit": {"type": "integer", "minimum": 1, "maximum": 1048576},
+    "request": {"oneOf": [
+      {"type":"object","additionalProperties":false,"required":["method"],"properties":{"method":{"const":"handshake"}}},
+      {"type":"object","additionalProperties":false,"required":["method"],"properties":{"method":{"const":"health"}}},
+      {"type":"object","additionalProperties":false,"required":["method","event"],"properties":{"method":{"const":"observe"},"event":{}}},
+      {"type":"object","additionalProperties":false,"required":["method","context"],"properties":{"method":{"const":"decide"},"context":{},"deterministicSeed":{"type":"integer","minimum":0}}},
+      {"type":"object","additionalProperties":false,"required":["method","decisionId","selectedArm","reward","outcomeTimeMs","generation"],"properties":{"method":{"const":"feedback"},"decisionId":{"type":"string","minLength":1,"maxLength":128},"selectedArm":{"type":"integer","minimum":0},"reward":{"type":"number"},"outcomeTimeMs":{"type":"integer","minimum":0},"generation":{"type":"integer","minimum":0}}},
+      {"type":"object","additionalProperties":false,"required":["method"],"properties":{"method":{"const":"inspect"}}},
+      {"type":"object","additionalProperties":false,"required":["method"],"properties":{"method":{"const":"snapshot"}}},
+      {"type":"object","additionalProperties":false,"required":["method","expectedStateGeneration"],"properties":{"method":{"const":"reset"},"expectedStateGeneration":{"type":"integer","minimum":0}}}
+    ]}
+  },
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 96},
+        "version": {"type": "string", "minLength": 1, "maxLength": 48}
+      }
+    }
+  }
+}

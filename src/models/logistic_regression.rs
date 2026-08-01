@@ -91,6 +91,49 @@ impl LogisticRegression {
         )?;
         checked_finite_add(dot, self.intercept, "logit")
     }
+
+    /// Learn with a finite, non-negative sample weight.
+    ///
+    /// `weight = 0` validates inputs but is a complete state no-op.
+    pub fn learn_weighted(
+        &mut self,
+        features: &[f64],
+        target: bool,
+        weight: f64,
+    ) -> Result<(), RillError> {
+        crate::weighted::validate_weight(weight)?;
+        validate_features(self.feature_count, features)?;
+        if weight == 0.0 {
+            return Ok(());
+        }
+        let next_samples = checked_increment(self.samples_seen, "logistic regression sample")?;
+        let p = sigmoid(self.logit(features)?);
+        let grad = self.loss.gradient_wrt_logit(p, target) * weight;
+        ensure_finite("weighted loss gradient", grad)?;
+        let grad_weights = features
+            .iter()
+            .map(|&feature| {
+                let gradient = grad * feature;
+                ensure_finite("weighted weight gradient", gradient)?;
+                Ok(gradient)
+            })
+            .collect::<Result<Vec<_>, RillError>>()?;
+        self.optimizer
+            .step(&mut self.weights, &mut self.intercept, &grad_weights, grad)?;
+        self.samples_seen = next_samples;
+        Ok(())
+    }
+}
+
+impl crate::weighted::WeightedOnlineBinaryClassifier for LogisticRegression {
+    fn learn_weighted(
+        &mut self,
+        features: &[f64],
+        target: bool,
+        weight: f64,
+    ) -> Result<(), RillError> {
+        LogisticRegression::learn_weighted(self, features, target, weight)
+    }
 }
 
 impl OnlineBinaryClassifier for LogisticRegression {
@@ -244,5 +287,17 @@ mod tests {
         model.reset();
         assert_eq!(model.samples_seen(), 0);
         assert!((model.predict_proba(&[1.0]).unwrap() - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn weighted_learning_zero_is_noop_and_positive_updates() {
+        let mut model = make_model(1, 0.1);
+        let before = model.clone();
+        model.learn_weighted(&[1.0], true, 0.0).unwrap();
+        assert_eq!(model.weights(), before.weights());
+        assert_eq!(model.samples_seen(), 0);
+        model.learn_weighted(&[1.0], true, 2.0).unwrap();
+        assert_eq!(model.samples_seen(), 1);
+        assert!(model.weights()[0] > 0.0);
     }
 }

@@ -74,6 +74,18 @@ pub rill_runtime::ReleaseIndexError::Json(serde_json::error::Error)
 pub rill_runtime::ReleaseIndexError::Manifest(alloc::string::String)
 pub rill_runtime::ReleaseIndexError::Signature
 pub rill_runtime::ReleaseIndexError::UnknownKey
+#[non_exhaustive] pub enum rill_runtime::StatefulHandlerErrorKindV2
+pub rill_runtime::StatefulHandlerErrorKindV2::DuplicateFeedback
+pub rill_runtime::StatefulHandlerErrorKindV2::IncompatibleVersion
+pub rill_runtime::StatefulHandlerErrorKindV2::Internal
+pub rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent
+pub rill_runtime::StatefulHandlerErrorKindV2::InvalidModel
+pub rill_runtime::StatefulHandlerErrorKindV2::InvalidOutput
+pub rill_runtime::StatefulHandlerErrorKindV2::InvalidState
+pub rill_runtime::StatefulHandlerErrorKindV2::MetadataMismatch
+pub rill_runtime::StatefulHandlerErrorKindV2::OutputTooLarge
+pub rill_runtime::StatefulHandlerErrorKindV2::Timeout
+pub rill_runtime::StatefulHandlerErrorKindV2::Trap
 pub struct rill_runtime::HandlerIdentity
 pub rill_runtime::HandlerIdentity::effective_capabilities: alloc::vec::Vec<alloc::string::String>
 pub rill_runtime::HandlerIdentity::handler_api_version: u32
@@ -128,6 +140,48 @@ pub fn rill_runtime::RuntimeEngine::new(rill_runtime::LoadedModelPack) -> Self
 pub fn rill_runtime::RuntimeEngine::with_handler_identity(self, rill_runtime::HandlerIdentity) -> Self
 pub fn rill_runtime::RuntimeEngine::with_invoke_handler(self, alloc::sync::Arc<dyn rill_runtime::InvokeHandler>) -> Self
 pub fn rill_runtime::RuntimeEngine::with_log_sink(self, alloc::sync::Arc<dyn rill_runtime::HostLogSink>) -> Self
+pub struct rill_runtime::StatefulHandlerErrorV2
+impl rill_runtime::StatefulHandlerErrorV2
+pub fn rill_runtime::StatefulHandlerErrorV2::detail(&self) -> core::option::Option<&str>
+pub const fn rill_runtime::StatefulHandlerErrorV2::kind(&self) -> rill_runtime::StatefulHandlerErrorKindV2
+pub const fn rill_runtime::StatefulHandlerErrorV2::new(rill_runtime::StatefulHandlerErrorKindV2) -> Self
+pub fn rill_runtime::StatefulHandlerErrorV2::with_detail(rill_runtime::StatefulHandlerErrorKindV2, impl core::convert::Into<alloc::string::String>) -> Self
+impl core::error::Error for rill_runtime::StatefulHandlerErrorV2
+impl core::fmt::Display for rill_runtime::StatefulHandlerErrorV2
+pub fn rill_runtime::StatefulHandlerErrorV2::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub struct rill_runtime::StatefulHandlerMetadataV2
+pub rill_runtime::StatefulHandlerMetadataV2::api_version: u32
+pub rill_runtime::StatefulHandlerMetadataV2::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime::StatefulHandlerMetadataV2::id: alloc::string::String
+pub rill_runtime::StatefulHandlerMetadataV2::state_schema_version: u32
+pub rill_runtime::StatefulHandlerMetadataV2::version: alloc::string::String
+pub struct rill_runtime::StatefulHandlerResultV2
+pub rill_runtime::StatefulHandlerResultV2::next_state: alloc::vec::Vec<u8>
+pub rill_runtime::StatefulHandlerResultV2::output: serde_json::value::Value
+#[non_exhaustive] pub struct rill_runtime::StatefulRuntimeConfigV3
+pub rill_runtime::StatefulRuntimeConfigV3::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime::StatefulRuntimeConfigV3::feature_schema_hash: alloc::string::String
+pub rill_runtime::StatefulRuntimeConfigV3::initial_state: alloc::vec::Vec<u8>
+pub rill_runtime::StatefulRuntimeConfigV3::initial_state_generation: u64
+pub rill_runtime::StatefulRuntimeConfigV3::model_generation: u64
+pub rill_runtime::StatefulRuntimeConfigV3::runtime_identity: rill_runtime_protocol::v3::IdentityV3
+impl rill_runtime::StatefulRuntimeConfigV3
+pub fn rill_runtime::StatefulRuntimeConfigV3::new(rill_runtime_protocol::v3::IdentityV3, u64, alloc::string::String, alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<u8>) -> Self
+pub struct rill_runtime::StatefulRuntimeEngineV3
+impl rill_runtime::StatefulRuntimeEngineV3
+pub fn rill_runtime::StatefulRuntimeEngineV3::handle_at(&self, rill_runtime_protocol::v3::EnvelopeV3, u64) -> rill_runtime_protocol::v3::RuntimeResponseV3
+pub fn rill_runtime::StatefulRuntimeEngineV3::handle_json_at(&self, &[u8], u64) -> rill_runtime_protocol::v3::RuntimeResponseV3
+pub fn rill_runtime::StatefulRuntimeEngineV3::new(rill_runtime::StatefulRuntimeConfigV3, alloc::sync::Arc<dyn rill_runtime::StatefulHandlerV2>) -> core::result::Result<Self, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::restore_snapshot(&self, rill_runtime::StatefulStateSnapshotV2) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::snapshot(&self) -> core::result::Result<rill_runtime::StatefulStateSnapshotV2, rill_runtime::StatefulHandlerErrorV2>
+pub struct rill_runtime::StatefulStateSnapshotV2
+pub rill_runtime::StatefulStateSnapshotV2::checksum_sha256: alloc::string::String
+pub rill_runtime::StatefulStateSnapshotV2::state: alloc::vec::Vec<u8>
+pub rill_runtime::StatefulStateSnapshotV2::state_generation: u64
+pub rill_runtime::StatefulStateSnapshotV2::state_schema_version: u32
+impl rill_runtime::StatefulStateSnapshotV2
+pub fn rill_runtime::StatefulStateSnapshotV2::new(u32, u64, alloc::vec::Vec<u8>) -> Self
+pub fn rill_runtime::StatefulStateSnapshotV2::validate(&self, u32) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
 pub struct rill_runtime::StderrLogSink
 impl rill_runtime::HostLogSink for rill_runtime::StderrLogSink
 pub fn rill_runtime::StderrLogSink::emit(&self, &str)
@@ -140,6 +194,14 @@ impl core::fmt::Debug for rill_runtime::WasmInvokeHandler
 pub fn rill_runtime::WasmInvokeHandler::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl rill_runtime::InvokeHandler for rill_runtime::WasmInvokeHandler
 pub fn rill_runtime::WasmInvokeHandler::invoke(&self, &str, &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, rill_runtime::InvokeError>
+pub struct rill_runtime::WasmStatefulHandlerV2
+impl rill_runtime::WasmStatefulHandlerV2
+pub fn rill_runtime::WasmStatefulHandlerV2::new(&[u8], rill_runtime::StatefulHandlerMetadataV2, &serde_json::value::Value) -> core::result::Result<Self, rill_runtime::StatefulHandlerErrorV2>
+impl core::fmt::Debug for rill_runtime::WasmStatefulHandlerV2
+pub fn rill_runtime::WasmStatefulHandlerV2::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl rill_runtime::StatefulHandlerV2 for rill_runtime::WasmStatefulHandlerV2
+pub fn rill_runtime::WasmStatefulHandlerV2::handle(&self, &[u8], &[u8], core::option::Option<u64>) -> core::result::Result<rill_runtime::StatefulHandlerResultV2, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::WasmStatefulHandlerV2::metadata(&self) -> &rill_runtime::StatefulHandlerMetadataV2
 pub const rill_runtime::CONFIGURE_FUEL: u64
 pub const rill_runtime::EPOCH_DEADLINE: u64
 pub const rill_runtime::EPOCH_TICK_INTERVAL: core::time::Duration
@@ -149,6 +211,10 @@ pub const rill_runtime::MAX_DETAIL_BYTES: usize
 pub const rill_runtime::MAX_IO_BYTES: usize
 pub const rill_runtime::MAX_MEMORY_BYTES: usize
 pub const rill_runtime::MAX_TABLE_ELEMENTS: u32
+pub const rill_runtime::STATEFUL_CONFIGURE_FUEL: u64
+pub const rill_runtime::STATEFUL_EPOCH_DEADLINE: u64
+pub const rill_runtime::STATEFUL_EPOCH_TICK_INTERVAL: core::time::Duration
+pub const rill_runtime::STATEFUL_HANDLE_FUEL: u64
 pub trait rill_runtime::HostLogSink: core::marker::Send + core::marker::Sync + core::fmt::Debug
 pub fn rill_runtime::HostLogSink::emit(&self, &str)
 impl rill_runtime::HostLogSink for rill_runtime::StderrLogSink
@@ -159,6 +225,12 @@ impl rill_runtime::InvokeHandler for rill_runtime::LinearRegressionInvokeHandler
 pub fn rill_runtime::LinearRegressionInvokeHandler::invoke(&self, &str, &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, rill_runtime::InvokeError>
 impl rill_runtime::InvokeHandler for rill_runtime::WasmInvokeHandler
 pub fn rill_runtime::WasmInvokeHandler::invoke(&self, &str, &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, rill_runtime::InvokeError>
+pub trait rill_runtime::StatefulHandlerV2: core::marker::Send + core::marker::Sync + core::fmt::Debug
+pub fn rill_runtime::StatefulHandlerV2::handle(&self, &[u8], &[u8], core::option::Option<u64>) -> core::result::Result<rill_runtime::StatefulHandlerResultV2, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulHandlerV2::metadata(&self) -> &rill_runtime::StatefulHandlerMetadataV2
+impl rill_runtime::StatefulHandlerV2 for rill_runtime::WasmStatefulHandlerV2
+pub fn rill_runtime::WasmStatefulHandlerV2::handle(&self, &[u8], &[u8], core::option::Option<u64>) -> core::result::Result<rill_runtime::StatefulHandlerResultV2, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::WasmStatefulHandlerV2::metadata(&self) -> &rill_runtime::StatefulHandlerMetadataV2
 pub fn rill_runtime::build_signed_handler_pack(&rill_runtime_protocol::HandlerPackManifest, &[u8], &ed25519_dalek::signing::SigningKey) -> core::result::Result<alloc::vec::Vec<u8>, rill_runtime::HandlerPackError>
 pub fn rill_runtime::build_signed_model_pack(&rill_runtime_protocol::ModelPackManifest, &serde_json::value::Value, &ed25519_dalek::signing::SigningKey) -> core::result::Result<alloc::vec::Vec<u8>, rill_runtime::ModelPackError>
 pub fn rill_runtime::canonical_json(&[u8]) -> core::result::Result<alloc::vec::Vec<u8>, rill_runtime::ArchiveError>
