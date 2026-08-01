@@ -14,6 +14,7 @@ use crate::error::{RillError, ensure_finite_target};
 #[cfg(feature = "serde")]
 use crate::persistence::ValidateState;
 use crate::traits::{OnlineBinaryClassifier, OnlineRegressor, Transformer};
+use crate::weighted::{WeightedOnlineBinaryClassifier, WeightedOnlineRegressor, validate_weight};
 
 /// A pipeline combining a transformer and a regressor.
 #[derive(Debug, Clone)]
@@ -105,6 +106,36 @@ where
     }
 }
 
+/// Weighted labels flow to the model while the transformer observes each
+/// positive-weight event once. The whole transition is transactional.
+impl<T, M> WeightedOnlineRegressor for RegressionPipeline<T, M>
+where
+    T: Transformer + Clone,
+    M: WeightedOnlineRegressor + Clone,
+{
+    fn learn_weighted(
+        &mut self,
+        features: &[f64],
+        target: f64,
+        weight: f64,
+    ) -> Result<(), RillError> {
+        validate_weight(weight)?;
+        ensure_finite_target(target)?;
+        if weight == 0.0 {
+            let _ = self.transformer.transform(features)?;
+            return Ok(());
+        }
+        let mut next_transformer = self.transformer.clone();
+        let mut next_model = self.model.clone();
+        next_transformer.update(features)?;
+        let transformed = next_transformer.transform(features)?;
+        next_model.learn_weighted(&transformed, target, weight)?;
+        self.transformer = next_transformer;
+        self.model = next_model;
+        Ok(())
+    }
+}
+
 /// A pipeline combining a transformer and a binary classifier.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -183,6 +214,35 @@ where
     fn reset(&mut self) {
         self.transformer.reset();
         self.model.reset();
+    }
+}
+
+/// Weighted labels flow to the classifier while the transformer observes each
+/// positive-weight event once. The whole transition is transactional.
+impl<T, M> WeightedOnlineBinaryClassifier for ClassificationPipeline<T, M>
+where
+    T: Transformer + Clone,
+    M: WeightedOnlineBinaryClassifier + Clone,
+{
+    fn learn_weighted(
+        &mut self,
+        features: &[f64],
+        target: bool,
+        weight: f64,
+    ) -> Result<(), RillError> {
+        validate_weight(weight)?;
+        if weight == 0.0 {
+            let _ = self.transformer.transform(features)?;
+            return Ok(());
+        }
+        let mut next_transformer = self.transformer.clone();
+        let mut next_model = self.model.clone();
+        next_transformer.update(features)?;
+        let transformed = next_transformer.transform(features)?;
+        next_model.learn_weighted(&transformed, target, weight)?;
+        self.transformer = next_transformer;
+        self.model = next_model;
+        Ok(())
     }
 }
 
@@ -273,6 +333,34 @@ mod tests {
         assert!(pipe.learn_transactional(&[1.0], f64::NAN).is_err());
         assert_eq!(pipe.transformer().samples_seen(), 0);
         assert_eq!(pipe.model().samples_seen(), 0);
+    }
+
+    #[test]
+    fn weighted_pipeline_is_atomic_and_zero_weight_is_noop() {
+        let scaler = StandardScaler::new(1).unwrap();
+        let model = LinearRegression::new(
+            1,
+            LinearRegressionConfig {
+                optimizer: Optimizer::sgd(1, SgdConfig::default()).unwrap(),
+                loss: Default::default(),
+            },
+        )
+        .unwrap();
+        let mut pipe = RegressionPipeline::new(scaler, model).unwrap();
+        pipe.learn_weighted(&[2.0], 3.0, 0.0).unwrap();
+        assert_eq!(pipe.transformer().samples_seen(), 0);
+        assert_eq!(pipe.model().samples_seen(), 0);
+        pipe.learn_weighted(&[2.0], 3.0, 2.0).unwrap();
+        assert_eq!(pipe.transformer().samples_seen(), 1);
+        assert_eq!(pipe.model().samples_seen(), 1);
+        let before_transformer = pipe.transformer().clone();
+        let before_model = pipe.model().clone();
+        assert!(pipe.learn_weighted(&[f64::NAN], 3.0, 1.0).is_err());
+        assert_eq!(
+            pipe.transformer().samples_seen(),
+            before_transformer.samples_seen()
+        );
+        assert_eq!(pipe.model().weights(), before_model.weights());
     }
 
     #[test]

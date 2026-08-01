@@ -114,6 +114,51 @@ impl LinearRegression {
         )?;
         checked_finite_add(dot, self.intercept, "linear prediction")
     }
+
+    /// Learn with a finite, non-negative sample weight.
+    ///
+    /// `weight = 0` validates the sample but leaves all model and optimizer
+    /// state unchanged. Positive weights scale the loss gradient.
+    pub fn learn_weighted(
+        &mut self,
+        features: &[f64],
+        target: f64,
+        weight: f64,
+    ) -> Result<(), RillError> {
+        crate::weighted::validate_weight(weight)?;
+        validate_features(self.feature_count, features)?;
+        ensure_finite_target(target)?;
+        if weight == 0.0 {
+            return Ok(());
+        }
+        let next_samples = checked_increment(self.samples_seen, "linear regression sample")?;
+        let prediction = self.predict_inner(features)?;
+        let grad = self.loss.gradient(prediction, target) * weight;
+        ensure_finite("weighted loss gradient", grad)?;
+        let grad_weights = features
+            .iter()
+            .map(|&feature| {
+                let gradient = grad * feature;
+                ensure_finite("weighted weight gradient", gradient)?;
+                Ok(gradient)
+            })
+            .collect::<Result<Vec<_>, RillError>>()?;
+        self.optimizer
+            .step(&mut self.weights, &mut self.intercept, &grad_weights, grad)?;
+        self.samples_seen = next_samples;
+        Ok(())
+    }
+}
+
+impl crate::weighted::WeightedOnlineRegressor for LinearRegression {
+    fn learn_weighted(
+        &mut self,
+        features: &[f64],
+        target: f64,
+        weight: f64,
+    ) -> Result<(), RillError> {
+        LinearRegression::learn_weighted(self, features, target, weight)
+    }
 }
 
 impl OnlineRegressor for LinearRegression {
@@ -338,6 +383,25 @@ mod tests {
         model.reset();
         assert_eq!(model.samples_seen(), 0);
         assert_eq!(model.predict(&[1.0]).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn weighted_learning_scales_gradient_and_zero_is_noop() {
+        let mut weighted = LinearRegression::new(
+            1,
+            LinearRegressionConfig {
+                optimizer: make_sgd(0.1, 0.0, 1),
+                loss: RegressionLoss::default(),
+            },
+        )
+        .unwrap();
+        let before = weighted.clone();
+        weighted.learn_weighted(&[2.0], 3.0, 0.0).unwrap();
+        assert_eq!(weighted.weights(), before.weights());
+        assert_eq!(weighted.samples_seen(), before.samples_seen());
+        weighted.learn_weighted(&[2.0], 3.0, 2.0).unwrap();
+        assert_eq!(weighted.samples_seen(), 1);
+        assert!(weighted.weights()[0] > 0.0);
     }
 
     #[test]
