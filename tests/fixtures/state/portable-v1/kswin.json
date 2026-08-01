@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "alpha": 0.005,
+  "window_size": 100,
+  "check_interval": 100,
+  "reference_window": [],
+  "current_window": [1.0, 2.0],
+  "samples": 2,
+  "last_check_sample": 0,
+  "last_pvalue": 1.0,
+  "last_statistic": 0.0,
+  "current_level": "None"
+}

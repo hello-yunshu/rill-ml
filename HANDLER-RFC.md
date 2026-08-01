@@ -163,3 +163,24 @@ effective_capabilities = model_manifest.capabilities ∩ handler_manifest.capabi
 - `--trust-key` 作为 model key 的兼容别名，不得同时授权 handler 代码。
 - `--handler-trust-key` 单独授权 handler 代码。
 - release index 中 Handler artifact 使用与 model 相同的 release index 签名，但 handler 包自身签名使用 handler 专用密钥。
+
+## 8. Stateful Handler ABI v2（Preview）
+
+冻结状态和上述章节仅适用于 `rill:handler@1.0.0` / `invoke-handler`。
+`crates/rill-handler-api/wit-v2/rill-handler.wit` 另行定义 opt-in 的
+`rill:handler@2.0.0` / `stateful-handler`，不修改 WIT v1。
+
+V2 的纯函数式边界为：
+
+```text
+handle(event_json, current_state, deterministic_seed)
+→ output_json + next_state
+```
+
+- guest 不拥有持久化；Runtime 校验 JSON、256 KiB state 上限、schema version、
+  SHA-256 checksum 和递增 generation 后才原子提交 `next_state`。
+- event/output 各限制为 1 MiB；超限、非法 JSON、trap、fuel/epoch timeout、
+  metadata/version 不匹配全部 fail-closed。
+- Wasmtime linker 不提供 WASI，因此没有文件系统、网络、进程、环境变量、
+  系统时钟、stdio 或随机源。唯一随机输入是宿主显式提供的确定性 seed。
+- V2 当前是 Preview；不能把其 WIT、snapshot 或 Rust 实现状态视为 1.x 冻结面。

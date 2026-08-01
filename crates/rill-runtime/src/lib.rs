@@ -14,6 +14,9 @@ pub(crate) mod handler;
 pub(crate) mod handler_package;
 pub(crate) mod package;
 pub(crate) mod server;
+pub(crate) mod stateful;
+#[cfg(feature = "wasm")]
+pub(crate) mod stateful_wasm;
 
 pub use archive::{
     ArchiveError, ReleaseIndexError, TrustStore, canonical_json, sign_release_index,
@@ -38,4 +41,14 @@ pub use package::{
 pub use server::{
     EngineResponse, HostLogSink, InvokeError, InvokeErrorKind, InvokeHandler, MAX_DETAIL_BYTES,
     RuntimeEngine, StderrLogSink,
+};
+pub use stateful::{
+    StatefulHandlerErrorKindV2, StatefulHandlerErrorV2, StatefulHandlerMetadataV2,
+    StatefulHandlerResultV2, StatefulHandlerV2, StatefulRuntimeConfigV3, StatefulRuntimeEngineV3,
+    StatefulStateSnapshotV2,
+};
+#[cfg(feature = "wasm")]
+pub use stateful_wasm::{
+    STATEFUL_CONFIGURE_FUEL, STATEFUL_EPOCH_DEADLINE, STATEFUL_EPOCH_TICK_INTERVAL,
+    STATEFUL_HANDLE_FUEL, WasmStatefulHandlerV2,
 };

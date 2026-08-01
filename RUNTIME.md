@@ -55,8 +55,15 @@ rill-runtime serve \
 
 - API v1（0.5.0 起）：握手返回 runtime 与 model 身份，不包含 handler 字段。
 - API v2（0.7.0 起）：握手增加 `handlerId`、`handlerVersion`、`handlerApiVersion` 和 `effectiveCapabilities`。
+- API v3（Preview）：独立类型支持 observe、decide、feedback、inspect、snapshot、reset，以及显式 deadline、feature schema hash、model/state generation 和 retryability。
 
 Runtime 根据请求的 `apiVersion` 选择响应格式。V1 响应完全省略 handler 字段；V2 响应包含完整 handler 身份。两个 wire schema 是独立的类型，不使用带大量 `Option` 字段的结构冒充两个版本。
+
+V3 当前是 opt-in 的开发接口，不改变 `RUNTIME_API_VERSION = 2`，也不修改
+v1/v2 fixture。`StatefulRuntimeEngineV3::handle_at` 由调用方传入时钟，先校验
+消息大小、capability、deadline、特征 schema 与 generation，再调用 Preview
+Stateful Handler v2。任何 trap、timeout、非法或超大输出/next state 都
+fail-closed，不会提交 Runtime 持有的状态。
 
 ## 安全与回退
 

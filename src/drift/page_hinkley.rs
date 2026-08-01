@@ -23,6 +23,10 @@
 
 use crate::drift::detector::{DriftDetector, DriftLevel};
 use crate::error::{RillError, checked_increment, ensure_finite};
+use crate::persistence::ValidateState;
+
+/// Portable Page-Hinkley state schema version.
+pub const PAGE_HINKLEY_PORTABLE_STATE_VERSION: u32 = 1;
 
 /// Configuration for [`PageHinkley`].
 #[derive(Debug, Clone)]
@@ -53,6 +57,84 @@ pub struct PageHinkleyConfig {
     /// Minimum number of samples before any detection is reported.
     /// Must be greater than zero.
     pub min_samples: u64,
+}
+
+/// Versioned, portable Page-Hinkley state.
+///
+/// This DTO is the stable persistence surface for Page-Hinkley continuity.
+/// The detector's direct serde representation remains Preview.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct PageHinkleyPortableStateV1 {
+    /// Portable schema version; always `1`.
+    pub version: u32,
+    /// Threshold from the configuration that produced this state.
+    pub threshold: f64,
+    /// Warning threshold from the originating configuration.
+    pub warning_threshold: f64,
+    /// Forgetting factor from the originating configuration.
+    pub alpha: f64,
+    /// Allowed drift magnitude from the originating configuration.
+    pub delta: f64,
+    /// Minimum samples from the originating configuration.
+    pub min_samples: u64,
+    /// Running mean.
+    pub mean: f64,
+    /// Total observations incorporated.
+    pub samples: u64,
+    /// Current cumulative sum.
+    pub cumulative_sum: f64,
+    /// Smallest cumulative sum observed.
+    pub minimum_cumulative_sum: f64,
+    /// Last reported detector level.
+    pub current_level: DriftLevel,
+}
+
+impl ValidateState for PageHinkleyPortableStateV1 {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.version != PAGE_HINKLEY_PORTABLE_STATE_VERSION {
+            return Err(RillError::IncompatibleStateVersion {
+                expected: PAGE_HINKLEY_PORTABLE_STATE_VERSION,
+                actual: self.version,
+            });
+        }
+        let config = PageHinkleyConfig {
+            threshold: self.threshold,
+            warning_threshold: self.warning_threshold,
+            alpha: self.alpha,
+            delta: self.delta,
+            min_samples: self.min_samples,
+        };
+        PageHinkley::new(config.clone())?;
+        ensure_finite("portable Page-Hinkley mean", self.mean)?;
+        ensure_finite("portable Page-Hinkley cumulative_sum", self.cumulative_sum)?;
+        ensure_finite(
+            "portable Page-Hinkley minimum_cumulative_sum",
+            self.minimum_cumulative_sum,
+        )?;
+        if self.minimum_cumulative_sum > self.cumulative_sum {
+            return Err(RillError::InvalidState(
+                "Page-Hinkley minimum cumulative sum exceeds cumulative sum".to_owned(),
+            ));
+        }
+        if self.samples == 0
+            && (self.mean != 0.0
+                || self.cumulative_sum != 0.0
+                || self.minimum_cumulative_sum != 0.0
+                || self.current_level != DriftLevel::None)
+        {
+            return Err(RillError::InvalidState(
+                "empty Page-Hinkley state must use zero accumulators and no level".to_owned(),
+            ));
+        }
+        if self.samples < self.min_samples && self.current_level != DriftLevel::None {
+            return Err(RillError::InvalidState(
+                "Page-Hinkley state reports a level before min_samples".to_owned(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl Default for PageHinkleyConfig {
@@ -174,6 +256,54 @@ impl PageHinkley {
     /// The configuration of this detector.
     pub const fn config(&self) -> &PageHinkleyConfig {
         &self.config
+    }
+
+    /// Export the stable portable state without exposing the detector's
+    /// Preview internal serde layout.
+    pub fn export_state_v1(&self) -> PageHinkleyPortableStateV1 {
+        PageHinkleyPortableStateV1 {
+            version: PAGE_HINKLEY_PORTABLE_STATE_VERSION,
+            threshold: self.config.threshold,
+            warning_threshold: self.config.warning_threshold,
+            alpha: self.config.alpha,
+            delta: self.config.delta,
+            min_samples: self.config.min_samples,
+            mean: self.mean,
+            samples: self.samples,
+            cumulative_sum: self.cum_sum,
+            minimum_cumulative_sum: self.min_cum_sum,
+            current_level: self.current_level,
+        }
+    }
+
+    /// Restore from a validated portable state.
+    ///
+    /// The supplied configuration must exactly match the configuration stored
+    /// in the state, preventing accidental continuation under new semantics.
+    pub fn restore_state_v1(
+        config: PageHinkleyConfig,
+        state: PageHinkleyPortableStateV1,
+    ) -> Result<Self, RillError> {
+        state.validate_state()?;
+        if config.threshold != state.threshold
+            || config.warning_threshold != state.warning_threshold
+            || config.alpha != state.alpha
+            || config.delta != state.delta
+            || config.min_samples != state.min_samples
+        {
+            return Err(RillError::InvalidState(
+                "Page-Hinkley portable state configuration mismatch".to_owned(),
+            ));
+        }
+        PageHinkley::new(config.clone())?;
+        Ok(Self {
+            config,
+            mean: state.mean,
+            samples: state.samples,
+            cum_sum: state.cumulative_sum,
+            min_cum_sum: state.minimum_cumulative_sum,
+            current_level: state.current_level,
+        })
     }
 }
 
@@ -568,6 +698,51 @@ mod tests {
             ph.update(v).unwrap();
         }
         assert!((ph.mean() - 3.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn portable_state_restore_preserves_future_results() {
+        let config = PageHinkleyConfig {
+            threshold: 3.0,
+            warning_threshold: 1.0,
+            alpha: 0.95,
+            delta: 0.01,
+            min_samples: 5,
+        };
+        let mut original = PageHinkley::new(config.clone()).unwrap();
+        for value in [0.0, 0.1, -0.1, 0.2, 0.0, 1.0, 1.5] {
+            original.update(value).unwrap();
+        }
+        let state = original.export_state_v1();
+        state.validate_state().unwrap();
+        let mut restored = PageHinkley::restore_state_v1(config, state).unwrap();
+        for value in [2.0, 2.0, 0.5, -0.25, 4.0] {
+            assert_eq!(
+                original.update(value).unwrap(),
+                restored.update(value).unwrap()
+            );
+            assert_eq!(original.export_state_v1(), restored.export_state_v1());
+        }
+    }
+
+    #[test]
+    fn portable_state_rejects_mismatch_and_corruption() {
+        let detector = PageHinkley::default();
+        let wrong_config = PageHinkleyConfig {
+            delta: 0.25,
+            ..Default::default()
+        };
+        assert!(PageHinkley::restore_state_v1(wrong_config, detector.export_state_v1()).is_err());
+
+        let mut corrupt = detector.export_state_v1();
+        corrupt.minimum_cumulative_sum = 1.0;
+        assert!(corrupt.validate_state().is_err());
+        let mut corrupt = detector.export_state_v1();
+        corrupt.version = 99;
+        assert!(matches!(
+            corrupt.validate_state(),
+            Err(RillError::IncompatibleStateVersion { .. })
+        ));
     }
 
     #[cfg(feature = "serde")]

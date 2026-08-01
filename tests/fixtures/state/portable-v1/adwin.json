@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "delta": 0.002,
+  "warning_delta": 0.01,
+  "max_window": 1000,
+  "min_samples": 10,
+  "window": [0.0, 1.0, 2.0],
+  "total": 3.0,
+  "samples": 3,
+  "current_level": "None"
+}

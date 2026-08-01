@@ -67,7 +67,7 @@ pub(crate) mod thompson;
 pub(crate) mod ucb1;
 
 pub use epsilon_greedy::{EpsilonGreedy, EpsilonGreedyConfig};
-pub use linucb::{LinUcb, LinUcbConfig};
+pub use linucb::{LinUcb, LinUcbArmScore, LinUcbConditionDiagnostics, LinUcbConfig, LinUcbFast};
 pub use stats::ArmStats;
 pub use thompson::{ThompsonConfig, ThompsonSampling};
 pub use ucb1::{Ucb1, Ucb1Config};

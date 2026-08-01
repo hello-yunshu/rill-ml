@@ -10,6 +10,7 @@
 // block. We allow this pattern crate-wide to keep the binding code readable.
 #![allow(unsafe_op_in_unsafe_fn)]
 
+use ::rill_ml::bandit::{ContextualBandit, LinUcb, LinUcbConfig};
 use ::rill_ml::loss::{BinaryLogLoss, RegressionLoss};
 use ::rill_ml::models::{
     LinearRegression, LinearRegressionConfig, LogisticRegression, LogisticRegressionConfig,
@@ -18,6 +19,7 @@ use ::rill_ml::optim::{Optimizer, SgdConfig};
 use ::rill_ml::persistence::Snapshot;
 use ::rill_ml::pipeline::{ClassificationPipeline, RegressionPipeline};
 use ::rill_ml::preprocessing::StandardScaler;
+use ::rill_ml::replay::{DecisionReplayConfig, DecisionReplayHarness, DecisionReplayRecord};
 use ::rill_ml::stats::{ExponentiallyWeightedMean, Mean, Variance, VarianceKind};
 use ::rill_ml::traits::{OnlineBinaryClassifier, OnlineRegressor, OnlineStatistic, Transformer};
 use pyo3::exceptions::PyRuntimeError;
@@ -75,6 +77,125 @@ impl Default for PyMean {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Preview LinUCB binding with explainable per-arm scores.
+#[pyclass(name = "LinUcb")]
+pub struct PyLinUcb {
+    inner: LinUcb,
+}
+
+#[pymethods]
+impl PyLinUcb {
+    #[new]
+    fn new(py: Python, arm_count: usize, feature_count: usize, alpha: f64) -> PyResult<Self> {
+        let mut config = LinUcbConfig::default();
+        config.arm_count = arm_count;
+        config.feature_count = feature_count;
+        config.alpha = alpha;
+        Ok(Self {
+            inner: LinUcb::new(config).map_err(|error| to_err(py, error))?,
+        })
+    }
+
+    /// Return `(arm, exploitation, exploration_bonus, total_score)` rows.
+    fn score_all(
+        &self,
+        py: Python,
+        context: Bound<'_, PyAny>,
+    ) -> PyResult<Vec<(usize, f64, f64, f64)>> {
+        let context = vec_from_list(&context)?;
+        self.inner
+            .score_all(&context)
+            .map(|scores| {
+                scores
+                    .into_iter()
+                    .map(|score| {
+                        (
+                            score.arm,
+                            score.exploitation,
+                            score.exploration_bonus,
+                            score.total_score,
+                        )
+                    })
+                    .collect()
+            })
+            .map_err(|error| to_err(py, error))
+    }
+
+    fn select_deterministic(&self, py: Python, context: Bound<'_, PyAny>) -> PyResult<usize> {
+        let context = vec_from_list(&context)?;
+        self.inner
+            .select_deterministic(&context)
+            .map_err(|error| to_err(py, error))
+    }
+
+    fn update(
+        &mut self,
+        py: Python,
+        arm: usize,
+        context: Bound<'_, PyAny>,
+        reward: f64,
+    ) -> PyResult<()> {
+        let context = vec_from_list(&context)?;
+        self.inner
+            .update(arm, &context, reward)
+            .map_err(|error| to_err(py, error))
+    }
+
+    #[getter]
+    fn samples_seen(&self) -> u64 {
+        self.inner.samples_seen()
+    }
+
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&Snapshot::new(self.inner.clone()))
+            .map_err(|error| PyRuntimeError::new_err(error.to_string()))
+    }
+
+    #[staticmethod]
+    fn from_json(py: Python, json: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: Snapshot::from_json_validated(json).map_err(|error| to_err(py, error))?,
+        })
+    }
+}
+
+/// Run the Rust decision replay harness and return its JSON report. This is a
+/// development/verification helper; Python is not a Runtime dependency.
+#[pyfunction]
+#[pyo3(signature = (records_json, arm_count, feature_count, alpha, max_feedback_delay, model_generation, feature_schema_hash))]
+#[allow(clippy::too_many_arguments)]
+fn replay_decisions(
+    py: Python,
+    records_json: &str,
+    arm_count: usize,
+    feature_count: usize,
+    alpha: f64,
+    max_feedback_delay: u64,
+    model_generation: u64,
+    feature_schema_hash: String,
+) -> PyResult<String> {
+    let records: Vec<DecisionReplayRecord> = serde_json::from_str(records_json)
+        .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
+    let mut model_config = LinUcbConfig::default();
+    model_config.arm_count = arm_count;
+    model_config.feature_count = feature_count;
+    model_config.alpha = alpha;
+    let model = LinUcb::new(model_config).map_err(|error| to_err(py, error))?;
+    let config = DecisionReplayConfig::new(
+        records.len().max(1),
+        max_feedback_delay,
+        model_generation,
+        feature_schema_hash,
+    )
+    .map_err(|error| to_err(py, error))?;
+    let mut harness =
+        DecisionReplayHarness::new(model, config).map_err(|error| to_err(py, error))?;
+    let report = harness
+        .replay(&records)
+        .map_err(|error| to_err(py, error))?;
+    serde_json::to_string(&report).map_err(|error| PyRuntimeError::new_err(error.to_string()))
 }
 
 /// Online variance (Welford). `value`/`stddev` return `None` until enough
@@ -469,6 +590,7 @@ impl PySnapshot {
 
 #[pymodule]
 fn rill_ml(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyLinUcb>()?;
     m.add_class::<PyMean>()?;
     m.add_class::<PyVariance>()?;
     m.add_class::<PyEWMean>()?;
@@ -478,5 +600,6 @@ fn rill_ml(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRegressionPipeline>()?;
     m.add_class::<PyClassificationPipeline>()?;
     m.add_class::<PySnapshot>()?;
+    m.add_function(wrap_pyfunction!(replay_decisions, m)?)?;
     Ok(())
 }

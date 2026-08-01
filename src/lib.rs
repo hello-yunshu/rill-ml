@@ -50,6 +50,8 @@
 #[cfg(feature = "bandit")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bandit")))]
 pub mod bandit;
+pub mod decision;
+pub mod descriptor;
 pub mod diagnostics;
 pub mod drift;
 pub mod error;
@@ -62,9 +64,12 @@ pub mod optim;
 pub mod persistence;
 pub mod pipeline;
 pub mod preprocessing;
+#[cfg(feature = "bandit")]
+pub mod replay;
 pub mod sparse;
 pub mod stats;
 pub mod traits;
+pub mod weighted;
 
 pub use error::RillError;
 pub use evaluate::{BinaryClassificationSample, RegressionSample};
@@ -73,3 +78,4 @@ pub use traits::{
     Metric, OnlineBinaryClassifier, OnlineRegressor, OnlineStatistic, SparseClassifier,
     SparseRegressor, Transformer,
 };
+pub use weighted::{WeightedOnlineBinaryClassifier, WeightedOnlineRegressor, WeightedStatistic};

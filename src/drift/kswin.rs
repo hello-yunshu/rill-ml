@@ -27,6 +27,10 @@
 
 use crate::drift::detector::{DriftDetector, DriftLevel};
 use crate::error::{RillError, checked_increment, ensure_finite};
+use crate::persistence::ValidateState;
+
+/// Portable KSWIN state schema version.
+pub const KSWIN_PORTABLE_STATE_VERSION: u32 = 1;
 
 /// Configuration for [`Kswin`].
 #[derive(Debug, Clone)]
@@ -47,6 +51,94 @@ pub struct KswinConfig {
     /// this value and `window_size` (since both windows must be full).
     /// Defaults to `100`.
     pub check_interval: usize,
+}
+
+/// Versioned, portable KSWIN state.
+///
+/// Window contents are retained because they are required for exact detector
+/// continuity. Both vectors are bounded by `window_size`.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct KswinPortableStateV1 {
+    /// Portable schema version; always `1`.
+    pub version: u32,
+    /// Significance level from the originating configuration.
+    pub alpha: f64,
+    /// Per-window capacity from the originating configuration.
+    pub window_size: usize,
+    /// Check interval from the originating configuration.
+    pub check_interval: usize,
+    /// Older reference window.
+    pub reference_window: Vec<f64>,
+    /// Newer current window.
+    pub current_window: Vec<f64>,
+    /// Total observations incorporated.
+    pub samples: u64,
+    /// Sample counter at the most recent KS test.
+    pub last_check_sample: u64,
+    /// Most recent KS p-value.
+    pub last_pvalue: f64,
+    /// Most recent KS statistic.
+    pub last_statistic: f64,
+    /// Last reported detector level.
+    pub current_level: DriftLevel,
+}
+
+impl ValidateState for KswinPortableStateV1 {
+    fn validate_state(&self) -> Result<(), RillError> {
+        if self.version != KSWIN_PORTABLE_STATE_VERSION {
+            return Err(RillError::IncompatibleStateVersion {
+                expected: KSWIN_PORTABLE_STATE_VERSION,
+                actual: self.version,
+            });
+        }
+        Kswin::new(KswinConfig {
+            alpha: self.alpha,
+            window_size: self.window_size,
+            check_interval: self.check_interval,
+        })?;
+        if self.reference_window.len() > self.window_size
+            || self.current_window.len() > self.window_size
+        {
+            return Err(RillError::InvalidState(
+                "KSWIN portable window exceeds window_size".to_owned(),
+            ));
+        }
+        let retained = self
+            .reference_window
+            .len()
+            .checked_add(self.current_window.len())
+            .ok_or_else(|| RillError::InvalidState("KSWIN retained length overflow".to_owned()))?;
+        if self.samples < retained as u64 || self.last_check_sample > self.samples {
+            return Err(RillError::InvalidState(
+                "KSWIN portable counters are inconsistent".to_owned(),
+            ));
+        }
+        for &value in self.reference_window.iter().chain(&self.current_window) {
+            ensure_finite("portable KSWIN window value", value)?;
+        }
+        ensure_finite("portable KSWIN p-value", self.last_pvalue)?;
+        ensure_finite("portable KSWIN statistic", self.last_statistic)?;
+        if !(0.0..=1.0).contains(&self.last_pvalue) || !(0.0..=1.0).contains(&self.last_statistic) {
+            return Err(RillError::InvalidState(
+                "KSWIN statistic and p-value must be in [0, 1]".to_owned(),
+            ));
+        }
+        if self.current_level == DriftLevel::Warning {
+            return Err(RillError::InvalidState(
+                "KSWIN does not emit warning levels".to_owned(),
+            ));
+        }
+        if self.current_level == DriftLevel::Drift
+            && (!self.current_window.is_empty() || self.reference_window.len() != self.window_size)
+        {
+            return Err(RillError::InvalidState(
+                "KSWIN drift state must have a full reference and empty current window".to_owned(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl Default for KswinConfig {
@@ -159,6 +251,50 @@ impl Kswin {
     /// The configuration of this detector.
     pub const fn config(&self) -> &KswinConfig {
         &self.config
+    }
+
+    /// Export the stable portable state.
+    pub fn export_state_v1(&self) -> KswinPortableStateV1 {
+        KswinPortableStateV1 {
+            version: KSWIN_PORTABLE_STATE_VERSION,
+            alpha: self.config.alpha,
+            window_size: self.config.window_size,
+            check_interval: self.config.check_interval,
+            reference_window: self.reference_window.clone(),
+            current_window: self.current_window.clone(),
+            samples: self.samples,
+            last_check_sample: self.last_check_sample,
+            last_pvalue: self.last_pvalue,
+            last_statistic: self.last_statistic,
+            current_level: self.current_level,
+        }
+    }
+
+    /// Restore from a validated portable state with exact config matching.
+    pub fn restore_state_v1(
+        config: KswinConfig,
+        state: KswinPortableStateV1,
+    ) -> Result<Self, RillError> {
+        state.validate_state()?;
+        if config.alpha != state.alpha
+            || config.window_size != state.window_size
+            || config.check_interval != state.check_interval
+        {
+            return Err(RillError::InvalidState(
+                "KSWIN portable state configuration mismatch".to_owned(),
+            ));
+        }
+        Kswin::new(config.clone())?;
+        Ok(Self {
+            config,
+            reference_window: state.reference_window,
+            current_window: state.current_window,
+            samples: state.samples,
+            last_check_sample: state.last_check_sample,
+            last_pvalue: state.last_pvalue,
+            last_statistic: state.last_statistic,
+            current_level: state.current_level,
+        })
     }
 }
 
@@ -473,6 +609,45 @@ mod tests {
             "false positive: drift reported on stable stream (p-value={})",
             kswin.last_pvalue()
         );
+    }
+
+    #[test]
+    fn portable_state_restore_preserves_future_results() {
+        let config = KswinConfig {
+            alpha: 0.01,
+            window_size: 20,
+            check_interval: 20,
+        };
+        let mut original = Kswin::new(config.clone()).unwrap();
+        for i in 0..55 {
+            original.update((i % 9) as f64 / 10.0).unwrap();
+        }
+        let state = original.export_state_v1();
+        state.validate_state().unwrap();
+        let mut restored = Kswin::restore_state_v1(config, state).unwrap();
+        for i in 0..100 {
+            let value = if i < 25 { 0.5 } else { 5.0 + (i % 3) as f64 };
+            assert_eq!(
+                original.update(value).unwrap(),
+                restored.update(value).unwrap()
+            );
+            assert_eq!(original.export_state_v1(), restored.export_state_v1());
+        }
+    }
+
+    #[test]
+    fn portable_state_rejects_mismatch_and_corruption() {
+        let detector = Kswin::default();
+        let mut wrong_config = KswinConfig::default();
+        wrong_config.check_interval += 1;
+        assert!(Kswin::restore_state_v1(wrong_config, detector.export_state_v1()).is_err());
+
+        let mut corrupt = detector.export_state_v1();
+        corrupt.last_pvalue = 2.0;
+        assert!(corrupt.validate_state().is_err());
+        let mut corrupt = detector.export_state_v1();
+        corrupt.last_check_sample = 1;
+        assert!(corrupt.validate_state().is_err());
     }
 
     #[test]

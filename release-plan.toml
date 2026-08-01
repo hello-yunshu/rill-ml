@@ -1,12 +1,12 @@
-# RillML 1.0 release plan.
+# RillML 1.1 release plan.
 #
 # Single machine-readable source of truth for which crates belong to the
-# Stable group (advance to 1.0.0-rc.x and later 1.0.0) and which remain in
+# Stable group (advance under the 1.x compatibility contract) and which remain in
 # the Preview group (stay at 0.x). scripts/sync_version.py reads this file
 # to decide which version to apply to each workspace member.
 
 [stable]
-version = "1.0.0"
+version = "1.1.0"
 crates = [
   "rill-handler-api",
   "rill-runtime-protocol",
@@ -15,7 +15,7 @@ crates = [
 ]
 
 [preview]
-version = "0.13.0"
+version = "0.15.0"
 crates = [
   "rill-ml-python",
   "rill-ml-wasm",
