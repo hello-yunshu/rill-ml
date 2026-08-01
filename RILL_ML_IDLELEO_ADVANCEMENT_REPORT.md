@@ -16,10 +16,11 @@
 编译、测试、真实 Wasmtime 组件、真实 PyO3 wheel/import、1.0 semver、API
 baseline、WIT v1、状态 fixture、MSRV host 编译、文档零警告和 RustSec 审计。
 
-本次不是“全部项目完成”：第 9 项仅交付有明确 caller bounds 的
-`ClippedMean`。在线 median/MAD/robust-z 原型在对抗异常值测试中不满足质量
-要求，已删除而不是伪装完成。性能延迟有 Criterion 证据，但 allocation
-profile 未执行。远端 PR CI、发布产物和实际 Idleleo 产品集成均未执行。
+第 9 项现已补齐：除有明确 caller bounds 的 `ClippedMean` 外，新增 Preview
+`RollingMedianMad`。它在固定 FIFO 窗口内精确计算 median/MAD，并提供显式处理
+zero-MAD 的 modified robust z-score；相对无限历史只是有界滚动近似，不再使用
+污染质量失败的 lifetime 双 P² 原型。性能延迟有 Criterion 证据，但 allocation
+profiler 未执行。远端 PR CI、发布产物和实际 Idleleo 产品集成仍未执行。
 
 ## 起点与远端证据
 
@@ -46,13 +47,13 @@ profile 未执行。远端 PR CI、发布产物和实际 Idleleo 产品集成均
 | 6. LinUCB numerical stability | 通过 | Stable 路径改用 Cholesky solve；update 在 commit 前做 SPD 检查；冻结字段不变。 |
 | 7. Deterministic tie break | 通过 | 新增 lowest-index deterministic 模式；现有 `select` 的 reservoir random tie contract 不变。 |
 | 8. Online quantiles | 通过 | 常量内存 P² 单/多分位数、bootstrap、极值、离线随机对照、serde 连续性；文档明确无 worst-case rank 保证。 |
-| 9. Robust statistics | 部分通过 | 仅保留精确定义的 `ClippedMean`。online median/MAD/robust-z 未交付，原因见风险部分。 |
+| 9. Robust statistics | 通过（Preview state） | `ClippedMean`；`RollingMedianMad` 在最大 65,536 的 FIFO 窗口内精确计算 median/MAD，显式 warm-up、zero-MAD、modified-z、失败原子更新和有界反序列化。 |
 | 10. Weighted API | 通过 | 独立 weighted traits；mean、population variance、EW mean、MAE/MSE、linear/logistic/pipeline adapters；零权重为已验证 no-op。 |
 | 11. IPC V3 | 通过（Preview） | 独立 envelope 和 Handshake/Health/Observe/Decide/Feedback/Inspect/Snapshot/Reset；deadline、identity、capability、generation、schema 和 1 MiB 上限。 |
 | 12. Handler ABI v2 | 通过（Preview） | `rill:handler@2.0.0` stateful world；Runtime-owned checksum/schema/generation；no-WASI Wasmtime、fuel/epoch、memory/table/I/O limits。 |
 | 13. Replay harness | 通过（Preview state） | 延迟、乱序、重复、过期、缺失反馈，checkpoint/restore、reward/regret/baseline/latency、deterministic digest。 |
 | 14. Fast LinUCB | 通过（Preview implementation） | `LinUcbFast` 使用 inverse cache + Sherman-Morrison；与 Stable 分数误差测试、转换、serde、失败原子更新和 Criterion benchmark。 |
-| Python 对照/检查 | 通过（Preview） | 真 wheel/import；score/replay binding；JSON/JSONL/CSV、score series、drift timeline、latency、baseline 和 offline quantile helper。 |
+| Python 对照/检查 | 通过（Preview） | 真 wheel/import；score/replay binding；JSON/JSONL/CSV、score series、drift timeline、latency、baseline，以及 offline quantile/median/MAD/modified-z helper。 |
 
 ## API 变化
 
@@ -65,18 +66,20 @@ profile 未执行。远端 PR CI、发布产物和实际 Idleleo 产品集成均
   LinUCB atomic outcome helper。
 - `rill-ml::descriptor`：feature constraints/schema/hash 与 model/algorithm identity。
 - `rill-ml::drift`：三种 Stable portable V1 DTO 和 Preview consensus。
-- `rill-ml::stats`：P² quantiles 与 `ClippedMean`。
+- `rill-ml::stats`：P² quantiles、`ClippedMean`、Preview
+  `RollingMedianMad`、`MedianMadSummary` 与 `ModifiedZScore`。
 - `rill-ml::weighted`：weighted statistics/metrics traits 与实现；linear、logistic、
   regression/classification pipeline 增加 weighted adapters。
 - `rill-ml::replay`：bounded deterministic replay harness。
 - `rill-runtime-protocol::v3`：独立 Preview V3 types/errors/schema。
 - `rill-handler-api::v2`：独立 Preview ABI v2 constants。
 - `rill-runtime`：Preview stateful runtime engine、snapshot 和 Wasmtime v2 host。
-- Python：`LinUcb` score/replay binding 与 dependency-free replay tools。
+- Python：`LinUcb` score/replay binding 与 dependency-free replay/robust
+  offline reference tools。
 
 重新生成的 API baseline 是纯新增：
 
-- `rill-ml`: `+613 / -0`
+- `rill-ml`: `+662 / -0`
 - `rill-runtime-protocol`: `+122 / -0`
 - `rill-handler-api`: `+8 / -0`
 - `rill-runtime`: `+72 / -0`
@@ -97,14 +100,15 @@ profile 未执行。远端 PR CI、发布产物和实际 Idleleo 产品集成均
 
 ### Preview state/format
 
-- `DriftConsensus`, `P2Quantile`, `P2Quantiles`, `ClippedMean`, `LinUcbFast`
+- `DriftConsensus`, `P2Quantile`, `P2Quantiles`, `ClippedMean`,
+  `RollingMedianMad`, `LinUcbFast`
 - `DecisionLedger`, `FeatureSchema`, `ModelDescriptor`
 - `WeightedMean`, `WeightedVariance`, `WeightedExponentiallyWeightedMean`,
   `WeightedMae`, `WeightedMse`
 - `DecisionReplayHarness`
 - IPC V3、Stateful Handler ABI v2 及其 Runtime-owned snapshot
 
-`state-schema-manifest.toml` 与 `STABILITY.md` 同步声明 26 Stable、26 Preview、
+`state-schema-manifest.toml` 与 `STABILITY.md` 同步声明 26 Stable、27 Preview、
 3 Stable portable DTO；coverage 脚本已校验无重复、无交叉、fixture 和文档一致。
 
 ## 真实测试结果
@@ -113,18 +117,18 @@ profile 未执行。远端 PR CI、发布产物和实际 Idleleo 产品集成均
 |---|---|
 | `cargo fmt --all --check` + `git diff --check` | 通过 |
 | `cargo clippy --locked --workspace --all-targets --all-features --exclude rill-ml-python -- -D warnings` | 通过，0 warning |
-| `cargo test --locked --workspace --all-targets --all-features --exclude rill-ml-python` | 通过；core 751 tests，workspace integrations、examples、benches compile/run 全通过 |
-| `cargo test --locked --workspace --no-default-features --exclude rill-ml-python` | 通过；含 core 751、workspace integrations 与 doctests |
+| `cargo test --locked --workspace --all-targets --all-features --exclude rill-ml-python` | 通过；core 759 tests，workspace integrations、examples、benches compile/run 全通过 |
+| `cargo test --locked --workspace --no-default-features --exclude rill-ml-python` | 通过；含 core 759、workspace integrations 与 doctests |
 | rill-ml feature powerset：none / serde / bandit / all | 四组 `cargo check` 全通过 |
 | `RUSTDOCFLAGS='-D warnings' cargo doc --locked --workspace --all-features --no-deps` | 通过，0 rustdoc warning |
 | Rust 1.94 `cargo check --locked --workspace --all-targets --all-features` | 通过，35.00s |
-| 四个 Stable crate `cargo semver-checks ... --baseline-version 1.0.0` | 每个 196 pass、57 skip、0 failure |
-| `scripts/generate_api_baseline.py --verify` | 四 crate 通过；更新 diff 为纯新增 |
+| Stable semver | 初始推进时四个 Stable crate 各 196 pass、57 skip、0 failure；本次最终 `rill-ml` 再验 196 pass、57 skip，其他三 crate API baseline 未变化 |
+| `scripts/generate_api_baseline.py --verify` | 四 crate 通过；本次 `rill-ml` baseline 再新增 49 行、删除 0 行 |
 | `scripts/check_runtime_public_api.py` | normal public API PASS；internal ticker import 按预期拒绝 |
-| `scripts/check_state_fixture_coverage.py` | 通过；26 Stable、26 Preview、3 portable Stable |
+| `scripts/check_state_fixture_coverage.py` | 通过；26 Stable、27 Preview、3 portable Stable |
 | `scripts/check_wit_abi.py` | 通过；v1 hash `108a68dfd6bcf86e3b63ad630508b2bbf407d00e8634067366e53dbc257cc90c` |
 | `python3.12 -m unittest discover -s scripts/tests -v` | 80 passed |
-| Maturin release wheel + installed import + pytest | wheel `rill_ml_python-0.15.0-cp39-...arm64.whl` built/installed；13 passed |
+| Maturin release wheel + installed import + pytest | 本次以 CPython 3.12 真实构建/安装 arm64 wheel；15 passed |
 | Stable toolchain `wasm32-unknown-unknown` compile | `rill-ml-wasm` 通过 |
 | 真实 Stateful Handler v2 component | 5 passed；normal/repeat、metadata mismatch、invalid/oversize、trap/timeout/output fail-closed |
 | 真实 WIT v1 / malicious WASM runtime suite | 6 WIT v1 + 17 sandbox integration + 5 process tests 通过 |
@@ -134,8 +138,9 @@ profile 未执行。远端 PR CI、发布产物和实际 Idleleo 产品集成均
 
 1. no-default lib test 暴露测试对 optional `rand` 的隐式依赖；加入 dev-dependency。
 2. descriptor golden hash 初值错误；用 canonical bytes 的真实 SHA-256 修正。
-3. experimental online median/MAD 在对抗 outlier 流上污染不可接受；删除该实现，
-   不以弱测试宣称 robust-z 完成。
+3. experimental lifetime 双 P² median/MAD 在对抗 outlier 流上污染不可接受；
+   删除该实现。后续改为有界 FIFO 窗口内精确统计，并用 49/101 极端污染、随机
+   离线对照、极值、zero-MAD、损坏/超大 serde 状态和 Python reference 验证。
 4. external benchmark 无法构造 `#[non_exhaustive]` config literal；改用
    `Default` + field updates。
 5. default-feature benchmark 暴露 replay 误依赖 serde-only trait；为 `LinUcb` 和
@@ -156,7 +161,8 @@ profile 未执行。远端 PR CI、发布产物和实际 Idleleo 产品集成均
   无进展后中止。因此 Rust 1.94 host MSRV 通过，WASM 在本机 stable Rust 1.96
   通过，但“Rust 1.94 + wasm32 target”组合未验证。
 - allocation profiler 未执行；只记录了 Criterion 时间和按数据结构计算的
-  f64 state payload。不能宣称零分配或给出分配次数。
+  f64 state payload。`RollingMedianMad::summary` 的实现只建立一个容量不超过
+  W 的 scratch vector，但未用 allocator profiler 量测实际分配次数。
 - 当前开发分支尚未跑远端 PR 多平台 CI，也没有构建或验证任何发布资产。
 
 ## Benchmark 原始结果
@@ -187,6 +193,22 @@ features 为 144 f64（1,152 bytes）；8 / 32 为 8,448 f64（67,584 bytes）�
 8 / 128 为 132,096 f64（1,056,768 bytes）。这不含 Vec/allocator overhead，
 也不是 allocation profile。
 
+新增 `RollingMedianMad` Criterion（同一 Rust/机器/release profile，100
+samples）：
+
+| 操作 | W | 95% estimate |
+|---|---:|---:|
+| update | 128 | 7.2514–7.3596 ns |
+| summary | 128 | 1.2122–1.2379 µs |
+| update | 1,024 | 7.3981–7.5137 ns |
+| summary | 1,024 | 17.059–20.142 µs |
+| update | 4,096 | 7.0873–7.1658 ns |
+| summary | 4,096 | 86.077–87.826 µs |
+
+这些数字只证明固定窗口实现的实际成本；没有与已删除的质量失败原型做性能
+优劣结论。update 为 `O(1)`，summary 为 `O(W log W)`，持久状态最多 65,536
+个 `f64` 加固定元数据，查询 scratch 最多同样数量。
+
 ## 三轮自审
 
 ### 第一轮：稳定性
@@ -194,7 +216,8 @@ features 为 144 f64（1,152 bytes）；8 / 32 为 8,448 f64（67,584 bytes）�
 - `origin/main` 对比确认 WIT v1 两份 canonical copy、IPC v1/v2 fixtures 无 diff。
 - protocol top-level version 仍为 2；V3 只通过新 module 暴露。
 - LinUCB frozen serde field list 原样保留；fast inverse state 放入独立 Preview type。
-- API baseline diff `+815 / -0`，四个 semver checks 通过。
+- API baseline diff `+864 / -0`；四个原始 semver checks 通过，本次最终
+  `rill-ml` 再验通过。
 - version sync 二次运行 0 updates；Stable 1.1.0 / Preview 0.15.0 一致。
 
 结论：通过。
@@ -207,7 +230,7 @@ features 为 144 f64（1,152 bytes）；8 / 32 为 8,448 f64（67,584 bytes）�
 - 全量 property/offline/random/extreme-value/serialization/cross-version tests 通过。
 - RustSec 问题已修复到 Wasmtime 46.0.2 并重跑真实组件。
 
-结论：通过；online median/MAD 因未达质量线不在交付范围。
+结论：通过；bounded rolling median/MAD/modified-z 已达到本分支交付线。
 
 ### 第三轮：产品边界
 
@@ -222,13 +245,13 @@ features 为 144 f64（1,152 bytes）；8 / 32 为 8,448 f64（67,584 bytes）�
 
 ## 修改文件清单（分组）
 
-相对 `origin/main` 的最终统计：81 files changed，10,945 insertions，2,496
+相对 `origin/main` 的最终统计：82 files changed，11,714 insertions，2,500
 deletions。删除量主要来自两个已被当前 prompt 取代的旧 TRAE prompt。
 
 - Core：`src/decision/`, `src/descriptor.rs`, `src/replay.rs`,
   `src/weighted.rs`, `src/bandit/linucb.rs`, drift/stats/model/pipeline modules。
-- Core tests/bench/fixtures：`benches/linucb.rs`, portable drift integration，
-  descriptor golden fixture，portable-v1 state fixtures。
+- Core tests/bench/fixtures：`benches/linucb.rs`, `benches/online_stats.rs`,
+  portable drift integration，descriptor golden fixture，portable-v1 state fixtures。
 - Protocol/Handler/Runtime：protocol V3 source/schema/fixtures，handler WIT v2，
   Runtime WIT v2/stateful host/tests，stateful v2 guest fixture，CI component job。
 - Python：binding source、13 tests、`tools/rill_replay.py`。
@@ -247,8 +270,9 @@ deletions。删除量主要来自两个已被当前 prompt 取代的旧 TRAE pro
   V2。若实现有问题，可暂停售出 export/restore 使用而不破坏已有 V1 数据。
 - Wasmtime 46.0.2 是安全修复，不建议回退到 46.0.1；若出现新回归，应升级到
   同一 46.x 的后续安全 patch 并重跑真实 component suite。
-- 第 9 项不能扩展为 robust-z，除非新算法有对抗 contamination、offline reference、
-  state continuity 和 bounded-memory 证据。
+- `RollingMedianMad` 只能解释最近固定窗口；不能把结果称为 lifetime distribution。
+  当至少半个活动窗口被污染时，median/MAD 也可能被控制。zero-MAD 必须由调用方
+  显式处理，库不内置业务 outlier threshold。
 - 整个分支可按提交逆序回滚；未合并 main、未创建 tag、未发布 crates。
 
 ## 提交与交付
@@ -268,10 +292,10 @@ deletions。删除量主要来自两个已被当前 prompt 取代的旧 TRAE pro
 | 等级 | 判定 | 说明 |
 |---|---|---|
 | A. 已设计 | 通过 | 版本化、bounded、failure-atomic、Stable/Preview 边界已写入代码与文档。 |
-| B. 已编码 | 不通过（全 prompt） | 交付范围已编码；第 9 项 median/MAD/robust-z 明确未交付。 |
+| B. 已编码 | 通过 | 1—14 项均有实现；第 9 项以有界滚动窗口语义交付。 |
 | C. 已静态检查 | 通过 | fmt、diff-check、clippy、rustdoc、API/state/WIT scripts。 |
 | D. 已真实编译 | 通过 | workspace/all-targets/all-features、MSRV host、WASM、wheel。 |
-| E. 已单元测试 | 通过 | Rust/Python 单元、property、offline、corruption tests。 |
+| E. 已单元测试 | 通过 | Rust/Python 单元、property、offline、contamination、extreme、corruption/oversize tests。 |
 | F. 已集成测试 | 通过 | real process、WIT v1、Wasmtime v1/v2 components、PyO3 import。 |
 | G. 已兼容性测试 | 通过（本地） | semver、pure-add API baseline、state fixtures、IPC v1/v2、WIT v1。 |
 | H. 已性能测试 | 不通过（完整要求） | Criterion 时间已测且 Fast 显著更快；allocation 未验证。 |

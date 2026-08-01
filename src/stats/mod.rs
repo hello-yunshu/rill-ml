@@ -18,7 +18,10 @@ pub use ew_mean::ExponentiallyWeightedMean;
 pub use extrema::{Max, Min};
 pub use mean::Mean;
 pub use quantile::{P2Quantile, P2Quantiles};
-pub use robust::ClippedMean;
+pub use robust::{
+    ClippedMean, MAD_NORMAL_CONSISTENCY_SCALE, MAX_ROBUST_WINDOW_SIZE, MODIFIED_Z_NORMAL_FACTOR,
+    MedianMadSummary, ModifiedZScore, RollingMedianMad,
+};
 pub use rolling::{RollingMean, RollingVariance};
 pub use sum::Sum;
 pub use variance::{Variance, VarianceKind};

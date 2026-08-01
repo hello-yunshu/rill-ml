@@ -1344,6 +1344,8 @@ impl rill_ml::persistence::ValidateState for rill_ml::stats::P2Quantile
 pub fn rill_ml::stats::P2Quantile::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::persistence::ValidateState for rill_ml::stats::P2Quantiles
 pub fn rill_ml::stats::P2Quantiles::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::stats::RollingMedianMad
+pub fn rill_ml::stats::RollingMedianMad::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::persistence::ValidateState for rill_ml::stats::Variance
 pub fn rill_ml::stats::Variance::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::persistence::ValidateState for rill_ml::weighted::WeightedExponentiallyWeightedMean
@@ -1612,6 +1614,16 @@ impl<'de> serde_core::de::Deserialize<'de> for rill_ml::sparse::SparseFeatures
 pub fn rill_ml::sparse::SparseFeatures::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub type rill_ml::sparse::FeatureId = u64
 pub mod rill_ml::stats
+pub enum rill_ml::stats::ModifiedZScore
+pub rill_ml::stats::ModifiedZScore::Defined
+pub rill_ml::stats::ModifiedZScore::Defined::mad: f64
+pub rill_ml::stats::ModifiedZScore::Defined::median: f64
+pub rill_ml::stats::ModifiedZScore::Defined::score: f64
+pub rill_ml::stats::ModifiedZScore::ZeroMad
+pub rill_ml::stats::ModifiedZScore::ZeroMad::median: f64
+pub rill_ml::stats::ModifiedZScore::ZeroMad::observation: f64
+impl rill_ml::stats::ModifiedZScore
+pub const fn rill_ml::stats::ModifiedZScore::score(&self) -> core::option::Option<f64>
 pub enum rill_ml::stats::VarianceKind
 pub rill_ml::stats::VarianceKind::Population
 pub rill_ml::stats::VarianceKind::Sample
@@ -1666,6 +1678,12 @@ impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Mean
 pub fn rill_ml::stats::Mean::reset(&mut self)
 pub fn rill_ml::stats::Mean::samples_seen(&self) -> u64
 pub fn rill_ml::stats::Mean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::MedianMadSummary
+impl rill_ml::stats::MedianMadSummary
+pub const fn rill_ml::stats::MedianMadSummary::mad(&self) -> f64
+pub const fn rill_ml::stats::MedianMadSummary::median(&self) -> f64
+pub fn rill_ml::stats::MedianMadSummary::normal_scaled_mad(&self) -> core::result::Result<f64, rill_ml::error::RillError>
+pub const fn rill_ml::stats::MedianMadSummary::samples(&self) -> usize
 pub struct rill_ml::stats::Min
 impl rill_ml::stats::Min
 pub const fn rill_ml::stats::Min::new() -> Self
@@ -1706,6 +1724,24 @@ impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingMean
 pub fn rill_ml::stats::RollingMean::reset(&mut self)
 pub fn rill_ml::stats::RollingMean::samples_seen(&self) -> u64
 pub fn rill_ml::stats::RollingMean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub struct rill_ml::stats::RollingMedianMad
+impl rill_ml::stats::RollingMedianMad
+pub const fn rill_ml::stats::RollingMedianMad::capacity(&self) -> usize
+pub fn rill_ml::stats::RollingMedianMad::is_empty(&self) -> bool
+pub fn rill_ml::stats::RollingMedianMad::is_ready(&self) -> bool
+pub fn rill_ml::stats::RollingMedianMad::len(&self) -> usize
+pub const fn rill_ml::stats::RollingMedianMad::min_samples(&self) -> usize
+pub fn rill_ml::stats::RollingMedianMad::modified_z_score(&self, f64) -> core::result::Result<rill_ml::stats::ModifiedZScore, rill_ml::error::RillError>
+pub fn rill_ml::stats::RollingMedianMad::new(usize, usize) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::stats::RollingMedianMad::summary(&self) -> core::result::Result<rill_ml::stats::MedianMadSummary, rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::stats::RollingMedianMad
+pub fn rill_ml::stats::RollingMedianMad::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingMedianMad
+pub fn rill_ml::stats::RollingMedianMad::reset(&mut self)
+pub fn rill_ml::stats::RollingMedianMad::samples_seen(&self) -> u64
+pub fn rill_ml::stats::RollingMedianMad::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl<'de> serde_core::de::Deserialize<'de> for rill_ml::stats::RollingMedianMad
+pub fn rill_ml::stats::RollingMedianMad::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub struct rill_ml::stats::RollingVariance
 impl rill_ml::stats::RollingVariance
 pub const fn rill_ml::stats::RollingVariance::capacity(&self) -> usize
@@ -1745,6 +1781,9 @@ impl rill_ml::traits::OnlineStatistic for rill_ml::stats::Variance
 pub fn rill_ml::stats::Variance::reset(&mut self)
 pub fn rill_ml::stats::Variance::samples_seen(&self) -> u64
 pub fn rill_ml::stats::Variance::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+pub const rill_ml::stats::MAD_NORMAL_CONSISTENCY_SCALE: f64
+pub const rill_ml::stats::MAX_ROBUST_WINDOW_SIZE: usize
+pub const rill_ml::stats::MODIFIED_Z_NORMAL_FACTOR: f64
 pub mod rill_ml::traits
 pub trait rill_ml::traits::Metric
 pub type rill_ml::traits::Metric::Prediction
@@ -1951,6 +1990,10 @@ impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingMean
 pub fn rill_ml::stats::RollingMean::reset(&mut self)
 pub fn rill_ml::stats::RollingMean::samples_seen(&self) -> u64
 pub fn rill_ml::stats::RollingMean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingMedianMad
+pub fn rill_ml::stats::RollingMedianMad::reset(&mut self)
+pub fn rill_ml::stats::RollingMedianMad::samples_seen(&self) -> u64
+pub fn rill_ml::stats::RollingMedianMad::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingVariance
 pub fn rill_ml::stats::RollingVariance::reset(&mut self)
 pub fn rill_ml::stats::RollingVariance::samples_seen(&self) -> u64
@@ -2385,6 +2428,10 @@ impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingMean
 pub fn rill_ml::stats::RollingMean::reset(&mut self)
 pub fn rill_ml::stats::RollingMean::samples_seen(&self) -> u64
 pub fn rill_ml::stats::RollingMean::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingMedianMad
+pub fn rill_ml::stats::RollingMedianMad::reset(&mut self)
+pub fn rill_ml::stats::RollingMedianMad::samples_seen(&self) -> u64
+pub fn rill_ml::stats::RollingMedianMad::update(&mut self, f64) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::traits::OnlineStatistic for rill_ml::stats::RollingVariance
 pub fn rill_ml::stats::RollingVariance::reset(&mut self)
 pub fn rill_ml::stats::RollingVariance::samples_seen(&self) -> u64
@@ -2559,6 +2606,8 @@ impl rill_ml::persistence::ValidateState for rill_ml::stats::P2Quantile
 pub fn rill_ml::stats::P2Quantile::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::persistence::ValidateState for rill_ml::stats::P2Quantiles
 pub fn rill_ml::stats::P2Quantiles::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
+impl rill_ml::persistence::ValidateState for rill_ml::stats::RollingMedianMad
+pub fn rill_ml::stats::RollingMedianMad::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::persistence::ValidateState for rill_ml::stats::Variance
 pub fn rill_ml::stats::Variance::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
 impl rill_ml::persistence::ValidateState for rill_ml::weighted::WeightedExponentiallyWeightedMean

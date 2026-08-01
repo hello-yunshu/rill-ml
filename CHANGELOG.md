@@ -59,9 +59,13 @@ with the Rust-specific convention that 0.x releases may break the public API.
   `P2Quantiles`, including bootstrap exactness, state validation, serde
   continuity, randomized offline-rank comparisons and explicit documentation
   that P-square has no deterministic worst-case rank-error bound.
-- Added exact `ClippedMean` for fixed caller-provided bounds. An experimental
-  online median/MAD sketch was intentionally not retained after adversarial
-  outlier tests showed unacceptable contamination.
+- Added exact `ClippedMean` for fixed caller-provided bounds.
+- Added Preview `RollingMedianMad`: exact median and MAD within a bounded FIFO
+  window, an explicit warm-up threshold, modified robust z-scores with a
+  first-class zero-MAD result, strict restored-state validation, randomized
+  offline-reference and adversarial contamination tests, and explicit
+  `O(1)` update / `O(W log W)` query limits. This replaces the rejected
+  lifetime double-P² prototype without reviving its contamination weakness.
 
 ### Added — delayed feedback, identity, and weighted learning
 
@@ -89,7 +93,8 @@ with the Rust-specific convention that 0.x releases may break the public API.
   reward/regret/baseline/latency summaries, and replay digests.
 - Added Preview Python LinUCB score/replay bindings and dependency-free
   JSON/CSV, score-curve, drift-timeline, latency, baseline, and offline
-  quantile inspection helpers. Python remains outside the production Runtime.
+  quantile/median/MAD/modified-z inspection helpers. Python remains outside
+  the production Runtime.
 
 
 

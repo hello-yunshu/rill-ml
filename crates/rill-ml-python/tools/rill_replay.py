@@ -16,6 +16,7 @@ from typing import Any, Iterable, Sequence
 
 MAX_INPUT_BYTES = 16 * 1024 * 1024
 MAX_RECORDS = 1_000_000
+MODIFIED_Z_NORMAL_FACTOR = 0.6744897501960817
 
 
 def load_records(path: str | Path) -> list[dict[str, Any]]:
@@ -129,6 +130,49 @@ def quantile_reference(values: Sequence[float], quantiles: Sequence[float]) -> l
         fraction = position - lower
         result.append(_finite(ordered[lower] * (1.0 - fraction) + ordered[upper] * fraction))
     return result
+
+
+def median_mad_reference(values: Sequence[float]) -> dict[str, float | int]:
+    """Exact offline median/MAD reference for one bounded Rust window."""
+    if not values:
+        raise ValueError("values must not be empty")
+    if len(values) > MAX_RECORDS:
+        raise ValueError("values exceed offline reference limit")
+    ordered = sorted(_finite(value) for value in values)
+    median = _median_of_sorted(ordered)
+    deviations = sorted(abs(value - median) for value in ordered)
+    mad = _median_of_sorted(deviations)
+    if not math.isfinite(mad):
+        raise ValueError("median absolute deviation exceeds finite float range")
+    return {"samples": len(ordered), "median": median, "mad": mad}
+
+
+def modified_z_score_reference(values: Sequence[float], observation: float) -> float | None:
+    """Return the modified z-score, or ``None`` when MAD is exactly zero."""
+    observed = _finite(observation)
+    summary = median_mad_reference(values)
+    median = float(summary["median"])
+    mad = float(summary["mad"])
+    if mad == 0.0:
+        return None
+    delta = observed - median
+    if not math.isfinite(delta):
+        delta = observed / mad - median / mad
+        score = MODIFIED_Z_NORMAL_FACTOR * delta
+    else:
+        score = MODIFIED_Z_NORMAL_FACTOR * (delta / mad)
+    return _finite(score)
+
+
+def _median_of_sorted(values: Sequence[float]) -> float:
+    middle = len(values) // 2
+    if len(values) % 2:
+        return values[middle]
+    lower = values[middle - 1]
+    upper = values[middle]
+    if math.copysign(1.0, lower) == math.copysign(1.0, upper):
+        return _finite(lower + (upper - lower) / 2.0)
+    return _finite(lower / 2.0 + upper / 2.0)
 
 
 def _finite(value: Any) -> float:

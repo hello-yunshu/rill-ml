@@ -180,7 +180,7 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 | Category | Modules |
 |---|---|
-| Statistics | Mean, Variance, Std, Count, Sum, Min, Max, EWMean, RollingMean, RollingVariance, P2Quantile, ClippedMean, weighted statistics |
+| Statistics | Mean, Variance, Std, Count, Sum, Min, Max, EWMean, RollingMean, RollingVariance, P2Quantile, ClippedMean, bounded RollingMedianMad/modified-z, weighted statistics |
 | Preprocessing | StandardScaler, MinMaxScaler, Clipper, OneHotEncoder, OrdinalEncoder, FrequencyEncoder, MissingIndicator, ConstantImputer, MeanImputer, ForwardFill |
 | Sparse features | SparseFeatures, FeatureHasher |
 | Models | LinearRegression, LogisticRegression, MeanRegressor, EWMeanRegressor, LastValueRegressor, FtrlRegressor, FtrlClassifier, GaussianNaiveBayes, BernoulliNaiveBayes, MultinomialNaiveBayes |

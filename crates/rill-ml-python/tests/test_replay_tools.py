@@ -54,6 +54,25 @@ def test_score_drift_baseline_and_quantile_reference():
     assert rill_replay.quantile_reference([1.0, 2.0, 3.0], [0.5]) == [2.0]
 
 
+def test_median_mad_and_modified_z_reference():
+    values = [1.0, 2.0, 100.0, 4.0, 5.0]
+    assert rill_replay.median_mad_reference(values) == {
+        "samples": 5,
+        "median": 4.0,
+        "mad": 2.0,
+    }
+    expected = rill_replay.MODIFIED_Z_NORMAL_FACTOR * 3.0
+    assert rill_replay.modified_z_score_reference(values, 10.0) == expected
+    assert rill_replay.modified_z_score_reference([7.0, 7.0, 7.0], 9.0) is None
+
+
+def test_median_mad_reference_handles_minority_extreme_contamination():
+    clean = [[-1.0, 0.0, 1.0][index % 3] for index in range(52)]
+    summary = rill_replay.median_mad_reference(clean + [float.fromhex("0x1.fffffffffffffp+1023")] * 49)
+    assert summary["median"] == 1.0
+    assert summary["mad"] == 2.0
+
+
 def test_invalid_inputs_are_rejected(tmp_path):
     path = tmp_path / "bad.json"
     path.write_text('[{"reward": NaN}]', encoding="utf-8")
@@ -63,3 +82,7 @@ def test_invalid_inputs_are_rejected(tmp_path):
         rill_replay.feedback_latencies([{"timestamp": 10, "outcome_time": 9}])
     with pytest.raises(ValueError):
         rill_replay.quantile_reference([], [0.5])
+    with pytest.raises(ValueError):
+        rill_replay.median_mad_reference([])
+    with pytest.raises(ValueError):
+        rill_replay.modified_z_score_reference([1.0], float("inf"))

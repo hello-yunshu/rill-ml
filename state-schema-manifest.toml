@@ -198,6 +198,10 @@ type = "ClippedMean"
 reason = "Clipped statistic state is serializable but has not entered the cross-version freeze."
 
 [[preview_state]]
+type = "RollingMedianMad"
+reason = "Bounded rolling robust-statistic state is new in 1.1 and remains Preview while window semantics are evaluated."
+
+[[preview_state]]
 type = "LinUcbFast"
 reason = "Performance-oriented inverse-cache representation is explicitly Preview."
 

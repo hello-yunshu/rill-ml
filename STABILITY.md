@@ -183,6 +183,7 @@ by cross-version fixture coverage. Their state schema may change within
 - `P2Quantile`
 - `P2Quantiles`
 - `ClippedMean`
+- `RollingMedianMad`
 - `LinUcbFast`
 - `DecisionLedger`
 - `FeatureSchema`
@@ -219,13 +220,15 @@ counter invariants, and golden fixtures under
 breaking portable schema must introduce a new `V2` DTO; it must not mutate a
 `V1` field or meaning.
 
-`DriftConsensus`, `P2Quantile`, `P2Quantiles`, `ClippedMean`, `LinUcbFast`,
-`DecisionLedger`, the descriptor DTOs, weighted statistics, and
-`DecisionReplayHarness` are additive Rust APIs whose serialized
-implementation states remain Preview. `LinUcbFast` does not change or replace
-the frozen `LinUcb` state fields. Feature-schema hashes and their golden
-fixture are deterministic identity checks, not a promise that every descriptor
-DTO field is frozen for all 1.x releases.
+`DriftConsensus`, `P2Quantile`, `P2Quantiles`, `ClippedMean`,
+`RollingMedianMad`, `LinUcbFast`, `DecisionLedger`, the descriptor DTOs,
+weighted statistics, and `DecisionReplayHarness` are additive Rust APIs whose
+serialized implementation states remain Preview. `RollingMedianMad` is exact
+only within its bounded FIFO window; it is not a lifetime-distribution state
+contract. `LinUcbFast` does not change or replace the frozen `LinUcb` state
+fields. Feature-schema hashes and their golden fixture are deterministic
+identity checks, not a promise that every descriptor DTO field is frozen for
+all 1.x releases.
 
 IPC V3 and Stateful Handler ABI v2 are separate, opt-in Preview protocol
 surfaces. They do not alter the frozen IPC v1/v2 JSON schemas, the top-level
