@@ -4,13 +4,15 @@
 The auto-release workflow (`/.github/workflows/auto-release.yml`) needs to
 decide, after a successful CI run on ``main``, whether to:
 
-* create a new immutable version tag at the CI head SHA and dispatch the
-  Release workflow;
-* safely retry an existing tag whose SHA matches the CI head SHA;
-* skip dispatch because the tag already has a successful Release run;
-* skip dispatch because the tag already has an active Release run;
-* fail loudly because the existing tag points at a different SHA (version
-  tags are immutable and must not be moved).
+* create a new version tag at the CI head SHA and dispatch the Release
+  workflow;
+* overwrite an existing tag whose SHA differs from the CI head (force-move
+  the tag to the new commit) and dispatch the Release workflow;
+* re-release an existing tag whose SHA already matches the CI head
+  (overwrite the previous release assets);
+* skip dispatch because the tag already has an active Release run (avoid
+  queuing redundant work);
+* fail loudly because the tag exists but its SHA could not be resolved.
 
 The decision used to live entirely inside a bash ``run:`` block, which made
 it impossible to unit-test the policy. This module exposes the same decision
@@ -64,7 +66,7 @@ def decide_release_tag(
     has_successful_release: bool,
     has_active_release: bool,
 ) -> Decision:
-    """Apply the immutability policy and return the resulting :class:`Decision`."""
+    """Apply the overwrite policy and return the resulting :class:`Decision`."""
     if not target_sha:
         # Without a CI head SHA we cannot create or validate any tag. This
         # should never happen in practice (the workflow only runs when CI
@@ -81,42 +83,31 @@ def decide_release_tag(
                 "fail",
                 "tag exists but its SHA could not be resolved; refusing to retry",
             )
-        # Immutability check FIRST. A version tag that points at a different
-        # commit than the successful CI head must always be a hard failure,
-        # regardless of whether a Release run already succeeded or is still
-        # active for that tag. Returning ``skip`` here would silently hide a
-        # forgotten version bump: main has moved on, the old tag still points
-        # at the old SHA, and the bot would never alert the maintainer.
-        if tag_sha != target_sha:
-            return Decision(
-                "fail",
-                (
-                    f"version tag exists at {tag_sha} but the successful CI "
-                    f"head is {target_sha}; version tags are immutable and "
-                    "cannot be moved — bump the version number in Cargo.toml"
-                ),
-            )
-        # SHA matches: the tag is the immutable release point. Now consider
-        # the Release workflow state to decide whether to retry.
-        if has_successful_release:
-            return Decision(
-                "skip",
-                "tag already has a successful Release run",
-            )
+        # If a Release run is already in-flight for this tag, skip to avoid
+        # queuing redundant work. The active run will complete and produce
+        # the release.
         if has_active_release:
             return Decision(
                 "skip",
                 "tag already has an active Release run",
             )
+        # Otherwise dispatch. The workflow will force-update the tag if the
+        # SHA differs (overwriting the previous tag) and the Release job
+        # will overwrite the previous release assets.
+        if tag_sha != target_sha:
+            return Decision(
+                "dispatch",
+                f"overwriting tag (was {tag_sha}, now {target_sha}) and re-releasing",
+            )
         return Decision(
             "dispatch",
-            f"retrying immutable tag at {tag_sha} with the current Release workflow",
+            f"re-releasing tag at {tag_sha} (overwriting previous release)",
         )
 
     # Brand-new tag: the workflow will create it at target_sha and dispatch.
     return Decision(
         "dispatch",
-        f"creating new immutable tag at {target_sha}",
+        f"creating new tag at {target_sha}",
     )
 
 
