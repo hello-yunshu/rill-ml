@@ -1,8 +1,10 @@
 """Unit tests for ``scripts/release_tag_policy.py``.
 
-The auto-release workflow delegates the tag-immutability decision to this
-helper so we can cover every branch without mocking GitHub. The six cases
-below mirror the audit-prompt requirements in section 6.1.
+The auto-release workflow delegates the tag-overwrite decision to this
+helper so we can cover every branch without mocking GitHub. The cases
+below exercise the overwrite policy: existing tags are force-updated
+when the SHA differs and existing releases are overwritten when the SHA
+matches.
 """
 
 from __future__ import annotations
@@ -40,7 +42,7 @@ class ReleaseTagPolicyTest(unittest.TestCase):
         self.assertEqual(decision.action, "dispatch")
         self.assertIn("abc123", decision.reason)
 
-    def test_existing_tag_with_matching_sha_dispatches_retry(self) -> None:
+    def test_existing_tag_with_matching_sha_dispatches_rerelease(self) -> None:
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="abc123",
@@ -49,9 +51,9 @@ class ReleaseTagPolicyTest(unittest.TestCase):
             has_active_release=False,
         )
         self.assertEqual(decision.action, "dispatch")
-        self.assertIn("retrying", decision.reason)
+        self.assertIn("re-releasing", decision.reason)
 
-    def test_existing_tag_with_different_sha_fails(self) -> None:
+    def test_existing_tag_with_different_sha_dispatches_overwrite(self) -> None:
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="oldsha",
@@ -59,15 +61,15 @@ class ReleaseTagPolicyTest(unittest.TestCase):
             has_successful_release=False,
             has_active_release=False,
         )
-        self.assertEqual(decision.action, "fail")
-        self.assertIn("immutable", decision.reason)
+        self.assertEqual(decision.action, "dispatch")
+        self.assertIn("overwriting", decision.reason)
         self.assertIn("oldsha", decision.reason)
         self.assertIn("newsha", decision.reason)
 
-    def test_existing_tag_with_different_sha_fails_even_with_successful_release(self) -> None:
-        # Regression: a stale tag with a successful Release run must NOT be
-        # silently skipped. The immutability check has to win so the
-        # maintainer is alerted to bump the version.
+    def test_existing_tag_with_different_sha_dispatches_even_with_successful_release(self) -> None:
+        # A stale tag with a successful Release run is overwritten rather
+        # than silently skipped: the tag is force-moved to the new SHA and
+        # the release assets are rebuilt.
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="oldsha",
@@ -75,13 +77,16 @@ class ReleaseTagPolicyTest(unittest.TestCase):
             has_successful_release=True,
             has_active_release=False,
         )
-        self.assertEqual(decision.action, "fail")
-        self.assertIn("immutable", decision.reason)
+        self.assertEqual(decision.action, "dispatch")
+        self.assertIn("overwriting", decision.reason)
         self.assertIn("oldsha", decision.reason)
         self.assertIn("newsha", decision.reason)
 
-    def test_existing_tag_with_different_sha_fails_even_with_active_release(self) -> None:
-        # Same regression guard as above, but for an in-flight Release run.
+    def test_existing_tag_with_different_sha_and_active_release_skips(self) -> None:
+        # If a Release run is already in-flight, skip to avoid queuing
+        # redundant work — even when the tag SHA differs. The active run
+        # will complete, and the next Auto Release run will force-move
+        # the tag and overwrite the release.
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="oldsha",
@@ -89,12 +94,12 @@ class ReleaseTagPolicyTest(unittest.TestCase):
             has_successful_release=False,
             has_active_release=True,
         )
-        self.assertEqual(decision.action, "fail")
-        self.assertIn("immutable", decision.reason)
-        self.assertIn("oldsha", decision.reason)
-        self.assertIn("newsha", decision.reason)
+        self.assertEqual(decision.action, "skip")
+        self.assertIn("active", decision.reason)
 
-    def test_existing_tag_with_successful_release_skips(self) -> None:
+    def test_existing_tag_with_successful_release_dispatches_overwrite(self) -> None:
+        # Same SHA but a successful Release already exists — dispatch to
+        # overwrite the previous release assets.
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="abc123",
@@ -102,8 +107,8 @@ class ReleaseTagPolicyTest(unittest.TestCase):
             has_successful_release=True,
             has_active_release=False,
         )
-        self.assertEqual(decision.action, "skip")
-        self.assertIn("successful", decision.reason)
+        self.assertEqual(decision.action, "dispatch")
+        self.assertIn("re-releasing", decision.reason)
 
     def test_existing_tag_with_active_release_skips(self) -> None:
         decision = policy.decide_release_tag(
@@ -125,7 +130,7 @@ class ReleaseTagPolicyTest(unittest.TestCase):
             has_active_release=False,
         )
         self.assertEqual(decision.action, "dispatch")
-        self.assertIn("retrying", decision.reason)
+        self.assertIn("re-releasing", decision.reason)
 
     def test_existing_tag_with_unresolved_sha_fails(self) -> None:
         decision = policy.decide_release_tag(
@@ -170,17 +175,17 @@ class ReleaseTagPolicyTest(unittest.TestCase):
                 "--tag-exists",
                 "--tag-sha", "abc123",
                 "--target-sha", "abc123",
-                "--has-successful-release",
+                "--has-active-release",
                 "--github-output", str(output_path),
             )
             self.assertEqual(exit_code, 0)
             self.assertIn("dispatch=false", output_path.read_text())
 
     def test_cli_returns_nonzero_for_failure(self) -> None:
+        # Tag exists but SHA could not be resolved — hard failure.
         exit_code = _run_cli(
             "--tag-exists",
-            "--tag-sha", "oldsha",
-            "--target-sha", "newsha",
+            "--target-sha", "abc123",
         )
         self.assertNotEqual(exit_code, 0)
 

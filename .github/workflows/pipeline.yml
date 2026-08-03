@@ -809,38 +809,6 @@ jobs:
               rm -f dist/current-index.json
             fi
           fi
-      - name: Reuse immutable versioned assets when present
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-          INDEX_FILE: ${{ steps.version.outputs.index_file }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release download "$RELEASE_TAG" \
-              --pattern 'rill-runtime-*' \
-              --pattern '*.rillpack' \
-              --pattern '*.rillhandler' \
-              --dir dist \
-              --clobber
-            mkdir -p dist/versioned-release
-            gh release download "$RELEASE_TAG" \
-              --pattern "$INDEX_FILE" \
-              --dir dist/versioned-release \
-              --clobber || true
-            if [ -f "dist/versioned-release/$INDEX_FILE" ] && target/release/rill-pack verify-index \
-              --index "dist/versioned-release/$INDEX_FILE" \
-              --key-id "$PUBLISHER_KEY_ID" \
-              --public-key-hex "$RILL_PUBLIC_KEY_HEX"; then
-              python3 scripts/verify-release-assets.py \
-                --index "dist/versioned-release/$INDEX_FILE" \
-                --release-dir dist \
-                --version "$VERSION"
-            else
-              echo "::warning::Versioned $INDEX_FILE could not be verified (possibly incompatible schema or first release in channel). Skipping asset-matching check; individual assets are still verified in the next step."
-            fi
-          fi
       - name: Create signed model package
         env:
           RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
@@ -849,12 +817,10 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$RILL_SIGNING_KEY_HEX"
-          if [ ! -f "dist/example-default-${VERSION}.rillpack" ]; then
-            target/release/rill-pack create \
-              --manifest models/example-default/manifest.json \
-              --model models/example-default/model.json \
-              --output "dist/example-default-${VERSION}.rillpack"
-          fi
+          target/release/rill-pack create \
+            --manifest models/example-default/manifest.json \
+            --model models/example-default/model.json \
+            --output "dist/example-default-${VERSION}.rillpack"
       - name: Install wasm-tools
         # Compatible-range policy: matches the CI build in the
         # ``wasm-handler`` job. ``~1.254.0`` allows patch upgrades
@@ -873,19 +839,17 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$RILL_SIGNING_KEY_HEX"
-          if [ ! -f "dist/echo-handler-${VERSION}.rillhandler" ]; then
-            cd handlers/echo-handler
-            cargo build --release --target wasm32-unknown-unknown
-            mkdir -p ../../target
-            wasm-tools component new \
-              target/wasm32-unknown-unknown/release/echo-handler.wasm \
-              -o ../../target/echo-handler.wasm
-            cd ../..
-            target/release/rill-pack create-handler \
-              --manifest handlers/echo-handler/manifest.json \
-              --module target/echo-handler.wasm \
-              --output "dist/echo-handler-${VERSION}.rillhandler"
-          fi
+          cd handlers/echo-handler
+          cargo build --release --target wasm32-unknown-unknown
+          mkdir -p ../../target
+          wasm-tools component new \
+            target/wasm32-unknown-unknown/release/echo-handler.wasm \
+            -o ../../target/echo-handler.wasm
+          cd ../..
+          target/release/rill-pack create-handler \
+            --manifest handlers/echo-handler/manifest.json \
+            --module target/echo-handler.wasm \
+            --output "dist/echo-handler-${VERSION}.rillhandler"
       - name: Build and sign release index
         env:
           RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
@@ -932,7 +896,7 @@ jobs:
             --index "dist/$INDEX_FILE" \
             --key-id "$PUBLISHER_KEY_ID" \
             --public-key-hex "$RILL_PUBLIC_KEY_HEX"
-      - name: Publish immutable versioned release
+      - name: Publish versioned release
         env:
           GH_TOKEN: ${{ github.token }}
           INDEX_FILE: ${{ steps.version.outputs.index_file }}
@@ -945,24 +909,13 @@ jobs:
             prerelease_args+=(--prerelease)
           fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            mapfile -t existing_assets < <(
-              gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name'
-            )
-            for asset in dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE"; do
-              name="$(basename "$asset")"
-              present=false
-              for existing in "${existing_assets[@]}"; do
-                if [ "$existing" = "$name" ]; then
-                  present=true
-                  break
-                fi
-              done
-              if [ "$present" = true ]; then
-                echo "Preserving immutable asset $name"
-              else
-                gh release upload "$RELEASE_TAG" "$asset"
-              fi
-            done
+            # Release already exists — overwrite all assets.
+            gh release upload "$RELEASE_TAG" \
+              dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" \
+              --clobber
+            gh release edit "$RELEASE_TAG" \
+              --title "Rill ML ${{ steps.version.outputs.version }}" \
+              "${prerelease_args[@]}"
           else
             gh release create "$RELEASE_TAG" dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" \
               --verify-tag \
