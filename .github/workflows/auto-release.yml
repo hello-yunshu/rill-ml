@@ -111,6 +111,15 @@ jobs:
             git tag -a "$TAG" "$TARGET_SHA" -m "Release $TAG"
             git push origin "refs/tags/$TAG"
             echo "Created $TAG at $TARGET_SHA"
+          elif [ "$tag_sha" != "$TARGET_SHA" ]; then
+            # Tag exists at a different SHA — force-update it (overwrite
+            # the previous tag) so the Release workflow checks out the new
+            # commit.
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" "$TARGET_SHA" -m "Release $TAG" --force
+            git push origin "refs/tags/$TAG" --force
+            echo "Overwrote $TAG (was $tag_sha, now $TARGET_SHA)"
           fi
 
       - name: Dispatch Release on the version tag
