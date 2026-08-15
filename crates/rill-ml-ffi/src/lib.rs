@@ -1,12 +1,18 @@
 //! # rill-ml-ffi
 //!
-//! A stable C ABI for [RillML](https://crates.io/crates/rill-ml), the
-//! lightweight, serializable online machine learning library. This crate is
-//! the bridge between the Stable Rust core (`rill-ml`) and native consumers
+//! A C ABI-oriented FFI layer for [RillML](https://crates.io/crates/rill-ml),
+//! the lightweight, serializable online machine learning library. This crate
+//! is the bridge between the Stable Rust core (`rill-ml`) and native consumers
 //! written in C, C++, and languages that bind to C — notably Android (via JNI)
 //! and iOS (via Swift).
 //!
-//! The ABI is deliberately small and stable. Every model is exposed through an
+//! **Status: Preview (0.x).** `rill-ml-ffi` is not part of the Stable 1.x ABI
+//! freeze. The opaque-handle ABI is designed for future ABI stability, but the
+//! exact symbol set, error codes, and header layout may still change within
+//! 0.x. Only the Stable crates (`rill-ml`, `rill-handler-api`,
+//! `rill-runtime-protocol`, `rill-runtime`) carry a 1.x compatibility promise.
+//!
+//! The ABI is deliberately small. Every model is exposed through an
 //! **opaque handle** (`void *`), never through a `#[repr(C)]` struct, so Rust
 //! internal layouts are free to evolve without breaking bindings. Model state
 //! is persisted as a versioned JSON snapshot (`Snapshot`) through the
@@ -132,12 +138,18 @@ fn into_handle<T>(value: T) -> *mut c_void {
 
 /// Mutably borrows the pointee of an opaque handle.
 ///
+/// The returned reference's lifetime is bound to the call site (inferred), not
+/// fabricated as `'static`. Callers must not leak it beyond the enclosing FFI
+/// export; in practice each export borrows, uses, and drops the reference
+/// within a single closure, and the borrow checker ties the inferred lifetime
+/// to that scope.
+///
 /// # Safety
 /// `handle` must be either NULL or a pointer previously returned by
 /// `into_handle::<T>()` that has not yet been destroyed. Passing a dangling
 /// pointer, a pointer to the wrong type, or using the handle after the
 /// matching destroy is undefined behaviour.
-unsafe fn borrow<T>(handle: *mut c_void) -> Result<&'static mut T, FfiError> {
+unsafe fn borrow<'a, T>(handle: *mut c_void) -> Result<&'a mut T, FfiError> {
     if handle.is_null() {
         Err(FfiError::new(RILL_ML_ERR_INVALID_HANDLE, "handle is NULL"))
     } else {

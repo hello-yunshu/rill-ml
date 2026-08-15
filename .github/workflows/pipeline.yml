@@ -769,10 +769,13 @@ jobs:
           if-no-files-found: error
 
   # Phase 6: Linux musl + aarch64 Runtime publish assets. These three targets
-  # have no GitHub-hosted native runner, so they are cross-compiled inside
-  # Docker on an ubuntu host. The released assets (rilml) are indexed with the
-  # v3 release-index schema, which carries an optional ``targetLibc`` field so
-  # the gnu and musl builds of the same OS+arch remain distinct identities.
+  # have no GitHub-hosted native runner, so they are built inside a container
+  # whose platform matches the target (QEMU/binfmt for ARM64). Building in the
+  # target-arch container means the C toolchain is the NATIVE one for that
+  # arch: musl-tools provides the real <arch>-linux-musl-gcc, so the aarch64
+  # musl asset genuinely links musl (not a host x86_64 musl-gcc masquerade).
+  # GNU and musl assets of the same OS+arch are distinguished by the stable
+  # artifact id (rill-runtime vs rill-runtime-musl) in the frozen v2 index.
   build-runtime-docker:
     name: Runtime docker ${{ matrix.target_os }} ${{ matrix.target_arch }} ${{ matrix.libc }}
     if: github.event_name == 'workflow_dispatch'
@@ -788,6 +791,7 @@ jobs:
             target_arch: x86_64
             libc: musl
             asset_suffix: linux-x86_64-musl
+            platform: linux/amd64
             cross_packages: musl-tools
             linker: x86_64-linux-musl-gcc
           - rust_target: aarch64-unknown-linux-gnu
@@ -795,6 +799,7 @@ jobs:
             target_arch: aarch64
             libc: gnu
             asset_suffix: linux-aarch64
+            platform: linux/arm64
             cross_packages: gcc-aarch64-linux-gnu
             linker: aarch64-linux-gnu-gcc
           - rust_target: aarch64-unknown-linux-musl
@@ -802,19 +807,27 @@ jobs:
             target_arch: aarch64
             libc: musl
             asset_suffix: linux-aarch64-musl
-            # aarch64-linux-musl-gcc is provided by musl-tools and wraps the
-            # GNU aarch64 cross gcc as its underlying compiler.
-            cross_packages: musl-tools gcc-aarch64-linux-gnu
+            platform: linux/arm64
+            # Inside a linux/arm64 container, musl-tools provides the native
+            # aarch64-linux-musl-gcc — no GNU cross gcc assembly required.
+            cross_packages: musl-tools
             linker: aarch64-linux-musl-gcc
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
-      - name: Cross-compile runtime in Docker
+      - name: Set up QEMU / binfmt_misc
+        if: matrix.platform != 'linux/amd64'
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        if: matrix.platform != 'linux/amd64'
+        uses: docker/setup-buildx-action@v3
+      - name: Build runtime in target-arch Docker container
         shell: bash
         env:
           VERSION: ${{ env.RELEASE_TAG }}
           RUST_TARGET: ${{ matrix.rust_target }}
+          PLATFORM: ${{ matrix.platform }}
           ASSET_SUFFIX: ${{ matrix.asset_suffix }}
           CROSS_PACKAGES: ${{ matrix.cross_packages }}
           CROSS_LINKER: ${{ matrix.linker }}
@@ -826,6 +839,7 @@ jobs:
           # aarch64-unknown-linux-musl -> CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER.
           linker_key="CARGO_TARGET_$(printf '%s' "$RUST_TARGET" | tr '[:lower:]-' '[:upper:]_')_LINKER"
           docker run --rm \
+            --platform "$PLATFORM" \
             -e "CARGO_TARGET_DIR=/workspace/target" \
             -e "RUSTFLAGS=-D warnings" \
             -e "${linker_key}=${CROSS_LINKER}" \
@@ -1137,10 +1151,89 @@ jobs:
           path: smoke-test/smoke-result.json
           if-no-files-found: error
 
+  post-release-verify:
+    name: Post-release verify (${{ matrix.target }})
+    # Post-release artifact verification: downloads the ACTUAL GitHub Release
+    # runtime asset (not a fresh source build), checks its size/SHA-256 against
+    # the signed release index, then executes that exact binary inside a
+    # container whose platform matches the target (QEMU/binfmt for aarch64) and
+    # runs the signed-model / signed-handler / IPC host smoke. Covers every
+    # current Linux Supported runtime asset so gnu and musl builds of each
+    # OS+arch are re-verified from the published artifact.
+    if: github.event_name == 'workflow_dispatch'
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            platform: linux/amd64
+            runtime_id: rill-runtime
+          - target: x86_64-unknown-linux-musl
+            platform: linux/amd64
+            runtime_id: rill-runtime-musl
+          - target: aarch64-unknown-linux-gnu
+            platform: linux/arm64
+            runtime_id: rill-runtime
+          - target: aarch64-unknown-linux-musl
+            platform: linux/arm64
+            runtime_id: rill-runtime-musl
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - name: Set up QEMU / binfmt_misc
+        if: contains(matrix.target, 'aarch64')
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        if: contains(matrix.target, 'aarch64')
+        uses: docker/setup-buildx-action@v3
+      - name: Build verifier and re-verify the real published asset
+        env:
+          INDEX_FILE: ${{ needs.publish.outputs.index_file }}
+          VERSION: ${{ needs.publish.outputs.version }}
+          CHANNEL: ${{ needs.publish.outputs.channel }}
+          PLATFORM: ${{ matrix.platform }}
+          RUNTIME_ID: ${{ matrix.runtime_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
+          docker build -t "rill-post-verify-${RUNTIME_ID}" -f- . <<EOF
+          FROM --platform=${PLATFORM} rust:1.94.0-bookworm
+          RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
+          EOF
+          docker run --rm \
+            -e "RUSTFLAGS=-D warnings" \
+            -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
+            "rill-post-verify-${RUNTIME_ID}" \
+            bash -c "
+              set -euo pipefail
+              export PATH=\"/usr/local/cargo/bin:\$PATH\"
+              cargo build --locked --release -p rill-runtime --bin rill-pack
+              python3 smoke-test/host_smoke.py \
+                --index-url '$index_url' \
+                --expected-version '$VERSION' \
+                --expected-channel '$CHANNEL' \
+                --runtime-id '$RUNTIME_ID' \
+                --rill-pack-bin target/release/rill-pack \
+                --log smoke-test/post-release-${{ matrix.target }}.json
+            "
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: post-release-verify-${{ matrix.target }}
+          path: smoke-test/post-release-${{ matrix.target }}.json
+          if-no-files-found: error
+
   move-index-pointer:
     name: Promote verified signed index pointer
     if: github.event_name == 'workflow_dispatch'
-    needs: [publish, release-host-smoke]
+    needs: [publish, release-host-smoke, post-release-verify]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

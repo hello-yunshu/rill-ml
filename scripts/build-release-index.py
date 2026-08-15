@@ -11,26 +11,35 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
+RUNTIME_API_VERSION = 2
+RELEASE_INDEX_SCHEMA_VERSION = 2
+HANDLER_API_VERSION = 1
+
+# Stable artifact ids. ``RUNTIME_ARTIFACT_ID`` identifies the default (GNU on
+# Linux) runtime build; ``RUNTIME_ARTIFACT_ID_MUSL`` identifies the musl build
+# so that gnu and musl builds of the same OS+arch never collide in one index.
+RUNTIME_ARTIFACT_ID = "rill-runtime"
+RUNTIME_ARTIFACT_ID_MUSL = "rill-runtime-musl"
+
 RUNTIMES = (
-    # (target_os, target_arch, target_libc, asset_pattern)
+    # (target_os, target_arch, target_libc, asset_id, asset_pattern)
     # Asset naming: <os>-<arch>[-<libc>]. The libc suffix only appears when the
     # OS+arch identity is otherwise ambiguous (Linux gnu vs musl). macOS and
-    # Windows builds carry no libc suffix.
-    ("linux", "x86_64", "gnu", "rill-runtime-{version}-linux-x86_64"),
-    ("linux", "x86_64", "musl", "rill-runtime-{version}-linux-x86_64-musl"),
-    ("linux", "aarch64", "gnu", "rill-runtime-{version}-linux-aarch64"),
-    ("linux", "aarch64", "musl", "rill-runtime-{version}-linux-aarch64-musl"),
-    ("macos", "aarch64", None, "rill-runtime-{version}-macos-aarch64"),
-    ("windows", "x86_64", None, "rill-runtime-{version}-windows-x86_64.exe"),
+    # Windows builds carry no libc suffix. The libc/ABI variant is encoded in
+    # the stable artifact ``id`` (``rill-runtime`` vs ``rill-runtime-musl``) so
+    # gnu and musl builds of the same OS+arch coexist in a single v2 index
+    # without a schema bump.
+    ("linux", "x86_64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-x86_64"),
+    ("linux", "x86_64", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-x86_64-musl"),
+    ("linux", "aarch64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-aarch64"),
+    ("linux", "aarch64", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-aarch64-musl"),
+    ("macos", "aarch64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-macos-aarch64"),
+    ("windows", "x86_64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-windows-x86_64.exe"),
     # Phase 4: native Windows ARM64 Runtime built on the `windows-11-arm`
     # hosted runner. Asset naming follows the existing stable
     # <os>-<arch> contract (targetOs=windows, targetArch=aarch64).
-    ("windows", "aarch64", None, "rill-runtime-{version}-windows-aarch64.exe"),
+    ("windows", "aarch64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-windows-aarch64.exe"),
 )
-
-RUNTIME_API_VERSION = 2
-RELEASE_INDEX_SCHEMA_VERSION = 3
-HANDLER_API_VERSION = 1
 
 # Schemes that must never appear in a signed release-index URL. ``data:``,
 # ``file:``, ``javascript:`` and similar schemes can be used to trick a
@@ -133,7 +142,7 @@ def main() -> None:
 
     base_url = f"https://github.com/{args.repository}/releases/download/{args.tag}"
     artifacts: list[dict[str, object]] = []
-    for target_os, target_arch, target_libc, pattern in RUNTIMES:
+    for target_os, target_arch, target_libc, artifact_id, pattern in RUNTIMES:
         name = pattern.format(version=args.version)
         asset_path = args.release_dir / name
         if not asset_path.is_file():
@@ -146,18 +155,13 @@ def main() -> None:
         validate_release_url(url)
         fields = {
             "kind": "runtime",
-            "id": "rill-runtime",
+            "id": artifact_id,
             "version": args.version,
             "runtimeApiVersion": RUNTIME_API_VERSION,
             "targetOs": target_os,
             "targetArch": target_arch,
             "url": url,
         }
-        # Matches the Rust serde ``skip_serializing_if`` contract: the libc
-        # field is omitted entirely for targets that do not carry a libc
-        # dimension (macOS, Windows) rather than emitted as null.
-        if target_libc is not None:
-            fields["targetLibc"] = target_libc
         artifacts.append(artifact(asset_path, **fields))
 
     existing_model = None

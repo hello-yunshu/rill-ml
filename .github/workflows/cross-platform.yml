@@ -157,9 +157,16 @@ jobs:
       - name: iOS FFI XCFramework build (device + simulator)
         run: ./scripts/build-ios-framework.sh
 
-  # musl targets: build + run the tool smoke via the pinned image.
+  # ─────────────────────────────────────────────────────────────────────────
+  # musl runtime targets: real-execute inside a container whose platform
+  # matches the target (QEMU/binfmt for aarch64musl). musl-tools inside the
+  # target-arch container provides the NATIVE <arch>-linux-musl-gcc, so these
+  # binaries genuinely link musl and run — not a host x86_64 musl-gcc masquerade.
+  # Each target also runs the full Runtime smoke (release build, --help, signed
+  # pack -> verify -> inspect -> IPC handshake) via --runtime-smoke.
+  # ─────────────────────────────────────────────────────────────────────────
   docker-musl:
-    name: Docker musl (${{ matrix.target }})
+    name: Docker musl real-execute (${{ matrix.target }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -173,19 +180,11 @@ jobs:
       - name: Set up QEMU / binfmt_misc
         if: contains(matrix.target, 'aarch64')
         uses: docker/setup-qemu-action@v3
-      - name: Build and test musl target in Docker
-        run: |
-          docker build -t rillml-musl -f Dockerfile.test . >/dev/null
-          docker run --rm -v "$PWD":/src -w /src \
-            -e TARGET="${{ matrix.target }}" rillml-musl bash -c '
-            set -euo pipefail
-            export PATH="/usr/local/cargo/bin:$PATH"
-            rustup target add "$TARGET"
-            cargo test --locked --workspace --all-targets --all-features \
-              --exclude rill-ml-python --target "$TARGET"
-            cargo test --locked --workspace --doc --all-features \
-              --exclude rill-ml-python --target "$TARGET"
-          '
+      - name: Set up Docker Buildx
+        if: contains(matrix.target, 'aarch64')
+        uses: docker/setup-buildx-action@v3
+      - name: Real-execute workspace tests + runtime smoke on ${{ matrix.target }}
+        run: ./scripts/docker-cross-test.sh "${{ matrix.target }}" --runtime-smoke
 
   # ─────────────────────────────────────────────────────────────────────────
   # FreeBSD native CI (Phase 7: x86_64-unknown-freebsd).
@@ -208,5 +207,5 @@ jobs:
         with:
           usesh: true
           prepare: |
-            pkg install -y rust python3
+            pkg install -y rust python3 bash
           run: ./scripts/freebsd-ci.sh

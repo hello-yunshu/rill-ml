@@ -6,7 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Stable C FFI for RillML — opaque-handle ABI for Android (JNI) and iOS (Swift) bindings."
+description = "Preview C FFI for RillML — opaque-handle ABI for Android (JNI) and iOS (Swift) bindings, designed for future ABI stability."
 
 [lib]
 # staticlib: link into Android/iOS native applications. cdylib: dynamic use.

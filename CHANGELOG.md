@@ -22,13 +22,16 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ### Changed
 
-- The release-index schema advances to v3 (`RELEASE_INDEX_SCHEMA_VERSION = 3`).
-  Runtime assets gain an optional `targetLibc` field (`gnu` / `musl`), emitted
-  only on Linux, so GNU and musl assets coexist in the same index. The
-  `linux-x86_64-musl`, `linux-aarch64` (GNU), and `linux-aarch64-musl` Runtime
-  assets are now included in the release pipeline (cross-compiled under Docker
-  on the GitHub-Actions host). Existing assets (`linux-x86_64` GNU,
-  `macos-aarch64`, `windows-x86_64`, `windows-aarch64`) are unchanged.
+- The release-index schema stays at v2 (`RELEASE_INDEX_SCHEMA_VERSION = 2`) to
+  preserve the 1.x Stable wire contract. GNU and musl Runtime assets of the
+  same Linux OS+arch are distinguished by the stable artifact ``id``
+  (`rill-runtime` vs the new `rill-runtime-musl`) rather than a new schema
+  field. The `linux-x86_64-musl`, `linux-aarch64` (GNU), and
+  `linux-aarch64-musl` Runtime assets are now included in the release
+  pipeline, built and real-executed inside target-architecture
+  Docker/QEMU containers on GitHub Actions. Existing assets
+  (`linux-x86_64` GNU, `macos-aarch64`, `windows-x86_64`,
+  `windows-aarch64`) are unchanged.
 
 ## [1.1.0] - 2026-08-02
 

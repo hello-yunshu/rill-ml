@@ -1,10 +1,15 @@
 /*
- * rill_ml.h — Stable C ABI for RillML.
+ * rill_ml.h — Preview C ABI for RillML (opaque-handle FFI).
  *
  * RillML is a lightweight, serializable online machine learning library.
  * This header declares the opaque-handle C ABI implemented by the
  * `rill-ml-ffi` crate (see crates/rill-ml-ffi). It is the contract that
  * Android (JNI) and iOS (Swift) bindings compile against.
+ *
+ * Status: Preview (0.x). rill-ml-ffi is not part of the Stable 1.x ABI
+ * freeze. The symbol set, error codes, and header layout may still change
+ * within 0.x. Only the Stable crates (rill-ml, rill-handler-api,
+ * rill-runtime-protocol, rill-runtime) carry a 1.x compatibility promise.
  *
  * ABI contract
  * ------------
