@@ -99,8 +99,9 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: cross-exec-cargo-${{ hashFiles('Cargo.lock') }}
+          key: cross-exec-cargo-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
+            cross-exec-cargo-${{ matrix.target }}-
             cross-exec-cargo-
       - name: Real-execute test suite on ${{ matrix.target }}
         run: ./scripts/cross-exec-test.sh "${{ matrix.target }}"
@@ -198,8 +199,9 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: musl-exec-cargo-${{ hashFiles('Cargo.lock') }}
+          key: musl-exec-cargo-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
+            musl-exec-cargo-${{ matrix.target }}-
             musl-exec-cargo-
       - name: Real-execute workspace tests + runtime smoke on ${{ matrix.target }}
         run: ./scripts/cross-exec-test.sh "${{ matrix.target }}" --runtime-smoke
