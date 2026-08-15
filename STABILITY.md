@@ -453,4 +453,7 @@ The release workflow (`pipeline.yml`) detects prerelease versions
 `gh release create`, uploads `candidate-index.json` to the
 `local-ai-candidate` pointer release, and never touches
 `local-ai-stable`. The Python crate is in the Preview version group and is
-published to PyPI only when its independent Preview version changes.
+published to PyPI only when its independent Preview version changes. The
+WASM bindings (`rill-ml-wasm`) are likewise in the Preview version group and
+are published to npm only when the WASM version matches the release tag;
+otherwise the `publish-wasm` job in `pipeline.yml` skips the upload.

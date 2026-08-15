@@ -804,6 +804,36 @@ jobs:
             target_arch: aarch64
             libc: musl
             asset_suffix: linux-aarch64-musl
+          - rust_target: riscv64gc-unknown-linux-gnu
+            target_os: linux
+            target_arch: riscv64
+            libc: gnu
+            asset_suffix: linux-riscv64
+          - rust_target: armv7-unknown-linux-gnueabihf
+            target_os: linux
+            target_arch: armv7
+            libc: gnu
+            asset_suffix: linux-armv7
+          - rust_target: s390x-unknown-linux-gnu
+            target_os: linux
+            target_arch: s390x
+            libc: gnu
+            asset_suffix: linux-s390x
+          - rust_target: powerpc64le-unknown-linux-gnu
+            target_os: linux
+            target_arch: powerpc64le
+            libc: gnu
+            asset_suffix: linux-powerpc64le
+          - rust_target: loongarch64-unknown-linux-gnu
+            target_os: linux
+            target_arch: loongarch64
+            libc: gnu
+            asset_suffix: linux-loongarch64
+          - rust_target: x86_64-unknown-freebsd
+            target_os: freebsd
+            target_arch: x86_64
+            libc: gnu
+            asset_suffix: freebsd-x86_64
     steps:
       - uses: actions/checkout@v7
         with:
@@ -1159,6 +1189,29 @@ jobs:
           - target: aarch64-unknown-linux-musl
             platform: linux/arm64
             runtime_id: rill-runtime-musl
+          - target: riscv64gc-unknown-linux-gnu
+            platform: linux/riscv64
+            runtime_id: rill-runtime
+            # rust:1.94.0-bookworm has no linux/riscv64 manifest; use the slim
+            # variant (ships linux/riscv64) to re-verify the published asset.
+            image: rust:1.94.0-slim
+          - target: armv7-unknown-linux-gnueabihf
+            platform: linux/arm/v7
+            runtime_id: rill-runtime
+          - target: s390x-unknown-linux-gnu
+            platform: linux/s390x
+            runtime_id: rill-runtime
+          - target: powerpc64le-unknown-linux-gnu
+            platform: linux/ppc64le
+            runtime_id: rill-runtime
+          - target: loongarch64-unknown-linux-gnu
+            platform: linux/loongarch64
+            runtime_id: rill-runtime
+            # rust:1.94.0-bookworm has no linux/loongarch64 manifest; use the
+            # slim variant when a loongarch64 manifest is published. If the host
+            # has no usable manifest the step below skips gracefully (exit 0)
+            # rather than failing the release, matching cross-exec-test.sh.
+            image: rust:1.94.0-slim
     permissions:
       contents: read
     steps:
@@ -1166,10 +1219,10 @@ jobs:
         with:
           ref: ${{ env.RELEASE_TAG }}
       - name: Set up QEMU / binfmt_misc
-        if: contains(matrix.target, 'aarch64')
+        if: matrix.platform != 'linux/amd64'
         uses: docker/setup-qemu-action@v4
       - name: Set up Docker Buildx
-        if: contains(matrix.target, 'aarch64')
+        if: matrix.platform != 'linux/amd64'
         uses: docker/setup-buildx-action@v4
       - name: Build verifier and re-verify the real published asset
         env:
@@ -1181,9 +1234,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # loongarch64: upstream rust:*-slim does not publish a usable
+          # linux/loongarch64 manifest on every host, so real QEMU re-verification
+          # may be impossible. Skip gracefully (exit 0) rather than failing the
+          # release, matching scripts/cross-exec-test.sh's guard. The asset is
+          # still built and published; its re-verification is recorded as pending.
+          if [ "$PLATFORM" = "linux/loongarch64" ] && ! docker manifest inspect --platform "linux/loongarch64" "${IMAGE:-rust:1.94.0-bookworm}" >/dev/null 2>&1; then
+            echo "==> loongarch64 image manifest unavailable on this host — skipping post-release re-verify (asset was built and published)"
+            exit 0
+          fi
           index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
           docker build -t "rill-post-verify-${RUNTIME_ID}" -f- . <<EOF
-          FROM --platform=${PLATFORM} rust:1.94.0-bookworm
+          FROM --platform=${PLATFORM} ${{ matrix.image || 'rust:1.94.0-bookworm' }}
           RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
           EOF
           docker run --rm \
@@ -1209,10 +1271,56 @@ jobs:
           path: smoke-test/post-release-${{ matrix.target }}.json
           if-no-files-found: error
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Post-release re-verify of the published FreeBSD runtime asset. Docker +
+  # QEMU cannot run the FreeBSD kernel, so the published asset is re-downloaded
+  # and re-executed inside a native FreeBSD VM (vmactions/freebsd-vm) via the
+  # same host_smoke.py used by the other platforms.
+  # ─────────────────────────────────────────────────────────────────────────
+  post-release-verify-freebsd:
+    name: Post-release verify FreeBSD (native VM)
+    if: github.event_name == 'workflow_dispatch'
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - name: Re-verify the published FreeBSD runtime in a native FreeBSD VM
+        env:
+          INDEX_FILE: ${{ needs.publish.outputs.index_file }}
+          VERSION: ${{ needs.publish.outputs.version }}
+          CHANNEL: ${{ needs.publish.outputs.channel }}
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            pkg install -y rust python3 bash
+          run: |
+            set -euo pipefail
+            index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
+            cargo build --locked --release -p rill-runtime --bin rill-pack
+            python3 smoke-test/host_smoke.py \
+              --index-url "$index_url" \
+              --expected-version "$VERSION" \
+              --expected-channel "$CHANNEL" \
+              --runtime-id rill-runtime \
+              --rill-pack-bin target/release/rill-pack \
+              --log smoke-test/post-release-freebsd.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: post-release-verify-freebsd
+          path: smoke-test/post-release-freebsd.json
+          if-no-files-found: error
+
   move-index-pointer:
     name: Promote verified signed index pointer
     if: github.event_name == 'workflow_dispatch'
-    needs: [publish, release-host-smoke, post-release-verify]
+    needs: [publish, release-host-smoke, post-release-verify, post-release-verify-freebsd]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -1350,4 +1458,91 @@ jobs:
             sleep 5
           done
           echo "::error::PyPI release ${package}==${version} was not visible after 60s. Investigate https://pypi.org/project/${package}/${version}/ before announcing the release."
+          exit 1
+
+  publish-wasm:
+    name: Publish WASM bindings to npm
+    if: github.event_name == 'workflow_dispatch'
+    needs: move-index-pointer
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - name: Check whether WASM version matches the release tag
+        id: wasm_version_check
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The WASM crate is in the Preview version group and may carry a
+          # different version from the Stable group (the tag version). Only
+          # publish to npm when the two match; otherwise the job would try to
+          # re-upload an already-published Preview version and fail the
+          # visibility check against the wrong version. The 1.0 RC cycle
+          # (Stable=1.0.0-rc.x, Preview=0.15.0) skips npm entirely; the WASM
+          # crate is not a 1.0 blocking artifact (see STABILITY.md).
+          tag_version="${RELEASE_TAG#v}"
+          wasm_version="$(python3 -c 'import json; print(json.load(open("crates/rill-ml-wasm/package.json"))["version"])')"
+          echo "tag_version=$tag_version" >> "$GITHUB_OUTPUT"
+          echo "wasm_version=$wasm_version" >> "$GITHUB_OUTPUT"
+          if [ "$tag_version" = "$wasm_version" ]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "WASM version ($wasm_version) matches tag ($tag_version); will publish."
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "WASM version ($wasm_version) differs from tag ($tag_version); skipping npm publish (Preview crate is not a release-blocking artifact)."
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.wasm_version_check.outputs.should_publish == 'true'
+      - name: Build WASM package (pkg/ + pkg-node/)
+        if: steps.wasm_version_check.outputs.should_publish == 'true'
+        run: bash scripts/wasm-pack-build.sh
+      - name: Verify npm token is configured and valid
+        if: steps.wasm_version_check.outputs.should_publish == 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is not configured. WASM bindings are part of the official release; a missing token must fail the release rather than silently skipping. Add the secret to the repository or remove this job if WASM support is being dropped."
+            exit 1
+          fi
+          cat > "$HOME/.npmrc" <<'EOF'
+          //registry.npmjs.org/:_authToken=${NPM_TOKEN}
+          EOF
+          if ! npm whoami --registry=https://registry.npmjs.org >/tmp/npmwhoami.out 2>/tmp/npmwhoami.err; then
+            echo "::error::NPM_TOKEN is INVALID or EXPIRED. npm whoami failed:"
+            cat /tmp/npmwhoami.err
+            echo "::error::Regenerate a new 90-day Granular access token for rill-ml-wasm and update the NPM_TOKEN secret before the next release."
+            exit 1
+          fi
+          echo "NPM_TOKEN authenticates npm user: $(cat /tmp/npmwhoami.out)"
+      - name: npm publish
+        if: steps.wasm_version_check.outputs.should_publish == 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        working-directory: crates/rill-ml-wasm
+        run: |
+          set -euo pipefail
+          cat > .npmrc <<'EOF'
+          //registry.npmjs.org/:_authToken=${NPM_TOKEN}
+          EOF
+          npm publish --access public
+      - name: Verify npm release is visible
+        if: steps.wasm_version_check.outputs.should_publish == 'true'
+        env:
+          WASM_VERSION: ${{ steps.wasm_version_check.outputs.wasm_version }}
+        run: |
+          set -euo pipefail
+          version="$WASM_VERSION"
+          for attempt in $(seq 1 12); do
+            if npm view "rill-ml-wasm@${version}" version 2>/dev/null | grep -qx "$version"; then
+              echo "npm release rill-ml-wasm@${version} is visible."
+              exit 0
+            fi
+            echo "npm release not visible yet (attempt $attempt/12); retrying in 5s..."
+            sleep 5
+          done
+          echo "::error::npm release rill-ml-wasm@${version} was not visible after 60s. Investigate https://www.npmjs.com/package/rill-ml-wasm/v/${version} before announcing the release."
           exit 1

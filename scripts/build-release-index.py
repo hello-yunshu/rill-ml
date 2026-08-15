@@ -33,6 +33,12 @@ RUNTIMES = (
     ("linux", "x86_64", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-x86_64-musl"),
     ("linux", "aarch64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-aarch64"),
     ("linux", "aarch64", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-aarch64-musl"),
+    ("linux", "riscv64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-riscv64"),
+    ("linux", "armv7", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-armv7"),
+    ("linux", "s390x", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-s390x"),
+    ("linux", "powerpc64le", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-powerpc64le"),
+    ("linux", "loongarch64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-loongarch64"),
+    ("freebsd", "x86_64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-freebsd-x86_64"),
     ("macos", "aarch64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-macos-aarch64"),
     ("windows", "x86_64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-windows-x86_64.exe"),
     # Phase 4: native Windows ARM64 Runtime built on the `windows-11-arm`

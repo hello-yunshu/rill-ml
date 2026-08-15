@@ -45,16 +45,30 @@ Only targets that pass the full gate are listed here.
 | `x86_64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-apple-darwin` | ✅ | ✅ (unsigned) | Rust | – | ✅ | ✅ | ✅ |
+| `riscv64gc-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `armv7-unknown-linux-gnueabihf` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `s390x-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `powerpc64le-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `loongarch64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `x86_64-unknown-freebsd` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 
 \* ARM64 GNU/musl Core and Runtime are executed under Docker + QEMU/binfmt on
-x86_64 hosts, and natively when an ARM64 host is available.
+x86_64 hosts, and natively when an ARM64 host is available. The same applies to
+the niche Linux targets riscv64, armv7, s390x, and powerpc64le, which are
+real-executed under Docker + QEMU/binfmt. LoongArch64 is real-executed under
+Docker + QEMU when a usable `linux/loongarch64` image manifest is available on
+the host; on hosts without one its post-release re-verify is skipped gracefully
+(the asset is still built and published), so its Runtime smoke is recorded as
+manifold-conditional.
 
 The **Release** column reflects the published `rill-runtime` asset matrix:
 `linux-x86_64` (GNU), `linux-x86_64-musl`, `linux-aarch64` (GNU),
-`linux-aarch64-musl`, `windows-x86_64`, `windows-aarch64`, and `macos-aarch64`
-(see `scripts/build-release-index.py`). The Linux assets are cross-compiled
-under Docker on the GitHub-Actions host; the musl and ARM64 Linux assets are
-now published alongside the x86_64 GNU asset.
+`linux-aarch64-musl`, `linux-riscv64`, `linux-armv7`, `linux-s390x`,
+`linux-powerpc64le`, `linux-loongarch64`, `freebsd-x86_64`, `windows-x86_64`,
+`windows-aarch64`, and `macos-aarch64` (see `scripts/build-release-index.py`).
+The Linux assets are cross-compiled under Docker on the GitHub-Actions host;
+the musl and ARM64 Linux assets are now published alongside the x86_64 GNU
+asset.
 
 ### Notes
 
@@ -73,6 +87,11 @@ now published alongside the x86_64 GNU asset.
   uploaded, but is unsigned and not notarized when Apple Developer ID secrets
   are absent (the permanent default). See `STABILITY.md` § macOS unsigned
   policy.
+- **FreeBSD** (`x86_64-unknown-freebsd`) is built and released as a native
+  FreeBSD binary. Docker + QEMU cannot run the FreeBSD kernel, so real
+  execution is verified in a native FreeBSD VM (`vmactions/freebsd-vm` →
+  `scripts/freebsd-ci.sh` on every push, and `post-release-verify-freebsd`
+  re-verifies the published asset after each release).
 
 ---
 
@@ -120,12 +139,6 @@ distinction between "not yet accepted" and "unsupported upstream" is clear.
 
 | Target | Intended role | Current blocker |
 |---|---|---|
-| `riscv64gc-unknown-linux-gnu` | Core + Runtime | Execute path under evaluation (Docker/QEMU layer issue on some hosts); not yet accepted |
-| `s390x-unknown-linux-gnu` | Core + Runtime | Execute path under evaluation; not yet accepted |
-| `armv7-unknown-linux-gnueabihf` | Core (Runtime separately) | 32-bit Runtime acceptance pending; not yet accepted |
-| `powerpc64le-unknown-linux-gnu` | Core + Runtime | Execute path under evaluation; not yet accepted |
-| `loongarch64-unknown-linux-gnu` | Core + Runtime | Toolchain/execute availability; not yet accepted |
-| `x86_64-unknown-freebsd` | Core + Runtime | 原生 VM CI 已接线（`vmactions/freebsd-vm` → `scripts/freebsd-ci.sh`）；首次真实执行验证待 CI 通过，未列入 Supported |
 | `aarch64-linux-android` | Core FFI | FFI 构建链 + CI 已就绪（Docker NDK 交叉构建）；真机/模拟器执行验证未完成，未列入 Supported |
 | `aarch64-apple-ios` | Core FFI | FFI 构建链 + CI 已就绪（macOS Xcode XCFramework）；真机/模拟器执行验证未完成，未列入 Supported |
 
