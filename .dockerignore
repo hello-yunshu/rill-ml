@@ -1,5 +1,5 @@
 # Keep the Docker build context minimal. The images used by
-# scripts/docker-test.sh, scripts/docker-cross-test.sh and
+# scripts/docker-test.sh, scripts/cross-exec-test.sh and
 # scripts/docker-release-smoke.sh only need source + scripts + manifests.
 target/
 target-android/
