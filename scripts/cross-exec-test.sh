@@ -185,6 +185,24 @@ else
   BUILD_CMD="cargo build"
 fi
 
+# Features passed to the Runtime smoke release build. The shipped binaries
+# enable `wasm` (wasmtime InvokeHandler) by default, so the full smoke mirrors
+# that. A few niche GNU targets (armv7, powerpc64le, s390x) compile the whole
+# smoke under QEMU, where building wasmtime's cranelift backend is either
+# extremely slow (armv7/powerpc64le, repeatedly pushed past the CI timeout) or
+# crashes with SIGSEGV on s390x (observed compiling cranelift-native 0.133).
+# For those targets the smoke builds with --no-default-features: the core
+# runtime surface the smoke exercises (rill-pack create/verify, inspect-pack,
+# the builtin linear-regression handler, IPC handshake) is wasm-independent,
+# and the wasm handler path is still compiled+tested by the --all-features
+# crate tests above plus the shipped assets, which build-runtime-cross
+# cross-compiles natively (non-QEMU) with --features wasm.
+SMOKE_FEATURES="--features wasm"
+case "$TARGET" in
+  armv7-unknown-linux-gnueabihf|powerpc64le-unknown-linux-gnu|s390x-unknown-linux-gnu)
+    SMOKE_FEATURES="--no-default-features" ;;
+esac
+
 # ── LoongArch64 graceful guard ──────────────────────────────────────────────
 # There is typically NO usable Docker image manifest for the linux/loongarch64
 # platform (upstream rust:*-bookworm does not publish a loongarch64 manifest),
@@ -228,8 +246,8 @@ run_runtime_smoke() {
   # container), NOT the requested musl/aarch64musl target. Without --target the
   # release binaries land in target/release/ instead of target/${TARGET}/release/
   # and the smoke below would fail with "No such file or directory".
-  echo '-- runtime smoke: release build (wasm feature)'
-  ${BUILD_CMD} --locked --release -p rill-runtime --bin rill-runtime --bin rill-pack --features wasm --target ${TARGET}
+  echo '-- runtime smoke: release build'
+  ${BUILD_CMD} --locked --release -p rill-runtime --bin rill-runtime --bin rill-pack ${SMOKE_FEATURES} --target ${TARGET}
 
   bin=target/${TARGET}/release
 
@@ -296,6 +314,7 @@ echo "==> Cross-executing $TARGET on Docker platform $PLAT (QEMU/binfmt)"
 echo "==> Image: $IMAGE"
 if [[ "$RUNTIME_SMOKE" == "1" ]]; then
   echo "==> Runtime smoke enabled (RUN_RUNTIME_SMOKE=1 / --runtime-smoke) — release build + signed-pack IPC smoke after the crate tests"
+  echo "==> Smoke build features: ${SMOKE_FEATURES}"
   echo "==> WARNING: Runtime smoke on 32-bit / niche targets (armv7, riscv64, s390x, powerpc64le) may be slow under QEMU but is still real execution."
 fi
 
@@ -316,6 +335,7 @@ docker run --rm \
   ${CACHE_MOUNTS} \
   ${LINKER_ENV:+-e "${LINKER_ENV}=${LINKER}"} \
   -e "BUILD_CMD=${BUILD_CMD}" \
+  -e "SMOKE_FEATURES=${SMOKE_FEATURES}" \
   -e "TARGET=${TARGET}" \
   -e "HOST_UID=$(id -u)" \
   -e "HOST_GID=$(id -g)" \
