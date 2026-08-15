@@ -10,7 +10,7 @@
 # (FROM --platform=...), so the binaries are built natively for that
 # architecture and execute without relying on binfmt for the app binary
 # (which cannot satisfy the target's dynamic loader). This mirrors
-# scripts/docker-cross-test.sh.
+# scripts/cross-exec-test.sh.
 #
 # The smoke generates a fresh Ed25519 keypair, signs a real model package from
 # models/example-default, verifies it back through `rill-pack verify` (which

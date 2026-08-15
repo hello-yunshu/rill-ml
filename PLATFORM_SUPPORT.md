@@ -142,7 +142,7 @@ Docker-first is the enforcement principle. The reproducible entry points are:
 |---|---|
 | `Dockerfile.test` | Pinned Rust image running the full native gate (fmt, clippy, test, doc) |
 | `scripts/docker-test.sh` | Native Linux x86_64 GNU gate |
-| `scripts/docker-cross-test.sh` | Real cross-architecture execution via Docker + QEMU/binfmt |
+| `scripts/cross-exec-test.sh` | Real cross-architecture execution via Docker + QEMU/binfmt |
 | `scripts/docker-release-smoke.sh` | Release build + signed-pack + IPC smoke in Docker |
 | `scripts/docker-build-wheels.sh` | Python manylinux abi3 wheels for Linux x86_64/ARM64 |
 | `scripts/docker-wasm-build.sh` | WASM bindings build + test (web ESM + Node CJS + wasm-bindgen suite) |

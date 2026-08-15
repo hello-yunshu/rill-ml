@@ -8,10 +8,10 @@
 # This is real execution, not compile-only.
 #
 # Usage:
-#   ./scripts/docker-cross-test.sh aarch64-unknown-linux-gnu
-#   TARGET=riscv64gc-unknown-linux-gnu ./scripts/docker-cross-test.sh
-#   RUN_RUNTIME_SMOKE=1 ./scripts/docker-cross-test.sh s390x-unknown-linux-gnu
-#   ./scripts/docker-cross-test.sh aarch64-unknown-linux-gnu --runtime-smoke
+#   ./scripts/cross-exec-test.sh aarch64-unknown-linux-gnu
+#   TARGET=riscv64gc-unknown-linux-gnu ./scripts/cross-exec-test.sh
+#   RUN_RUNTIME_SMOKE=1 ./scripts/cross-exec-test.sh s390x-unknown-linux-gnu
+#   ./scripts/cross-exec-test.sh aarch64-unknown-linux-gnu --runtime-smoke
 #
 # RUN_RUNTIME_SMOKE=1 (or the trailing --runtime-smoke flag) additionally runs a
 # real Runtime smoke inside the SAME target container after the crate tests:
@@ -104,7 +104,7 @@ _linker_bin() {
 }
 
 PLAT="$(_platform "$TARGET")" || {
-  echo "Unsupported target '$TARGET' — add it to scripts/docker-cross-test.sh" >&2
+  echo "Unsupported target '$TARGET' — add it to scripts/cross-exec-test.sh" >&2
   exit 2
 }
 LINKER_PKG="$(_linker_pkg "$TARGET")"
@@ -237,6 +237,25 @@ run_runtime_smoke() {
 RUNTIME_SMOKE
 }
 
+# Optional host-level cargo cache to cut QEMU compile time across runs.
+#
+# The container's CARGO_HOME is /usr/local/cargo. The crates.io registry source
+# (downloaded .crate files + index) is arch-independent, so sharing it with the
+# host avoids re-downloading every dependency on each QEMU run. The workspace
+# target/ dir is already mounted via -v "$PWD":/src, so per-arch compiled
+# artifacts are reused within the same run already.
+#
+# Defaults to the host's ~/.cargo registry+git (the container runs as root and
+# can write). Set CROSS_CARGO_CACHE=0 to disable, or point CROSS_CARGO_CACHE at
+# an alternate cache dir (its registry/ and git/ subdirs are used).
+CARGO_CACHE="${CROSS_CARGO_CACHE:-$HOME/.cargo}"
+CACHE_MOUNTS=""
+if [[ "${CROSS_CARGO_CACHE:-1}" != "0" ]]; then
+  # CACHE_MOUNTS is expanded UNQUOTED in the docker run line so it word-splits
+  # into separate -v flags; therefore no quotes may appear inside the paths.
+  CACHE_MOUNTS="-v ${CARGO_CACHE}/registry:/usr/local/cargo/registry -v ${CARGO_CACHE}/git:/usr/local/cargo/git"
+fi
+
 echo "==> Cross-executing $TARGET on Docker platform $PLAT (QEMU/binfmt)"
 echo "==> Image: $IMAGE"
 if [[ "$RUNTIME_SMOKE" == "1" ]]; then
@@ -252,6 +271,7 @@ EOF
 
 docker run --rm \
   -v "$PWD":/src -w /src \
+  ${CACHE_MOUNTS} \
   ${LINKER_ENV:+-e "${LINKER_ENV}=${LINKER}"} \
   -e "CARGO_CMD=${CARGO_CMD}" \
   -e "TARGET=${TARGET}" \

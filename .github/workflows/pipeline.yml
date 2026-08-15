@@ -340,7 +340,7 @@ jobs:
       # pkg-node/ Node CJS), fixes up the wasm-pack .gitignore/.npmignore
       # precedence so the artifacts remain packable, and runs the wasm-bindgen
       # test suite under Node. The Docker-first canonical gate runs the same
-      # script inside a pinned container (see cross-platform.yml -> docker-wasm
+      # script inside a pinned container (see cross-platform.yml -> wasm-bindings-gate
       # and scripts/docker-wasm-build.sh).
       - name: wasm-pack build + test (both targets)
         run: bash scripts/wasm-pack-build.sh
