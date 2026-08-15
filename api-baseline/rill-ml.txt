@@ -2222,6 +2222,7 @@ pub fn rill_ml::persistence::Snapshot<T>::into_model(self) -> core::result::Resu
 pub fn rill_ml::persistence::Snapshot<T>::into_model_with_validation<F>(self, F) -> core::result::Result<T, rill_ml::error::RillError> where F: core::ops::function::FnOnce(&T) -> core::result::Result<(), rill_ml::error::RillError>
 pub fn rill_ml::persistence::Snapshot<T>::new(T) -> Self
 pub const rill_ml::MAX_SNAPSHOT_JSON_BYTES: usize
+pub const rill_ml::RILL_VERSION: &str
 pub const rill_ml::SNAPSHOT_FORMAT_VERSION: u32
 pub trait rill_ml::Metric
 pub type rill_ml::Metric::Prediction
