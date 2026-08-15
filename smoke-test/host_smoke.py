@@ -235,6 +235,11 @@ def platform_target() -> tuple[str, str]:
         "arm64": "aarch64",
         "amd64": "x86_64",
         "x64": "x86_64",
+        # Containers/QEMU report uname -m as armv7l / ppc64le, but the release
+        # index records those targets as armv7 / powerpc64le (see
+        # build-release-index.py RUNTIMES), so normalize before lookup.
+        "armv7l": "armv7",
+        "ppc64le": "powerpc64le",
     }.get(machine, machine)
     return target_os, target_arch
 

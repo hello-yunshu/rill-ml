@@ -53,6 +53,11 @@ CAPABILITIES = {
     "model-health",
 }
 
+# SemVer, allowing prerelease (e.g. 1.2.0-rc.1) and build metadata. The adapter
+# and the Rill library report their crate versions, which carry a -rc.N suffix
+# on candidate releases, so the strict \d+\.\d+\.\d+ form would fail those.
+SEMVER_RE = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
+
 
 @dataclass
 class CheckResult:
@@ -303,9 +308,9 @@ def status(client: AdapterClient, report: SmokeReport, request_id: str) -> dict[
         and isinstance(capabilities, list)
         and CAPABILITIES.issubset(set(capabilities))
         and isinstance(response.get("adapterVersion"), str)
-        and re.fullmatch(r"\d+\.\d+\.\d+", response.get("adapterVersion", "")) is not None
+        and SEMVER_RE.fullmatch(response.get("adapterVersion", "")) is not None
         and isinstance(response.get("rillVersion"), str)
-        and re.fullmatch(r"\d+\.\d+\.\d+", response.get("rillVersion", "")) is not None
+        and SEMVER_RE.fullmatch(response.get("rillVersion", "")) is not None
         and isinstance(response.get("modelHealth"), dict)
     )
     report.adapter_version = str(response.get("adapterVersion", ""))
