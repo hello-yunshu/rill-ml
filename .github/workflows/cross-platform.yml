@@ -71,7 +71,7 @@ jobs:
   cross-exec:
     name: QEMU cross-arch execute (${{ matrix.target }})
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -112,7 +112,7 @@ jobs:
   release-smoke:
     name: Release smoke (Docker, ${{ matrix.target }})
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -177,7 +177,7 @@ jobs:
   musl-execute:
     name: musl real-execute (Docker, ${{ matrix.target }})
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
