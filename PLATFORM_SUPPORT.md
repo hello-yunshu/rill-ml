@@ -54,12 +54,17 @@ Only targets that pass the full gate are listed here.
 
 \* ARM64 GNU/musl Core and Runtime are executed under Docker + QEMU/binfmt on
 x86_64 hosts, and natively when an ARM64 host is available. The same applies to
-the niche Linux targets riscv64, armv7, s390x, and powerpc64le, which are
-real-executed under Docker + QEMU/binfmt. LoongArch64 is real-executed under
-Docker + QEMU when a usable `linux/loongarch64` image manifest is available on
-the host; on hosts without one its post-release re-verify is skipped gracefully
-(the asset is still built and published), so its Runtime smoke is recorded as
-manifold-conditional.
+the niche Linux targets armv7, s390x, and powerpc64le, which are real-executed
+under Docker + QEMU/binfmt. LoongArch64 is real-executed under Docker + QEMU
+when a usable `linux/loongarch64` image manifest is available on the host; on
+hosts without one its post-release re-verify is skipped gracefully (the asset
+is still built and published), so its Runtime smoke is recorded as
+manifold-conditional. RISC-V 64 is cross-compiled and published as part of the
+release asset matrix, but upstream `rust:*` images currently publish no
+`linux/riscv64` manifest, so Docker + QEMU real-execution is not yet possible:
+its cross-exec and post-release re-verify steps skip gracefully (the asset is
+still built and published) until a usable riscv64 image manifest is available,
+and its Runtime smoke is recorded as manifold-conditional for the same reason.
 
 The **Release** column reflects the published `rill-runtime` asset matrix:
 `linux-x86_64` (GNU), `linux-x86_64-musl`, `linux-aarch64` (GNU),
