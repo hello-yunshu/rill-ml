@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="README.en.md">English</a> &middot; <a href="CHANGELOG.md">更新日志</a> &middot; <a href="ROADMAP.md">路线图</a> &middot; <a href="https://docs.rs/rill-ml">API 文档</a>
+  <a href="README.en.md">English</a> &middot; <a href="CHANGELOG.md">更新日志</a> &middot; <a href="ROADMAP.md">路线图</a> &middot; <a href="PLATFORM_SUPPORT.md">平台支持</a> &middot; <a href="https://docs.rs/rill-ml">API 文档</a>
 </p>
 
 ---
@@ -211,6 +211,7 @@ Workspace 下的 crate 分为 Stable 组（1.x 兼容冻结）和 Preview 组（
 | `rill-ml-wasm` | WebAssembly 绑定（`wasm32-unknown-unknown`），浏览器端在线学习 | Preview | `cargo add rill-ml-wasm` |
 | `rill-ml-python` | Python 绑定（PyO3 + Maturin），PyPI 包名 `rill-ml-python`，`import rill_ml` | Preview | `pip install rill-ml-python` |
 | `rillml-inspect` | 查看 `Snapshot` JSON、版本与校验的 CLI（非运行依赖） | Preview | `cargo install rillml-inspect` |
+| `rill-ml-ffi` | 稳定 C ABI（opaque handle + `rill_ml.h`），供 C/C++、Android（JNI）、iOS（Swift）调用 | Preview | `cargo add rill-ml-ffi` |
 
 ## 路线图
 

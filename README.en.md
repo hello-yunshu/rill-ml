@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">中文</a> &middot; <a href="CHANGELOG.md">Changelog</a> &middot; <a href="ROADMAP.md">Roadmap</a> &middot; <a href="https://docs.rs/rill-ml">API Docs</a>
+  <a href="README.md">中文</a> &middot; <a href="CHANGELOG.md">Changelog</a> &middot; <a href="ROADMAP.md">Roadmap</a> &middot; <a href="PLATFORM_SUPPORT.md">Platform Support</a> &middot; <a href="https://docs.rs/rill-ml">API Docs</a>
 </p>
 
 ---
@@ -214,6 +214,7 @@ Workspace crates are split into a Stable group (under the 1.x compatibility free
 | `rill-ml-wasm` | WebAssembly bindings (`wasm32-unknown-unknown`) for browser-side online learning | Preview | `cargo add rill-ml-wasm` |
 | `rill-ml-python` | Python bindings (PyO3 + Maturin); PyPI package `rill-ml-python`, `import rill_ml` | Preview | `pip install rill-ml-python` |
 | `rillml-inspect` | CLI to view `Snapshot` JSON, version, and validation status (not a runtime dependency) | Preview | `cargo install rillml-inspect` |
+| `rill-ml-ffi` | Stable C ABI (opaque handle + `rill_ml.h`) for C/C++, Android (JNI), iOS (Swift) | Preview | `cargo add rill-ml-ffi` |
 
 ## Roadmap
 

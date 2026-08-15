@@ -182,3 +182,60 @@ def test_linucb_scores_and_replay_export():
     report = json.loads(replay_decisions(json.dumps(records), 2, 1, 1.0, 10, 1, "schema-a"))
     assert report["cumulative_reward"] == 0.75
     assert report["completed"] == 1
+
+
+def test_invalid_feature_dimension_rejected():
+    from rill_ml import LinearRegression, LogisticRegression
+
+    # Feature vectors shorter than the model's feature_count are rejected by
+    # the Rust layer (dimension mismatch) and surface as RuntimeError.
+    with pytest.raises(RuntimeError):
+        LinearRegression(2, 0.1).predict_one([1.0])
+    with pytest.raises(RuntimeError):
+        LogisticRegression(2, 0.1).predict_one([1.0])
+
+
+def test_non_numeric_input_rejected():
+    from rill_ml import LinearRegression
+
+    # PyO3 cannot extract strings into Vec<f64>; this raises a Python
+    # extraction error (TypeError or RuntimeError depending on the PyO3 path).
+    with pytest.raises(Exception):
+        LinearRegression(2, 0.1).predict_one(["a", "b"])
+
+
+def test_invalid_json_rejected():
+    from rill_ml import Mean
+
+    # Malformed JSON is rejected by serde before any model is activated.
+    with pytest.raises(RuntimeError):
+        Mean.from_json("not json")
+    # Wrong snapshot shape (missing Mean fields) is rejected by serde too.
+    with pytest.raises(RuntimeError):
+        Mean.from_json('{"format_version":1,"model":{}}')
+
+
+def test_snapshot_size_limit_rejected():
+    from rill_ml import Mean
+
+    # Oversized input (> 64 MiB) is rejected before deserialization so it can
+    # never allocate a large intermediate tree. The string is intentionally
+    # ~64 MiB and is checked by length alone, so this stays fast.
+    oversized = "x" * (64 * 1024 * 1024 + 1)
+    with pytest.raises(RuntimeError) as exc:
+        Mean.from_json(oversized)
+    assert "byte limit" in str(exc.value)
+
+
+def test_negative_feature_count_rejected():
+    from rill_ml import LinearRegression, StandardScaler, LinUcb
+
+    # Negative counts fail PyO3's unsigned-int extraction (OverflowError),
+    # not the Rust constructors; zero-dimension configs fail the Rust
+    # validation (RuntimeError). Both must be rejected at construction time.
+    with pytest.raises((RuntimeError, OverflowError)):
+        LinearRegression(-1, 0.1)
+    with pytest.raises((RuntimeError, OverflowError)):
+        StandardScaler(-1)
+    with pytest.raises(RuntimeError):
+        LinUcb(0, 0, 1.0)

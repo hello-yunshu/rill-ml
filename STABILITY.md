@@ -120,6 +120,13 @@ RC and all future 1.x CI must load every fixture for Stable state schema
 types. A schema bump requires a migration note in `CHANGELOG.md` and a new
 fixture set.
 
+The same golden fixtures are the cross-architecture stability gate: they are
+loaded and byte-compared on every supported CPU architecture (native and
+Docker + QEMU), so a state written on one architecture restores identically
+on another. New stable state DTOs must use fixed-width integers
+(`u32`/`u64`/`i32`/`i64`) only. See `PLATFORM_SUPPORT.md` →
+*Cross-Architecture State Compatibility*.
+
 ### Stable state schema types
 
 The following 26 types are covered by the 1.x state-freeze contract. Each
@@ -354,6 +361,7 @@ enforced in CI. An MSRV bump is a minor breaking change and requires a
 |---|---|---|
 | Linux x86_64 | Stable | Stable |
 | Windows x86_64 | Stable | Stable |
+| Windows ARM64 (aarch64) | Stable | Stable |
 | macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | Not published | Stable |
 

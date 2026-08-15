@@ -1,0 +1,43 @@
+{
+  "name": "rill-ml-wasm",
+  "version": "0.15.0",
+  "description": "WebAssembly bindings for RillML - online machine learning for the browser and Node.js.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./pkg-node/rill_ml_wasm.js",
+  "module": "./pkg/rill_ml_wasm.js",
+  "types": "./index.d.ts",
+  "files": [
+    "pkg/",
+    "pkg-node/",
+    "index.d.ts",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "browser": {
+        "import": "./pkg/rill_ml_wasm.js",
+        "require": "./pkg-node/rill_ml_wasm.js",
+        "default": "./pkg/rill_ml_wasm.js"
+      },
+      "node": {
+        "import": "./pkg-node/rill_ml_wasm.js",
+        "require": "./pkg-node/rill_ml_wasm.js",
+        "default": "./pkg-node/rill_ml_wasm.js"
+      },
+      "import": "./pkg/rill_ml_wasm.js",
+      "require": "./pkg-node/rill_ml_wasm.js",
+      "default": "./pkg/rill_ml_wasm.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "bash ../../scripts/wasm-pack-build.sh",
+    "docker:build": "bash ../../scripts/docker-wasm-build.sh",
+    "test:wasm": "wasm-pack test --node --release",
+    "test:node": "node tests/node-smoke.mjs",
+    "prepublishOnly": "bash ../../scripts/wasm-pack-build.sh"
+  },
+  "devDependencies": {}
+}

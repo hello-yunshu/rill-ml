@@ -12,8 +12,15 @@ __pycache__/
 
 # Build artifacts
 /dist/
+/dist-android/
+/dist-ios/
+/target-android/
 *.rillpack
 *.rillhandler
+
+# iOS binding build artifacts (SwiftPM .build/ and host staticlib .build-libs/)
+crates/rill-ml-ffi/ios/.build/
+crates/rill-ml-ffi/ios/.build-libs/
 
 # Echo handler build artifacts (standalone WASM crate, not a workspace member)
 handlers/*/target/

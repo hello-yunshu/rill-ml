@@ -24,6 +24,17 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
         self.assertIn("aarch64-apple-darwin", workflow)
         self.assertIn('("macos", "aarch64"', release_index)
 
+    def test_windows_arm64_runtime_is_built_and_indexed(self) -> None:
+        # Phase 4: aarch64-pc-windows-msvc must be built on the native
+        # Windows ARM64 runner (`windows-11-arm`) and listed in the release
+        # index with the stable <os>-<arch> naming contract.
+        workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
+        release_index = (ROOT / "scripts/build-release-index.py").read_text(encoding="utf-8")
+        self.assertIn("aarch64-pc-windows-msvc", workflow)
+        self.assertIn("windows-11-arm", workflow)
+        self.assertIn('("windows", "aarch64"', release_index)
+        self.assertIn("windows-aarch64.exe", release_index)
+
     def test_model_only_release_preserves_runtime_and_rejects_downgrade(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp = pathlib.Path(temp_name)
@@ -94,6 +105,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 f"rill-runtime-{version}-linux-x86_64",
                 f"rill-runtime-{version}-macos-aarch64",
                 f"rill-runtime-{version}-windows-x86_64.exe",
+                f"rill-runtime-{version}-windows-aarch64.exe",
             ):
                 (temp / name).write_bytes(name.encode())
             newer_model = {
@@ -157,6 +169,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                     ("linux", "x86_64"),
                     ("macos", "aarch64"),
                     ("windows", "x86_64"),
+                    ("windows", "aarch64"),
                 },
             )
             self.assertTrue(all(item["version"] == version for item in runtimes))
@@ -268,6 +281,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 f"rill-runtime-{version}-linux-x86_64",
                 f"rill-runtime-{version}-macos-aarch64",
                 f"rill-runtime-{version}-windows-x86_64.exe",
+                f"rill-runtime-{version}-windows-aarch64.exe",
                 f"example-default-{version}.rillpack",
             ):
                 (temp / name).write_bytes(name.encode())
@@ -581,6 +595,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 f"rill-runtime-{version}-linux-x86_64",
                 f"rill-runtime-{version}-macos-aarch64",
                 f"rill-runtime-{version}-windows-x86_64.exe",
+                f"rill-runtime-{version}-windows-aarch64.exe",
                 f"example-default-{version}.rillpack",
             ):
                 (temp / name).write_bytes(name.encode())
@@ -614,6 +629,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 f"rill-runtime-{version}-linux-x86_64",
                 f"rill-runtime-{version}-macos-aarch64",
                 f"rill-runtime-{version}-windows-x86_64.exe",
+                f"rill-runtime-{version}-windows-aarch64.exe",
                 f"example-default-{version}.rillpack",
             ):
                 (temp / name).write_bytes(name.encode())
@@ -646,6 +662,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 f"rill-runtime-{version}-linux-x86_64",
                 f"rill-runtime-{version}-macos-aarch64",
                 f"rill-runtime-{version}-windows-x86_64.exe",
+                f"rill-runtime-{version}-windows-aarch64.exe",
                 f"example-default-{version}.rillpack",
             ):
                 (temp / name).write_bytes(name.encode())

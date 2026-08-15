@@ -216,3 +216,25 @@ fn wasm_classification_pipeline_roundtrip() {
 fn wasm_snapshot_format_version() {
     assert_eq!(WasmSnapshot::format_version(), 1);
 }
+
+#[wasm_bindgen_test]
+fn wasm_invalid_input_rejected() {
+    // Feature-dimension mismatch must be rejected at the binding boundary.
+    let lr = WasmLinearRegression::new(2, 0.1).unwrap();
+    let short = Float64Array::new_with_length(1);
+    assert!(lr.predict(&short).is_err());
+
+    // Malformed JSON must be rejected.
+    assert!(WasmMean::from_json("not json").is_err());
+
+    // Invalid variance kind must be rejected.
+    assert!(WasmVariance::new("bogus").is_err());
+}
+
+#[wasm_bindgen_test]
+fn wasm_snapshot_size_limit_rejected() {
+    // Inputs above MAX_SNAPSHOT_JSON_BYTES (64 MiB) must be rejected before
+    // deserialization. A 64 MiB + 1 byte string is fine in the wasm test env.
+    let big = "x".repeat(64 * 1024 * 1024 + 1);
+    assert!(WasmMean::from_json(&big).is_err());
+}

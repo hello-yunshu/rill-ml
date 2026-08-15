@@ -24,6 +24,7 @@ members = [
     "crates/rillml-inspect",
     "crates/rill-ml-wasm",
     "crates/rill-ml-python",
+    "crates/rill-ml-ffi",
 ]
 exclude = [
     "handlers/echo-handler",

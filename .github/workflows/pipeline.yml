@@ -67,11 +67,16 @@ jobs:
     name: test (${{ matrix.os }}, ${{ matrix.rust }})
     if: github.event_name != 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Phase 4: `windows-11-arm` runs the full workspace suite natively on
+        # the GitHub-hosted Windows ARM64 runner (aarch64-pc-windows-msvc).
+        # Windows native behaviour cannot be validated in Docker (no Windows
+        # container support on the Linux Docker hosts), so the native ARM64
+        # runner is the accepted verification path.
+        os: [ubuntu-latest, windows-latest, windows-11-arm, macos-latest]
         rust: [stable]
     steps:
       - uses: actions/checkout@v7
@@ -86,6 +91,60 @@ jobs:
         run: cargo test --locked --workspace --all-targets --all-features --exclude rill-ml-python
       - name: cargo test docs
         run: cargo test --locked --workspace --doc --all-features --exclude rill-ml-python
+
+  windows-arm64:
+    name: Windows ARM64 (aarch64) native
+    # Phase 4: Runtime smoke + signed-WASM Handler invoke on the native
+    # Windows ARM64 hosted runner (`windows-11-arm`, target
+    # aarch64-pc-windows-msvc). The `test` matrix above already runs the
+    # full workspace suite on this runner; this job covers the two pieces
+    # the generic suite cannot exercise without committed WASM fixtures:
+    #   - Runtime `--help` / `serve --help` smoke
+    #   - WASM echo Handler build + real invoke through wasmtime
+    # Docker cannot validate Windows native behaviour (no Windows container
+    # support on the Linux Docker hosts), so the native runner is the
+    # accepted verification path (see PLATFORM_SUPPORT.md).
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: windows-11-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-tools
+        # Compatible-range policy: matches the `wasm-handler` CI job.
+        # `~1.254.0` allows patch upgrades within the 1.254 minor line.
+        run: cargo install wasm-tools --locked --version "~1.254.0"
+      - name: Record resolved wasm-tools version
+        run: wasm-tools --version
+      - name: Runtime --help smoke (aarch64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run --locked -p rill-runtime --bin rill-runtime --features wasm -- --help
+          output=$(cargo run --locked -p rill-runtime --bin rill-runtime --features wasm -- serve --help)
+          echo "$output" | grep -- '--handler'
+          echo "$output" | grep -- '--model-trust-key'
+      - name: Build echo handler component
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd handlers/echo-handler
+          cargo build --locked --release --target wasm32-unknown-unknown
+          mkdir -p ../../target
+          wasm-tools component new \
+            target/wasm32-unknown-unknown/release/echo-handler.wasm \
+            -o ../../target/echo-handler.wasm
+      - name: Run WASM handler integration tests (aarch64)
+        env:
+          ECHO_HANDLER_WASM: ${{ github.workspace }}/target/echo-handler.wasm
+        run: cargo test --locked -p rill-runtime --features wasm --test wasm_handler -- --include-ignored
+      - name: Run runtime process integration tests (aarch64)
+        env:
+          ECHO_HANDLER_WASM: ${{ github.workspace }}/target/echo-handler.wasm
+        run: cargo test --locked -p rill-runtime --features wasm --test runtime_process
 
   msrv:
     name: MSRV (1.94) lib check
@@ -266,7 +325,7 @@ jobs:
         run: python3 scripts/check_state_fixture_coverage.py
 
   wasm-build:
-    name: WASM build + test
+    name: WASM bindings build + test (publishable npm package)
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -277,21 +336,31 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --locked -p rill-ml-wasm --target wasm32-unknown-unknown
-      - name: Install wasm-pack
-        # Compatible-range policy: ``~0.13.1`` allows patch upgrades
-        # within the 0.13 minor line; ``--locked`` pins transitive
-        # dependencies for the install. This is NOT exact pinning —
-        # different CI runs may resolve different patch versions when
-        # a new patch is published. Avoids the unpinned ``curl | sh``
-        # install path in the release chain. Patch upgrades are allowed
-        # so security fixes land without a manual bump; review
-        # Dependabot alerts before trusting a new minor version with
-        # the release pipeline.
-        run: cargo install wasm-pack --locked --version "~0.13.1"
-      - name: Record resolved wasm-pack version
-        run: wasm-pack --version
-      - name: wasm-pack test (--node)
-        run: cd crates/rill-ml-wasm && wasm-pack test --node --release
+      # Canonical gate: builds the publishable npm layout (pkg/ web ESM +
+      # pkg-node/ Node CJS), fixes up the wasm-pack .gitignore/.npmignore
+      # precedence so the artifacts remain packable, and runs the wasm-bindgen
+      # test suite under Node. The Docker-first canonical gate runs the same
+      # script inside a pinned container (see cross-platform.yml -> docker-wasm
+      # and scripts/docker-wasm-build.sh).
+      - name: wasm-pack build + test (both targets)
+        run: bash scripts/wasm-pack-build.sh
+      - name: Node smoke test (pkg-node consumer path)
+        run: cd crates/rill-ml-wasm && node tests/node-smoke.mjs
+      - name: Verify publishable tarball contains both builds
+        run: |
+          set -euo pipefail
+          cd crates/rill-ml-wasm
+          npm pack --dry-run --json > /tmp/pack.json
+          python3 - <<'PY'
+          import json
+          with open("/tmp/pack.json") as f:
+              data = json.load(f)
+          files = [e["path"] for e in data[0]["files"]]
+          for expected in ("pkg/rill_ml_wasm.js", "pkg-node/rill_ml_wasm.js",
+                           "index.d.ts", "README.md"):
+              assert any(f == expected for f in files), f"missing {expected} in tarball"
+          print("tarball contains browser + node builds and declarations")
+          PY
 
   wasm-handler:
     name: WASM handler component build + test
@@ -474,6 +543,27 @@ jobs:
           maturin develop --release
           pytest tests/ -v
 
+  ffi-build:
+    name: C FFI build + C ABI smoke
+    # Phase 6a/6b: the stable C FFI crate (rill-ml-ffi) is part of the
+    # workspace, so the `test` matrix already compiles and runs
+    # tests/ffi_abi.rs on every OS. This job additionally proves the
+    # external C consumer path: it compiles and links
+    # crates/rill-ml-ffi/c_examples/basic.c against include/rill_ml.h and
+    # the built cdylib, then executes it. Docker/QEMU and native
+    # Android/iOS artifact gates live in cross-platform.yml.
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo test rill-ml-ffi (opaque-handle ABI)
+        run: cargo test --locked -p rill-ml-ffi
+      - name: Compile + run C smoke test (rill_ml.h ABI)
+        run: bash scripts/ffi-c-smoke.sh
+
   # ─────────────────────────────────────────────────────────────────────────
   # Release jobs — only on workflow_dispatch.
   # Auto Release dispatches this workflow after CI passes; the tag-push
@@ -558,6 +648,14 @@ jobs:
             rust_target: x86_64-pc-windows-msvc
             target_os: windows
             target_arch: x86_64
+            extension: .exe
+          - runner: windows-11-arm
+            # Phase 4: native Windows ARM64 Runtime. Built on the GitHub-hosted
+            # ARM64 Windows runner so the released asset is genuinely built on
+            # aarch64-pc-windows-msvc (no MSVC cross-toolchain needed).
+            rust_target: aarch64-pc-windows-msvc
+            target_os: windows
+            target_arch: aarch64
             extension: .exe
           - runner: macos-14
             rust_target: aarch64-apple-darwin
