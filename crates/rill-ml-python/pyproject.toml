@@ -12,6 +12,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+# abi3-py39 produces a single stable-ABI wheel that works on any CPython 3.9+,
+# so one wheel per platform covers every supported interpreter version instead
+# of building one wheel per minor version. requires-python stays >=3.9.
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["pyo3/extension-module", "pyo3/abi3-py39"]
 module-name = "rill_ml"

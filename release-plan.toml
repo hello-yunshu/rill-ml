@@ -23,4 +23,5 @@ crates = [
   "rill-ml-arrow",
   "rill-ml-polars",
   "rillml-inspect",
+  "rill-ml-ffi",
 ]

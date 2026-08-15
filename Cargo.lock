@@ -2913,6 +2913,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rill-ml-ffi"
+version = "0.15.0"
+dependencies = [
+ "rill-ml",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "rill-ml-polars"
 version = "0.15.0"
 dependencies = [

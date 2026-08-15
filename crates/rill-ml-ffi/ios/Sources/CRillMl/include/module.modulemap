@@ -1,0 +1,5 @@
+/* CRillMl — SwiftPM module for the RillML Stable C ABI. */
+module CRillMl {
+    header "rill_ml.h"
+    export *
+}

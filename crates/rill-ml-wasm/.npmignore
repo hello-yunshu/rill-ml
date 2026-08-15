@@ -1,0 +1,10 @@
+# npm packaging ignore file.
+#
+# This file takes precedence over the crate-level .gitignore for publish
+# purposes: the wasm-pack outputs (pkg/, pkg-node/) MUST be included in the
+# published tarball (they are whitelisted in package.json "files"), so they
+# are deliberately NOT excluded here. Only local scratch/artifacts that the
+# "files" whitelist already omits are listed.
+*.tgz
+node_modules/
+target/

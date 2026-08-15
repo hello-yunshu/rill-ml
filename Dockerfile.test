@@ -1,0 +1,36 @@
+# RillML Docker-first test image.
+#
+# Single reproducible container used to run the full quality gate:
+#   cargo fmt --check, cargo clippy, cargo test, cargo test --doc.
+#
+# The Rust version is pinned so CI and local developers get identical
+# toolchain behaviour. Bump deliberately and re-run the gate before
+# trusting a new version. Rust version policy: the pinned version is >=
+# the crate MSRV (1.94) and is the version used by the CI full gate.
+#
+# Usage (see scripts/docker-test.sh):
+#   docker build -t rillml-test -f Dockerfile.test .
+#   docker run --rm -v "$PWD":/src -w /src rillml-test
+
+# Use a rolling non-`latest` tag resolved to a concrete patch so the image
+# is reproducible. The default matches the toolchain the project was
+# verified against; it must be >= the declared MSRV (1.94). Set RUST_PIN
+# to a newer stable if a dependency requires it, and re-run the gate.
+ARG RUST_PIN=1.97.0
+FROM rust:${RUST_PIN}-bookworm
+
+# Keep the image minimal: only tools needed to run the core gate and
+# cross-compile the four first-class Linux targets.
+RUN set -eux; \
+    rustup component add rustfmt clippy; \
+    rustup target add aarch64-unknown-linux-gnu; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu \
+        musl-tools \
+        file \
+        ca-certificates; \
+    rm -rf /var/lib/apt/lists/*
+
+# Default command: full quality gate.
+CMD ["sh", "-c", "cargo fmt --all --check && cargo clippy --locked --workspace --all-targets --all-features --exclude rill-ml-python -- -D warnings && cargo test --locked --workspace --all-targets --all-features --exclude rill-ml-python && cargo test --locked --workspace --doc --all-features --exclude rill-ml-python"]

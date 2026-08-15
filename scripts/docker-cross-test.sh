@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+# RillML Docker-first cross-architecture execution gate.
+#
+# Real-executes the crate test suite on a non-native CPU architecture using
+# Docker + QEMU/binfmt_misc. The container is launched with --platform set to
+# the target architecture, so `cargo test --target <target>` compiles FOR that
+# target and runs the test binary NATIVELY inside the emulated container.
+# This is real execution, not compile-only.
+#
+# Usage:
+#   ./scripts/docker-cross-test.sh aarch64-unknown-linux-gnu
+#   TARGET=riscv64gc-unknown-linux-gnu ./scripts/docker-cross-test.sh
+#   RUN_RUNTIME_SMOKE=1 ./scripts/docker-cross-test.sh s390x-unknown-linux-gnu
+#   ./scripts/docker-cross-test.sh aarch64-unknown-linux-gnu --runtime-smoke
+#
+# RUN_RUNTIME_SMOKE=1 (or the trailing --runtime-smoke flag) additionally runs a
+# real Runtime smoke inside the SAME target container after the crate tests:
+# release build, --help, fresh Ed25519 keypair -> signed pack -> verify ->
+# inspect -> handshake IPC (mirrors scripts/docker-release-smoke.sh).
+#
+# Supported targets (TARGET / --platform):
+#   aarch64-unknown-linux-gnu        linux/arm64
+#   armv7-unknown-linux-gnueabihf    linux/arm/v7
+#   riscv64gc-unknown-linux-gnu      linux/riscv64
+#   s390x-unknown-linux-gnu          linux/s390x
+#   powerpc64le-unknown-linux-gnu    linux/ppc64le
+#   loongarch64-unknown-linux-gnu    linux/loongarch64   (see guard below)
+#
+# docker-first principle: cross-arch execution MUST prefer Docker + QEMU over
+# dedicated emulator/VM. Only fall back when Docker cannot provide valid
+# execution for a target.
+#
+# NOTE on loongarch64: most hosts have NO usable Docker image manifest for the
+# linux/loongarch64 platform (upstream rust:*-bookworm does not publish a
+# loongarch64 manifest), so real QEMU execution is not generally possible. The
+# script detects that and exits cleanly (LoongArch64 stays compile/evaluation-
+# only, NOT claimed Supported); ALLOW_LOONGARCH64=1 forces the Docker attempt
+# when a real manifest exists.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+RUST_PIN="${RUST_PIN:-1.97.0}"
+TARGET="${1:-${TARGET:-aarch64-unknown-linux-gnu}}"
+
+# Optional real Runtime smoke inside the same target container, enabled either
+# via the RUN_RUNTIME_SMOKE=1 env var or a second CLI arg `--runtime-smoke`.
+RUNTIME_SMOKE=0
+if [[ "${RUN_RUNTIME_SMOKE:-0}" == "1" || "${2:-}" == "--runtime-smoke" ]]; then
+  RUNTIME_SMOKE=1
+fi
+
+# Map each supported target to its Docker --platform and a preinstalled cross C
+# linker. The linkage env is set so the Rust toolchain finds the cross gcc.
+# (Implemented with a case statement so the script also runs on macOS bash 3.2,
+# which lacks associative arrays; Linux CI uses bash 4+.)
+_platform() {
+  case "$1" in
+    x86_64-unknown-linux-gnu) echo "linux/amd64" ;;
+    aarch64-unknown-linux-gnu) echo "linux/arm64" ;;
+    armv7-unknown-linux-gnueabihf) echo "linux/arm/v7" ;;
+    riscv64gc-unknown-linux-gnu) echo "linux/riscv64" ;;
+    s390x-unknown-linux-gnu) echo "linux/s390x" ;;
+    powerpc64le-unknown-linux-gnu) echo "linux/ppc64le" ;;
+    loongarch64-unknown-linux-gnu) echo "linux/loongarch64" ;;
+    *) return 1 ;;
+  esac
+}
+_linker_pkg() {
+  case "$1" in
+    # x86_64 is native to the amd64 container, so no cross package is needed.
+    x86_64-unknown-linux-gnu) echo "" ;;
+    aarch64-unknown-linux-gnu) echo "gcc-aarch64-linux-gnu" ;;
+    armv7-unknown-linux-gnueabihf) echo "gcc-arm-linux-gnueabihf" ;;
+    riscv64gc-unknown-linux-gnu) echo "gcc-riscv64-linux-gnu" ;;
+    s390x-unknown-linux-gnu) echo "gcc-s390x-linux-gnu" ;;
+    powerpc64le-unknown-linux-gnu) echo "gcc-powerpc64le-linux-gnu" ;;
+    loongarch64-unknown-linux-gnu) echo "gcc-loongarch64-linux-gnu" ;;
+    *) return 1 ;;
+  esac
+}
+
+PLAT="$(_platform "$TARGET")" || {
+  echo "Unsupported target '$TARGET' — add it to scripts/docker-cross-test.sh" >&2
+  exit 2
+}
+LINKER_PKG="$(_linker_pkg "$TARGET")"
+IMAGE="rust:${RUST_PIN}-bookworm"
+
+# The cross gcc binary is <triple>-gcc (package gcc-<triple>), or plain `gcc`
+# when the target is native to the container platform. Cargo discovers it via
+# CARGO_TARGET_<TRIPLE_UPPERCASE>_LINKER.
+if [[ -n "$LINKER_PKG" ]]; then
+  LINKER="${LINKER_PKG#gcc-}-gcc"
+  INSTALL_PKGS="$LINKER_PKG"
+else
+  LINKER="gcc"
+  INSTALL_PKGS=""
+fi
+# python3 is required to derive the Ed25519 public key when the optional
+# runtime smoke is enabled; keep the default test-only image unchanged.
+if [[ "$RUNTIME_SMOKE" == "1" ]]; then
+  INSTALL_PKGS="${INSTALL_PKGS} python3"
+fi
+if [[ -n "$INSTALL_PKGS" ]]; then
+  INSTALL_STEP="RUN apt-get update && apt-get install -y --no-install-recommends ${INSTALL_PKGS} && rm -rf /var/lib/apt/lists/*"
+else
+  INSTALL_STEP="RUN true"
+fi
+LINKER_ENV="CARGO_TARGET_$(echo "$TARGET" | tr 'a-z-' 'A-Z_')_LINKER"
+
+# ── LoongArch64 graceful guard ──────────────────────────────────────────────
+# There is typically NO usable Docker image manifest for the linux/loongarch64
+# platform (upstream rust:*-bookworm does not publish a loongarch64 manifest),
+# so QEMU execution is not generally possible here. Per the docker-first policy
+# we never claim "Supported" without real execution, so when the platform
+# manifest cannot be resolved we exit cleanly and leave LoongArch64 as
+# compile/evaluation-only. Set ALLOW_LOONGARCH64=1 to force the Docker attempt
+# anyway (only meaningful on a host where a real manifest exists).
+if [[ "$TARGET" == "loongarch64-unknown-linux-gnu" && "${ALLOW_LOONGARCH64:-0}" != "1" ]]; then
+  if ! docker manifest inspect --platform "linux/loongarch64" "$IMAGE" >/dev/null 2>&1; then
+    echo "==> loongarch64 Docker/QEMU image manifest unavailable on this host — LoongArch64 remains compile/evaluation only and is NOT claimed Supported (see PLATFORM_SUPPORT.md)"
+    echo "==> (Set ALLOW_LOONGARCH64=1 to force the Docker attempt once a real manifest exists.)"
+    exit 0
+  fi
+fi
+
+# Real Runtime smoke emitted into the SAME target-platform container after the
+# crate tests. Mirrors scripts/docker-release-smoke.sh: release build, --help,
+# fresh Ed25519 keypair -> signed pack -> verify -> inspect -> handshake IPC.
+# The body is emitted verbatim (quoted heredoc) so it is expanded by the
+# CONTAINER's bash, not by this host script.
+run_runtime_smoke() {
+  cat <<'RUNTIME_SMOKE'
+  echo '-- runtime smoke: release build (wasm feature)'
+  cargo build --locked --release -p rill-runtime --bin rill-runtime --bin rill-pack --features wasm
+
+  bin=target/release
+
+  echo '-- rill-runtime --help'
+  $bin/rill-runtime --help >/dev/null
+
+  echo '-- generate fresh Ed25519 keypair'
+  seed=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
+  pubkey=$(python3 scripts/derive_ed25519_pubkey.py "$seed")
+  echo "  pubkey=$pubkey"
+
+  key_id=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["publisherKeyId"])' models/example-default/manifest.json)
+  echo "  key_id=$key_id"
+
+  echo '-- create a signed model pack'
+  RILL_SIGNING_KEY_HEX="$seed" $bin/rill-pack create \
+    --manifest models/example-default/manifest.json \
+    --model models/example-default/model.json \
+    --output /tmp/example.rillpack
+
+  echo '-- verify the signed model pack (round-trips pubkey derivation)'
+  $bin/rill-pack verify \
+    --pack /tmp/example.rillpack \
+    --key-id "$key_id" \
+    --public-key-hex "$pubkey"
+
+  echo '-- inspect-pack'
+  $bin/rill-runtime inspect-pack \
+    --pack /tmp/example.rillpack \
+    --model-trust-key "$key_id=$pubkey" >/dev/null
+
+  echo '-- handshake over IPC (v2)'
+  REQUEST='{"method":"handshake","requestId":"runtime-smoke","apiVersion":2,"clientName":"runtime-smoke","clientVersion":"0.0.0"}'
+  RESPONSE=$(printf '%s\n' "$REQUEST" | timeout 20 $bin/rill-runtime serve \
+    --pack /tmp/example.rillpack \
+    --model-trust-key "$key_id=$pubkey" \
+    --builtin-handler linear-regression)
+  echo "$RESPONSE" | grep -q '"kind":"handshake"'
+  echo "$RESPONSE" | grep -q '"apiVersion":2'
+  echo '-- runtime smoke PASSED'
+RUNTIME_SMOKE
+}
+
+echo "==> Cross-executing $TARGET on Docker platform $PLAT (QEMU/binfmt)"
+echo "==> Image: $IMAGE"
+if [[ "$RUNTIME_SMOKE" == "1" ]]; then
+  echo "==> Runtime smoke enabled (RUN_RUNTIME_SMOKE=1 / --runtime-smoke) — release build + signed-pack IPC smoke after the crate tests"
+  echo "==> WARNING: Runtime smoke on 32-bit / niche targets (armv7, riscv64, s390x, powerpc64le) may be slow under QEMU but is still real execution."
+fi
+
+# Build an image for the target platform with the cross linker installed.
+docker build -t "rillml-cross-${TARGET}:${RUST_PIN}" -f- . <<EOF
+FROM --platform=${PLAT} ${IMAGE}
+${INSTALL_STEP}
+EOF
+
+docker run --rm \
+  -v "$PWD":/src -w /src \
+  -e "${LINKER_ENV}=${LINKER}" \
+  "rillml-cross-${TARGET}:${RUST_PIN}" \
+  bash -c "
+    set -euo pipefail
+    export PATH=\"/usr/local/cargo/bin:\$PATH\"
+    rustup target add ${TARGET}
+    cargo test --locked --workspace --all-targets --all-features \\
+      --exclude rill-ml-python \\
+      --target ${TARGET}
+    cargo test --locked --workspace --doc --all-features \\
+      --exclude rill-ml-python \\
+      --target ${TARGET}
+    $(if [[ "$RUNTIME_SMOKE" == "1" ]]; then
+        echo "    echo '==> runtime smoke for ${TARGET}'"
+        run_runtime_smoke
+      fi)
+  "
+
+echo "==> Cross-execution PASSED for ${TARGET}"
