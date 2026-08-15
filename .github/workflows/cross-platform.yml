@@ -37,8 +37,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   # Docker native x86_64 GNU gate — the Docker-first single entry point.
   # ─────────────────────────────────────────────────────────────────────────
-  docker-native:
-    name: Docker native Linux x86_64 gate
+  native-gate:
+    name: Native Linux x86_64 gate (Docker)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -53,8 +53,8 @@ jobs:
   # Node.js LTS inside the container. This is the same script the native CI
   # job (pipeline.yml -> wasm-build) executes on the host.
   # ─────────────────────────────────────────────────────────────────────────
-  docker-wasm:
-    name: Docker WASM bindings gate
+  wasm-bindings-gate:
+    name: WASM bindings gate (Docker)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -68,8 +68,8 @@ jobs:
   # Docker cross-architecture execution via QEMU/binfmt.
   # Each job real-executes the target-arch test binaries (not compile-only).
   # ─────────────────────────────────────────────────────────────────────────
-  docker-cross-exec:
-    name: Docker QEMU execute (${{ matrix.target }})
+  cross-exec:
+    name: QEMU cross-arch execute (${{ matrix.target }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -100,8 +100,8 @@ jobs:
   # Docker release/smoke — build + execute released-style artifacts on Linux
   # GNU and musl x86_64/ARM64.
   # ─────────────────────────────────────────────────────────────────────────
-  docker-release-smoke:
-    name: Docker release smoke (${{ matrix.target }})
+  release-smoke:
+    name: Release smoke (Docker, ${{ matrix.target }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -165,8 +165,8 @@ jobs:
   # Each target also runs the full Runtime smoke (release build, --help, signed
   # pack -> verify -> inspect -> IPC handshake) via --runtime-smoke.
   # ─────────────────────────────────────────────────────────────────────────
-  docker-musl:
-    name: Docker musl real-execute (${{ matrix.target }})
+  musl-execute:
+    name: musl real-execute (Docker, ${{ matrix.target }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
