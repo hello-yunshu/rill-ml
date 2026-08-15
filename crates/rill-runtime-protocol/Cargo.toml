@@ -10,3 +10,20 @@ description = "Versioned IPC and package contracts for the Rill local runtime."
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+
+# cargo-semver-checks lint overrides (see the `semver-checks` CI job).
+# The v1.2.0 release adds the pm-adapter artifact kind:
+#   - enum_variant_added: ReleaseArtifactKind gains `PmAdapter`. This is
+#     deliberate and additive — old consumers never see the new kind (it is
+#     only emitted by new indexes and the wire format is serde_json), so no
+#     existing data path changes.
+#   - constructible_struct_adds_field: ReleaseArtifact gains the optional
+#     `pm_adapter_protocol_version` field, serialized only when set
+#     (`skip_serializing_if = "Option::is_none"`) and defaulted on read
+#     (`#[serde(default)]`), so old/new JSON round-trips remain compatible.
+# Both are accepted as non-breaking for the serde_json wire contract that
+# this crate guarantees; the 1.0 baseline is kept for binary-identical
+# fixtures.
+[package.metadata.cargo-semver-checks.lints]
+enum_variant_added = "allow"
+constructible_struct_adds_field = "allow"
