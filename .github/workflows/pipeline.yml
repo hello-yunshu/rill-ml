@@ -769,15 +769,18 @@ jobs:
           if-no-files-found: error
 
   # Phase 6: Linux musl + aarch64 Runtime publish assets. These three targets
-  # have no GitHub-hosted native runner, so they are built inside a container
-  # whose platform matches the target (QEMU/binfmt for ARM64). Building in the
-  # target-arch container means the C toolchain is the NATIVE one for that
-  # arch: musl-tools provides the real <arch>-linux-musl-gcc, so the aarch64
-  # musl asset genuinely links musl (not a host x86_64 musl-gcc masquerade).
-  # GNU and musl assets of the same OS+arch are distinguished by the stable
-  # artifact id (rill-runtime vs rill-runtime-musl) in the frozen v2 index.
-  build-runtime-docker:
-    name: Runtime docker ${{ matrix.target_os }} ${{ matrix.target_arch }} ${{ matrix.libc }}
+  # have no GitHub-hosted native runner. Compiling release assets does NOT
+  # require Docker: we cross-compile directly on the ubuntu runner with
+  # cargo-zigbuild, which bundles Zig's Clang-based C compiler, assembler and
+  # linker plus its own musl libc. A single install produces correct GNU and
+  # musl binaries for both x86_64 and aarch64 — no hand-rolled cross toolchain
+  # and no QEMU/container needed for compilation. (Real execution of these
+  # assets is separately verified under Docker+QEMU by the cross-platform
+  # workflow.) GNU and musl assets of the same OS+arch are distinguished by the
+  # stable artifact id (rill-runtime vs rill-runtime-musl) in the frozen v2
+  # index.
+  build-runtime-cross:
+    name: Runtime cross ${{ matrix.target_os }} ${{ matrix.target_arch }} ${{ matrix.libc }}
     if: github.event_name == 'workflow_dispatch'
     needs: package-check
     runs-on: ubuntu-latest
@@ -791,69 +794,45 @@ jobs:
             target_arch: x86_64
             libc: musl
             asset_suffix: linux-x86_64-musl
-            platform: linux/amd64
-            cross_packages: musl-tools
-            linker: x86_64-linux-musl-gcc
           - rust_target: aarch64-unknown-linux-gnu
             target_os: linux
             target_arch: aarch64
             libc: gnu
             asset_suffix: linux-aarch64
-            platform: linux/arm64
-            cross_packages: gcc-aarch64-linux-gnu
-            linker: aarch64-linux-gnu-gcc
           - rust_target: aarch64-unknown-linux-musl
             target_os: linux
             target_arch: aarch64
             libc: musl
             asset_suffix: linux-aarch64-musl
-            platform: linux/arm64
-            # Inside a linux/arm64 container, musl-tools provides the native
-            # aarch64-linux-musl-gcc — no GNU cross gcc assembly required.
-            cross_packages: musl-tools
-            linker: aarch64-linux-musl-gcc
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
-      - name: Set up QEMU / binfmt_misc
-        if: matrix.platform != 'linux/amd64'
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        if: matrix.platform != 'linux/amd64'
-        uses: docker/setup-buildx-action@v3
-      - name: Build runtime in target-arch Docker container
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.94.0
+          targets: ${{ matrix.rust_target }}
+      - name: Install Zig (C cross toolchain used by cargo-zigbuild)
+        uses: mlugg/setup-zig@v2
+      - name: Install cargo-zigbuild
+        run: pip3 install cargo-zigbuild
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: runtime-${{ matrix.rust_target }}-zigbuild
+      - name: Build runtime for ${{ matrix.rust_target }}
         shell: bash
         env:
           VERSION: ${{ env.RELEASE_TAG }}
           RUST_TARGET: ${{ matrix.rust_target }}
-          PLATFORM: ${{ matrix.platform }}
           ASSET_SUFFIX: ${{ matrix.asset_suffix }}
-          CROSS_PACKAGES: ${{ matrix.cross_packages }}
-          CROSS_LINKER: ${{ matrix.linker }}
         run: |
           set -euo pipefail
           version="${VERSION#v}"
-          # The linker env var name is derived from the target: hyphen/period
-          # become underscores, and the whole key is upper-cased, e.g.
-          # aarch64-unknown-linux-musl -> CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER.
-          linker_key="CARGO_TARGET_$(printf '%s' "$RUST_TARGET" | tr '[:lower:]-' '[:upper:]_')_LINKER"
-          docker run --rm \
-            --platform "$PLATFORM" \
-            -e "CARGO_TARGET_DIR=/workspace/target" \
-            -e "RUSTFLAGS=-D warnings" \
-            -e "${linker_key}=${CROSS_LINKER}" \
-            -v "$GITHUB_WORKSPACE":/workspace \
-            -w /workspace \
-            rust:1.94.0 \
-            bash -c "
-              set -euo pipefail
-              apt-get update -qq
-              apt-get install -y -qq $CROSS_PACKAGES
-              rustup target add $RUST_TARGET
-              cargo build --locked --release --target $RUST_TARGET \
-                -p rill-runtime --bin rill-runtime --features wasm
-            "
+          # cargo-zigbuild links the target against Zig's bundled musl/glibc,
+          # so aarch64-unknown-linux-musl genuinely links musl — never the host
+          # x86_64 musl-gcc or a glibc cross-compiler masquerading as musl.
+          cargo zigbuild --locked --release --target "$RUST_TARGET" \
+            -p rill-runtime --bin rill-runtime --features wasm
           mkdir -p dist
           cp "target/$RUST_TARGET/release/rill-runtime" \
             "dist/rill-runtime-${version}-${ASSET_SUFFIX}"
@@ -866,7 +845,7 @@ jobs:
   publish:
     name: Sign and publish
     if: github.event_name == 'workflow_dispatch'
-    needs: [build-runtime, build-runtime-docker]
+    needs: [build-runtime, build-runtime-cross]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
