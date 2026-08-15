@@ -170,6 +170,21 @@ if [[ "$TARGET" == "loongarch64-unknown-linux-gnu" && "${ALLOW_LOONGARCH64:-0}" 
   fi
 fi
 
+# ── RISC-V 64 graceful guard ────────────────────────────────────────────────
+# Same policy as LoongArch64: upstream rust:*-bookworm does not publish a
+# linux/riscv64 manifest, so `docker build --platform=linux/riscv64 rust:...`
+# fails with "no match for platform in manifest". RISC-V 64 stays
+# compile/evaluation-only (NOT claimed Supported) and we exit cleanly instead
+# of failing the whole cross-platform gate. Set ALLOW_RISCV64=1 to force the
+# Docker attempt where a real manifest exists.
+if [[ "$TARGET" == "riscv64gc-unknown-linux-gnu" && "${ALLOW_RISCV64:-0}" != "1" ]]; then
+  if ! docker manifest inspect --platform "linux/riscv64" "$IMAGE" >/dev/null 2>&1; then
+    echo "==> riscv64 Docker/QEMU image manifest unavailable on this host — RISC-V 64 remains compile/evaluation only and is NOT claimed Supported (see PLATFORM_SUPPORT.md)"
+    echo "==> (Set ALLOW_RISCV64=1 to force the Docker attempt once a real manifest exists.)"
+    exit 0
+  fi
+fi
+
 # Real Runtime smoke emitted into the SAME target-platform container after the
 # crate tests. Mirrors scripts/docker-release-smoke.sh: release build, --help,
 # fresh Ed25519 keypair -> signed pack -> verify -> inspect -> handshake IPC.
