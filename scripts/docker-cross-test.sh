@@ -125,19 +125,34 @@ case "$TARGET" in
 esac
 
 # The linker binary is resolved by `_linker_bin` above and Cargo discovers it
-# via CARGO_TARGET_<TRIPLE_UPPERCASE>_LINKER.
+# via CARGO_TARGET_<TRIPLE_UPPERCASE>_LINKER. For musl targets cargo-zigbuild
+# drives Zig itself (Zig's Clang-based C compiler + bundled musl libc), so no
+# system musl-tools linker is installed and no explicit linker env is set.
 INSTALL_PKGS="$LINKER_PKG"
 # python3 is required to derive the Ed25519 public key when the optional
 # runtime smoke is enabled; keep the default test-only image unchanged.
 if [[ "$RUNTIME_SMOKE" == "1" ]]; then
   INSTALL_PKGS="${INSTALL_PKGS} python3"
 fi
-if [[ -n "$INSTALL_PKGS" ]]; then
+if [[ "$ZIGBUILD" == "1" ]]; then
+  # musl links genuinely against Zig's musl via cargo-zigbuild (pip pulls the
+  # ziglang binary). Debian bookworm's pip is PEP 668 externally-managed, so we
+  # pass --break-system-packages. No cross linker is needed.
+  INSTALL_STEP="RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip && rm -rf /var/lib/apt/lists/* && pip3 install --break-system-packages cargo-zigbuild"
+elif [[ -n "$INSTALL_PKGS" ]]; then
   INSTALL_STEP="RUN apt-get update && apt-get install -y --no-install-recommends ${INSTALL_PKGS} && rm -rf /var/lib/apt/lists/*"
 else
   INSTALL_STEP="RUN true"
 fi
-LINKER_ENV="CARGO_TARGET_$(echo "$TARGET" | tr 'a-z-' 'A-Z_')_LINKER"
+LINKER_ENV=""
+if [[ "$ZIGBUILD" == "0" ]]; then
+  LINKER_ENV="CARGO_TARGET_$(echo "$TARGET" | tr 'a-z-' 'A-Z_')_LINKER"
+fi
+# cargo-zigbuild replaces `cargo build`/`cargo test` for the musl targets.
+CARGO_CMD="cargo"
+if [[ "$ZIGBUILD" == "1" ]]; then
+  CARGO_CMD="cargo zigbuild"
+fi
 
 # ── LoongArch64 graceful guard ──────────────────────────────────────────────
 # There is typically NO usable Docker image manifest for the linux/loongarch64
@@ -163,9 +178,9 @@ fi
 run_runtime_smoke() {
   cat <<'RUNTIME_SMOKE'
   echo '-- runtime smoke: release build (wasm feature)'
-  cargo build --locked --release -p rill-runtime --bin rill-runtime --bin rill-pack --features wasm
+  ${CARGO_CMD} build --locked --release -p rill-runtime --bin rill-runtime --bin rill-pack --features wasm
 
-  bin=target/release
+  bin=target/${TARGET}/release
 
   echo '-- rill-runtime --help'
   $bin/rill-runtime --help >/dev/null
@@ -222,16 +237,18 @@ EOF
 
 docker run --rm \
   -v "$PWD":/src -w /src \
-  -e "${LINKER_ENV}=${LINKER}" \
+  ${LINKER_ENV:+-e "${LINKER_ENV}=${LINKER}"} \
+  -e "CARGO_CMD=${CARGO_CMD}" \
+  -e "TARGET=${TARGET}" \
   "rillml-cross-${TARGET}:${RUST_PIN}" \
   bash -c "
     set -euo pipefail
     export PATH=\"/usr/local/cargo/bin:\$PATH\"
     rustup target add ${TARGET}
-    cargo test --locked --workspace --all-targets --all-features \\
+    ${CARGO_CMD} test --locked --workspace --all-targets --all-features \\
       --exclude rill-ml-python \\
       --target ${TARGET}
-    cargo test --locked --workspace --doc --all-features \\
+    ${CARGO_CMD} test --locked --workspace --doc --all-features \\
       --exclude rill-ml-python \\
       --target ${TARGET}
     $(if [[ "$RUNTIME_SMOKE" == "1" ]]; then
