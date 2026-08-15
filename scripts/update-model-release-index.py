@@ -120,7 +120,7 @@ def main() -> None:
         }
     )
     next_payload = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "channel": existing_channel,
         "generatedAt": args.generated_at,
         "publisherKeyId": args.publisher_key_id,

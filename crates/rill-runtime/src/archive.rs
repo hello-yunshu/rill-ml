@@ -166,6 +166,7 @@ fn validate_release_payload(payload: &ReleaseIndexPayload) -> Result<(), Release
             artifact.id.clone(),
             artifact.target_os.clone(),
             artifact.target_arch.clone(),
+            artifact.target_libc.clone(),
             artifact.handler_api_version,
         );
         if !identities.insert(identity) {

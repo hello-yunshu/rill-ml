@@ -184,6 +184,7 @@ mod tests {
                 runtime_api_version: RUNTIME_API_VERSION,
                 target_os: Some("macos".into()),
                 target_arch: Some("aarch64".into()),
+                target_libc: None,
                 handler_api_version: None,
                 min_runtime_version: None,
                 url: "https://example.invalid/rill-runtime".into(),
@@ -224,6 +225,7 @@ mod tests {
                 runtime_api_version: RUNTIME_API_VERSION,
                 target_os: None,
                 target_arch: None,
+                target_libc: None,
                 handler_api_version: Some(HANDLER_API_VERSION),
                 min_runtime_version: Some("0.7.0".into()),
                 url: "https://example.invalid/handler.wasm".into(),
@@ -244,7 +246,7 @@ mod tests {
     #[test]
     fn release_index_rejects_v1_schema() {
         // A release index using the legacy v1 schema (schema_version=1) must be
-        // rejected. Only schema_version=2 (RELEASE_INDEX_SCHEMA_VERSION) is
+        // rejected. Only schema_version=3 (RELEASE_INDEX_SCHEMA_VERSION) is
         // accepted by the current runtime.
         use rill_runtime_protocol::{
             RUNTIME_API_VERSION, RUNTIME_ARTIFACT_ID, ReleaseArtifact, ReleaseArtifactKind,
@@ -264,6 +266,7 @@ mod tests {
                 runtime_api_version: RUNTIME_API_VERSION,
                 target_os: Some("macos".into()),
                 target_arch: Some("aarch64".into()),
+                target_libc: None,
                 handler_api_version: None,
                 min_runtime_version: None,
                 url: "https://example.invalid/rill-runtime".into(),
