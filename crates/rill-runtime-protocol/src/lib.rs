@@ -46,6 +46,14 @@ pub const RUNTIME_ARTIFACT_ID: &str = "rill-runtime";
 /// the stable asset identity so gnu and musl builds of the same OS+arch do not
 /// collide in a v2 release index.
 pub const RUNTIME_ARTIFACT_ID_MUSL: &str = "rill-runtime-musl";
+/// Stable artifact id for the OpenWrt Performance Manager decision
+/// adapter. The adapter is a distinct artifact kind (``pm-adapter``)
+/// because it speaks the independent ``pm-rill-shadow`` v1 protocol, not
+/// the Rill Runtime IPC API.
+pub const PM_ADAPTER_ARTIFACT_ID: &str = "rill-pm-adapter";
+/// ``pm-rill-shadow`` protocol version advertised by released adapter
+/// binaries and required by ``pm-adapter`` index entries.
+pub const PM_ADAPTER_PROTOCOL_VERSION: u32 = 1;
 
 // ---------------------------------------------------------------------------
 // Stable IPC error codes
@@ -234,6 +242,8 @@ pub enum ReleaseArtifactKind {
     Runtime,
     Model,
     Handler,
+    #[serde(rename = "pm-adapter")]
+    PmAdapter,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -242,6 +252,7 @@ pub struct ReleaseArtifact {
     pub kind: ReleaseArtifactKind,
     pub id: String,
     pub version: String,
+    #[serde(default)]
     pub runtime_api_version: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_os: Option<String>,
@@ -251,6 +262,8 @@ pub struct ReleaseArtifact {
     pub handler_api_version: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_runtime_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pm_adapter_protocol_version: Option<u32>,
     pub url: String,
     pub sha256: String,
     pub size: u64,
@@ -323,6 +336,27 @@ impl ReleaseArtifact {
                     .ok_or("handler artifact requires minimum runtime version")?;
                 if min_runtime.is_empty() || min_runtime.len() > 48 {
                     return Err("invalid minimum runtime version");
+                }
+            }
+            ReleaseArtifactKind::PmAdapter => {
+                // The PM adapter speaks the independent ``pm-rill-shadow``
+                // protocol, not the Rill Runtime IPC API, so
+                // ``runtimeApiVersion`` is not applicable and must remain
+                // unset (serde default 0).
+                if self.runtime_api_version != 0 {
+                    return Err("pm-adapter artifact must not set runtime API version");
+                }
+                if self.id != PM_ADAPTER_ARTIFACT_ID
+                    || self.target_os.as_deref().is_none_or(str::is_empty)
+                    || self.target_arch.as_deref().is_none_or(str::is_empty)
+                {
+                    return Err("pm-adapter artifact requires a target OS and architecture");
+                }
+                if self.handler_api_version.is_some() || self.min_runtime_version.is_some() {
+                    return Err("pm-adapter artifact must not carry handler fields");
+                }
+                if self.pm_adapter_protocol_version != Some(PM_ADAPTER_PROTOCOL_VERSION) {
+                    return Err("unsupported pm-adapter protocol version");
                 }
             }
         }
@@ -618,6 +652,7 @@ mod tests {
             target_arch: Some("aarch64".into()),
             handler_api_version: None,
             min_runtime_version: None,
+            pm_adapter_protocol_version: None,
             url: "https://example.invalid/rill-runtime".into(),
             sha256: "ab".repeat(32),
             size: 1024,
@@ -653,6 +688,51 @@ mod tests {
         // Handler without min_runtime_version is rejected.
         handler.min_runtime_version = None;
         assert!(handler.validate_shape().is_err());
+    }
+
+    #[test]
+    fn pm_adapter_artifact_roundtrip_and_shape_validation() {
+        // The release index emits kebab-case ``pm-adapter`` (not camelCase
+        // ``pmAdapter``).
+        let json = r#"{"kind":"pm-adapter","id":"rill-pm-adapter","version":"1.2.0-rc.1","pmAdapterProtocolVersion":1,"targetOs":"linux","targetArch":"x86_64","url":"https://example.invalid/adapter","sha256":"3333333333333333333333333333333333333333333333333333333333333333","size":4096}"#;
+        let artifact: ReleaseArtifact = serde_json::from_str(json).unwrap();
+        assert_eq!(artifact.kind, ReleaseArtifactKind::PmAdapter);
+        assert_eq!(
+            artifact.pm_adapter_protocol_version,
+            Some(PM_ADAPTER_PROTOCOL_VERSION)
+        );
+        assert!(artifact.validate_shape().is_ok());
+
+        // Unknown kind is still rejected.
+        assert!(
+            serde_json::from_str::<ReleaseArtifact>(&json.replace("pm-adapter", "pmAdapter"))
+                .is_err()
+        );
+
+        // Wrong protocol version is rejected.
+        let mut bad = artifact.clone();
+        bad.pm_adapter_protocol_version = Some(99);
+        assert!(bad.validate_shape().is_err());
+
+        // Handler fields are rejected on a pm-adapter.
+        let mut bad = artifact.clone();
+        bad.handler_api_version = Some(HANDLER_API_VERSION);
+        assert!(bad.validate_shape().is_err());
+
+        // Setting a runtime API version is rejected on a pm-adapter.
+        let mut bad = artifact.clone();
+        bad.runtime_api_version = RUNTIME_API_VERSION;
+        assert!(bad.validate_shape().is_err());
+
+        // Missing target platform is rejected.
+        let mut bad = artifact.clone();
+        bad.target_os = None;
+        assert!(bad.validate_shape().is_err());
+
+        // Wrong artifact id is rejected.
+        let mut bad = artifact.clone();
+        bad.id = "org.example.other".into();
+        assert!(bad.validate_shape().is_err());
     }
 
     #[test]
