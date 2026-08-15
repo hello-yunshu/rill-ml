@@ -60,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU / binfmt_misc
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: Run WASM build + test in Docker
         run: ./scripts/docker-wasm-build.sh
 
@@ -90,9 +90,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU / binfmt_misc
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Cache cargo registry (QEMU compile is slow)
         uses: actions/cache@v5
         with:
@@ -123,7 +123,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Set up QEMU / binfmt_misc
         if: contains(matrix.target, 'aarch64')
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: Docker release smoke on ${{ matrix.target }}
         run: TARGET="${{ matrix.target }}" ./scripts/docker-release-smoke.sh
 
@@ -188,10 +188,10 @@ jobs:
       - uses: actions/checkout@v7
       - name: Set up QEMU / binfmt_misc
         if: contains(matrix.target, 'aarch64')
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: Set up Docker Buildx
         if: contains(matrix.target, 'aarch64')
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Cache cargo registry (QEMU compile is slow)
         uses: actions/cache@v5
         with:
