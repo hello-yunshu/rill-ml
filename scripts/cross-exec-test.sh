@@ -148,10 +148,26 @@ LINKER_ENV=""
 if [[ "$ZIGBUILD" == "0" ]]; then
   LINKER_ENV="CARGO_TARGET_$(echo "$TARGET" | tr 'a-z-' 'A-Z_')_LINKER"
 fi
-# cargo-zigbuild replaces `cargo build`/`cargo test` for the musl targets.
+# cargo-zigbuild replaces `cargo build` for the musl targets.
 CARGO_CMD="cargo"
 if [[ "$ZIGBUILD" == "1" ]]; then
   CARGO_CMD="cargo zigbuild"
+fi
+
+# cargo-zigbuild's `zigbuild` subcommand is build-only: it accepts NO `test`,
+# `run` or `build` subcommand (clap rejects them as unexpected arguments). So
+# for musl we COMPILE the whole test surface (--all-targets) to prove every
+# crate genuinely links against musl, and rely on the runtime smoke below for
+# real execution. GNU targets run the tests normally. TEST_LINES is injected
+# into the container body below (host expands it); BUILD_CMD is passed as a
+# container env var for the runtime smoke.
+if [[ "$ZIGBUILD" == "1" ]]; then
+  TEST_LINES="    ${CARGO_CMD} --locked --workspace --all-targets --all-features --exclude rill-ml-python --target ${TARGET}"
+  BUILD_CMD="cargo zigbuild"
+else
+  TEST_LINES="    ${CARGO_CMD} test --locked --workspace --all-targets --all-features --exclude rill-ml-python --target ${TARGET}
+    ${CARGO_CMD} test --locked --workspace --doc --all-features --exclude rill-ml-python --target ${TARGET}"
+  BUILD_CMD="cargo build"
 fi
 
 # ── LoongArch64 graceful guard ──────────────────────────────────────────────
@@ -193,7 +209,7 @@ fi
 run_runtime_smoke() {
   cat <<'RUNTIME_SMOKE'
   echo '-- runtime smoke: release build (wasm feature)'
-  ${CARGO_CMD} build --locked --release -p rill-runtime --bin rill-runtime --bin rill-pack --features wasm
+  ${BUILD_CMD} --locked --release -p rill-runtime --bin rill-runtime --bin rill-pack --features wasm
 
   bin=target/${TARGET}/release
 
@@ -273,19 +289,14 @@ docker run --rm \
   -v "$PWD":/src -w /src \
   ${CACHE_MOUNTS} \
   ${LINKER_ENV:+-e "${LINKER_ENV}=${LINKER}"} \
-  -e "CARGO_CMD=${CARGO_CMD}" \
+  -e "BUILD_CMD=${BUILD_CMD}" \
   -e "TARGET=${TARGET}" \
   "rillml-cross-${TARGET}:${RUST_PIN}" \
   bash -c "
     set -euo pipefail
     export PATH=\"/usr/local/cargo/bin:\$PATH\"
     rustup target add ${TARGET}
-    ${CARGO_CMD} test --locked --workspace --all-targets --all-features \\
-      --exclude rill-ml-python \\
-      --target ${TARGET}
-    ${CARGO_CMD} test --locked --workspace --doc --all-features \\
-      --exclude rill-ml-python \\
-      --target ${TARGET}
+${TEST_LINES}
     $(if [[ "$RUNTIME_SMOKE" == "1" ]]; then
         echo "    echo '==> runtime smoke for ${TARGET}'"
         run_runtime_smoke
