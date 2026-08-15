@@ -208,8 +208,13 @@ fi
 # CONTAINER's bash, not by this host script.
 run_runtime_smoke() {
   cat <<'RUNTIME_SMOKE'
+  # MUST pass --target: inside the container the default host triple is the GNU
+  # triple of the base image (e.g. x86_64-unknown-linux-gnu in an amd64 bookworm
+  # container), NOT the requested musl/aarch64musl target. Without --target the
+  # release binaries land in target/release/ instead of target/${TARGET}/release/
+  # and the smoke below would fail with "No such file or directory".
   echo '-- runtime smoke: release build (wasm feature)'
-  ${BUILD_CMD} --locked --release -p rill-runtime --bin rill-runtime --bin rill-pack --features wasm
+  ${BUILD_CMD} --locked --release -p rill-runtime --bin rill-runtime --bin rill-pack --features wasm --target ${TARGET}
 
   bin=target/${TARGET}/release
 
