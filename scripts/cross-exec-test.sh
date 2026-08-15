@@ -156,13 +156,19 @@ fi
 
 # cargo-zigbuild's `zigbuild` subcommand is build-only: it accepts NO `test`,
 # `run` or `build` subcommand (clap rejects them as unexpected arguments). So
-# for musl we COMPILE the whole test surface (--all-targets) to prove every
-# crate genuinely links against musl, and rely on the runtime smoke below for
-# real execution. GNU targets run the tests normally. TEST_LINES is injected
+# for musl we COMPILE the production surface (all libs + all thin bins) to prove
+# every crate genuinely links against musl, and rely on the runtime smoke below
+# for real execution. GNU targets run the tests normally. TEST_LINES is injected
 # into the container body below (host expands it); BUILD_CMD is passed as a
 # container env var for the runtime smoke.
+#
+# We deliberately use `--lib --bins` (NOT `--all-targets`) for musl: the test/
+# example/bench targets would pull heavy [dev-dependencies] and blow up the
+# aarch64-musl QEMU compile well past the CI timeout. The production libs and
+# bins are the release surface that matters, and real execution is proven by the
+# runtime smoke (which builds rill-runtime + rill-pack and runs them).
 if [[ "$ZIGBUILD" == "1" ]]; then
-  TEST_LINES="    ${CARGO_CMD} --locked --workspace --all-targets --all-features --exclude rill-ml-python --target ${TARGET}"
+  TEST_LINES="    ${CARGO_CMD} --locked --workspace --lib --bins --all-features --exclude rill-ml-python --target ${TARGET}"
   BUILD_CMD="cargo zigbuild"
 else
   TEST_LINES="    ${CARGO_CMD} test --locked --workspace --all-targets --all-features --exclude rill-ml-python --target ${TARGET}
