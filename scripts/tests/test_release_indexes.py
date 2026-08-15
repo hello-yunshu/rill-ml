@@ -35,6 +35,35 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
         self.assertIn('("windows", "aarch64"', release_index)
         self.assertIn("windows-aarch64.exe", release_index)
 
+    def test_riscv64_and_armv7_runtimes_are_built_and_indexed(self) -> None:
+        # Phase: promote linux riscv64 and armv7 to Supported. Each must be
+        # cross-built by build-runtime-cross and listed in the release index
+        # with the stable <os>-<arch> naming contract.
+        workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
+        release_index = (ROOT / "scripts/build-release-index.py").read_text(encoding="utf-8")
+        self.assertIn("riscv64gc-unknown-linux-gnu", workflow)
+        self.assertIn("linux-riscv64", release_index)
+        self.assertIn("armv7-unknown-linux-gnueabihf", workflow)
+        self.assertIn("linux-armv7", release_index)
+
+    def test_s390x_powerpc64le_loongarch64_and_freebsd_runtimes_are_built_and_indexed(self) -> None:
+        # Phase: promote linux s390x / powerpc64le / loongarch64 and
+        # x86_64-unknown-freebsd to Supported. Each must be cross-built by
+        # build-runtime-cross and listed in the release index with the stable
+        # <os>-<arch> naming contract. FreeBSD is re-verified in a native VM
+        # (post-release-verify-freebsd), not Docker/QEMU.
+        workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
+        release_index = (ROOT / "scripts/build-release-index.py").read_text(encoding="utf-8")
+        self.assertIn("s390x-unknown-linux-gnu", workflow)
+        self.assertIn("linux-s390x", release_index)
+        self.assertIn("powerpc64le-unknown-linux-gnu", workflow)
+        self.assertIn("linux-powerpc64le", release_index)
+        self.assertIn("loongarch64-unknown-linux-gnu", workflow)
+        self.assertIn("linux-loongarch64", release_index)
+        self.assertIn("x86_64-unknown-freebsd", workflow)
+        self.assertIn("freebsd-x86_64", release_index)
+        self.assertIn("post-release-verify-freebsd", workflow)
+
     def test_model_only_release_preserves_runtime_and_rejects_downgrade(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             temp = pathlib.Path(temp_name)

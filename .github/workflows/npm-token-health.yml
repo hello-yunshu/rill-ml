@@ -1,0 +1,39 @@
+name: npm-token-health
+run-name: NPM_TOKEN validity check
+
+on:
+  schedule:
+    # Weekly — Monday 01:00 UTC = 09:00 Beijing time. The release NPM_TOKEN is a
+    # 90-day Granular access token, so a weekly probe catches an expired token
+    # well before the next release would surface it at publish time.
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Validate NPM_TOKEN
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate NPM_TOKEN with npm whoami
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is not configured. Add the npm access token secret (see the publish-wasm job in pipeline.yml)."
+            exit 1
+          fi
+          cat > "$HOME/.npmrc" <<'EOF'
+          //registry.npmjs.org/:_authToken=${NPM_TOKEN}
+          EOF
+          if ! npm whoami --registry=https://registry.npmjs.org >/tmp/npmwhoami.out 2>/tmp/npmwhoami.err; then
+            echo "::error::NPM_TOKEN is INVALID or EXPIRED. npm whoami failed:"
+            sed 's/^/::error::  /' /tmp/npmwhoami.err || true
+            echo "::error::Regenerate a new 90-day Granular access token for rill-ml-wasm and update the NPM_TOKEN secret before the next release."
+            exit 1
+          fi
+          echo "NPM_TOKEN valid for npm user: $(cat /tmp/npmwhoami.out)"

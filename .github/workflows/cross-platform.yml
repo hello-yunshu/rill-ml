@@ -104,7 +104,17 @@ jobs:
             cross-exec-cargo-${{ matrix.target }}-
             cross-exec-cargo-
       - name: Real-execute test suite on ${{ matrix.target }}
-        run: ./scripts/cross-exec-test.sh "${{ matrix.target }}"
+        run: |
+          args=""
+          case "${{ matrix.target }}" in
+            # These targets are Supported: they must also pass the full Runtime
+            # smoke (release build, signed pack -> verify -> inspect -> IPC),
+            # not just the crate test suite. armv7/riscv64/s390x/powerpc64le
+            # run real QEMU execution; loongarch64 is guarded in the script and
+            # skips cleanly when no usable image manifest exists.
+            armv7-unknown-linux-gnueabihf|riscv64gc-unknown-linux-gnu|s390x-unknown-linux-gnu|powerpc64le-unknown-linux-gnu|loongarch64-unknown-linux-gnu) args="--runtime-smoke" ;;
+          esac
+          ./scripts/cross-exec-test.sh "${{ matrix.target }}" $args
 
   # ─────────────────────────────────────────────────────────────────────────
   # Docker release/smoke — build + execute released-style artifacts on Linux

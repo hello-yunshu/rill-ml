@@ -109,7 +109,14 @@ PLAT="$(_platform "$TARGET")" || {
 }
 LINKER_PKG="$(_linker_pkg "$TARGET")"
 LINKER="$(_linker_bin "$TARGET")"
+# The default base image is the full bookworm build image. RISC-V 64 is an
+# exception: upstream rust:*-bookworm does not publish a linux/riscv64 manifest,
+# so we use the slim variant (rust:1.97.0-slim ships linux/riscv64) to get real
+# QEMU execution for RISC-V 64. Everything else stays on bookworm.
 IMAGE="rust:${RUST_PIN}-bookworm"
+if [[ "$TARGET" == "riscv64gc-unknown-linux-gnu" ]]; then
+  IMAGE="rust:${RUST_PIN}-slim"
+fi
 
 # musl targets use cargo-zigbuild (Zig's Clang-based C compiler + bundled musl
 # libc) instead of Debian bookworm's musl-tools <arch>-linux-musl-gcc. The
@@ -195,12 +202,12 @@ if [[ "$TARGET" == "loongarch64-unknown-linux-gnu" && "${ALLOW_LOONGARCH64:-0}" 
 fi
 
 # ── RISC-V 64 graceful guard ────────────────────────────────────────────────
-# Same policy as LoongArch64: upstream rust:*-bookworm does not publish a
-# linux/riscv64 manifest, so `docker build --platform=linux/riscv64 rust:...`
-# fails with "no match for platform in manifest". RISC-V 64 stays
-# compile/evaluation-only (NOT claimed Supported) and we exit cleanly instead
-# of failing the whole cross-platform gate. Set ALLOW_RISCV64=1 to force the
-# Docker attempt where a real manifest exists.
+# rust:*-bookworm does not publish a linux/riscv64 manifest, so riscv64 now
+# builds on the slim variant (rust:1.97.0-slim ships linux/riscv64, see IMAGE
+# selection above) to get real QEMU execution. This guard is a defensive
+# fallback only: if the configured image still lacks a linux/riscv64 manifest
+# (e.g. on a host/registry without it), we exit cleanly instead of failing the
+# whole cross-platform gate. Set ALLOW_RISCV64=1 to force the Docker attempt.
 if [[ "$TARGET" == "riscv64gc-unknown-linux-gnu" && "${ALLOW_RISCV64:-0}" != "1" ]]; then
   if ! docker manifest inspect --platform "linux/riscv64" "$IMAGE" >/dev/null 2>&1; then
     echo "==> riscv64 Docker/QEMU image manifest unavailable on this host — RISC-V 64 remains compile/evaluation only and is NOT claimed Supported (see PLATFORM_SUPPORT.md)"
