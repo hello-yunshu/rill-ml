@@ -298,15 +298,24 @@ FROM --platform=${PLAT} ${IMAGE}
 ${INSTALL_STEP}
 EOF
 
+# docker run as root (the container needs root to install targets/toolchain).
+# That writes root-owned files into the host-mounted cargo dirs; the host
+# actions/cache step (which runs as the runner user, not root) then cannot tar
+# them, so the cache SAVE always failed with "Permission denied". Pass the host
+# UID/GID through and chown the mounted cargo dirs back to the host user on
+# container exit, so the cache can be saved/restored across runs.
 docker run --rm \
   -v "$PWD":/src -w /src \
   ${CACHE_MOUNTS} \
   ${LINKER_ENV:+-e "${LINKER_ENV}=${LINKER}"} \
   -e "BUILD_CMD=${BUILD_CMD}" \
   -e "TARGET=${TARGET}" \
+  -e "HOST_UID=$(id -u)" \
+  -e "HOST_GID=$(id -g)" \
   "rillml-cross-${TARGET}:${RUST_PIN}" \
   bash -c "
     set -euo pipefail
+    trap 'chown -R \"\$HOST_UID:\$HOST_GID\" /usr/local/cargo/registry /usr/local/cargo/git 2>/dev/null || true' EXIT
     export PATH=\"/usr/local/cargo/bin:\$PATH\"
     rustup target add ${TARGET}
 ${TEST_LINES}
