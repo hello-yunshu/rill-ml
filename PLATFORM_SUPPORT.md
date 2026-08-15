@@ -39,9 +39,9 @@ Only targets that pass the full gate are listed here.
 | Target | Core | Runtime | Binding | Docker | Execute | CI | Release |
 |---|---|---|---|---:|---|---|---|
 | `x86_64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
-| `x86_64-unknown-linux-musl` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | – |
-| `aarch64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | – |
-| `aarch64-unknown-linux-musl` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | – |
+| `x86_64-unknown-linux-musl` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
+| `aarch64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `aarch64-unknown-linux-musl` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
 | `x86_64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-apple-darwin` | ✅ | ✅ (unsigned) | Rust | – | ✅ | ✅ | ✅ |
@@ -50,10 +50,11 @@ Only targets that pass the full gate are listed here.
 x86_64 hosts, and natively when an ARM64 host is available.
 
 The **Release** column reflects the published `rill-runtime` asset matrix:
-`linux-x86_64`, `windows-x86_64`, `windows-aarch64`, and `macos-aarch64`
-(see `scripts/build-release-index.py`). The musl and ARM64 Linux targets are
-built, executed, and CI-verified but do not yet have a published Runtime
-asset; the Core library remains available for them.
+`linux-x86_64` (GNU), `linux-x86_64-musl`, `linux-aarch64` (GNU),
+`linux-aarch64-musl`, `windows-x86_64`, `windows-aarch64`, and `macos-aarch64`
+(see `scripts/build-release-index.py`). The Linux assets are cross-compiled
+under Docker on the GitHub-Actions host; the musl and ARM64 Linux assets are
+now published alongside the x86_64 GNU asset.
 
 ### Notes
 
@@ -152,6 +153,11 @@ Docker-first is the enforcement principle. The reproducible entry points are:
 
 The Rust toolchain is pinned in `Dockerfile.test` (`RUST_PIN`, default matches
 the verified toolchain and is >= the MSRV 1.94.0) for reproducibility.
+
+The Linux `rill-runtime` release assets (`linux-x86_64-musl`, `linux-aarch64`,
+`linux-aarch64-musl`) are cross-compiled under Docker on the GitHub-Actions
+host in the release pipeline; the ARM64 assets are additionally smoke-tested
+under Docker + QEMU/binfmt.
 
 ---
 

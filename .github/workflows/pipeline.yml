@@ -768,10 +768,91 @@ jobs:
           path: dist/rill-runtime-*
           if-no-files-found: error
 
+  # Phase 6: Linux musl + aarch64 Runtime publish assets. These three targets
+  # have no GitHub-hosted native runner, so they are cross-compiled inside
+  # Docker on an ubuntu host. The released assets (rilml) are indexed with the
+  # v3 release-index schema, which carries an optional ``targetLibc`` field so
+  # the gnu and musl builds of the same OS+arch remain distinct identities.
+  build-runtime-docker:
+    name: Runtime docker ${{ matrix.target_os }} ${{ matrix.target_arch }} ${{ matrix.libc }}
+    if: github.event_name == 'workflow_dispatch'
+    needs: package-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rust_target: x86_64-unknown-linux-musl
+            target_os: linux
+            target_arch: x86_64
+            libc: musl
+            asset_suffix: linux-x86_64-musl
+            cross_packages: musl-tools
+            linker: x86_64-linux-musl-gcc
+          - rust_target: aarch64-unknown-linux-gnu
+            target_os: linux
+            target_arch: aarch64
+            libc: gnu
+            asset_suffix: linux-aarch64
+            cross_packages: gcc-aarch64-linux-gnu
+            linker: aarch64-linux-gnu-gcc
+          - rust_target: aarch64-unknown-linux-musl
+            target_os: linux
+            target_arch: aarch64
+            libc: musl
+            asset_suffix: linux-aarch64-musl
+            # aarch64-linux-musl-gcc is provided by musl-tools and wraps the
+            # GNU aarch64 cross gcc as its underlying compiler.
+            cross_packages: musl-tools gcc-aarch64-linux-gnu
+            linker: aarch64-linux-musl-gcc
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - name: Cross-compile runtime in Docker
+        shell: bash
+        env:
+          VERSION: ${{ env.RELEASE_TAG }}
+          RUST_TARGET: ${{ matrix.rust_target }}
+          ASSET_SUFFIX: ${{ matrix.asset_suffix }}
+          CROSS_PACKAGES: ${{ matrix.cross_packages }}
+          CROSS_LINKER: ${{ matrix.linker }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          # The linker env var name is derived from the target: hyphen/period
+          # become underscores, and the whole key is upper-cased, e.g.
+          # aarch64-unknown-linux-musl -> CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER.
+          linker_key="CARGO_TARGET_$(printf '%s' "$RUST_TARGET" | tr '[:lower:]-' '[:upper:]_')_LINKER"
+          docker run --rm \
+            -e "CARGO_TARGET_DIR=/workspace/target" \
+            -e "RUSTFLAGS=-D warnings" \
+            -e "${linker_key}=${CROSS_LINKER}" \
+            -v "$GITHUB_WORKSPACE":/workspace \
+            -w /workspace \
+            rust:1.94.0 \
+            bash -c "
+              set -euo pipefail
+              apt-get update -qq
+              apt-get install -y -qq $CROSS_PACKAGES
+              rustup target add $RUST_TARGET
+              cargo build --locked --release --target $RUST_TARGET \
+                -p rill-runtime --bin rill-runtime --features wasm
+            "
+          mkdir -p dist
+          cp "target/$RUST_TARGET/release/rill-runtime" \
+            "dist/rill-runtime-${version}-${ASSET_SUFFIX}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ matrix.libc }}
+          path: dist/rill-runtime-*
+          if-no-files-found: error
+
   publish:
     name: Sign and publish
     if: github.event_name == 'workflow_dispatch'
-    needs: build-runtime
+    needs: [build-runtime, build-runtime-docker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

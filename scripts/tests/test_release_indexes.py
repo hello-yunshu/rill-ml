@@ -53,7 +53,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             }
             current = {
                 "payload": {
-                    "schemaVersion": 2,
+                    "schemaVersion": 3,
                     "channel": "stable",
                     "generatedAt": "2026-07-13T00:00:00Z",
                     "publisherKeyId": PUBLISHER,
@@ -292,7 +292,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 json.dumps(
                     {
                         "payload": {
-                            "schemaVersion": 2,
+                            "schemaVersion": 3,
                             "channel": "stable",
                             "generatedAt": "2026-07-13T00:00:00Z",
                             "publisherKeyId": PUBLISHER,
@@ -363,7 +363,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 json.dumps(
                     {
                         "payload": {
-                            "schemaVersion": 2,
+                            "schemaVersion": 3,
                             "channel": "stable",
                             "generatedAt": "2026-07-13T00:00:00Z",
                             "publisherKeyId": PUBLISHER,
@@ -420,7 +420,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 json.dumps(
                     {
                         "payload": {
-                            "schemaVersion": 2,
+                            "schemaVersion": 3,
                             "channel": "stable",
                             "generatedAt": "2026-07-13T00:00:00Z",
                             "publisherKeyId": PUBLISHER,
@@ -463,7 +463,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 json.dumps(
                     {
                         "payload": {
-                            "schemaVersion": 2,
+                            "schemaVersion": 3,
                             "channel": "stable",
                             "generatedAt": "2026-07-13T00:00:00Z",
                             "publisherKeyId": PUBLISHER,
@@ -539,7 +539,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 json.dumps(
                     {
                         "payload": {
-                            "schemaVersion": 2,
+                            "schemaVersion": 3,
                             "channel": "stable",
                             "generatedAt": "2026-07-13T00:00:00Z",
                             "publisherKeyId": PUBLISHER,
@@ -708,7 +708,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 json.dumps(
                     {
                         "payload": {
-                            "schemaVersion": 2,
+                            "schemaVersion": 3,
                             "channel": "candidate",
                             "generatedAt": "2026-07-13T00:00:00Z",
                             "publisherKeyId": PUBLISHER,

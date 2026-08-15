@@ -240,6 +240,7 @@ pub rill_runtime_protocol::ReleaseArtifact::runtime_api_version: u32
 pub rill_runtime_protocol::ReleaseArtifact::sha256: alloc::string::String
 pub rill_runtime_protocol::ReleaseArtifact::size: u64
 pub rill_runtime_protocol::ReleaseArtifact::target_arch: core::option::Option<alloc::string::String>
+pub rill_runtime_protocol::ReleaseArtifact::target_libc: core::option::Option<alloc::string::String>
 pub rill_runtime_protocol::ReleaseArtifact::target_os: core::option::Option<alloc::string::String>
 pub rill_runtime_protocol::ReleaseArtifact::url: alloc::string::String
 pub rill_runtime_protocol::ReleaseArtifact::version: alloc::string::String

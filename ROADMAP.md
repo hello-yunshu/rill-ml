@@ -948,6 +948,7 @@ rillml-inspect
 
 - v0.7.1 将 `ci.yml` 与 `release.yml` 合并为单一 `pipeline.yml`：CI 在 push/PR 运行，发布在 `workflow_dispatch`（由 Auto Release 在 `vX.Y.Z` 标签上触发，CI 通过后派发）运行。故意省略 tag-push 触发以避免重复运行。
 - 发布索引 schema 升至 v2，`RELEASE_INDEX_SCHEMA_VERSION = 2`。`ReleaseArtifactKind` 新增 `Handler` 变体（平台无关，需 `handlerApiVersion` 与 `minRuntimeVersion`，无 OS/arch 字段）。`build-release-index.py` 支持 `--handler-id`、`--handler-version`、`--handler-min-runtime`。
+- （后续更新）发布索引 schema 升至 v3，`RELEASE_INDEX_SCHEMA_VERSION = 3`。runtime 资产新增可选 `targetLibc` 字段（gnu/musl，仅 Linux 平台输出），使 Linux 的 gnu 与 musl 资产可共存于同一索引。`linux-x86_64-musl`、`linux-aarch64-gnu`、`linux-aarch64-musl` 三个 Runtime 资产已纳入发布链（经 GitHub-Actions 宿主上的 Docker 交叉编译产出）。
 - v0.7.2 起停止发布 Intel macOS Runtime 二进制，官方 macOS 发布与签名稳定索引仅含 Apple Silicon（ARM64）；Linux 与 Windows 仍为 x86_64。
 - 工作流允许部分发布失败后安全重跑：已发布 crate 跳过，已存在 Release 复用不可变资产，并继续修复 `local-ai-stable` 索引指针。已发布版本标签不得移动或覆盖。
 - v0.7.1 修复 v0.7.0 发布时 stable-index schema 不兼容导致 `verify-index` 失败的问题（legacy v1 schema 失败改为告警而非失败）；`rill-pack create-handler` 自动从 WASM 模块字节计算 `moduleSha256` 与 `moduleSize`。
