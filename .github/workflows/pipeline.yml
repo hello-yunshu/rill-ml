@@ -1167,10 +1167,10 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - name: Set up QEMU / binfmt_misc
         if: contains(matrix.target, 'aarch64')
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: Set up Docker Buildx
         if: contains(matrix.target, 'aarch64')
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Build verifier and re-verify the real published asset
         env:
           INDEX_FILE: ${{ needs.publish.outputs.index_file }}
