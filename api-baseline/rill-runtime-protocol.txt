@@ -240,7 +240,6 @@ pub rill_runtime_protocol::ReleaseArtifact::runtime_api_version: u32
 pub rill_runtime_protocol::ReleaseArtifact::sha256: alloc::string::String
 pub rill_runtime_protocol::ReleaseArtifact::size: u64
 pub rill_runtime_protocol::ReleaseArtifact::target_arch: core::option::Option<alloc::string::String>
-pub rill_runtime_protocol::ReleaseArtifact::target_libc: core::option::Option<alloc::string::String>
 pub rill_runtime_protocol::ReleaseArtifact::target_os: core::option::Option<alloc::string::String>
 pub rill_runtime_protocol::ReleaseArtifact::url: alloc::string::String
 pub rill_runtime_protocol::ReleaseArtifact::version: alloc::string::String
@@ -265,4 +264,5 @@ pub const rill_runtime_protocol::MODEL_PACK_FORMAT_VERSION: u32
 pub const rill_runtime_protocol::RELEASE_INDEX_SCHEMA_VERSION: u32
 pub const rill_runtime_protocol::RUNTIME_API_VERSION: u32
 pub const rill_runtime_protocol::RUNTIME_ARTIFACT_ID: &str
+pub const rill_runtime_protocol::RUNTIME_ARTIFACT_ID_MUSL: &str
 pub const rill_runtime_protocol::RUNTIME_STATE_FORMAT_VERSION: u32

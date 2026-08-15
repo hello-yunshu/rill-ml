@@ -137,7 +137,7 @@ effective_capabilities = model_manifest.capabilities ∩ handler_manifest.capabi
 | `MODEL_PACK_FORMAT_VERSION` | 1 | model 包内容未变 |
 | `HANDLER_PACKAGE_FORMAT_VERSION` | 1 | 新增 |
 | `HANDLER_API_VERSION` | 1 | 新增 |
-| `RELEASE_INDEX_SCHEMA_VERSION` | 3 | 增加 Handler artifact kind；runtime 资产新增可选 `targetLibc`（gnu/musl，仅 Linux 输出） |
+| `RELEASE_INDEX_SCHEMA_VERSION` | 2 | 增加 Handler artifact kind；Linux gnu/musl 通过 artifact ``id``（`rill-runtime` vs `rill-runtime-musl`）区分，不新增 schema 字段 |
 
 ### 6.1 IPC v1/v2 共存策略
 

@@ -32,14 +32,20 @@ pub const HANDLER_API_VERSION: u32 = 1;
 pub const RUNTIME_STATE_FORMAT_VERSION: u32 = 1;
 /// Signed release-index schema understood by independent updaters.
 ///
-/// v3 adds an optional ``target_libc`` field to runtime artifacts so that
-/// otherwise-identical ``linux`` targets (musl vs gnu) can coexist in one
-/// index without colliding on the ``(targetOs, targetArch)`` identity.
-pub const RELEASE_INDEX_SCHEMA_VERSION: u32 = 3;
+/// v2 is the frozen stable schema. Linux GNU and musl runtime builds of the
+/// same OS+arch are distinguished by the stable artifact ``id`` (see
+/// [`RUNTIME_ARTIFACT_ID_MUSL`]) rather than by a new field, so the public
+/// struct is unchanged and the release-index wire contract stays v2.
+pub const RELEASE_INDEX_SCHEMA_VERSION: u32 = 2;
 /// Hard upper bound for one newline-delimited IPC message.
 pub const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 
+/// Stable artifact id for the GNU (default) runtime build.
 pub const RUNTIME_ARTIFACT_ID: &str = "rill-runtime";
+/// Stable artifact id for the musl runtime build. The libc variant is part of
+/// the stable asset identity so gnu and musl builds of the same OS+arch do not
+/// collide in a v2 release index.
+pub const RUNTIME_ARTIFACT_ID_MUSL: &str = "rill-runtime-musl";
 
 // ---------------------------------------------------------------------------
 // Stable IPC error codes
@@ -241,12 +247,6 @@ pub struct ReleaseArtifact {
     pub target_os: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_arch: Option<String>,
-    /// C library / ABI variant for otherwise-identical OS+arch targets
-    /// (e.g. ``gnu`` vs ``musl`` on Linux). Inherited from the Rust
-    /// ``target_env`` for the build target. Optional: only set when the
-    /// artifact's OS+arch identity is otherwise ambiguous.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub target_libc: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub handler_api_version: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -278,23 +278,15 @@ impl ReleaseArtifact {
                 if self.runtime_api_version != RUNTIME_API_VERSION {
                     return Err("unsupported artifact runtime API version");
                 }
-                if self.id != RUNTIME_ARTIFACT_ID
+                // The artifact ``id`` is part of the stable asset identity. On
+                // Linux, the libc/ABI variant (gnu vs musl) is encoded in the
+                // ``id`` so that both builds of the same OS+arch coexist in a
+                // single v2 index without a schema bump.
+                if (self.id != RUNTIME_ARTIFACT_ID && self.id != RUNTIME_ARTIFACT_ID_MUSL)
                     || self.target_os.as_deref().is_none_or(str::is_empty)
                     || self.target_arch.as_deref().is_none_or(str::is_empty)
                 {
                     return Err("runtime artifact requires a target OS and architecture");
-                }
-                // On Linux the libc/ABI must be explicit so that gnu and musl
-                // builds of the same target remain distinct index identities.
-                if self.target_os.as_deref() == Some("linux") {
-                    match self.target_libc.as_deref() {
-                        Some("gnu") | Some("musl") => {}
-                        _ => {
-                            return Err(
-                                "linux runtime artifact requires targetLibc of gnu or musl",
-                            );
-                        }
-                    }
                 }
                 if self.handler_api_version.is_some() || self.min_runtime_version.is_some() {
                     return Err("runtime artifact must not carry handler fields");
@@ -624,7 +616,6 @@ mod tests {
             runtime_api_version: RUNTIME_API_VERSION,
             target_os: Some("macos".into()),
             target_arch: Some("aarch64".into()),
-            target_libc: None,
             handler_api_version: None,
             min_runtime_version: None,
             url: "https://example.invalid/rill-runtime".into(),

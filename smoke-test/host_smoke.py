@@ -246,6 +246,7 @@ def select_artifact(
     version: str,
     target_os: str | None = None,
     target_arch: str | None = None,
+    artifact_id: str | None = None,
 ) -> dict[str, Any]:
     matches = []
     for item in payload.get("artifacts", []):
@@ -255,11 +256,17 @@ def select_artifact(
             continue
         if target_arch is not None and item.get("targetArch") != target_arch:
             continue
+        if artifact_id is not None and item.get("id") != artifact_id:
+            # On Linux the gnu and musl runtime builds of the same OS+arch are
+            # distinguished by the stable artifact ``id`` (rill-runtime vs
+            # rill-runtime-musl); the caller pins the exact asset it wants.
+            continue
         matches.append(item)
     if len(matches) != 1:
         raise RuntimeError(
             f"expected exactly one {kind} artifact for version={version!r}, "
-            f"os={target_os!r}, arch={target_arch!r}; found {len(matches)}"
+            f"os={target_os!r}, arch={target_arch!r}, id={artifact_id!r}; "
+            f"found {len(matches)}"
         )
     return matches[0]
 
@@ -453,6 +460,13 @@ def parse_args() -> argparse.Namespace:
         default=os.environ.get("RILL_PUBLISHER_KEY_ID", DEFAULT_KEY_ID),
     )
     parser.add_argument(
+        "--runtime-id",
+        default=os.environ.get("RILL_RUNTIME_ID", "rill-runtime"),
+        help="Stable runtime artifact id to select (rill-runtime for GNU, "
+        "rill-runtime-musl for musl). Lets a job pin the exact libc variant "
+        "of the same OS+arch.",
+    )
+    parser.add_argument(
         "--public-key-hex",
         default=os.environ.get("RILL_PUBLIC_KEY_HEX", DEFAULT_PUBLIC_KEY),
     )
@@ -528,6 +542,7 @@ def run(args: argparse.Namespace, report: SmokeReport, work_dir: pathlib.Path) -
             version=args.expected_version,
             target_os=target_os,
             target_arch=target_arch,
+            artifact_id=args.runtime_id,
         ),
         select_artifact(payload, kind="model", version=args.expected_version),
         select_artifact(payload, kind="handler", version=args.expected_version),

@@ -58,7 +58,9 @@ fi
 _platform() {
   case "$1" in
     x86_64-unknown-linux-gnu) echo "linux/amd64" ;;
+    x86_64-unknown-linux-musl) echo "linux/amd64" ;;
     aarch64-unknown-linux-gnu) echo "linux/arm64" ;;
+    aarch64-unknown-linux-musl) echo "linux/arm64" ;;
     armv7-unknown-linux-gnueabihf) echo "linux/arm/v7" ;;
     riscv64gc-unknown-linux-gnu) echo "linux/riscv64" ;;
     s390x-unknown-linux-gnu) echo "linux/s390x" ;;
@@ -69,8 +71,12 @@ _platform() {
 }
 _linker_pkg() {
   case "$1" in
-    # x86_64 is native to the amd64 container, so no cross package is needed.
+    # x86_64 GNU is native to the amd64 container, so no cross package is needed.
     x86_64-unknown-linux-gnu) echo "" ;;
+    # musl targets build inside a container whose platform matches the target,
+    # so musl-tools provides the NATIVE <arch>-linux-musl-gcc for that arch.
+    x86_64-unknown-linux-musl) echo "musl-tools" ;;
+    aarch64-unknown-linux-musl) echo "musl-tools" ;;
     aarch64-unknown-linux-gnu) echo "gcc-aarch64-linux-gnu" ;;
     armv7-unknown-linux-gnueabihf) echo "gcc-arm-linux-gnueabihf" ;;
     riscv64gc-unknown-linux-gnu) echo "gcc-riscv64-linux-gnu" ;;
@@ -80,24 +86,34 @@ _linker_pkg() {
     *) return 1 ;;
   esac
 }
+# The actual cross/native linker binary name for a target. musl targets use the
+# <arch>-linux-musl-gcc provided by musl-tools; GNU targets use <triple>-gcc.
+_linker_bin() {
+  case "$1" in
+    x86_64-unknown-linux-gnu) echo "gcc" ;;
+    x86_64-unknown-linux-musl) echo "x86_64-linux-musl-gcc" ;;
+    aarch64-unknown-linux-musl) echo "aarch64-linux-musl-gcc" ;;
+    aarch64-unknown-linux-gnu) echo "aarch64-linux-gnu-gcc" ;;
+    armv7-unknown-linux-gnueabihf) echo "arm-linux-gnueabihf-gcc" ;;
+    riscv64gc-unknown-linux-gnu) echo "riscv64-linux-gnu-gcc" ;;
+    s390x-unknown-linux-gnu) echo "s390x-linux-gnu-gcc" ;;
+    powerpc64le-unknown-linux-gnu) echo "powerpc64le-linux-gnu-gcc" ;;
+    loongarch64-unknown-linux-gnu) echo "loongarch64-linux-gnu-gcc" ;;
+    *) return 1 ;;
+  esac
+}
 
 PLAT="$(_platform "$TARGET")" || {
   echo "Unsupported target '$TARGET' — add it to scripts/docker-cross-test.sh" >&2
   exit 2
 }
 LINKER_PKG="$(_linker_pkg "$TARGET")"
+LINKER="$(_linker_bin "$TARGET")"
 IMAGE="rust:${RUST_PIN}-bookworm"
 
-# The cross gcc binary is <triple>-gcc (package gcc-<triple>), or plain `gcc`
-# when the target is native to the container platform. Cargo discovers it via
-# CARGO_TARGET_<TRIPLE_UPPERCASE>_LINKER.
-if [[ -n "$LINKER_PKG" ]]; then
-  LINKER="${LINKER_PKG#gcc-}-gcc"
-  INSTALL_PKGS="$LINKER_PKG"
-else
-  LINKER="gcc"
-  INSTALL_PKGS=""
-fi
+# The linker binary is resolved by `_linker_bin` above and Cargo discovers it
+# via CARGO_TARGET_<TRIPLE_UPPERCASE>_LINKER.
+INSTALL_PKGS="$LINKER_PKG"
 # python3 is required to derive the Ed25519 public key when the optional
 # runtime smoke is enabled; keep the default test-only image unchanged.
 if [[ "$RUNTIME_SMOKE" == "1" ]]; then

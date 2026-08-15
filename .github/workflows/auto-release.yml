@@ -45,6 +45,51 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
+      - name: Verify cross-platform Stable gates passed on the same SHA
+        # The release must be bound to the SAME commit's Required Gates, not
+        # just pipeline.yml. The Cross-Platform workflow (Docker/QEMU, musl,
+        # FreeBSD, Android/iOS FFI) runs in parallel; wait for it to finish on
+        # this exact SHA and require success. If it never ran for this SHA
+        # (doc-only push), proceed — no cross-platform-relevant files changed.
+        if: steps.freshness.outputs.current == 'true'
+        id: crossplatform
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 2700))  # 45 min cap
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            runs="$(gh run list --workflow "Cross-Platform Docker / QEMU" \
+              --branch main --json headSha,status,conclusion --limit 100)"
+            matched="$(jq --arg sha "$TARGET_SHA" \
+              '[.[] | select(.headSha == $sha)]' <<<"$runs")"
+            count="$(jq 'length' <<<"$matched")"
+            if [ "$count" -eq 0 ]; then
+              echo "No Cross-Platform run for $TARGET_SHA (doc-only or no relevant paths) — proceeding."
+              echo "ran=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            pending="$(jq '[.[] | select(.status != "completed")] | length' <<<"$matched")"
+            if [ "$pending" -gt 0 ]; then
+              echo "Cross-Platform run for $TARGET_SHA still in progress ($pending pending)…"
+              sleep 30
+              continue
+            fi
+            failed="$(jq '[.[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out")] | length' <<<"$matched")"
+            if [ "$failed" -gt 0 ]; then
+              echo "Cross-Platform Stable gates FAILED on $TARGET_SHA — refusing to release." >&2
+              jq -c '.[] | {conclusion, htmlUrl}' <<<"$matched" >&2
+              exit 1
+            fi
+            echo "Cross-Platform Stable gates passed on $TARGET_SHA."
+            echo "ran=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          done
+          echo "Timed out waiting for Cross-Platform gates on $TARGET_SHA — refusing to release." >&2
+          exit 1
+
       - uses: dtolnay/rust-toolchain@stable
         if: steps.freshness.outputs.current == 'true'
 
