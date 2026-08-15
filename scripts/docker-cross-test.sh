@@ -111,6 +111,19 @@ LINKER_PKG="$(_linker_pkg "$TARGET")"
 LINKER="$(_linker_bin "$TARGET")"
 IMAGE="rust:${RUST_PIN}-bookworm"
 
+# musl targets use cargo-zigbuild (Zig's Clang-based C compiler + bundled musl
+# libc) instead of Debian bookworm's musl-tools <arch>-linux-musl-gcc. The
+# Debian musl-gcc produces broken test binaries that SIGSEGV at process startup
+# here (observed in rill-handler-api, a zero-dependency constant-assertion
+# crate). For musl we therefore do NOT install musl-tools nor set a cross
+# linker; the container installs cargo-zigbuild (pip pulls the ziglang binary)
+# and the test/smoke commands become `cargo zigbuild`, linking genuinely against
+# musl exactly as the released assets are built.
+ZIGBUILD=0
+case "$TARGET" in
+  x86_64-unknown-linux-musl|aarch64-unknown-linux-musl) ZIGBUILD=1 ;;
+esac
+
 # The linker binary is resolved by `_linker_bin` above and Cargo discovers it
 # via CARGO_TARGET_<TRIPLE_UPPERCASE>_LINKER.
 INSTALL_PKGS="$LINKER_PKG"
