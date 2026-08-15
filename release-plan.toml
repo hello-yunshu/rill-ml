@@ -1,4 +1,4 @@
-# RillML 1.1 release plan.
+# RillML 1.2 release plan.
 #
 # Single machine-readable source of truth for which crates belong to the
 # Stable group (advance under the 1.x compatibility contract) and which remain in
@@ -6,7 +6,7 @@
 # to decide which version to apply to each workspace member.
 
 [stable]
-version = "1.1.0"
+version = "1.2.0-rc.1"
 crates = [
   "rill-handler-api",
   "rill-runtime-protocol",
@@ -24,4 +24,5 @@ crates = [
   "rill-ml-polars",
   "rillml-inspect",
   "rill-ml-ffi",
+  "rill-pm-adapter",
 ]

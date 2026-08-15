@@ -25,7 +25,7 @@ def main() -> None:
     }
     local = {
         path.name: path
-        for pattern in ("rill-runtime-*", "*.rillpack", "*.rillhandler")
+        for pattern in ("rill-runtime-*", "rill-pm-adapter-*", "*.rillpack", "*.rillhandler")
         for path in args.release_dir.glob(pattern)
         if path.is_file()
     }

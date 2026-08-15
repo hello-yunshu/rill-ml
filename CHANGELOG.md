@@ -20,6 +20,31 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+
+## [1.2.0-rc.1] - 2026-08-16
+
+### Added — OpenWrt Performance Manager decision adapter
+
+- New Preview crate `rill-pm-adapter`: a Unix-domain-socket decision host that
+  speaks the independent `pm-rill-shadow` v1 contract (deliberately distinct
+  from the Rill Runtime IPC API v1/v2/v3). It implements `status` /
+  `observe` / `outcome` operations, context-partitioned + goal-partitioned
+  models, a bounded decision ledger with strict validated-outcome rejection
+  rules (unknown / duplicate / action-mismatch / context-mismatch /
+  generation-mismatch / expiry / non-validated / non-finite reward), bounded
+  persistent state with restart recovery, and model health reporting. The
+  adapter is advisory-only: it never mutates OpenWrt / UCI / sysctl / ethtool
+  state. Fail-closed framing: oversized NDJSON frames close the connection.
+- The adapter is cross-built by CI (`build-pm-adapter-cross`) for the musl
+  Linux targets PM consumes (`linux-x86_64-musl`, `linux-aarch64-musl`) and
+  published as a distinct `pm-adapter` release-index artifact kind carrying
+  `pmAdapterProtocolVersion` 1.
+- New independent released-adapter host smoke (`adapter-host-smoke`) verifies
+  the published binary's size/SHA-256 against the signed index, starts it on a
+  fresh Unix-domain socket, and exercises a real `pm-rill-shadow` v1
+  round-trip plus fail-closed negative cases (wrong contract, wrong protocol
+  version, oversized frame).
+
 ### Changed
 
 - The release-index schema stays at v2 (`RELEASE_INDEX_SCHEMA_VERSION = 2`) to
@@ -1475,6 +1500,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0...HEAD
+[1.2.0-rc.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0-rc.1
 [1.1.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.1.0
 [1.0.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0
 [1.0.0-rc.6]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0-rc.6

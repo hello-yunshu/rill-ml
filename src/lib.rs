@@ -79,3 +79,7 @@ pub use traits::{
     SparseRegressor, Transformer,
 };
 pub use weighted::{WeightedOnlineBinaryClassifier, WeightedOnlineRegressor, WeightedStatistic};
+
+/// Version of the `rill-ml` crate as compiled into this library.
+/// Additive constant; reflects the Stable crate version of this build.
+pub const RILL_VERSION: &str = env!("CARGO_PKG_VERSION");
