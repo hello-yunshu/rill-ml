@@ -107,11 +107,15 @@ jobs:
         run: |
           args=""
           case "${{ matrix.target }}" in
-            # These targets are Supported: they must also pass the full Runtime
+            # These targets are Supported: they must also pass the Runtime
             # smoke (release build, signed pack -> verify -> inspect -> IPC),
-            # not just the crate test suite. armv7/riscv64/s390x/powerpc64le
-            # run real QEMU execution; loongarch64 is guarded in the script and
-            # skips cleanly when no usable image manifest exists.
+            # not just the crate test suite. riscv64 runs the full smoke with
+            # the wasm feature; armv7/s390x/powerpc64le build the smoke with
+            # --no-default-features (cross-exec-test.sh) because compiling
+            # wasmtime under QEMU is either too slow or SIGSEGVs (s390x) —
+            # their wasm path is covered by the --all-features crate tests and
+            # the natively cross-built shipped assets. loongarch64 is guarded
+            # in the script and skips cleanly when no image manifest exists.
             armv7-unknown-linux-gnueabihf|riscv64gc-unknown-linux-gnu|s390x-unknown-linux-gnu|powerpc64le-unknown-linux-gnu|loongarch64-unknown-linux-gnu) args="--runtime-smoke" ;;
           esac
           ./scripts/cross-exec-test.sh "${{ matrix.target }}" $args

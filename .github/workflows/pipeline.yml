@@ -1255,7 +1255,12 @@ jobs:
             bash -c "
               set -euo pipefail
               export PATH=\"/usr/local/cargo/bin:\$PATH\"
-              cargo build --locked --release -p rill-runtime --bin rill-pack
+              # rill-pack is the pack verifier only — it needs no wasm feature.
+              # Build with --no-default-features so the verifier never compiles
+              # wasmtime (which SIGSEGVs under QEMU on s390x / is extremely slow
+              # on armv7+powerpc64le). The published asset being re-verified is
+              # the real --features wasm binary downloaded from the Release.
+              cargo build --locked --release -p rill-runtime --bin rill-pack --no-default-features
               python3 smoke-test/host_smoke.py \
                 --index-url '$index_url' \
                 --expected-version '$VERSION' \
