@@ -138,6 +138,7 @@ pub const rill_runtime_protocol::v3::RUNTIME_API_VERSION_V3: u32
 pub enum rill_runtime_protocol::ReleaseArtifactKind
 pub rill_runtime_protocol::ReleaseArtifactKind::Handler
 pub rill_runtime_protocol::ReleaseArtifactKind::Model
+pub rill_runtime_protocol::ReleaseArtifactKind::PmAdapter
 pub rill_runtime_protocol::ReleaseArtifactKind::Runtime
 pub enum rill_runtime_protocol::RuntimeRequest
 pub rill_runtime_protocol::RuntimeRequest::Handshake
@@ -236,6 +237,7 @@ pub rill_runtime_protocol::ReleaseArtifact::handler_api_version: core::option::O
 pub rill_runtime_protocol::ReleaseArtifact::id: alloc::string::String
 pub rill_runtime_protocol::ReleaseArtifact::kind: rill_runtime_protocol::ReleaseArtifactKind
 pub rill_runtime_protocol::ReleaseArtifact::min_runtime_version: core::option::Option<alloc::string::String>
+pub rill_runtime_protocol::ReleaseArtifact::pm_adapter_protocol_version: core::option::Option<u32>
 pub rill_runtime_protocol::ReleaseArtifact::runtime_api_version: u32
 pub rill_runtime_protocol::ReleaseArtifact::sha256: alloc::string::String
 pub rill_runtime_protocol::ReleaseArtifact::size: u64
@@ -261,6 +263,8 @@ pub const rill_runtime_protocol::HANDLER_PACKAGE_FORMAT_VERSION: u32
 pub const rill_runtime_protocol::MAX_MESSAGE_BYTES: usize
 pub const rill_runtime_protocol::MIN_RUNTIME_API_VERSION: u32
 pub const rill_runtime_protocol::MODEL_PACK_FORMAT_VERSION: u32
+pub const rill_runtime_protocol::PM_ADAPTER_ARTIFACT_ID: &str
+pub const rill_runtime_protocol::PM_ADAPTER_PROTOCOL_VERSION: u32
 pub const rill_runtime_protocol::RELEASE_INDEX_SCHEMA_VERSION: u32
 pub const rill_runtime_protocol::RUNTIME_API_VERSION: u32
 pub const rill_runtime_protocol::RUNTIME_ARTIFACT_ID: &str
