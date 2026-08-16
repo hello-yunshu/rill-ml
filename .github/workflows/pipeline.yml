@@ -1388,6 +1388,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - name: Re-verify the published FreeBSD runtime in a native FreeBSD VM
         env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
           INDEX_FILE: ${{ needs.publish.outputs.index_file }}
           VERSION: ${{ needs.publish.outputs.version }}
           CHANNEL: ${{ needs.publish.outputs.channel }}

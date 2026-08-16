@@ -18,6 +18,7 @@ import os
 import pathlib
 import platform
 import re
+import signal
 import socket
 import stat
 import subprocess
@@ -548,17 +549,35 @@ def oversize_frame(work_dir: pathlib.Path, binary: pathlib.Path) -> None:
 
 
 def graceful_shutdown(client: AdapterClient, report: SmokeReport, process: subprocess.Popen) -> None:
+    """The adapter is a long-running daemon, so a client disconnect (EOF) must
+    NOT stop it. Graceful shutdown is driven by SIGTERM (service-manager stop):
+    after the client drops the connection the process must still be alive, and
+    after SIGTERM it must exit 0 promptly."""
     start = time.monotonic()
+    # 1. Client disconnect (EOF): daemon must keep serving, not exit.
+    client.sock.close()
+    time.sleep(0.2)
+    if process.poll() is not None:
+        exit_code = process.poll()
+        detail = f"adapter exited with code {exit_code} after client EOF (daemon must keep running)"
+        report.checks.append(
+            CheckResult(
+                name="graceful_shutdown_on_eof",
+                passed=False,
+                duration_ms=elapsed_ms(start),
+                detail=detail,
+            )
+        )
+        raise RuntimeError(detail)
+    # 2. SIGTERM: daemon must stop cleanly with exit code 0.
+    process.send_signal(signal.SIGTERM)
     try:
-        client.sock.close()
-    finally:
-        try:
-            exit_code = process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            exit_code = process.wait(timeout=5)
+        exit_code = process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        exit_code = process.wait(timeout=5)
     passed = exit_code == 0
-    detail = f"adapter exited with code {exit_code} after EOF"
+    detail = f"adapter exited with code {exit_code} after SIGTERM"
     report.checks.append(
         CheckResult(
             name="graceful_shutdown_on_eof",

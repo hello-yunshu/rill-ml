@@ -2968,6 +2968,7 @@ name = "rill-pm-adapter"
 version = "0.15.0"
 dependencies = [
  "clap",
+ "libc",
  "rill-ml",
  "serde",
  "serde_json",

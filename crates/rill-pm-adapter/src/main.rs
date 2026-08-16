@@ -20,6 +20,7 @@
 mod unix {
     use std::os::unix::net::{UnixListener, UnixStream};
     use std::path::PathBuf;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -29,6 +30,31 @@ mod unix {
         AdapterConfig, AdapterState, DEFAULT_MAX_MESSAGE_BYTES, DEFAULT_TIMEOUT_MS, Frame,
         read_frame, write_frame,
     };
+
+    /// Set by the SIGTERM / SIGINT handler to request a graceful shutdown of
+    /// the accept loop. The adapter is a long-running daemon: it must not exit
+    /// when a single client disconnects (EOF), only when the service manager
+    /// asks it to stop.
+    static SHUTDOWN: AtomicBool = AtomicBool::new(false);
+
+    /// Async-signal-safe handler: only flips a flag (no allocation, no locks).
+    extern "C" fn handle_signal(_sig: libc::c_int) {
+        SHUTDOWN.store(true, Ordering::SeqCst);
+    }
+
+    /// Install SIGTERM / SIGINT handlers so the daemon can stop cleanly.
+    fn install_signal_handlers() {
+        // SAFETY: signal() is reentrant-safe for installing a handler that only
+        // writes an atomic flag. The handler body called from the signal context
+        // performs no allocation or locking.
+        unsafe {
+            libc::signal(
+                libc::SIGTERM,
+                handle_signal as *const () as libc::sighandler_t,
+            );
+            libc::signal(libc::SIGINT, handle_signal as *const () as libc::sighandler_t);
+        }
+    }
 
     /// CLI arguments (kept intentionally small and stable).
     #[derive(Debug, Parser)]
@@ -91,16 +117,25 @@ mod unix {
             std::fs::remove_file(&config.socket)?;
         }
         let listener = UnixListener::bind(&config.socket)?;
+        listener.set_nonblocking(true)?;
+        install_signal_handlers();
 
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
+        loop {
+            if SHUTDOWN.load(Ordering::SeqCst) {
+                // Graceful stop requested (SIGTERM / SIGINT).
+                break;
+            }
+            match listener.accept() {
+                Ok((stream, _)) => {
                     let state = Arc::clone(&state);
                     std::thread::spawn(move || {
                         if let Err(error) = serve_connection(stream, state) {
                             eprintln!("rill-pm-adapter: connection error: {error}");
                         }
                     });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
                 }
                 Err(error) => {
                     eprintln!("rill-pm-adapter: accept error: {error}");
@@ -122,13 +157,19 @@ mod unix {
             state.max_message()
         };
         loop {
-            match read_frame(&mut stream, max_message)? {
-                Frame::Eof => break,
-                Frame::TooLarge => {
+            match read_frame(&mut stream, max_message) {
+                // On some platforms (e.g. macOS) an accepted UnixStream inherits
+                // the listener's non-blocking flag, so a writer that has dropped
+                // the connection surfaces as EAGAIN rather than a clean EOF.
+                // Treat WouldBlock exactly like EOF: the peer is gone.
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => return Err(error.into()),
+                Ok(Frame::Eof) => break,
+                Ok(Frame::TooLarge) => {
                     // Fail closed: never parse an oversized frame.
                     break;
                 }
-                Frame::Line(raw) => {
+                Ok(Frame::Line(raw)) => {
                     let mut state = state.lock().expect("adapter state poisoned");
                     let response = rill_pm_adapter::handle_request(&mut state, &raw, now_ms());
                     write_frame(&mut stream, &response)?;
