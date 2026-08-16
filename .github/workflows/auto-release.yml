@@ -21,7 +21,10 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Must comfortably exceed the Cross-Platform Stable-gate wait (capped at
+    # 45m inside the job); Docker/QEMU cross-arch runs can take 1-3h, and a
+    # timeout here would silently cancel the auto-release before it dispatches.
+    timeout-minutes: 60
     steps:
       - name: Confirm the successful CI commit is still main
         id: freshness
