@@ -527,11 +527,20 @@ def oversize_frame(work_dir: pathlib.Path, binary: pathlib.Path) -> None:
         sock.connect(str(sock_path))
         try:
             # 4 KB payload on a 128-byte max frame -> TooLarge -> close.
-            sock.sendall(b"x" * 4096 + b"\n")
+            # The adapter fails closed by closing/resetting the connection
+            # (RST/EPIPE/ECONNRESET) without parsing, so any of those signals is
+            # a valid pass: connection gone, nothing parsed.
             raw = b""
             deadline = time.monotonic() + 10
+            try:
+                sock.sendall(b"x" * 4096 + b"\n")
+            except BrokenPipeError:
+                pass  # adapter already closed the connection: fail-closed.
             while time.monotonic() < deadline:
-                chunk = sock.recv(65536)
+                try:
+                    chunk = sock.recv(65536)
+                except ConnectionResetError:
+                    break  # adapter reset the connection: fail-closed.
                 if not chunk:
                     break
                 raw += chunk
