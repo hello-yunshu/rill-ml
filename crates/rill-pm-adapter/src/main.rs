@@ -20,8 +20,8 @@
 mod unix {
     use std::os::unix::net::{UnixListener, UnixStream};
     use std::path::PathBuf;
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use clap::Parser;
@@ -52,7 +52,10 @@ mod unix {
                 libc::SIGTERM,
                 handle_signal as *const () as libc::sighandler_t,
             );
-            libc::signal(libc::SIGINT, handle_signal as *const () as libc::sighandler_t);
+            libc::signal(
+                libc::SIGINT,
+                handle_signal as *const () as libc::sighandler_t,
+            );
         }
     }
 
