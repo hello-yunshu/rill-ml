@@ -843,7 +843,7 @@ jobs:
           toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
       - name: Install Zig (C cross toolchain used by cargo-zigbuild)
-        uses: mlugg/setup-zig@v2
+        uses: xyzzylabs/setup-zig@v1
       - name: Install cargo-zigbuild
         run: pip3 install cargo-zigbuild
       - uses: Swatinem/rust-cache@v2
@@ -901,7 +901,7 @@ jobs:
           toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
       - name: Install Zig (C cross toolchain used by cargo-zigbuild)
-        uses: mlugg/setup-zig@v2
+        uses: xyzzylabs/setup-zig@v1
       - name: Install cargo-zigbuild
         run: pip3 install cargo-zigbuild
       - uses: Swatinem/rust-cache@v2
