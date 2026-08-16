@@ -229,7 +229,15 @@ def host_commit() -> str:
 
 
 def platform_target() -> tuple[str, str]:
-    target_os = {"darwin": "macos", "win32": "windows"}.get(sys.platform, sys.platform)
+    # On FreeBSD sys.platform embeds the version (e.g. "freebsd15"), but the
+    # release index records the OS as "freebsd" (see build-release-index.py
+    # RUNTIMES), so normalize.
+    target_os = {
+        "darwin": "macos",
+        "win32": "windows",
+    }.get(sys.platform, sys.platform)
+    if sys.platform.startswith("freebsd"):
+        target_os = "freebsd"
     machine = platform.machine().lower()
     target_arch = {
         "arm64": "aarch64",
