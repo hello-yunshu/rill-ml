@@ -844,6 +844,11 @@ jobs:
           targets: ${{ matrix.rust_target }}
       - name: Install Zig (C cross toolchain used by cargo-zigbuild)
         uses: xyzzylabs/setup-zig@v1
+        with:
+          # Partition the shared zig cache/tarball keys per target so parallel
+          # matrix jobs don't race to save the same key ("Unable to reserve
+          # cache" warnings). Consistent with the rust-cache key below.
+          cache-key: ${{ matrix.rust_target }}
       - name: Install cargo-zigbuild
         run: pip3 install cargo-zigbuild
       - uses: Swatinem/rust-cache@v2
@@ -902,6 +907,11 @@ jobs:
           targets: ${{ matrix.rust_target }}
       - name: Install Zig (C cross toolchain used by cargo-zigbuild)
         uses: xyzzylabs/setup-zig@v1
+        with:
+          # Partition the shared zig cache/tarball keys per target so parallel
+          # matrix jobs don't race to save the same key ("Unable to reserve
+          # cache" warnings). Consistent with the rust-cache key below.
+          cache-key: ${{ matrix.rust_target }}
       - name: Install cargo-zigbuild
         run: pip3 install cargo-zigbuild
       - uses: Swatinem/rust-cache@v2
