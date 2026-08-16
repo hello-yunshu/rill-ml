@@ -1387,24 +1387,23 @@ jobs:
         with:
           ref: ${{ env.RELEASE_TAG }}
       - name: Re-verify the published FreeBSD runtime in a native FreeBSD VM
-        env:
-          RELEASE_TAG: ${{ env.RELEASE_TAG }}
-          INDEX_FILE: ${{ needs.publish.outputs.index_file }}
-          VERSION: ${{ needs.publish.outputs.version }}
-          CHANNEL: ${{ needs.publish.outputs.channel }}
         uses: vmactions/freebsd-vm@v1
         with:
           usesh: true
           prepare: |
             pkg install -y rust python3 bash
+          # vmactions/freebsd-vm runs this script over ssh and does NOT reliably
+          # propagate workflow/step env vars (RELEASE_TAG kept coming through
+          # empty, tripping `set -u`). Inline every value at template-expansion
+          # time on the host so the VM script is self-contained.
           run: |
             set -euo pipefail
-            index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
+            index_url="https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_TAG }}/${{ needs.publish.outputs.index_file }}"
             cargo build --locked --release -p rill-runtime --bin rill-pack
             python3 smoke-test/host_smoke.py \
               --index-url "$index_url" \
-              --expected-version "$VERSION" \
-              --expected-channel "$CHANNEL" \
+              --expected-version "${{ needs.publish.outputs.version }}" \
+              --expected-channel "${{ needs.publish.outputs.channel }}" \
               --runtime-id rill-runtime \
               --rill-pack-bin target/release/rill-pack \
               --log smoke-test/post-release-freebsd.json
