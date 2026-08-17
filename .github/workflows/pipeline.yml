@@ -264,7 +264,7 @@ jobs:
       - name: Record resolved cargo-semver-checks version
         run: cargo semver-checks --version
       - uses: Swatinem/rust-cache@v2
-      # 1.2.0 admission (§21.3): cargo-semver-checks MUST verify 1.1.0 -> 1.2.0
+      # 1.2.0 admission: cargo-semver-checks MUST verify 1.1.0 -> 1.2.0
       # (the most recent published Stable baseline) AND 1.0.0 -> 1.2.0 (double
       # baseline sanity). Only baselining against 1.0.0 would miss a regression
       # introduced in 1.1.x, so 1.1.0 is the authoritative gate.
@@ -1407,7 +1407,7 @@ jobs:
           name: post-release-verify-${{ matrix.target }}
           path: smoke-test/post-release-${{ matrix.target }}.json
           # Supported-target evidence must always exist; a missing JSON is a
-          # release gate failure, never a warning (release prompt §17).
+          # release gate failure, never a warning.
           if-no-files-found: error
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -1460,7 +1460,7 @@ jobs:
   # Post-release re-verify of the published RISC-V64 / LoongArch64 runtime
   # assets — DIRECT user-mode QEMU on the native Actions host, no Docker, no
   # dependence on an upstream rust:* container manifest for the platform
-  # (release prompt §14/§15). The published asset is downloaded from the
+  # The published asset is downloaded from the
   # GitHub Release and executed under qemu-user with the same sysroot / -cpu /
   # LD_LIBRARY_PATH config used by the Stable gates
   # (scripts/qemu-cross-gate.sh / loongarch-cross-gate.sh).
@@ -1510,13 +1510,82 @@ jobs:
           name: post-release-verify-direct-qemu-${{ matrix.target }}
           path: smoke-test/post-release-direct-qemu-${{ matrix.target }}.json
           # Supported-target evidence must always exist; a missing JSON is a
-          # release gate failure, never a warning (release prompt §17).
+          # release gate failure, never a warning.
+          if-no-files-found: error
+
+  post-release-verify-native:
+    name: Post-release verify native (${{ matrix.os }})
+    # Post-release artifact verification on the platform's own native GitHub
+    # runner. Downloads the ACTUAL Windows/macOS runtime asset from the GitHub
+    # Release, checks its size/SHA-256 against the signed release index, then
+    # executes that exact binary and runs the signed-model / signed-handler /
+    # IPC host smoke (handshake / health / invoke / invalid JSON / graceful
+    # shutdown) via the same host_smoke.py used by the other platforms.
+    if: github.event_name == 'workflow_dispatch'
+    needs: publish
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x86_64
+          - os: windows-11-arm
+            arch: aarch64
+          - os: macos-15-arm64
+            arch: aarch64
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.94.0
+      - uses: actions/setup-python@v5
+        # host_smoke.py is run with ``python3`` on every native OS (Windows /
+        # macOS / the Linux jobs use the preinstalled python3). setup-python
+        # reliably provides the ``python3`` command on Windows runners too.
+        with:
+          python-version: '3.12'
+      - name: Build rill-pack verifier (no wasm feature)
+        shell: bash
+        run: cargo build --locked --release -p rill-runtime --bin rill-pack --no-default-features
+      - name: Re-verify the published native runtime asset
+        shell: bash
+        env:
+          INDEX_FILE: ${{ needs.publish.outputs.index_file }}
+          VERSION: ${{ needs.publish.outputs.version }}
+          CHANNEL: ${{ needs.publish.outputs.channel }}
+        run: |
+          set -euo pipefail
+          index_url="https://github.com/${{ GITHUB_REPOSITORY }}/releases/download/${{ RELEASE_TAG }}/${{ INDEX_FILE }}"
+          pack_bin="target/release/rill-pack"
+          if [ -f "target/release/rill-pack.exe" ]; then
+            pack_bin="target/release/rill-pack.exe"
+          fi
+          python3 smoke-test/host_smoke.py \
+            --index-url "$index_url" \
+            --expected-version "$VERSION" \
+            --expected-channel "$CHANNEL" \
+            --runtime-id rill-runtime \
+            --rill-pack-bin "$pack_bin" \
+            --log "smoke-test/post-release-native-${{ matrix.arch }}.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: post-release-verify-native-${{ matrix.arch }}
+          path: smoke-test/post-release-native-${{ matrix.arch }}.json
+          # Supported-target evidence must always exist; a missing JSON is a
+          # release gate failure, never a warning.
           if-no-files-found: error
 
   move-index-pointer:
     name: Promote verified signed index pointer
     if: github.event_name == 'workflow_dispatch'
-    needs: [publish, release-host-smoke, post-release-verify, post-release-verify-direct-qemu, post-release-verify-freebsd]
+    needs: [publish, release-host-smoke, adapter-host-smoke, post-release-verify, post-release-verify-direct-qemu, post-release-verify-freebsd, post-release-verify-native]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

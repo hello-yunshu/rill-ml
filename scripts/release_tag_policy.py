@@ -112,10 +112,9 @@ def decide_release_tag(
                 f"immutable release tags cannot move — use a new version",
             )
         # Successful-release immutability: once a Release workflow run has
-        # concluded success for this tag, its published assets are immutable
-        # (§29/§30 of the execution prompt). A same-SHA re-dispatch would
-        # re-run `publish` and clobber those assets, so it must never happen.
-        # Use a new version instead.
+        # concluded success for this tag, its published assets are immutable.
+        # A same-SHA re-dispatch would re-run `publish` and clobber those
+        # assets, so it must never happen. Use a new version instead.
         if has_successful_release:
             return Decision(
                 "skip",

@@ -25,10 +25,6 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ### Changed
 
-- TODO: describe notable changes for 1.2.0-rc.2.
-
-### Changed
-
 - The release-index schema advances to v3 (`RELEASE_INDEX_SCHEMA_VERSION = 3`)
   for the 1.2.0 Stable line. Linux runtime/adapter artifacts now record the
   libc variant explicitly in `targetLibc` (`gnu`/`musl`) so GNU and musl

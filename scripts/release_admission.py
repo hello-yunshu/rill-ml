@@ -13,15 +13,15 @@ It enforces, for the exact tag commit SHA (never "latest success"):
 * a successful ``Cross-Platform Verification`` run on that SHA whenever the
   commit touched cross-platform-relevant paths (Cargo/source/crates/scripts/
   workflows/release config). Only a genuinely docs-only commit may admit a
-  missing Cross-Platform run (see the execution prompt §26);
+  missing Cross-Platform run;
 * no *successful* Release run already exists for the tag (successful release
-  assets are immutable — a re-dispatch must never mutate them, §29/§30);
+  assets are immutable — a re-dispatch must never mutate them);
 * no *active* Release run is already in flight for the tag (avoid racing a
   concurrent release).
 
 Any gate that is missing, queued, in_progress, failed, cancelled or timed out
-where success is required is a HARD FAIL of the admission (execution prompt
-§25), which fails the job and therefore blocks the whole release tree.
+where success is required is a HARD FAIL for the admission, which fails the job
+and therefore blocks the whole release tree.
 
 The decision logic is a pure function so ``scripts/tests/test_release_admission.py``
 can cover every branch without mocking GitHub; the ``main()`` wrapper only
@@ -39,7 +39,7 @@ from typing import Optional
 
 # Path prefixes that make a commit "cross-platform-relevant". This is the union
 # of the Cross-Platform workflow push trigger (cross-platform.yml) and the
-# execution-prompt §26 list: any of these changing while the Cross-Platform run
+# release-trigger set; any of these changing while the Cross-Platform run
 # is missing is a HARD FAIL, never a guessed "doc-only".
 CROSS_PLATFORM_RELEVANT_PREFIXES = (
     "Cargo.toml",
@@ -65,7 +65,7 @@ class AdmissionDecision:
 
 
 def classify_cross_platform_relevance(changed_files: list[str]) -> bool:
-    """Return True if any changed file is cross-platform relevant (§26)."""
+    """Return True if any changed file is cross-platform relevant."""
     for path in changed_files:
         for prefix in CROSS_PLATFORM_RELEVANT_PREFIXES:
             if path == prefix or path.startswith(prefix):
@@ -177,7 +177,7 @@ def main() -> int:
     ).stdout.strip()
 
     # Files changed by the tag commit — used to decide cross-platform relevance
-    # (§26: never guess "doc-only").
+    # (never guess "doc-only").
     files = subprocess.run(
         ["gh", "api", f"repos/{repo}/commits/{args.tag_sha}",
          "--jq", ".files[].filename"],
