@@ -152,12 +152,16 @@ else
   # points QEMU at the right loader/library path at execute time.
 fi
 
-# Cross-process IPC: when a guest (e.g. the rill-runtime test binary) spawns a
-# child foreign ELF via execve, QEMU linux-user re-executes itself for that
-# child. The child does NOT go through Cargo's `runner` nor the host kernel, so
-# it must inherit the SAME emulation config as the parent or it fails at load
-# and the parent sees `Broken pipe` writing the child's stdin. Passing the
-# config as environment variables guarantees it is inherited on re-exec.
+# Cross-process IPC: a guest (e.g. the rill-runtime test binary) that spawns a
+# child foreign ELF via execve CANNOT rely on QEMU to intercept it -- QEMU
+# linux-user passes the exec through to the host kernel, which fails the foreign
+# image (ENOEXEC) unless binfmt_misc is registered. Rust's `Command::spawn` uses
+# glibc posix_spawn, and QEMU's CLONE_VFORK-as-fork emulation defeats posix_spawn
+# error reporting, so the parent sees `Broken pipe` writing the child's stdin.
+# The test therefore launches the child through the host-NATIVE QEMU interpreter
+# (see RILL_RUNTIME_EXEC_PREFIX), which passes through to the host kernel and
+# runs natively. The QEMU_* env vars below keep every other execution path
+# (binfmt-assisted exec, direct foreign exec) uniform with Cargo's `runner`.
 if [[ -n "$RUNNER" ]]; then
   export QEMU_LD_PREFIX="$(_ld_prefix "$TARGET")"
   if [[ "$TARGET" == "riscv64gc-unknown-linux-gnu" ]]; then
@@ -233,6 +237,16 @@ wasm-tools component new \
   -o "$FIXTURE_DIR/echo-handler.wasm"
 export ECHO_HANDLER_WASM="${PWD}/target/echo-handler.wasm"
 echo "==> ECHO_HANDLER_WASM=${ECHO_HANDLER_WASM}"
+
+# The runtime_process crate tests spawn the `rill-runtime` binary as a child.
+# Under QEMU that foreign child cannot exec through the host kernel (no
+# binfmt_misc), and `Command::spawn`'s posix_spawn error channel is broken by
+# QEMU's CLONE_VFORK emulation. Passing the host-native QEMU interpreter here
+# lets the test launch the child through it explicitly (host-native exec passes
+# through to the kernel and runs natively). Empty on native targets -> the test
+# runs the binary directly.
+export RILL_RUNTIME_EXEC_PREFIX="${RUNNER:-}"
+echo "==> RILL_RUNTIME_EXEC_PREFIX=${RILL_RUNTIME_EXEC_PREFIX:-(none)}"
 
 echo "==> cargo test --workspace --target ${TARGET}"
 cargo test --locked --workspace --all-targets --all-features \

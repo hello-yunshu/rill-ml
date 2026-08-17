@@ -162,6 +162,12 @@ export ECHO_HANDLER_WASM="${PWD}/target/echo-handler.wasm"
 # ─────────────────────────────────────────────────────────────────────────
 # 3. Real-execute the crate test suite on loongarch64 via QEMU.
 # ─────────────────────────────────────────────────────────────────────────
+# The runtime_process crate tests spawn `rill-runtime` as a child. Under QEMU a
+# foreign child cannot exec through the host kernel (no binfmt_misc), and
+# posix_spawn's error channel is broken by QEMU's CLONE_VFORK emulation. Inject
+# the host-native QEMU interpreter so the test launches the child through it.
+export RILL_RUNTIME_EXEC_PREFIX="$RUNNER"
+
 echo "==> cargo test --workspace --target ${TARGET}"
 cargo test --locked --workspace --all-targets --all-features \
   --exclude rill-ml-python --target "$TARGET"
