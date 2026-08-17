@@ -126,15 +126,25 @@ else
   LINKER="$(_linker_bin "$TARGET")"
   RUNNER="$(_runner "$TARGET")"
 
-  # Cross-compiling C (e.g. wasmtime's vm helpers) with a Debian cross gcc
-  # needs an explicit target sysroot: without it the compiler falls back to the
-  # host /usr/include and fails on `bits/libc-header-start.h`. cc-rs reads the
-  # per-target `CFLAGS_<triple>` env var (dashes -> underscores), so export the
-  # cross sysroot here for any C dependency that builds during the gate.
-  LD_PREFIX="$(_ld_prefix "$TARGET")"
+  # cc-rs reads the per-target `CFLAGS_<triple>` env var (dashes -> underscores),
+  # so export the cross sysroot here for any C dependency that builds during the
+  # gate. Debian's cross-gcc (gcc-<arch>-linux-gnu) does NOT lay out the target
+  # libc under a standard <sysroot>/usr/include hierarchy: headers live in
+  # /usr/<triple>/include and libs in /usr/<triple>/lib. Handing cc-rs a
+  # `--sysroot=/usr/<triple>` makes gcc search the missing
+  # /usr/<triple>/usr/include, so C dependencies (e.g. wasmtime's vm helpers)
+  # fail with `stdlib.h: No such file or directory` and the `#include_next
+  # <stdint.h>` from gcc's fixed stdint.h becomes unresolvable. Materialise a
+  # standard-layout sysroot and bind the multiarch include/lib dirs underneath
+  # it so both `#include <stdlib.h>` and the fixed-stdint `#include_next` find
+  # the target headers.
+  FAKE_SYSROOT="$HOME/.rillml-sysroot/${TARGET}"
+  mkdir -p "$FAKE_SYSROOT/usr"
+  ln -sfn "$LD_PREFIX/include" "$FAKE_SYSROOT/usr/include"
+  ln -sfn "$LD_PREFIX/lib" "$FAKE_SYSROOT/usr/lib"
   CFLAG_KEY="CFLAGS_${TARGET//-/_}"
-  export "$CFLAG_KEY"="--sysroot=${LD_PREFIX}"
-  echo "==> Cross C sysroot: ${CFLAG_KEY}=--sysroot=${LD_PREFIX}"
+  export "$CFLAG_KEY"="--sysroot=${FAKE_SYSROOT}"
+  echo "==> Cross C sysroot: ${CFLAG_KEY}=--sysroot=${FAKE_SYSROOT}"
 fi
 
 # Configure Cargo for cross compile + QEMU runner at the workspace level so
