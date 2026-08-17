@@ -1466,7 +1466,7 @@ jobs:
   # (scripts/qemu-cross-gate.sh / loongarch-cross-gate.sh).
   # ─────────────────────────────────────────────────────────────────────────
   post-release-verify-direct-qemu:
-    name: Post-release verify direct QEMU (${{{{ matrix.target }}}})
+    name: Post-release verify direct QEMU (${{ matrix.target }})
     if: github.event_name == 'workflow_dispatch'
     needs: publish
     runs-on: ubuntu-latest
@@ -1482,33 +1482,33 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{{{ env.RELEASE_TAG }}}}
+          ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
       - name: Build rill-pack verifier (host, no wasm feature)
         run: cargo build --locked --release -p rill-runtime --bin rill-pack --no-default-features
-      - name: Re-verify the published ${{{{ matrix.target }}}} asset under direct QEMU
+      - name: Re-verify the published ${{ matrix.target }} asset under direct QEMU
         env:
-          INDEX_FILE: ${{{{ needs.publish.outputs.index_file }}}}
-          VERSION: ${{{{ needs.publish.outputs.version }}}}
-          CHANNEL: ${{{{ needs.publish.outputs.channel }}}}
+          INDEX_FILE: ${{ needs.publish.outputs.index_file }}
+          VERSION: ${{ needs.publish.outputs.version }}
+          CHANNEL: ${{ needs.publish.outputs.channel }}
         shell: bash
         run: |
           set -euo pipefail
           index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
-          ./scripts/post-release-qemu-verify.sh "${{{{ matrix.target }}}}" \
+          ./scripts/post-release-qemu-verify.sh "${{ matrix.target }}" \
             --index-url "$index_url" \
             --expected-version "$VERSION" \
             --expected-channel "$CHANNEL" \
             --runtime-id rill-runtime \
             --rill-pack-bin target/release/rill-pack \
-            --log "smoke-test/post-release-direct-qemu-${{{{ matrix.target }}}}.json"
+            --log "smoke-test/post-release-direct-qemu-${{ matrix.target }}.json"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: post-release-verify-direct-qemu-${{{{ matrix.target }}}}
-          path: smoke-test/post-release-direct-qemu-${{{{ matrix.target }}}}.json
+          name: post-release-verify-direct-qemu-${{ matrix.target }}
+          path: smoke-test/post-release-direct-qemu-${{ matrix.target }}.json
           # Supported-target evidence must always exist; a missing JSON is a
           # release gate failure, never a warning (release prompt §17).
           if-no-files-found: error
