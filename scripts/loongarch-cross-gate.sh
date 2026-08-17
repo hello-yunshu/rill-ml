@@ -15,10 +15,15 @@
 #
 # Toolchain (pinned — never a moving `latest`):
 #   repo    : loong64/cross-tools, release 20260812
-#   asset   : x86_64-cross-tools-loongarch64-unknown-linux-gnu-stable.tar.xz
-#   sha256  : 7f020bd96930003ce83dabc514d8dda1de7803348dc6ba3c63fbc5c7fae2bac5
-#   gcc     : 14.3.0, binutils 2.41, glibc 2.38, kernel 6.6.101  (stable profile)
+#   asset   : x86_64-cross-tools-loongarch64-unknown-linux-gnu-latest.tar.xz
+#   sha256  : adf5a3235465f936eff045a4098c7acb445370b53413fcecb41938755b093f5c
+#   gcc     : 16.2.0, binutils 2.47, glibc 2.44, kernel 6.16  (latest profile)
 #   layout  : crosstool-ng style; we locate <triple>-gcc and use `-print-sysroot`
+#
+# We use the "latest" profile (binutils 2.47) rather than "stable" (2.41):
+# LLVM-generated LoongArch objects (e.g. polars) use newer R_LARCH_* relaxation
+# / TLS relocations (0x6e = 110) that GNU ld 2.41 cannot link
+# (`unsupported relocation type 0x6e`). Binutils >= 2.43 understands them.
 #
 # Usage:
 #   ./scripts/loongarch-cross-gate.sh        # full gate (test + runtime)
@@ -36,10 +41,10 @@ RUNTIME_SMOKE="${RUNTIME_SMOKE:-1}"
 
 # Pin (version / URL / sha256 / size). Uplifted for an x86_64 Actions host.
 RELEASE="20260812"
-ASSET="x86_64-cross-tools-loongarch64-unknown-linux-gnu-stable.tar.xz"
+ASSET="x86_64-cross-tools-loongarch64-unknown-linux-gnu-latest.tar.xz"
 TOOLCHAIN_URL="https://github.com/loong64/cross-tools/releases/download/${RELEASE}/${ASSET}"
-TOOLCHAIN_SHA256="7f020bd96930003ce83dabc514d8dda1de7803348dc6ba3c63fbc5c7fae2bac5"
-TOOLCHAIN_SIZE="75848968"
+TOOLCHAIN_SHA256="adf5a3235465f936eff045a4098c7acb445370b53413fcecb41938755b093f5c"
+TOOLCHAIN_SIZE="87205240"
 CACHE_DIR="$HOME/.rillml-loongarch-toolchain"
 
 if [[ "$HOST_ARCH" != "x86_64" ]] && [[ "$HOST_ARCH" != "amd64" ]]; then

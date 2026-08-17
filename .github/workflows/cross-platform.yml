@@ -161,7 +161,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.rillml-loongarch-toolchain
-          key: loongarch-toolchain-20260812-stable
+          key: loongarch-toolchain-20260812-latest
       - uses: Swatinem/rust-cache@v2
         with:
           key: loongarch64-gnu
