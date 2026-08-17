@@ -7,7 +7,7 @@
 # DIRECT user-mode QEMU on the native Actions host — no target-arch container,
 # no dependency on whether upstream rust:* images publish a manifest for the
 # platform. This replaces the old Docker-manifest-conditional skip for
-# RISC-V64 / LoongArch64 (release prompt §14/§15).
+# RISC-V64 / LoongArch64 — re-verified here instead, under direct user-mode QEMU.
 #
 # The runtime being re-verified is always the published release asset downloaded
 # from the GitHub Release; rill-pack is built from source only because it is the

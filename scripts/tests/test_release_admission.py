@@ -2,8 +2,8 @@
 
 The release-admission gate is the pipeline's final authority for every release
 (including manual ``workflow_dispatch``). These tests cover the pure decision
-logic: same-SHA CI/Cross-Platform/Security gates, the §26 "docs-only" rule for
-a missing Cross-Platform run, and §29/§30 successful-release immutability.
+logic: same-SHA CI/Cross-Platform/Security gates, the "docs-only" rule for
+a missing Cross-Platform run, and successful-release immutability.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class EvaluateAdmissionTest(unittest.TestCase):
         self.assertTrue(decision.admitted)
 
     def test_relevant_path_with_missing_cross_platform_fails(self) -> None:
-        # §26: never guess doc-only when cross-platform-relevant paths changed.
+        # Never guess doc-only when cross-platform-relevant paths changed.
         decision = _admit(cross_status="missing", cross_relevant=True)
         self.assertFalse(decision.admitted)
         self.assertTrue(any("Cross-Platform" in r for r in decision.reasons))
@@ -116,7 +116,7 @@ class EvaluateAdmissionTest(unittest.TestCase):
         self.assertFalse(decision.admitted)
 
     def test_successful_release_blocks_and_marks_immutable(self) -> None:
-        # §29/§30: successful release assets are immutable — a re-dispatch
+        # Successful release assets are immutable — a re-dispatch
         # must never mutate them.
         decision = _admit(has_successful_release=True)
         self.assertFalse(decision.admitted)

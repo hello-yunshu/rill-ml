@@ -96,7 +96,7 @@ jobs:
 
       # ────────────────────────────────────────────────────────────
       # Release admission: Security Audit must PASS on the same SHA.
-      # CodeQL + RustSec are part of the required gates (§22); a release
+      # CodeQL + RustSec are part of the required gates; a release
       # is prohibited if either is missing, queued, in_progress, failed,
       # cancelled, or timed out on this exact commit — not merely "usually
       # runs".

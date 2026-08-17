@@ -98,7 +98,7 @@ class ReleaseTagPolicyTest(unittest.TestCase):
 
     def test_existing_tag_with_successful_release_same_sha_skips(self) -> None:
         # Same SHA and a successful Release already exists — successful release
-        # assets are IMMUTABLE (§29/§30): a re-dispatch would re-run publish
+        # assets are immutable: a re-dispatch would re-run publish
         # and clobber those assets, so it must skip and require a new version.
         decision = policy.decide_release_tag(
             tag_exists=True,
