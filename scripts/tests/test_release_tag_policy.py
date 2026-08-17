@@ -96,9 +96,10 @@ class ReleaseTagPolicyTest(unittest.TestCase):
         self.assertEqual(decision.action, "skip")
         self.assertIn("active", decision.reason)
 
-    def test_existing_tag_with_successful_release_same_sha_dispatches_retry(self) -> None:
-        # Same SHA and a successful Release already exists — dispatch a safe
-        # same-SHA retry (the tag is already at the CI head).
+    def test_existing_tag_with_successful_release_same_sha_skips(self) -> None:
+        # Same SHA and a successful Release already exists — successful release
+        # assets are IMMUTABLE (§29/§30): a re-dispatch would re-run publish
+        # and clobber those assets, so it must skip and require a new version.
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="abc123",
@@ -106,8 +107,8 @@ class ReleaseTagPolicyTest(unittest.TestCase):
             has_successful_release=True,
             has_active_release=False,
         )
-        self.assertEqual(decision.action, "dispatch")
-        self.assertIn("re-releasing", decision.reason)
+        self.assertEqual(decision.action, "skip")
+        self.assertIn("immutable", decision.reason)
 
     def test_existing_tag_with_active_release_skips(self) -> None:
         decision = policy.decide_release_tag(

@@ -582,9 +582,57 @@ jobs:
   # trigger is intentionally omitted so retries are idempotent.
   # ─────────────────────────────────────────────────────────────────────────
 
+  # ──────────────────────────────────────────────────────────────────────────────────────────
+  # release-admission — the FINAL authority for every release, including
+  # manual workflow_dispatch (which a human can trigger directly and thus
+  # bypass auto-release.yml). It verifies, on the EXACT tag commit SHA, that
+  # the push CI, Cross-Platform Verification and Security audit all passed
+  # (any missing/queued/in_progress/failure/cancelled/timed_out is a HARD
+  # FAIL), that no successful Release exists for the tag (successful release
+  # assets are immutable), and that no Release is already in flight.
+  # package-check `needs` this job, so the whole release tree cannot bypass it.
+  # ────────────────────────────────────────────────────────────────────────────────────────────
+  release-admission:
+    name: Release admission (same-SHA gates)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - name: Resolve the release tag commit SHA
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ env.RELEASE_TAG }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "refs/tags/$TAG:refs/tags/$TAG"
+          tag_sha="$(git rev-parse "$TAG^{commit}")"
+          echo "tag_sha=$tag_sha" >> "$GITHUB_OUTPUT"
+      - name: Run release admission (CI / Cross-Platform / Security same-SHA)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ env.RELEASE_TAG }}
+          TAG_SHA: ${{ steps.resolve.outputs.tag_sha }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/release_admission.py \
+            --tag "$TAG" \
+            --tag-sha "$TAG_SHA" \
+            --current-run-id "$CURRENT_RUN_ID"
+
   package-check:
     name: cargo package dry-run
     if: github.event_name == 'workflow_dispatch'
+    needs: release-admission
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -1271,9 +1319,11 @@ jobs:
     # runtime asset (not a fresh source build), checks its size/SHA-256 against
     # the signed release index, then executes that exact binary inside a
     # container whose platform matches the target (QEMU/binfmt for aarch64) and
-    # runs the signed-model / signed-handler / IPC host smoke. Covers every
-    # current Linux Supported runtime asset so gnu and musl builds of each
-    # OS+arch are re-verified from the published artifact.
+    # runs the signed-model / signed-handler / IPC host smoke. Covers the Linux
+    # Supported runtime assets that have usable rust:* container manifests
+    # (gnu+musl of x86_64/aarch64, plus armv7/s390x/powerpc64le). RISC-V64 and
+    # LoongArch64 are re-verified under DIRECT user-mode QEMU instead by
+    # post-release-verify-direct-qemu (no container-manifest dependency).
     if: github.event_name == 'workflow_dispatch'
     needs: publish
     runs-on: ubuntu-latest
@@ -1294,12 +1344,6 @@ jobs:
           - target: aarch64-unknown-linux-musl
             platform: linux/arm64
             runtime_id: rill-runtime-musl
-          - target: riscv64gc-unknown-linux-gnu
-            platform: linux/riscv64
-            runtime_id: rill-runtime
-            # rust:1.94.0-bookworm has no linux/riscv64 manifest; use the slim
-            # variant (ships linux/riscv64) to re-verify the published asset.
-            image: rust:1.94.0-slim
           - target: armv7-unknown-linux-gnueabihf
             platform: linux/arm/v7
             runtime_id: rill-runtime
@@ -1309,14 +1353,6 @@ jobs:
           - target: powerpc64le-unknown-linux-gnu
             platform: linux/ppc64le
             runtime_id: rill-runtime
-          - target: loongarch64-unknown-linux-gnu
-            platform: linux/loongarch64
-            runtime_id: rill-runtime
-            # rust:1.94.0-bookworm has no linux/loongarch64 manifest; use the
-            # slim variant when a loongarch64 manifest is published. If the host
-            # has no usable manifest the step below skips gracefully (exit 0)
-            # rather than failing the release, matching cross-exec-test.sh.
-            image: rust:1.94.0-slim
     permissions:
       contents: read
     steps:
@@ -1336,28 +1372,12 @@ jobs:
           CHANNEL: ${{ needs.publish.outputs.channel }}
           PLATFORM: ${{ matrix.platform }}
           RUNTIME_ID: ${{ matrix.runtime_id }}
-          # The manifest guard below must probe the SAME image the container
-          # actually runs, otherwise riscv64 (slim ships linux/riscv64; bookworm
-          # does not) would be skipped instead of re-verified.
-          IMAGE: ${{ matrix.image || 'rust:1.94.0-bookworm' }}
         shell: bash
         run: |
           set -euo pipefail
-          # loongarch64 and (where the host image lacks it) riscv64: upstream
-          # rust:* images publish no usable linux/loongarch64 (and often no
-          # linux/riscv64) manifest, so real QEMU re-verification may be
-          # impossible. Skip gracefully (exit 0) rather than failing the
-          # release, matching scripts/cross-exec-test.sh's guard. The asset is
-          # still built and published; its re-verification is recorded as
-          # pending (no JSON is written, so the upload step below uses
-          # if-no-files-found: warn).
-          if { [ "$PLATFORM" = "linux/loongarch64" ] || [ "$PLATFORM" = "linux/riscv64" ]; } && ! docker manifest inspect --platform "$PLATFORM" "${IMAGE:-rust:1.94.0-bookworm}" >/dev/null 2>&1; then
-            echo "==> ${PLATFORM} image manifest unavailable on this host — skipping post-release re-verify (asset was built and published)"
-            exit 0
-          fi
           index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
           docker build -t "rill-post-verify-${RUNTIME_ID}" -f- . <<EOF
-          FROM --platform=${PLATFORM} ${{ matrix.image || 'rust:1.94.0-bookworm' }}
+          FROM --platform=${PLATFORM} rust:1.94.0-bookworm
           RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
           EOF
           docker run --rm \
@@ -1386,9 +1406,9 @@ jobs:
         with:
           name: post-release-verify-${{ matrix.target }}
           path: smoke-test/post-release-${{ matrix.target }}.json
-          # A graceful manifest skip (loongarch64 / riscv64 on hosts without a
-          # usable image) writes no JSON, so tolerate that instead of failing.
-          if-no-files-found: warn
+          # Supported-target evidence must always exist; a missing JSON is a
+          # release gate failure, never a warning (release prompt §17).
+          if-no-files-found: error
 
   # ─────────────────────────────────────────────────────────────────────────
   # Post-release re-verify of the published FreeBSD runtime asset. Docker +
@@ -1436,10 +1456,67 @@ jobs:
           path: smoke-test/post-release-freebsd.json
           if-no-files-found: error
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Post-release re-verify of the published RISC-V64 / LoongArch64 runtime
+  # assets — DIRECT user-mode QEMU on the native Actions host, no Docker, no
+  # dependence on an upstream rust:* container manifest for the platform
+  # (release prompt §14/§15). The published asset is downloaded from the
+  # GitHub Release and executed under qemu-user with the same sysroot / -cpu /
+  # LD_LIBRARY_PATH config used by the Stable gates
+  # (scripts/qemu-cross-gate.sh / loongarch-cross-gate.sh).
+  # ─────────────────────────────────────────────────────────────────────────
+  post-release-verify-direct-qemu:
+    name: Post-release verify direct QEMU (${{{{ matrix.target }}}})
+    if: github.event_name == 'workflow_dispatch'
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - riscv64gc-unknown-linux-gnu
+          - loongarch64-unknown-linux-gnu
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{{{ env.RELEASE_TAG }}}}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.94.0
+      - name: Build rill-pack verifier (host, no wasm feature)
+        run: cargo build --locked --release -p rill-runtime --bin rill-pack --no-default-features
+      - name: Re-verify the published ${{{{ matrix.target }}}} asset under direct QEMU
+        env:
+          INDEX_FILE: ${{{{ needs.publish.outputs.index_file }}}}
+          VERSION: ${{{{ needs.publish.outputs.version }}}}
+          CHANNEL: ${{{{ needs.publish.outputs.channel }}}}
+        shell: bash
+        run: |
+          set -euo pipefail
+          index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
+          ./scripts/post-release-qemu-verify.sh "${{{{ matrix.target }}}}" \
+            --index-url "$index_url" \
+            --expected-version "$VERSION" \
+            --expected-channel "$CHANNEL" \
+            --runtime-id rill-runtime \
+            --rill-pack-bin target/release/rill-pack \
+            --log "smoke-test/post-release-direct-qemu-${{{{ matrix.target }}}}.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: post-release-verify-direct-qemu-${{{{ matrix.target }}}}
+          path: smoke-test/post-release-direct-qemu-${{{{ matrix.target }}}}.json
+          # Supported-target evidence must always exist; a missing JSON is a
+          # release gate failure, never a warning (release prompt §17).
+          if-no-files-found: error
+
   move-index-pointer:
     name: Promote verified signed index pointer
     if: github.event_name == 'workflow_dispatch'
-    needs: [publish, release-host-smoke, post-release-verify, post-release-verify-freebsd]
+    needs: [publish, release-host-smoke, post-release-verify, post-release-verify-direct-qemu, post-release-verify-freebsd]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
