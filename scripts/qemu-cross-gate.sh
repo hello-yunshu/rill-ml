@@ -76,6 +76,21 @@ _linker_bin() {
     x86_64-unknown-linux-gnu) echo "gcc" ;;
   esac
 }
+# The target's glibc is supplied by a separate multiarch -cross package. It is
+# only a *Recommends* of the cross-gcc, so `--no-install-
+# recommends` silently skips it and the target <stdlib.h>/<stdint.h> headers
+# never land in /usr/<triple>/include -> C builds fail with
+# "stdlib.h: No such file or directory". Install it explicitly.
+_libc_dev_pkg() {
+  case "$1" in
+    riscv64gc-unknown-linux-gnu) echo "libc6-dev-riscv64-cross" ;;
+    aarch64-unknown-linux-gnu) echo "libc6-dev-arm64-cross" ;;
+    armv7-unknown-linux-gnueabihf) echo "libc6-dev-armhf-cross" ;;
+    s390x-unknown-linux-gnu) echo "libc6-dev-s390x-cross" ;;
+    powerpc64le-unknown-linux-gnu) echo "libc6-dev-ppc64le-cross" ;;
+    x86_64-unknown-linux-gnu) echo "" ;;
+  esac
+}
 _qemu_bin() {
   case "$1" in
     riscv64gc-unknown-linux-gnu) echo "qemu-riscv64" ;;
@@ -109,9 +124,12 @@ _runner() {
 }
 
 if [[ "$TARGET" != "$NATIVE_TARGET" ]]; then
-  echo "==> Installing cross toolchain + QEMU for ${TARGET}"
+  echo "==> Installing cross toolchain + libc-dev + QEMU for ${TARGET}"
+  # The -cross libc-dev is a Recommends of the cross-gcc; install it
+  # explicitly or the target headers never appear (stdlib.h not found).
   sudo apt-get update
-  sudo apt-get install -y --no-install-recommends "$(_linker_pkg "$TARGET")" qemu-user python3
+  sudo apt-get install -y --no-install-recommends \
+    "$(_linker_pkg "$TARGET")" "$(_libc_dev_pkg "$TARGET")" qemu-user python3
 else
   echo "==> Native host target — using host toolchain, no cross package or QEMU"
 fi
@@ -126,26 +144,12 @@ else
   LINKER="$(_linker_bin "$TARGET")"
   RUNNER="$(_runner "$TARGET")"
 
-  # cc-rs reads the per-target `CFLAGS_<triple>` env var (dashes -> underscores),
-  # so export the cross sysroot here for any C dependency that builds during the
-  # gate. Debian's cross-gcc (gcc-<arch>-linux-gnu) does NOT lay out the target
-  # libc under a standard <sysroot>/usr/include hierarchy: headers live in
-  # /usr/<triple>/include and libs in /usr/<triple>/lib. Handing cc-rs a
-  # `--sysroot=/usr/<triple>` makes gcc search the missing
-  # /usr/<triple>/usr/include, so C dependencies (e.g. wasmtime's vm helpers)
-  # fail with `stdlib.h: No such file or directory` and the `#include_next
-  # <stdint.h>` from gcc's fixed stdint.h becomes unresolvable. Materialise a
-  # standard-layout sysroot and bind the multiarch include/lib dirs underneath
-  # it so both `#include <stdlib.h>` and the fixed-stdint `#include_next` find
-  # the target headers.
-  LD_PREFIX="$(_ld_prefix "$TARGET")"
-  FAKE_SYSROOT="$HOME/.rillml-sysroot/${TARGET}"
-  mkdir -p "$FAKE_SYSROOT/usr"
-  ln -sfn "$LD_PREFIX/include" "$FAKE_SYSROOT/usr/include"
-  ln -sfn "$LD_PREFIX/lib" "$FAKE_SYSROOT/usr/lib"
-  CFLAG_KEY="CFLAGS_${TARGET//-/_}"
-  export "$CFLAG_KEY"="--sysroot=${FAKE_SYSROOT}"
-  echo "==> Cross C sysroot: ${CFLAG_KEY}=--sysroot=${FAKE_SYSROOT}"
+  # No --sysroot/CFLAGS override here: the Debian cross-gcc already resolves its
+  # own target include + library dirs (/usr/<triple>/include, /usr/<triple>/lib)
+  # once the libc6-dev-<arch>-cross package is installed (see _libc_dev_pkg).
+  # Overriding CFLAGS with a hand-assembled --sysroot breaks the fixed-stdint
+  # `#include_next <stdint.h>` and the QEMU `runner`'s `-L` prefix already
+  # points QEMU at the right loader/library path at execute time.
 fi
 
 # Configure Cargo for cross compile + QEMU runner at the workspace level so
