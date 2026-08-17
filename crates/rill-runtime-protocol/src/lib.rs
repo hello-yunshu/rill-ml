@@ -322,9 +322,7 @@ impl ReleaseArtifact {
                             Some("gnu")
                         };
                         if libc != expected {
-                            return Err(
-                                "runtime artifact libc variant does not match its id",
-                            );
+                            return Err("runtime artifact libc variant does not match its id");
                         }
                     }
                     _ => {
