@@ -90,6 +90,13 @@ echo "==> LoongArch gcc: ${CC}"
 echo "==> LoongArch sysroot: ${SYSROOT}"
 echo "==> Compiler version: $("$CC" -dumpversion)"
 
+# Cross-compiling C dependencies (e.g. wasmtime's vm helpers) with the cross
+# gcc needs an explicit target sysroot; otherwise the compiler falls back to
+# the host /usr/include and fails on `bits/libc-header-start.h`. cc-rs reads
+# the per-target `CFLAGS_<triple>` env var (dashes -> underscores).
+export CFLAGS_loongarch64_unknown_linux_gnu="--sysroot=${SYSROOT}"
+echo "==> Cross C sysroot: CFLAGS_loongarch64_unknown_linux_gnu=--sysroot=${SYSROOT}"
+
 echo "==> Installing QEMU user-mode (qemu-loongarch64)"
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends qemu-user python3

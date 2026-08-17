@@ -54,6 +54,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.97.0
+          # The native GNU gates run `cargo fmt` and `cargo clippy` inside
+          # qemu-cross-gate.sh, so rustfmt + clippy must be installed here.
+          components: rustfmt, clippy
           targets: x86_64-unknown-linux-gnu
       - uses: Swatinem/rust-cache@v2
         with:
@@ -70,6 +73,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.97.0
+          # The native GNU gates run `cargo fmt` and `cargo clippy` inside
+          # qemu-cross-gate.sh, so rustfmt + clippy must be installed here.
+          components: rustfmt, clippy
           targets: aarch64-unknown-linux-gnu
       - uses: Swatinem/rust-cache@v2
         with:
