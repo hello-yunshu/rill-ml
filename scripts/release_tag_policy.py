@@ -6,13 +6,19 @@ decide, after a successful CI run on ``main``, whether to:
 
 * create a new version tag at the CI head SHA and dispatch the Release
   workflow;
-* overwrite an existing tag whose SHA differs from the CI head (force-move
-  the tag to the new commit) and dispatch the Release workflow;
-* re-release an existing tag whose SHA already matches the CI head
-  (overwrite the previous release assets);
+* safely re-release an existing tag whose SHA already matches the CI head
+  (immutable-tag safe retry when a previous Release run failed);
 * skip dispatch because the tag already has an active Release run (avoid
   queuing redundant work);
-* fail loudly because the tag exists but its SHA could not be resolved.
+* fail loudly because the tag exists but its SHA could not be resolved,
+  OR because the tag already exists at a *different* SHA.
+
+Formal release tags are IMMUTABLE: a tag may be created, or safely retried
+at the identical SHA, or rejected. It may never be force-moved
+(no ``git tag --force`` / ``git push --force``). A tag that already exists
+at a different commit than the current CI head is a HARD FAIL: the SHA that
+CI ran on no longer matches the version tag, so publishing would bind the
+wrong commit to that release.
 
 The decision used to live entirely inside a bash ``run:`` block, which made
 it impossible to unit-test the policy. This module exposes the same decision
@@ -85,23 +91,31 @@ def decide_release_tag(
             )
         # If a Release run is already in-flight for this tag, skip to avoid
         # queuing redundant work. The active run will complete and produce
-        # the release.
+        # the release (release tags are immutable, so the active run is bound
+        # to the same version).
         if has_active_release:
             return Decision(
                 "skip",
                 "tag already has an active Release run",
             )
-        # Otherwise dispatch. The workflow will force-update the tag if the
-        # SHA differs (overwriting the previous tag) and the Release job
-        # will overwrite the previous release assets.
+        # Immutable-tag policy: a tag pointing at a DIFFERENT commit than the
+        # current CI head must never be force-moved. The SHA that CI passed on
+        # no longer matches the version tag, so publishing would silently bind
+        # the wrong commit to this release. This is a HARD FAIL, not an
+        # overwrite: the inability to re-point the tag means the intended
+        # release (on the current head) cannot be produced without a new
+        # version, so the release must be blocked.
         if tag_sha != target_sha:
             return Decision(
-                "dispatch",
-                f"overwriting tag (was {tag_sha}, now {target_sha}) and re-releasing",
+                "fail",
+                f"tag already exists at {tag_sha}, which differs from CI head {target_sha}; "
+                f"immutable release tags cannot move — use a new version",
             )
+        # Same-SHA safe retry: the tag is already at the CI head. Dispatch so
+        # the Release job can (re)run against the same commit and publish.
         return Decision(
             "dispatch",
-            f"re-releasing tag at {tag_sha} (overwriting previous release)",
+            f"re-releasing tag at {tag_sha} (same-SHA safe retry)",
         )
 
     # Brand-new tag: the workflow will create it at target_sha and dispatch.

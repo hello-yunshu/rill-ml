@@ -32,11 +32,14 @@ pub const HANDLER_API_VERSION: u32 = 1;
 pub const RUNTIME_STATE_FORMAT_VERSION: u32 = 1;
 /// Signed release-index schema understood by independent updaters.
 ///
-/// v2 is the frozen stable schema. Linux GNU and musl runtime builds of the
-/// same OS+arch are distinguished by the stable artifact ``id`` (see
-/// [`RUNTIME_ARTIFACT_ID_MUSL`]) rather than by a new field, so the public
-/// struct is unchanged and the release-index wire contract stays v2.
-pub const RELEASE_INDEX_SCHEMA_VERSION: u32 = 2;
+/// v3 is the current frozen stable schema. It adds an explicit ``target_libc``
+/// field (``gnu``/``musl``) to Linux runtime artifacts so libc variants of the
+/// same OS+arch are disambiguated deterministically. v3 is a versioned schema:
+/// a v1.1.0 reader (whose validator requires ``RELEASE_INDEX_SCHEMA_VERSION
+/// == 2``) rejects it at the schema boundary (fail-closed) rather than
+/// naive-matching gnu and musl builds to the same OS+arch and failing
+/// ambiguously.
+pub const RELEASE_INDEX_SCHEMA_VERSION: u32 = 3;
 /// Hard upper bound for one newline-delimited IPC message.
 pub const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 
@@ -258,6 +261,12 @@ pub struct ReleaseArtifact {
     pub target_os: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_arch: Option<String>,
+    /// The libc/ABI variant (``gnu`` or ``musl``) of a Linux target. Present
+    /// only on Linux runtime/adapter artifacts; non-Linux targets (macOS,
+    /// Windows, FreeBSD) omit it. Introduced in release-index schema v3 so
+    /// gnu and musl builds of the same OS+arch coexist unambiguously.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_libc: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub handler_api_version: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -293,13 +302,36 @@ impl ReleaseArtifact {
                 }
                 // The artifact ``id`` is part of the stable asset identity. On
                 // Linux, the libc/ABI variant (gnu vs musl) is encoded in the
-                // ``id`` so that both builds of the same OS+arch coexist in a
-                // single v2 index without a schema bump.
+                // ``id`` and recorded explicitly in ``target_libc`` so both
+                // builds of the same OS+arch coexist unambiguously in a v3
+                // index.
                 if (self.id != RUNTIME_ARTIFACT_ID && self.id != RUNTIME_ARTIFACT_ID_MUSL)
                     || self.target_os.as_deref().is_none_or(str::is_empty)
                     || self.target_arch.as_deref().is_none_or(str::is_empty)
                 {
                     return Err("runtime artifact requires a target OS and architecture");
+                }
+                // On Linux the libc variant must be explicit (gnu or musl).
+                // Non-Linux targets must not carry a libc variant.
+                match self.target_os.as_deref() {
+                    Some("linux") => {
+                        let libc = self.target_libc.as_deref();
+                        let expected = if self.id == RUNTIME_ARTIFACT_ID_MUSL {
+                            Some("musl")
+                        } else {
+                            Some("gnu")
+                        };
+                        if libc != expected {
+                            return Err(
+                                "runtime artifact libc variant does not match its id",
+                            );
+                        }
+                    }
+                    _ => {
+                        if self.target_libc.is_some() {
+                            return Err("non-Linux runtime artifact must not carry a libc variant");
+                        }
+                    }
                 }
                 if self.handler_api_version.is_some() || self.min_runtime_version.is_some() {
                     return Err("runtime artifact must not carry handler fields");
@@ -650,6 +682,7 @@ mod tests {
             runtime_api_version: RUNTIME_API_VERSION,
             target_os: Some("macos".into()),
             target_arch: Some("aarch64".into()),
+            target_libc: None,
             handler_api_version: None,
             min_runtime_version: None,
             pm_adapter_protocol_version: None,

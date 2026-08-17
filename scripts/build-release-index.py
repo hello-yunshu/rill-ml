@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 
 RUNTIME_API_VERSION = 2
-RELEASE_INDEX_SCHEMA_VERSION = 2
+RELEASE_INDEX_SCHEMA_VERSION = 3
 HANDLER_API_VERSION = 1
 
 # Stable artifact ids. ``RUNTIME_ARTIFACT_ID`` identifies the default (GNU on
@@ -21,14 +21,22 @@ HANDLER_API_VERSION = 1
 RUNTIME_ARTIFACT_ID = "rill-runtime"
 RUNTIME_ARTIFACT_ID_MUSL = "rill-runtime-musl"
 
+# Release-index schema v3. The RC2 stable/candidate index carries an explicit
+# ``targetLibc`` field (``gnu``/``musl`` on Linux) alongside the stable
+# ``targetOs``/``targetArch`` and the artifact ``id``, so a reader can
+# disambiguate libc variants deterministically. v3 is a *versioned* schema:
+# a v1.1.0 reader (whose validator enforces schemaVersion == 2) rejects it at
+# the schema boundary (fail-closed) rather than naive-matching gnu and musl
+# builds to the same OS+arch and failing ambiguously.
+
 RUNTIMES = (
     # (target_os, target_arch, target_libc, asset_id, asset_pattern)
     # Asset naming: <os>-<arch>[-<libc>]. The libc suffix only appears when the
     # OS+arch identity is otherwise ambiguous (Linux gnu vs musl). macOS and
     # Windows builds carry no libc suffix. The libc/ABI variant is encoded in
-    # the stable artifact ``id`` (``rill-runtime`` vs ``rill-runtime-musl``) so
-    # gnu and musl builds of the same OS+arch coexist in a single v2 index
-    # without a schema bump.
+    # the stable artifact ``id`` (``rill-runtime`` vs ``rill-runtime-musl``) and
+    # recorded explicitly in ``targetLibc`` so gnu and musl builds of the same
+    # OS+arch coexist in one v3 index.
     ("linux", "x86_64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-x86_64"),
     ("linux", "x86_64", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-x86_64-musl"),
     ("linux", "aarch64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-aarch64"),
@@ -183,6 +191,11 @@ def main() -> None:
             "targetArch": target_arch,
             "url": url,
         }
+        # Schema v3 records the libc/ABI variant explicitly on Linux so readers
+        # can disambiguate gnu vs musl without relying on ``id`` naming. Non-Linux
+        # targets (macOS/Windows/FreeBSD) have no libc variant and omit the field.
+        if target_libc is not None:
+            fields["targetLibc"] = target_libc
         artifacts.append(artifact(asset_path, **fields))
 
     for target_os, target_arch, target_libc, artifact_id, pattern in PM_ADAPTERS:
@@ -203,6 +216,8 @@ def main() -> None:
             "targetArch": target_arch,
             "url": url,
         }
+        if target_libc is not None:
+            fields["targetLibc"] = target_libc
         artifacts.append(artifact(asset_path, **fields))
 
     existing_model = None

@@ -1,10 +1,11 @@
 """Unit tests for ``scripts/release_tag_policy.py``.
 
-The auto-release workflow delegates the tag-overwrite decision to this
+The auto-release workflow delegates the tag decision to this
 helper so we can cover every branch without mocking GitHub. The cases
-below exercise the overwrite policy: existing tags are force-updated
-when the SHA differs and existing releases are overwritten when the SHA
-matches.
+below exercise the immutable-tag policy: a tag may be created, safely
+retried at the identical SHA, or skipped while a Release is in flight —
+but a tag whose SHA differs from the CI head is a HARD FAIL and is never
+force-moved.
 """
 
 from __future__ import annotations
@@ -53,7 +54,9 @@ class ReleaseTagPolicyTest(unittest.TestCase):
         self.assertEqual(decision.action, "dispatch")
         self.assertIn("re-releasing", decision.reason)
 
-    def test_existing_tag_with_different_sha_dispatches_overwrite(self) -> None:
+    def test_existing_tag_with_different_sha_is_hard_fail(self) -> None:
+        # Immutable-tag policy: a tag already pointing at a different commit
+        # than the CI head is never force-moved. It is a HARD FAIL.
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="oldsha",
@@ -61,15 +64,14 @@ class ReleaseTagPolicyTest(unittest.TestCase):
             has_successful_release=False,
             has_active_release=False,
         )
-        self.assertEqual(decision.action, "dispatch")
-        self.assertIn("overwriting", decision.reason)
+        self.assertEqual(decision.action, "fail")
+        self.assertIn("immutable", decision.reason)
         self.assertIn("oldsha", decision.reason)
         self.assertIn("newsha", decision.reason)
 
-    def test_existing_tag_with_different_sha_dispatches_even_with_successful_release(self) -> None:
-        # A stale tag with a successful Release run is overwritten rather
-        # than silently skipped: the tag is force-moved to the new SHA and
-        # the release assets are rebuilt.
+    def test_existing_tag_with_different_sha_is_hard_fail_even_with_successful_release(self) -> None:
+        # A stale tag pointing at a different SHA must NOT be force-moved even
+        # if a Release run previously succeeded for it.
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="oldsha",
@@ -77,16 +79,13 @@ class ReleaseTagPolicyTest(unittest.TestCase):
             has_successful_release=True,
             has_active_release=False,
         )
-        self.assertEqual(decision.action, "dispatch")
-        self.assertIn("overwriting", decision.reason)
-        self.assertIn("oldsha", decision.reason)
-        self.assertIn("newsha", decision.reason)
+        self.assertEqual(decision.action, "fail")
+        self.assertIn("immutable", decision.reason)
 
     def test_existing_tag_with_different_sha_and_active_release_skips(self) -> None:
-        # If a Release run is already in-flight, skip to avoid queuing
-        # redundant work — even when the tag SHA differs. The active run
-        # will complete, and the next Auto Release run will force-move
-        # the tag and overwrite the release.
+        # If a Release run is already in-flight for the tag, skip to avoid
+        # queuing redundant work. The active run is bound to the existing tag's
+        # SHA; because tags are immutable this is safe.
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="oldsha",
@@ -97,9 +96,9 @@ class ReleaseTagPolicyTest(unittest.TestCase):
         self.assertEqual(decision.action, "skip")
         self.assertIn("active", decision.reason)
 
-    def test_existing_tag_with_successful_release_dispatches_overwrite(self) -> None:
-        # Same SHA but a successful Release already exists — dispatch to
-        # overwrite the previous release assets.
+    def test_existing_tag_with_successful_release_same_sha_dispatches_retry(self) -> None:
+        # Same SHA and a successful Release already exists — dispatch a safe
+        # same-SHA retry (the tag is already at the CI head).
         decision = policy.decide_release_tag(
             tag_exists=True,
             tag_sha="abc123",

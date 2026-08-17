@@ -634,9 +634,11 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
 
     def test_linux_gnu_and_musl_release_assets_coexist_with_distinct_ids(self) -> None:
         # B1: gnu and musl builds of the same Linux OS+arch must coexist in a
-        # single v2 index without colliding. The libc variant is encoded in the
-        # stable artifact ``id`` (rill-runtime vs rill-runtime-musl), not in a
-        # new schema field, so the frozen v2 wire contract is preserved.
+        # single v3 index without colliding. Schema v3 records the libc variant
+        # explicitly in ``targetLibc`` (gnu/musl) on Linux artifacts so a v1.1
+        # reader rejects the index fail-closed at the schema boundary rather
+        # than naive-matching both builds to the same OS+arch. Non-Linux
+        # targets omit ``targetLibc``.
         with tempfile.TemporaryDirectory() as temp_name:
             temp = pathlib.Path(temp_name)
             version = "1.0.0"
@@ -645,6 +647,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
                 f"rill-runtime-{version}-linux-x86_64-musl",
                 f"rill-runtime-{version}-linux-aarch64",
                 f"rill-runtime-{version}-linux-aarch64-musl",
+                f"rill-runtime-{version}-macos-aarch64",
                 f"example-default-{version}.rillpack",
             ):
                 (temp / name).write_bytes(name.encode())
@@ -665,7 +668,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual(payload["schemaVersion"], 2)
+            self.assertEqual(payload["schemaVersion"], 3)
             runtimes = [a for a in payload["artifacts"] if a["kind"] == "runtime"]
             linux = [a for a in runtimes if a["targetOs"] == "linux"]
             self.assertEqual(len(linux), 4)
@@ -675,7 +678,18 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             gnu = [a for a in linux if a["id"] == "rill-runtime"]
             self.assertEqual(len(musl), 2)
             self.assertEqual(len(gnu), 2)
-            self.assertNotIn("targetLibc", linux[0])
+            # Schema v3 records the libc variant explicitly on Linux so gnu and
+            # musl builds of the same OS+arch are disambiguated deterministically.
+            self.assertEqual(gnu[0]["targetLibc"], "gnu")
+            self.assertEqual(musl[0]["targetLibc"], "musl")
+            non_linux = [
+                a
+                for a in payload["artifacts"]
+                if a.get("targetOs") is not None and a["targetOs"] != "linux"
+            ]
+            self.assertTrue(non_linux, "expected a non-Linux artifact in the index")
+            for artifact in non_linux:
+                self.assertNotIn("targetLibc", artifact)
             # identities are unique across the whole index
             identities = {
                 (a["kind"], a["id"], a.get("targetOs"), a.get("targetArch"))
