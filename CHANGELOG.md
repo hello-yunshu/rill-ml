@@ -20,6 +20,18 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+### Changed
+
+- The release-index schema advances to v3 (`RELEASE_INDEX_SCHEMA_VERSION = 3`)
+  for the 1.2.0 Stable line. Linux runtime/adapter artifacts now record the
+  libc variant explicitly in `targetLibc` (`gnu`/`musl`) so GNU and musl
+  builds of the same Linux OS+arch are disambiguated deterministically,
+  independent of the stable artifact `id`. Non-Linux targets (macOS, Windows,
+  FreeBSD) omit `targetLibc`. v3 is a *versioned* schema: a 1.1.0 reader
+  (whose validator requires schemaVersion == 2) rejects the RC2 index
+  fail-closed at the schema boundary rather than naive-matching both Linux
+  builds to the same OS+arch and failing ambiguously.
+
 
 ## [1.2.0-rc.1] - 2026-08-16
 

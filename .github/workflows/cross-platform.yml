@@ -1,5 +1,5 @@
-name: Cross-Platform Docker / QEMU
-run-name: Cross-platform Docker / QEMU execution
+name: Cross-Platform Verification
+run-name: Cross-platform verification (${{ github.ref }})
 
 on:
   push:
@@ -9,8 +9,11 @@ on:
       - "Cargo.lock"
       - "src/**"
       - "crates/**"
+      - "handlers/**"
+      - "models/**"
       - "Dockerfile*"
       - "scripts/**"
+      - "smoke-test/**"
       - ".github/workflows/cross-platform.yml"
   pull_request:
     paths:
@@ -18,8 +21,11 @@ on:
       - "Cargo.lock"
       - "src/**"
       - "crates/**"
+      - "handlers/**"
+      - "models/**"
       - "Dockerfile*"
       - "scripts/**"
+      - "smoke-test/**"
       - ".github/workflows/cross-platform.yml"
   workflow_dispatch:
 
@@ -32,129 +38,191 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────
-  # Docker native x86_64 GNU gate — the Docker-first single entry point.
-  # ─────────────────────────────────────────────────────────────────────────
-  native-gate:
-    name: Native Linux x86_64 gate (Docker)
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+  # ────────────────────────────────────────────────────────────────────────
+  # Native GNU Stable Gates (no QEMU, no Docker). The Actions host CPU is the
+  # target CPU, so the crate tests + released Runtime build and run directly.
+  # ────────────────────────────────────────────────────────────────────────
+  linux-x86_64-gnu:
+    name: Linux x86_64 Stable Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
-      - name: Run full quality gate in Docker (x86_64 GNU)
-        run: ./scripts/docker-test.sh
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          targets: x86_64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-x86_64-gnu
+      - name: Native x86_64 GNU gate (fmt / clippy / test / doc / runtime smoke)
+        run: ./scripts/qemu-cross-gate.sh x86_64-unknown-linux-gnu
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Docker WASM bindings gate — the Docker-first canonical gate for
-  # crates/rill-ml-wasm. Builds the publishable npm layout (pkg/ web ESM +
-  # pkg-node/ Node CJS) and runs the wasm-bindgen test suite under a pinned
-  # Node.js LTS inside the container. This is the same script the native CI
-  # job (pipeline.yml -> wasm-build) executes on the host.
-  # ─────────────────────────────────────────────────────────────────────────
-  wasm-bindings-gate:
-    name: WASM bindings gate (Docker)
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-      - name: Set up QEMU / binfmt_misc
-        uses: docker/setup-qemu-action@v4
-      - name: Run WASM build + test in Docker
-        run: ./scripts/docker-wasm-build.sh
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # Docker cross-architecture execution via QEMU/binfmt.
-  # Each job real-executes the target-arch test binaries (not compile-only).
-  # ─────────────────────────────────────────────────────────────────────────
-  cross-exec:
-    name: QEMU cross-arch execute (${{ matrix.target }})
-    runs-on: ubuntu-latest
+  linux-aarch64-gnu:
+    name: Linux ARM64 Stable Gate
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - aarch64-unknown-linux-gnu
-          - armv7-unknown-linux-gnueabihf
-          - riscv64gc-unknown-linux-gnu
-          - s390x-unknown-linux-gnu
-          - powerpc64le-unknown-linux-gnu
-          # loongarch64 is included for continuous coverage. On hosts without
-          # a usable linux/loongarch64 image manifest the script exits cleanly
-          # (exit 0) and LoongArch64 stays compile/evaluation-only — never
-          # claimed Supported without real execution (see cross-exec-test.sh
-          # and PLATFORM_SUPPORT.md).
-          - loongarch64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v7
-      - name: Set up QEMU / binfmt_misc
-        uses: docker/setup-qemu-action@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-      - name: Cache cargo registry (QEMU compile is slow)
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          targets: aarch64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-aarch64-gnu
+      - name: Native ARM64 GNU gate (test / doc / runtime smoke)
+        run: ./scripts/qemu-cross-gate.sh aarch64-unknown-linux-gnu
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Native musl Stable Gates (no container). musl-tools provides the host-arch
+  # musl-gcc so the Rust musl triple links and real-executes on the host CPU.
+  # ────────────────────────────────────────────────────────────────────────
+  linux-x86_64-musl:
+    name: Linux x86_64 musl Stable Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-x86_64-musl
+      - name: Build + execute x86_64 musl Runtime
+        run: ./scripts/musl-gate.sh x86_64-unknown-linux-musl
+
+  linux-aarch64-musl:
+    name: Linux ARM64 musl Stable Gate
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          targets: aarch64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-aarch64-musl
+      - name: Build + execute ARM64 musl Runtime
+        run: ./scripts/musl-gate.sh aarch64-unknown-linux-musl
+
+  # ────────────────────────────────────────────────────────────────────────
+  # RISC-V64 Stable Gate — Actions host + official Rust recommended QEMU
+  # user-mode + Debian cross toolchain. Direct QEMU, no Docker, no reliance on
+  # an upstream rust:* linux/riscv64 image manifest. Runs the real --all-features
+  # test suite (incl. real WASM handler invoke via the Pulley backend) AND the
+  # full default Runtime (wasm feature) under QEMU.
+  # ────────────────────────────────────────────────────────────────────────
+  riscv64-gnu:
+    name: RISC-V64 Stable Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          targets: riscv64gc-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: riscv64-gnu
+      - name: RISC-V64 direct QEMU gate (test + runtime + WASM handler)
+        run: ./scripts/qemu-cross-gate.sh riscv64gc-unknown-linux-gnu
+
+  # ────────────────────────────────────────────────────────────────────────
+  # LoongArch64 Stable Gate — pinned, checksum-verified LoongArch GNU cross
+  # toolchain + direct qemu-loongarch64 user-mode. No Docker manifest needed.
+  # Toolchain is cached so CIs don't re-download and re-extract a ~75 MB tarball.
+  # ────────────────────────────────────────────────────────────────────────
+  loongarch64-gnu:
+    name: LoongArch64 Stable Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          targets: loongarch64-unknown-linux-gnu
+      - name: Cache pinned LoongArch cross toolchain
         uses: actions/cache@v5
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: cross-exec-cargo-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            cross-exec-cargo-${{ matrix.target }}-
-            cross-exec-cargo-
-      - name: Real-execute test suite on ${{ matrix.target }}
-        run: |
-          args=""
-          case "${{ matrix.target }}" in
-            # These targets are Supported: they must also pass the Runtime
-            # smoke (release build, signed pack -> verify -> inspect -> IPC),
-            # not just the crate test suite. armv7/s390x/powerpc64le build the
-            # smoke with --no-default-features (cross-exec-test.sh) because
-            # compiling wasmtime under QEMU is either too slow or SIGSEGVs
-            # (s390x) — their wasm path is covered by the --all-features crate
-            # tests and the natively cross-built shipped assets. riscv64 and
-            # loongarch64 are guarded in the script and skip cleanly when no
-            # linux/<arch> image manifest exists (upstream rust images publish
-            # none for riscv64/loongarch64), so their real execution is
-            # conditional on a usable manifest (see PLATFORM_SUPPORT.md).
-            armv7-unknown-linux-gnueabihf|riscv64gc-unknown-linux-gnu|s390x-unknown-linux-gnu|powerpc64le-unknown-linux-gnu|loongarch64-unknown-linux-gnu) args="--runtime-smoke" ;;
-          esac
-          ./scripts/cross-exec-test.sh "${{ matrix.target }}" $args
+          path: ~/.rillml-loongarch-toolchain
+          key: loongarch-toolchain-20260812-stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: loongarch64-gnu
+      - name: LoongArch64 direct QEMU gate (test + runtime + Pulley WASM handler)
+        run: ./scripts/loongarch-cross-gate.sh
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Docker release/smoke — build + execute released-style artifacts on Linux
-  # GNU and musl x86_64/ARM64.
-  # ─────────────────────────────────────────────────────────────────────────
-  release-smoke:
-    name: Release smoke (Docker, ${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+  # ────────────────────────────────────────────────────────────────────────
+  # Direct user-mode QEMU gates for the remaining non-native GNU targets.
+  # s390x / powerpc64le are Supported Stable targets; armv7 stays Not listed
+  # (real execution is still verified, never claimed Stable). Their release
+  # Runtime smoke is built --no-default-features because building/executing
+  # wasmtime under QEMU on these arches is not viable (s390x SIGSEGV); the WASM
+  # handler path for each is covered by the --all-features crate tests above.
+  # ────────────────────────────────────────────────────────────────────────
+  direct-qemu-gnu:
+    name: Direct QEMU gate (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
+        include:
+          - target: armv7-unknown-linux-gnueabihf
+            runtime_features: --no-default-features
+          - target: s390x-unknown-linux-gnu
+            runtime_features: --no-default-features
+          - target: powerpc64le-unknown-linux-gnu
+            runtime_features: --no-default-features
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: direct-qemu-${{ matrix.target }}
+      - name: Direct QEMU gate on ${{ matrix.target }}
+        env:
+          RUNTIME_FEATURES_FLAGS: ${{ matrix.runtime_features }}
+        run: ./scripts/qemu-cross-gate.sh "${{ matrix.target }}"
+
+  # ────────────────────────────────────────────────────────────────────────
+  # WASM bindings gate. Docker is retained here deliberately (GitHub
+  # Actions-first leaves Docker "where it genuinely lowers complexity"): the
+  # WASM toolchain needs a pinned Node.js LTS that the base runner image does
+  # not guarantee. Builds the publishable npm layout + runs wasm-bindgen tests.
+  # ────────────────────────────────────────────────────────────────────────
+  wasm-bindings-gate:
+    name: WASM bindings Stable Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU / binfmt_misc
-        if: contains(matrix.target, 'aarch64')
         uses: docker/setup-qemu-action@v4
-      - name: Docker release smoke on ${{ matrix.target }}
-        run: TARGET="${{ matrix.target }}" ./scripts/docker-release-smoke.sh
+      - name: Run WASM build + test
+        run: ./scripts/docker-wasm-build.sh
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # Android FFI cross-build via Docker NDK (Phase 6b).
-  # Runs on the amd64 host natively (the toolchain image is linux/amd64).
-  # Builds + architecture-verifies the rill-ml-ffi staticlibs/cdylibs for
-  # aarch64 and x86_64 Android, and compiles+links the JNI shim against the
-  # fresh staticlib. This is a build + artifact-verification gate; real
-  # on-device execution remains the Android emulator/device path, so Android
-  # is NOT yet claimed Supported (see PLATFORM_SUPPORT.md).
-  # ─────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────
+  # Android FFI bonus-arch gate. Cross-building the Android NDK staticlibs is a
+  # labeled, pinned NDK stack, and Docker makes the belt-and-suspenders NDK
+  # setup reproducible. Arm aarch64/x86_64 Android stays Not listed (real
+  # on-device execution is the emulator/device path).
+  # ────────────────────────────────────────────────────────────────────────
   android-ffi:
-    name: Android FFI cross-build (Docker NDK)
+    name: Android FFI cross-build (NDK)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -162,14 +230,10 @@ jobs:
       - name: Android FFI cross-build (aarch64 + x86_64, JNI shim)
         run: ./scripts/docker-build-android.sh
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # iOS FFI XCFramework build on a native macOS runner (Phase 6b).
-  # iOS has no Docker image, so the native macOS/Xcode toolchain is the
-  # accepted verification path. Builds + verifies RillMl.xcframework and
-  # CRillMl.xcframework for device + simulator slices. Real on-device
-  # execution remains the simulator/device path, so iOS is NOT yet claimed
-  # Supported (see PLATFORM_SUPPORT.md).
-  # ─────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────
+  # iOS FFI XCFramework build on a native macOS runner. iOS has no Docker; the
+  # native macOS/Xcode toolchain is the accepted verification path.
+  # ────────────────────────────────────────────────────────────────────────
   ios-ffi:
     name: iOS FFI XCFramework build (macOS)
     runs-on: macos-15
@@ -183,57 +247,14 @@ jobs:
       - name: iOS FFI XCFramework build (device + simulator)
         run: ./scripts/build-ios-framework.sh
 
-  # ─────────────────────────────────────────────────────────────────────────
-  # musl runtime targets: real-execute inside a container whose platform
-  # matches the target (QEMU/binfmt for aarch64musl). musl-tools inside the
-  # target-arch container provides the NATIVE <arch>-linux-musl-gcc, so these
-  # binaries genuinely link musl and run — not a host x86_64 musl-gcc masquerade.
-  # Each target also runs the full Runtime smoke (release build, --help, signed
-  # pack -> verify -> inspect -> IPC handshake) via --runtime-smoke.
-  # ─────────────────────────────────────────────────────────────────────────
-  musl-execute:
-    name: musl real-execute (Docker, ${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - x86_64-unknown-linux-musl
-          - aarch64-unknown-linux-musl
-    steps:
-      - uses: actions/checkout@v7
-      - name: Set up QEMU / binfmt_misc
-        if: contains(matrix.target, 'aarch64')
-        uses: docker/setup-qemu-action@v4
-      - name: Set up Docker Buildx
-        if: contains(matrix.target, 'aarch64')
-        uses: docker/setup-buildx-action@v4
-      - name: Cache cargo registry (QEMU compile is slow)
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: musl-exec-cargo-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            musl-exec-cargo-${{ matrix.target }}-
-            musl-exec-cargo-
-      - name: Real-execute workspace tests + runtime smoke on ${{ matrix.target }}
-        run: ./scripts/cross-exec-test.sh "${{ matrix.target }}" --runtime-smoke
-
-  # ─────────────────────────────────────────────────────────────────────────
-  # FreeBSD native CI (Phase 7: x86_64-unknown-freebsd).
-  # Docker/QEMU cannot substitute the FreeBSD kernel, so real execution-level
-  # verification must run on a real FreeBSD host. vmactions/freebsd-vm boots a
-  # FreeBSD VM on the ubuntu runner and syncs the workspace into it;
-  # scripts/freebsd-ci.sh then runs the native gate (fmt/clippy, full
-  # workspace test suite, Runtime smoke with a fresh-key signed pack + IPC
-  # handshake). FreeBSD is NOT yet claimed Supported — this job is the native
-  # execution verification gate (see PLATFORM_SUPPORT.md "Not Listed").
-  # ─────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────
+  # FreeBSD x86_64 — real kernel verification via a FreeBSD VM. Docker/QEMU
+  # kernel-vs-userspace semantics cannot substitute the FreeBSD kernel, so a
+  # VM is the correct escalation tier. FreeBSD is Not yet claimed Stable; this
+  # is the native execution gate.
+  # ────────────────────────────────────────────────────────────────────────
   freebsd-ci:
-    name: FreeBSD native (x86_64) CI
+    name: FreeBSD x86_64 Stable Gate (VM)
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

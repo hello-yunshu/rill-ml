@@ -5,6 +5,13 @@ The smoke test downloads a signed release index and its runtime/model/handler
 artifacts, verifies them through the public ``rill-pack`` CLI, then exercises
 the frozen NDJSON IPC protocol. It imports no Rill crate or repository-private
 Python module.
+
+By default the runtime artifact is selected from the host's own OS/CPU
+(``platform_target``). To re-verify a *foreign* published asset directly on a
+GitHub Actions host under user-mode QEMU (Actions-first: no target-arch
+container needed), pass ``--target-os`` / ``--target-arch`` to select the
+artifact; the downloaded foreign binary is then run through the registered
+QEMU binfmt handler instead of natively.
 """
 
 from __future__ import annotations
@@ -15,6 +22,7 @@ import json
 import os
 import pathlib
 import platform
+import shlex
 import stat
 import subprocess
 import sys
@@ -480,6 +488,28 @@ def parse_args() -> argparse.Namespace:
         "of the same OS+arch.",
     )
     parser.add_argument(
+        "--target-os",
+        default=os.environ.get("RILL_TARGET_OS"),
+        help="Override the target OS used to select the runtime artifact "
+        "(e.g. 'linux'). Defaults to the running host's OS. Use to re-verify a "
+        "foreign published asset under user-mode QEMU.",
+    )
+    parser.add_argument(
+        "--target-arch",
+        default=os.environ.get("RILL_TARGET_ARCH"),
+        help="Override the target CPU arch used to select the runtime artifact "
+        "(e.g. 'riscv64', 'loongarch64'). Defaults to the running host's CPU. "
+        "Use to re-verify a foreign published asset under user-mode QEMU.",
+    )
+    parser.add_argument(
+        "--exec-prefix",
+        default=os.environ.get("RILL_EXEC_PREFIX"),
+        help="Shell tokens prepended to the runtime `serve` command. On a native "
+        "host re-verifying a foreign published asset under direct user-mode QEMU, "
+        "pass e.g. 'qemu-riscv64-static -L /usr/riscv64-linux-gnu'. Defaults to "
+        "executing the downloaded binary directly (native or transparent binfmt).",
+    )
+    parser.add_argument(
         "--public-key-hex",
         default=os.environ.get("RILL_PUBLIC_KEY_HEX", DEFAULT_PUBLIC_KEY),
     )
@@ -548,6 +578,11 @@ def run(args: argparse.Namespace, report: SmokeReport, work_dir: pathlib.Path) -
         )
 
     target_os, target_arch = platform_target()
+    # Explicit target overrides let a host process re-verify a foreign published
+    # asset under user-mode QEMU (Actions-first) instead of inside a target-arch
+    # container. When not provided, fall back to the running host's OS/CPU.
+    target_os = args.target_os or target_os
+    target_arch = args.target_arch or target_arch
     selected = [
         select_artifact(
             payload,
@@ -636,6 +671,12 @@ def run(args: argparse.Namespace, report: SmokeReport, work_dir: pathlib.Path) -
         "--handler-trust-key",
         f"{args.publisher_key_id}={args.public_key_hex}",
     ]
+    # Direct user-mode QEMU (Actions-first): when re-verifying a foreign
+    # published asset, prepend an explicit emulator (e.g. `qemu-riscv64-static
+    # -L /usr/riscv64-linux-gnu`) so the downloaded binary runs on the native
+    # host instead of inside a target-arch container.
+    if args.exec_prefix:
+        command = shlex.split(args.exec_prefix) + command
     report.commands.append(command)
     process = subprocess.Popen(
         command,

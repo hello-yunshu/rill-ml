@@ -50,10 +50,11 @@ jobs:
 
       - name: Verify cross-platform Stable gates passed on the same SHA
         # The release must be bound to the SAME commit's Required Gates, not
-        # just pipeline.yml. The Cross-Platform workflow (Docker/QEMU, musl,
-        # FreeBSD, Android/iOS FFI) runs in parallel; wait for it to finish on
-        # this exact SHA and require success. If it never ran for this SHA
-        # (doc-only push), proceed — no cross-platform-relevant files changed.
+        # just pipeline.yml. The Cross-Platform Verification workflow (native
+        # runners, direct QEMU, VMs, and Docker only where valuable) runs in
+        # parallel; wait for it to finish on this exact SHA and require success.
+        # If it never ran for this SHA (doc-only push), proceed — no
+        # cross-platform-relevant files changed.
         if: steps.freshness.outputs.current == 'true'
         id: crossplatform
         env:
@@ -64,7 +65,7 @@ jobs:
           set -euo pipefail
           deadline=$((SECONDS + 2700))  # 45 min cap
           while [ "$SECONDS" -lt "$deadline" ]; do
-            runs="$(gh run list --workflow "Cross-Platform Docker / QEMU" \
+            runs="$(gh run list --workflow "Cross-Platform Verification" \
               --branch main --json headSha,status,conclusion --limit 100)"
             matched="$(jq --arg sha "$TARGET_SHA" \
               '[.[] | select(.headSha == $sha)]' <<<"$runs")"
@@ -91,6 +92,45 @@ jobs:
             exit 0
           done
           echo "Timed out waiting for Cross-Platform gates on $TARGET_SHA — refusing to release." >&2
+          exit 1
+
+      # ────────────────────────────────────────────────────────────
+      # Release admission: Security Audit must PASS on the same SHA.
+      # CodeQL + RustSec are part of the required gates (§22); a release
+      # is prohibited if either is missing, queued, in_progress, failed,
+      # cancelled, or timed out on this exact commit — not merely "usually
+      # runs".
+      # ────────────────────────────────────────────────────────────
+      - name: Verify Security Audit passed on the same SHA
+        if: steps.freshness.outputs.current == 'true'
+        id: security
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 1800))  # 30 min cap
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            runs="$(gh run list --workflow "Security audit" \
+              --branch main --json headSha,status,conclusion --limit 100)"
+            matched="$(jq --arg sha "$TARGET_SHA" \
+              '[.[] | select(.headSha == $sha)]' <<<"$runs")"
+            failed="$(jq '[.[] | select(.status == "completed" and (.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out"))] | length' <<<"$matched")"
+            if [ "$failed" -gt 0 ]; then
+              echo "Security Audit FAILED on $TARGET_SHA — refusing to release." >&2
+              jq -c '.[] | {status, conclusion, htmlUrl}' <<<"$matched" >&2
+              exit 1
+            fi
+            passed="$(jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length' <<<"$matched")"
+            if [ "$passed" -gt 0 ]; then
+              echo "Security Audit passed on $TARGET_SHA (CodeQL + RustSec)."
+              exit 0
+            fi
+            echo "Security Audit for $TARGET_SHA not yet successful ($passed passed, $failed failed) — waiting…"
+            sleep 30
+          done
+          echo "Timed out waiting for Security Audit on $TARGET_SHA — refusing to release." >&2
           exit 1
 
       - uses: dtolnay/rust-toolchain@stable
@@ -159,16 +199,13 @@ jobs:
             git tag -a "$TAG" "$TARGET_SHA" -m "Release $TAG"
             git push origin "refs/tags/$TAG"
             echo "Created $TAG at $TARGET_SHA"
-          elif [ "$tag_sha" != "$TARGET_SHA" ]; then
-            # Tag exists at a different SHA — force-update it (overwrite
-            # the previous tag) so the Release workflow checks out the new
-            # commit.
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" "$TARGET_SHA" -m "Release $TAG" --force
-            git push origin "refs/tags/$TAG" --force
-            echo "Overwrote $TAG (was $tag_sha, now $TARGET_SHA)"
           fi
+          # Release tags are IMMUTABLE: if the tag already exists it is either
+          # a same-SHA safe retry (policy -> dispatch) or a SHA mismatch (policy
+          # -> hard fail). There is deliberately NO branch here that force-moves
+          # an existing tag (`git tag --force` / `git push --force` is forbidden).
+          # When the tag exists at the same SHA, the policy helper already set
+          # dispatch=true, so the dispatch step below re-runs the Release.
 
       - name: Dispatch Release on the version tag
         if: steps.release.outputs.dispatch == 'true'

@@ -264,6 +264,18 @@ jobs:
       - name: Record resolved cargo-semver-checks version
         run: cargo semver-checks --version
       - uses: Swatinem/rust-cache@v2
+      # 1.2.0 admission (§21.3): cargo-semver-checks MUST verify 1.1.0 -> 1.2.0
+      # (the most recent published Stable baseline) AND 1.0.0 -> 1.2.0 (double
+      # baseline sanity). Only baselining against 1.0.0 would miss a regression
+      # introduced in 1.1.x, so 1.1.0 is the authoritative gate.
+      - name: Run semver-checks for rill-ml (baseline 1.1.0)
+        run: cargo semver-checks --package rill-ml --baseline-version 1.1.0 --all-features
+      - name: Run semver-checks for rill-handler-api (baseline 1.1.0)
+        run: cargo semver-checks --package rill-handler-api --baseline-version 1.1.0
+      - name: Run semver-checks for rill-runtime-protocol (baseline 1.1.0)
+        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.1.0
+      - name: Run semver-checks for rill-runtime (baseline 1.1.0)
+        run: cargo semver-checks --package rill-runtime --baseline-version 1.1.0
       - name: Run semver-checks for rill-ml (baseline 1.0.0)
         run: cargo semver-checks --package rill-ml --baseline-version 1.0.0 --all-features
       - name: Run semver-checks for rill-handler-api (baseline 1.0.0)
