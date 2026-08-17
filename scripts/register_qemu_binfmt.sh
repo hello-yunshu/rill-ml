@@ -124,20 +124,39 @@ echo "==> Registering binfmt_misc handler '${NAME}'"
 echo "    interpreter: ${INTERP}"
 echo "    fingerprint: ${MAGIC} (mask ${MASKMASK})"
 
-# Drop any stale handler so a rerun is idempotent.
-if [[ -e "$REG" ]]; then
-  echo -1 | sudo tee "$REG" >/dev/null 2>&1 || true
+# binfmt_misc registration is BEST-EFFORT and non-fatal. GitHub Actions hosted
+# runners frequently have no writable host binfmt_misc (`qemu-user-binfmt` may
+# already hold the name -> EINVAL, or /proc/sys/fs/binfmt_misc is absent ->
+# ENOENT). The gate's real execution paths do NOT depend on it: a crate-test
+# binary and any IPC child it spawns stay inside the SAME QEMU user-mode
+# process tree (QEMU re-execs itself for the child), and Cargo's `runner`
+# already executes foreign binaries explicitly. Post-release download-and-run
+# re-verification uses docker/setup-qemu-action, which registers binfmt
+# reliably inside its container VM. So a registration failure only forfeits
+# the "exec a foreign ELF straight from a bare host process" convenience, not
+# any acceptance gate — warn and continue rather than abort.
+_registered=0
+if [[ -e /proc/sys/fs/binfmt_misc/register ]]; then
+  # Drop any stale handler so a rerun is idempotent.
+  if [[ -e "$REG" ]]; then
+    echo -1 | sudo tee "$REG" >/dev/null 2>&1 || true
+  fi
+  # binfmt_misc registration line:
+  #   :name:type:offset:magic:mask:interpreter:flags
+  LINE=":${NAME}:M:0:${MAGIC}:${MASKMASK}:${INTERP}:PF"
+  if printf '%b\n' "$LINE" | sudo tee /proc/sys/fs/binfmt_misc/register >/dev/null 2>&1 \
+      && [[ -e "$REG" ]]; then
+    _registered=1
+  fi
 fi
 
-# binfmt_misc registration line:
-#   :name:type:offset:magic:mask:interpreter:flags
-LINE=":${NAME}:M:0:${MAGIC}:${MASKMASK}:${INTERP}:PF"
-printf '%b\n' "$LINE" | sudo tee /proc/sys/fs/binfmt_misc/register >/dev/null
-
-# Verify the handler is live and matches what we asked for.
-if [[ ! -e "$REG" ]]; then
-  echo "register_qemu_binfmt.sh: registration of '${NAME}' did not take effect" >&2
-  return 1 2>/dev/null || exit 1
+if [[ "$_registered" == "1" ]]; then
+  echo "==> binfmt_misc '${NAME}' registered:"
+  sudo cat "$REG"
+else
+  echo "==> WARN: binfmt_misc handler '${NAME}' not registered"
+  echo "    /proc/sys/fs/binfmt_misc is not writable on this host"
+  echo "    (or the name is already held). Continuing -- Cargo's QEMU runner"
+  echo "    and in-tree IPC still execute foreign binaries without it."
+  return 0 2>/dev/null || exit 0
 fi
-echo "==> binfmt_misc '${NAME}' registered:"
-sudo cat "$REG"
