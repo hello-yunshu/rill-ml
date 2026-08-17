@@ -14,7 +14,8 @@ on:
       - "Dockerfile*"
       - "scripts/**"
       - "smoke-test/**"
-      - ".github/workflows/cross-platform.yml"
+      - ".github/workflows/**"
+      - "release-plan.toml"
   pull_request:
     paths:
       - "Cargo.toml"
@@ -26,7 +27,8 @@ on:
       - "Dockerfile*"
       - "scripts/**"
       - "smoke-test/**"
-      - ".github/workflows/cross-platform.yml"
+      - ".github/workflows/**"
+      - "release-plan.toml"
   workflow_dispatch:
 
 permissions:
