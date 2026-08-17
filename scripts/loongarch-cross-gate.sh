@@ -118,6 +118,17 @@ rustup target add "$TARGET"
 # Inject an explicit library path into the guest through QEMU's -E.
 RUNNER="qemu-loongarch64 -L ${SYSROOT} -E LD_LIBRARY_PATH=${SYSROOT}/lib:${SYSROOT}/lib64"
 
+# Register a binfmt_misc handler for loongarch64 with the SAME sysroot + explicit
+# library path as the cargo runner. A loongarch64 ELF that crosses the host
+# kernel's execve boundary (post-release download-and-run re-verification) is
+# then executed correctly through QEMU instead of failing with ENOEXEC.
+if [[ -e /proc/sys/fs/binfmt_misc/register ]]; then
+  ./scripts/register_qemu_binfmt.sh "$TARGET" "$SYSROOT" \
+    -E "LD_LIBRARY_PATH=${SYSROOT}/lib:${SYSROOT}/lib64"
+else
+  echo "==> binfmt_misc unavailable; direct foreign exec will not work"
+fi
+
 # Configure Cargo: cross-link with the LoongArch gcc and execute every foreign
 # binary through QEMU user-mode transparently.
 mkdir -p .cargo

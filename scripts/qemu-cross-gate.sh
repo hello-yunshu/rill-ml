@@ -152,6 +152,32 @@ else
   # points QEMU at the right loader/library path at execute time.
 fi
 
+# Cross-process IPC: when a guest (e.g. the rill-runtime test binary) spawns a
+# child foreign ELF via execve, QEMU linux-user re-executes itself for that
+# child. The child does NOT go through Cargo's `runner` nor the host kernel, so
+# it must inherit the SAME emulation config as the parent or it fails at load
+# and the parent sees `Broken pipe` writing the child's stdin. Passing the
+# config as environment variables guarantees it is inherited on re-exec.
+if [[ -n "$RUNNER" ]]; then
+  export QEMU_LD_PREFIX="$(_ld_prefix "$TARGET")"
+  if [[ "$TARGET" == "riscv64gc-unknown-linux-gnu" ]]; then
+    export QEMU_CPU="rv64"
+  fi
+  echo "==> Export QEMU_LD_PREFIX=${QEMU_LD_PREFIX} QEMU_CPU=${QEMU_CPU:-}"
+
+  # Register a binfmt_misc handler for the target. This guarantees that a
+  # foreign ELF which crosses the host kernel's execve boundary (post-release
+  # download-and-run re-verification, or a child that binfmt must assemble) is
+  # executed under QEMU with the SAME sysroot/-cpu config as Cargo's runner.
+  # The crate-test IPC child stays inside the QEMU user-mode process tree and
+  # does not need this, but the handler makes every execution path uniform.
+  if [[ -e /proc/sys/fs/binfmt_misc/register ]]; then
+    ./scripts/register_qemu_binfmt.sh "$TARGET" "$(_ld_prefix "$TARGET")"
+  else
+    echo "==> binfmt_misc unavailable; direct foreign exec will not work"
+  fi
+fi
+
 # Configure Cargo for cross compile + QEMU runner at the workspace level so
 # every `cargo test/run` invocation transparently cross-compiled and executes
 # the foreign binary through QEMU user-mode on this host.
