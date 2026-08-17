@@ -5,7 +5,7 @@ This file is the single user-facing statement of which platforms RillML
 passes the full acceptance gate — not merely because a Rust target exists or
 `cargo build` succeeds.
 
-The acceptance definition (see §51 of the cross-platform execution prompt):
+The acceptance definition:
 
 ```text
 reproducible build
@@ -18,9 +18,15 @@ reproducible build
 + continuous CI
 ```
 
-Everything that can be Dockerized MUST be Dockerized first. Only where Docker
-cannot provide valid verification do we fall back to native runners, VMs, or
-dedicated hardware.
+GitHub Actions is the primary acceptance environment. Everything is accepted
+through Actions — no local Docker is required of users.
+
+Verification preference (highest first):
+
+native runner
+→ direct QEMU
+→ VM
+→ Docker when it is the simplest reliable option.
 
 There are exactly two platform states:
 
@@ -36,7 +42,7 @@ user-visible platform status.
 
 Only targets that pass the full gate are listed here.
 
-| Target | Core | Runtime | Binding | Docker | Execute | CI | Release |
+| Target | Core | Runtime | Binding | Docker/QEMU | Execute | CI | Release |
 |---|---|---|---|---:|---|---|---|
 | `x86_64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
 | `x86_64-unknown-linux-musl` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
@@ -45,26 +51,33 @@ Only targets that pass the full gate are listed here.
 | `x86_64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-apple-darwin` | ✅ | ✅ (unsigned) | Rust | – | ✅ | ✅ | ✅ |
-| `riscv64gc-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `riscv64gc-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
 | `armv7-unknown-linux-gnueabihf` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
 | `s390x-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
 | `powerpc64le-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
-| `loongarch64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `loongarch64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
 | `x86_64-unknown-freebsd` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 
 \* ARM64 GNU/musl Core and Runtime are executed under Docker + QEMU/binfmt on
 x86_64 hosts, and natively when an ARM64 host is available. The same applies to
 the niche Linux targets armv7, s390x, and powerpc64le, which are real-executed
-under Docker + QEMU/binfmt. LoongArch64 is real-executed under Docker + QEMU
-when a usable `linux/loongarch64` image manifest is available on the host; on
-hosts without one its post-release re-verify is skipped gracefully (the asset
-is still built and published), so its Runtime smoke is recorded as
-manifold-conditional. RISC-V 64 is cross-compiled and published as part of the
-release asset matrix, but upstream `rust:*` images currently publish no
-`linux/riscv64` manifest, so Docker + QEMU real-execution is not yet possible:
-its cross-exec and post-release re-verify steps skip gracefully (the asset is
-still built and published) until a usable riscv64 image manifest is available,
-and its Runtime smoke is recorded as manifold-conditional for the same reason.
+under Docker + QEMU/binfmt.
+
+**RISC-V 64** (`riscv64gc-unknown-linux-gnu`) is cross-compiled and published as
+part of the release asset matrix. Its source Stable Gate runs the full test
+suite and the full default WASM Runtime under DIRECT user-mode QEMU on the
+Actions host (`scripts/qemu-cross-gate.sh`), and its published release asset is
+downloaded and re-executed under the same direct QEMU config
+(`scripts/post-release-qemu-verify.sh`). It has no dependency on an upstream
+`rust:*` container manifest.
+
+**LoongArch64** (`loongarch64-unknown-linux-gnu`) is cross-compiled and
+published as part of the release asset matrix. Its source Stable Gate uses a
+pinned, checksum-verified LoongArch cross toolchain + `qemu-loongarch64` direct
+user-mode (`scripts/loongarch-cross-gate.sh`), with full WASM handler support
+through the Pulley backend. Its published release asset is downloaded and
+re-executed under the same target environment
+(`scripts/post-release-qemu-verify.sh`).
 
 The **Release** column reflects the published `rill-runtime` asset matrix:
 `linux-x86_64` (GNU), `linux-x86_64-musl`, `linux-aarch64` (GNU),
@@ -108,8 +121,8 @@ continuously verified:
 - **Build** — reproducible `cargo check` / `cargo build`.
 - **Execute** — the target-architecture test binaries are really executed, not
   only cross-compiled.
-- **CI** — a continuous job covers the platform (Docker/QEMU wherever
-  possible, native runner otherwise).
+- **CI** — a continuous job covers the platform (native runner → direct QEMU
+  → VM → Docker when it is the simplest reliable option).
 - **Runtime tests** — `rill-runtime` smoke, signed `.rillpack` / `.rillhandler`
   load, and IPC where the Runtime applies.
 - **Release verification** — the released artifact is re-downloaded and
@@ -127,8 +140,8 @@ matrix.
 |---|---|---|
 | Rust (native) | ✅ | full test suite on every supported platform |
 | Python (`rill_ml`) | ✅ | `maturin` build + `pytest`; Linux x86_64 wheel |
-| Browser JavaScript / WASM | ✅ | Docker-first WASM gate + publishable npm package: web ESM build (`pkg/`) + `wasm-pack test --node` |
-| Node.js | ✅ | Docker-first WASM gate + publishable npm package: Node CJS build (`pkg-node/`) + `node tests/node-smoke.mjs` |
+| Browser JavaScript / WASM | ✅ | Docker-based WASM gate + publishable npm package: web ESM build (`pkg/`) + `wasm-pack test --node` |
+| Node.js | ✅ | Docker-based WASM gate + publishable npm package: Node CJS build (`pkg-node/`) + `node tests/node-smoke.mjs` |
 | Kotlin / Android | not listed | C FFI + JNI 构建链已就绪（Docker NDK 交叉构建 + CI）；真机/模拟器执行验证待补齐 |
 | Swift / iOS | not listed | C FFI + Swift/XCFramework 构建链已就绪（macOS Xcode + CI）；真机/模拟器执行验证待补齐 |
 
@@ -154,7 +167,9 @@ the full acceptance gate.
 
 ## Verification Infrastructure
 
-Docker-first is the enforcement principle. The reproducible entry points are:
+GitHub Actions is the enforcement environment. Verification preference is
+native runner → direct QEMU → VM → Docker when it is the simplest reliable
+option. The reproducible entry points are:
 
 | Artifact | Purpose |
 |---|---|
@@ -166,8 +181,12 @@ Docker-first is the enforcement principle. The reproducible entry points are:
 | `scripts/docker-wasm-build.sh` | WASM bindings build + test (web ESM + Node CJS + wasm-bindgen suite) |
 | `scripts/docker-build-android.sh` | Android FFI cross-build via Docker NDK (aarch64 + x86_64 staticlibs + JNI shim) |
 | `scripts/build-ios-framework.sh` | iOS FFI XCFramework build (macOS Xcode, device + simulator) |
+| `scripts/qemu-cross-gate.sh` | Direct QEMU user-mode Stable gate (riscv64 / aarch64 / armv7 / s390x / powerpc64le): full test suite + default WASM Runtime under QEMU, no Docker |
+| `scripts/loongarch-cross-gate.sh` | LoongArch64 Stable gate: pinned cross toolchain + `qemu-loongarch64` user-mode, full WASM handler support through Pulley |
+| `scripts/register_qemu_binfmt.sh` | Register QEMU binfmt_misc handlers for direct foreign ELF execution |
+| `scripts/post-release-qemu-verify.sh` | Post-release re-verify of published RISC-V64 / LoongArch64 release assets under direct QEMU |
 | `scripts/freebsd-ci.sh` | FreeBSD native gate (fmt/clippy, full test suite, Runtime smoke) — executed in a FreeBSD VM via `vmactions/freebsd-vm` |
-| `.github/workflows/cross-platform.yml` | CI: Docker native gate, QEMU cross-execution, release smoke, Android/iOS FFI gates, FreeBSD VM native gate |
+| `.github/workflows/cross-platform.yml` | CI: native / Docker gates, direct-QEMU cross gates, release smoke, Android/iOS FFI gates, FreeBSD VM native gate |
 
 The Rust toolchain is pinned in `Dockerfile.test` (`RUST_PIN`, default matches
 the verified toolchain and is >= the MSRV 1.94.0) for reproducibility.
@@ -211,7 +230,7 @@ that wrote it. RillML enforces this as follows:
   in-memory width-sensitive field.
 - **Golden fixtures** under `tests/fixtures/state/portable-v1/` and
   `tests/fixtures/state/v1/` are loaded and validated by the test suite on every
-  supported architecture (native and Docker+QEMU), proving cross-arch stability
+  supported architecture (native, Docker+QEMU, and direct QEMU), proving cross-arch stability
   by byte comparison, not by re-serializing in memory.
 - **`serde(deny_unknown_fields)`** on portable DTOs rejects schema drift: a
   fixture or persisted state with unexpected fields fails closed rather than
