@@ -138,6 +138,7 @@ else
   # standard-layout sysroot and bind the multiarch include/lib dirs underneath
   # it so both `#include <stdlib.h>` and the fixed-stdint `#include_next` find
   # the target headers.
+  LD_PREFIX="$(_ld_prefix "$TARGET")"
   FAKE_SYSROOT="$HOME/.rillml-sysroot/${TARGET}"
   mkdir -p "$FAKE_SYSROOT/usr"
   ln -sfn "$LD_PREFIX/include" "$FAKE_SYSROOT/usr/include"
