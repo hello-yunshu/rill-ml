@@ -125,6 +125,16 @@ if [[ "$TARGET" == "$NATIVE_TARGET" ]]; then
 else
   LINKER="$(_linker_bin "$TARGET")"
   RUNNER="$(_runner "$TARGET")"
+
+  # Cross-compiling C (e.g. wasmtime's vm helpers) with a Debian cross gcc
+  # needs an explicit target sysroot: without it the compiler falls back to the
+  # host /usr/include and fails on `bits/libc-header-start.h`. cc-rs reads the
+  # per-target `CFLAGS_<triple>` env var (dashes -> underscores), so export the
+  # cross sysroot here for any C dependency that builds during the gate.
+  LD_PREFIX="$(_ld_prefix "$TARGET")"
+  CFLAG_KEY="CFLAGS_${TARGET//-/_}"
+  export "$CFLAG_KEY"="--sysroot=${LD_PREFIX}"
+  echo "==> Cross C sysroot: ${CFLAG_KEY}=--sysroot=${LD_PREFIX}"
 fi
 
 # Configure Cargo for cross compile + QEMU runner at the workspace level so
