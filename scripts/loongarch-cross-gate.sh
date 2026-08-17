@@ -110,7 +110,13 @@ command -v qemu-loongarch64 >/dev/null || { echo "qemu-loongarch64 not available
 echo "==> Adding Rust target ${TARGET}"
 rustup target add "$TARGET"
 
-RUNNER="qemu-loongarch64 -L ${SYSROOT}"
+# QEMU user-mode proves insufficient to reach libgcc_s.so.1 / libstdc++.so.6 on
+# its own: the loongarch loader's default search covers <sysroot>/lib64 and
+# <sysroot>/usr/lib64 (where libc lives) but NOT <sysroot>/lib (where the
+# toolchain puts libgcc_s.so.1 and libstdc++.so.6). Without them a Rust binary
+# fails at load with `libgcc_s.so.1: cannot open shared object file` (exit 127).
+# Inject an explicit library path into the guest through QEMU's -E.
+RUNNER="qemu-loongarch64 -L ${SYSROOT} -E LD_LIBRARY_PATH=${SYSROOT}/lib:${SYSROOT}/lib64"
 
 # Configure Cargo: cross-link with the LoongArch gcc and execute every foreign
 # binary through QEMU user-mode transparently.
