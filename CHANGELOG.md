@@ -20,6 +20,13 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+
+## [1.2.0-rc.2] - 2026-08-17
+
+### Changed
+
+- TODO: describe notable changes for 1.2.0-rc.2.
+
 ### Changed
 
 - The release-index schema advances to v3 (`RELEASE_INDEX_SCHEMA_VERSION = 3`)
@@ -1512,6 +1519,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0...HEAD
+[1.2.0-rc.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0-rc.2
 [1.2.0-rc.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0-rc.1
 [1.1.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.1.0
 [1.0.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.0.0
