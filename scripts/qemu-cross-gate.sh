@@ -87,7 +87,7 @@ _libc_dev_pkg() {
     aarch64-unknown-linux-gnu) echo "libc6-dev-arm64-cross" ;;
     armv7-unknown-linux-gnueabihf) echo "libc6-dev-armhf-cross" ;;
     s390x-unknown-linux-gnu) echo "libc6-dev-s390x-cross" ;;
-    powerpc64le-unknown-linux-gnu) echo "libc6-dev-ppc64le-cross" ;;
+    powerpc64le-unknown-linux-gnu) echo "libc6-dev-ppc64el-cross" ;;
     x86_64-unknown-linux-gnu) echo "" ;;
   esac
 }
