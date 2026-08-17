@@ -1561,7 +1561,7 @@ jobs:
           CHANNEL: ${{ needs.publish.outputs.channel }}
         run: |
           set -euo pipefail
-          index_url="https://github.com/${{ GITHUB_REPOSITORY }}/releases/download/${{ RELEASE_TAG }}/${{ INDEX_FILE }}"
+          index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
           pack_bin="target/release/rill-pack"
           if [ -f "target/release/rill-pack.exe" ]; then
             pack_bin="target/release/rill-pack.exe"
