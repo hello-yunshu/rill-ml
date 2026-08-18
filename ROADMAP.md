@@ -162,6 +162,7 @@ Python 绑定
 | v1.0.0-rc.1 | 1.0 候选版本 | API、状态格式、IPC、WIT、Runtime、发布通道全部冻结 |
 | v1.0.0 | 最终稳定版本 | 候选准入全部通过后发布 |
 | v1.1.0 | 可解释在线决策 | 延迟反馈、特征身份、漂移共识、带权学习与 Preview Runtime v3/Handler v2 |
+| v1.2.0 | 发布准入与全平台复验 | 发布准入门禁、RISC-V/LoongArch/FreeBSD/Windows 原生复验、索引 schema v3 与 `targetLibc` |
 
 ---
 

@@ -71,8 +71,8 @@ behaviour. For a WASM-free build: `cargo install rill-runtime --no-default-featu
 load `.rillhandler`).
 
 The version tracks `[workspace.package].version`; query the current release via `cargo metadata`
-or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.0.0`;
-the Preview group remains at `0.13.0`.
+or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.2.0`;
+the Preview group remains at `0.15.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
 
@@ -230,6 +230,8 @@ RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for th
 - **v0.13.0** — Last 0.x stable release.
 - **v1.0.0-rc.1** — Start of the 1.0 candidate cycle: API, state format, IPC, WIT, runtime, and release channels were frozen.
 - **v1.0.0** — First stable 1.x release; `local-ai-stable` advances only after the immutable public assets pass the independent host smoke.
+- **v1.1.0** — Interpretable online decision-making: delayed feedback, feature identity, drift consensus, weighted learning, Preview Runtime v3 / Handler v2.
+- **v1.2.0** — Release admission and full-platform post-verification: admission gate, native RISC-V/LoongArch/FreeBSD/Windows verification, index schema v3 with `targetLibc`.
 
 ## Correctness and validation
 

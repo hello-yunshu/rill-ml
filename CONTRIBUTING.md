@@ -240,10 +240,10 @@ There are two release channels, documented in `STABILITY.md`:
 
 - **stable** — `stable-index.json` published to the `local-ai-stable`
   pointer release. Updated only by a final stable version
-  (e.g. `1.0.0`, `0.13.0`).
+  (e.g. `1.2.0`, `1.1.0`).
 - **candidate** — `candidate-index.json` published to the
   `local-ai-candidate` pointer release. Updated only by a prerelease
-  version (e.g. `1.0.0-rc.1`, `1.0.0-rc.2`).
+  version (e.g. `1.2.0-rc.1`, `1.2.0-rc.2`).
 
 The release workflow detects prerelease versions (the version string
 contains `-` after the patch number) and routes the signed index to the
@@ -253,7 +253,7 @@ cycle.
 
 ### 9.2 Prerelease versions
 
-Prerelease versions follow SemVer `1.0.0-rc.N`. The version tooling
+Prerelease versions follow SemVer `1.2.0-rc.N`. The version tooling
 (`scripts/sync_version.py`, `scripts/release_version.py`,
 `scripts/release_version_compare.py`) accepts prerelease identifiers via
 strict SemVer 2.0 regex patterns. `scripts/build-release-index.py` routes

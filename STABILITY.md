@@ -435,7 +435,7 @@ Additive changes (new Stable APIs, new error codes, new config fields via
 | Channel | Index file | Pointer tag | Purpose |
 |---|---|---|---|
 | stable | `stable-index.json` | `local-ai-stable` | Final 1.0.0 and later |
-| candidate | `candidate-index.json` | `local-ai-candidate` | 1.0.0-rc.x prereleases |
+| candidate | `candidate-index.json` | `local-ai-candidate` | 1.x prereleases (e.g. `1.2.0-rc.N`) |
 
 A candidate release never updates the stable pointer. A final release advances
 the stable pointer only after its immutable public assets pass the independent
@@ -448,7 +448,7 @@ recognize.
 
 ## Prerelease versioning
 
-Prerelease versions follow SemVer `1.0.0-rc.N`. The version tooling
+Prerelease versions follow SemVer `1.2.0-rc.N`. The version tooling
 (`scripts/sync_version.py`, `scripts/release_version.py`,
 `scripts/release_version_compare.py`) accepts prerelease identifiers
 via strict SemVer 2.0 regex patterns. `build-release-index.py` routes
