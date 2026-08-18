@@ -688,6 +688,14 @@ jobs:
           done
       - name: Verify rill-ml crates.io publish request
         run: cargo publish --locked --dry-run -p rill-ml --features serde
+      # rust-cache's post-job cleanup walks target/package/<crate>-*/ and tries
+      # to clean non-existent tests/target & tests/trybuild dirs, spamming
+      # ENOENT errors (Swatinem/rust-cache#193). Drop the extracted source
+      # copies now; the .crate archives are the real deliverable and stay.
+      - name: Prune extracted package copies
+        shell: bash
+        run: |
+          find target/package -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | xargs -0 -r rm -rf
 
   build-runtime:
     name: Runtime ${{ matrix.target_os }} ${{ matrix.target_arch }}
