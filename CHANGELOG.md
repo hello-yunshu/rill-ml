@@ -22,6 +22,48 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 
 
+
+## [1.2.0] - 2026-08-18
+
+### Changed
+
+- The Stable crates advance additively to `1.2.0`; Preview workspace crates
+  stay at `0.15.0`. No 1.1 API, state, IPC, WIT, or release-index contract is
+  removed or rewritten.
+- The release-index schema advances to v3 and becomes an explicitly versioned
+  Stable protocol: published schema versions stay immutable, later 1.x minors
+  may add new schema versions, and older readers fail closed on unknown
+  schemas. Linux Runtime/Adapter artifacts record `targetLibc`
+  (`gnu`/`musl`) so GNU and musl builds of the same Linux OS+arch are
+  disambiguated deterministically.
+- A pure-Python `release-admission` gate admits a release only when its tag
+  commit has successful same-SHA `CI / Release`, `Security audit`, and (when
+  cross-platform-relevant paths changed) `Cross-Platform Verification` runs.
+  Successful release assets stay immutable.
+- Published-artifact verification now covers every Supported platform:
+  RISC-V64/LoongArch64 under direct user-mode QEMU, FreeBSD on a native VM,
+  and a `post-release-verify-native` matrix on native Windows x86_64 and
+  Windows ARM64 runners, all re-verifying the actual GitHub Release assets
+  via the existing `host_smoke.py`.
+- `move-index-pointer` waits on the PM adapter host smoke and the native
+  post-release verify before promoting the candidate/stable pointer, so a
+  failed adapter or native verification can never be promoted.
+
+### Added — OpenWrt Performance Manager decision adapter
+
+- New Preview crate `rill-pm-adapter`: a Unix-domain-socket decision host
+  speaking the independent `pm-rill-shadow` v1 contract (`status` /
+  `observe` / `outcome`), with context- and goal-partitioned models, a
+  bounded decision ledger with strict validated-outcome rejection rules,
+  bounded persistent state with restart recovery, and model health
+  reporting. The adapter is advisory-only and fail-closed on oversized
+  frames.
+- CI cross-builds the adapter for the musl Linux targets PM consumes and
+  publishes it as a distinct `pm-adapter` release-index artifact kind with
+  `pmAdapterProtocolVersion` 1; an independent released-adapter host smoke
+  verifies the published binary against the signed index and exercises a
+  real round-trip plus fail-closed negative cases.
+
 ## [1.2.0-rc.3] - 2026-08-18
 
 ### Changed
@@ -1536,7 +1578,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0
 [1.2.0-rc.3]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0-rc.3
 [1.2.0-rc.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0-rc.2
 [1.2.0-rc.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0-rc.1
