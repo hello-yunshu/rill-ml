@@ -1001,7 +1001,7 @@ rillml-inspect
 
 ## 准入条件
 
-最终 `1.0.0` 发布前必须满足（见 `RILL_ML_TRAE_1_0_FREEZE_AND_RC_PROMPT.md` §15）：
+最终 `1.0.0` 发布前必须满足以下准入条件：
 
 - 所有 Stable crate 有 API baseline，SemVer CI 生效；
 - `v0.13.0` state fixtures 已生成并提交，RC 能加载所有承诺兼容的旧状态；
