@@ -69,7 +69,7 @@ cargo add rill-ml --features serde
 因此 `cargo install rill-runtime` 行为与官方 GitHub 二进制一致。如需 WASM-free 构建：
 `cargo install rill-runtime --no-default-features`（无法加载 `.rillhandler`）。
 
-版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.1.0`，Preview 组为 `0.15.0`。
+版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.2.0`，Preview 组为 `0.15.0`。
 
 **环境要求：** Rust 1.94+（Edition 2024），无需 nightly。
 
@@ -227,6 +227,8 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](
 - **v0.13.0** — 最后一个 0.x 稳定版本。
 - **v1.0.0-rc.1** — 1.0 候选周期开始：API、状态格式、IPC、WIT、Runtime、发布通道全部冻结。
 - **v1.0.0** — 首个 1.x 正式稳定版本；不可变公开资产通过独立 host smoke 后才推进 `local-ai-stable`。
+- **v1.1.0** — 可解释在线决策：延迟反馈、特征身份、漂移共识、带权学习与 Preview Runtime v3/Handler v2。
+- **v1.2.0** — 发布准入与全平台复验：发布准入门禁、RISC-V/LoongArch/FreeBSD/Windows 原生复验、索引 schema v3 与 `targetLibc`。
 
 ## 正确性与验证
 

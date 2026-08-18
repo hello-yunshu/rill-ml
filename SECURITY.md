@@ -12,10 +12,11 @@ the 1.x freeze.
 
 | Version line | Status | Supported | Channel |
 | ------------ | ------ | --------- | ------- |
-| `1.0.x` | Current stable | :white_check_mark: | `local-ai-stable` |
-| `1.0.0-rc.x` | Superseded candidate | :x: | `local-ai-candidate` |
-| `0.13.x` | Previous stable line | :white_check_mark: (security fixes only) | Immutable releases |
-| `< 0.13.0` | EOL | :x: | — |
+| `1.2.x` | Current stable | :white_check_mark: | `local-ai-stable` |
+| `1.1.x` | Previous stable line | :white_check_mark: (security fixes only) | Immutable releases |
+| `1.0.x` | Previous stable line | :white_check_mark: (security fixes only) | Immutable releases |
+| `1.2.0-rc.x` | Superseded candidate | :x: | `local-ai-candidate` |
+| `< 1.0.0` | EOL | :x: | — |
 
 The `local-ai-stable` pointer tracks the latest independently smoked final
 release. The `local-ai-candidate` pointer preserves the latest RC. A candidate
@@ -23,13 +24,13 @@ release never updates the stable pointer.
 
 ### Backport policy
 
-- Security fixes that affect a Stable crate are backported to the
-  `0.13.0` release line as long as it appears in the supported versions
-  table above.
+- Security fixes that affect a Stable crate are backported to the previous
+  supported stable lines listed in the table above (currently `1.1.x` and
+  `1.0.x`), for as long as they appear in the supported versions table.
 - Security fixes that only affect a Preview crate are applied
   forward-only; Preview crates do not carry a backport guarantee.
-- A fix lands on `main` for the next `1.0.x` release. If the supported
-  `0.13.x` line is affected, the same fix is cherry-picked to that release
+- A fix lands on `main` for the next `1.x` release. If a supported previous
+  stable line is affected, the same fix is cherry-picked to that release
   branch.
 
 ## Reporting a vulnerability
@@ -97,8 +98,7 @@ platform matrix and first-launch authorization guidance.
 
 `rill-runtime` with the `wasm` feature (the default) depends on
 `wasmtime`. A Wasmtime security advisory triggers an out-of-band release
-of the affected Stable release lines (`1.0.x`; `0.13.x` only if the `wasm`
-feature is in scope for that line).
+of the affected Stable release lines (`1.2.x`, `1.1.x`, `1.0.x`).
 Patch upgrades within the same wasmtime minor line are applied via
 Dependabot PRs and reviewed by maintainers. Minor upgrades require a
 maintainer review of the changelog before merge; the review note is
