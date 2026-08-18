@@ -1497,7 +1497,7 @@ jobs:
         run: |
           set -euo pipefail
           index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
-          ./scripts/post-release-qemu-verify.sh "${{ matrix.target }}" \
+          bash scripts/post-release-qemu-verify.sh "${{ matrix.target }}" \
             --index-url "$index_url" \
             --expected-version "$VERSION" \
             --expected-channel "$CHANNEL" \
