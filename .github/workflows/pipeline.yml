@@ -1516,7 +1516,7 @@ jobs:
   post-release-verify-native:
     name: Post-release verify native (${{ matrix.os }})
     # Post-release artifact verification on the platform's own native GitHub
-    # runner. Downloads the ACTUAL Windows/macOS runtime asset from the GitHub
+    # runner. Downloads the ACTUAL Windows runtime asset from the GitHub
     # Release, checks its size/SHA-256 against the signed release index, then
     # executes that exact binary and runs the signed-model / signed-handler /
     # IPC host smoke (handshake / health / invoke / invalid JSON / graceful
@@ -1533,8 +1533,6 @@ jobs:
             arch: x86_64
           - os: windows-11-arm
             arch: aarch64
-          - os: macos-15-arm64
-            arch: aarch64
     permissions:
       contents: read
     steps:
@@ -1545,9 +1543,9 @@ jobs:
         with:
           toolchain: 1.94.0
       - uses: actions/setup-python@v5
-        # host_smoke.py is run with ``python3`` on every native OS (Windows /
-        # macOS / the Linux jobs use the preinstalled python3). setup-python
-        # reliably provides the ``python3`` command on Windows runners too.
+        # host_smoke.py is run with ``python3``. The Linux jobs use the
+        # preinstalled python3; setup-python reliably provides the ``python3``
+        # command on Windows runners.
         with:
           python-version: '3.12'
       - name: Build rill-pack verifier (no wasm feature)

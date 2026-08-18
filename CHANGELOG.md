@@ -26,7 +26,22 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ### Changed
 
-- TODO: describe notable changes for 1.2.0-rc.3.
+- A pure-Python `release-admission` gate now runs at the root of the Release
+  tree on every `workflow_dispatch`, and only admits a release whose tag commit
+  has a successful same-SHA `CI / Release`, `Security audit`, and (when
+  cross-platform-relevant paths changed) `Cross-Platform Verification` run.
+  Successful release assets stay immutable — a re-dispatch never mutates an
+  already-published tag.
+- Final published-artifact verification is extended on every Supported
+  platform: RISC-V64 and LoongArch64 assets are re-verified under direct
+  user-mode QEMU on an Actions host, FreeBSD on a native VM, and the new
+  `post-release-verify-native` matrix re-verifies the actual GitHub Release
+  Windows runtime asset on native Windows x86_64 and Windows ARM64 runners via
+  the existing `host_smoke.py`.
+- `move-index-pointer` now waits on the PM adapter published-artifact host
+  smoke and the native post-release verify before promoting the candidate or
+  stable index pointer, so a failed adapter or native verification can never
+  be promoted.
 
 ## [1.2.0-rc.2] - 2026-08-17
 
