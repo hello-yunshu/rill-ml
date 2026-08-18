@@ -441,6 +441,11 @@ A candidate release never updates the stable pointer. A final release advances
 the stable pointer only after its immutable public assets pass the independent
 released-asset host smoke.
 
+The release-index is a versioned Stable protocol: a published schema version
+remains immutable, so a later 1.x minor can evolve it by introducing a new
+schema version, and older readers fail closed on a schema version they do not
+recognize.
+
 ## Prerelease versioning
 
 Prerelease versions follow SemVer `1.0.0-rc.N`. The version tooling

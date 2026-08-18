@@ -110,7 +110,24 @@ command -v qemu-loongarch64 >/dev/null || { echo "qemu-loongarch64 not available
 echo "==> Adding Rust target ${TARGET}"
 rustup target add "$TARGET"
 
-RUNNER="qemu-loongarch64 -L ${SYSROOT}"
+# QEMU user-mode proves insufficient to reach libgcc_s.so.1 / libstdc++.so.6 on
+# its own: the loongarch loader's default search covers <sysroot>/lib64 and
+# <sysroot>/usr/lib64 (where libc lives) but NOT <sysroot>/lib (where the
+# toolchain puts libgcc_s.so.1 and libstdc++.so.6). Without them a Rust binary
+# fails at load with `libgcc_s.so.1: cannot open shared object file` (exit 127).
+# Inject an explicit library path into the guest through QEMU's -E.
+RUNNER="qemu-loongarch64 -L ${SYSROOT} -E LD_LIBRARY_PATH=${SYSROOT}/lib:${SYSROOT}/lib64"
+
+# Register a binfmt_misc handler for loongarch64 with the SAME sysroot + explicit
+# library path as the cargo runner. A loongarch64 ELF that crosses the host
+# kernel's execve boundary (post-release download-and-run re-verification) is
+# then executed correctly through QEMU instead of failing with ENOEXEC.
+if [[ -e /proc/sys/fs/binfmt_misc/register ]]; then
+  ./scripts/register_qemu_binfmt.sh "$TARGET" "$SYSROOT" \
+    -E "LD_LIBRARY_PATH=${SYSROOT}/lib:${SYSROOT}/lib64"
+else
+  echo "==> binfmt_misc unavailable; direct foreign exec will not work"
+fi
 
 # Configure Cargo: cross-link with the LoongArch gcc and execute every foreign
 # binary through QEMU user-mode transparently.
@@ -145,6 +162,12 @@ export ECHO_HANDLER_WASM="${PWD}/target/echo-handler.wasm"
 # ─────────────────────────────────────────────────────────────────────────
 # 3. Real-execute the crate test suite on loongarch64 via QEMU.
 # ─────────────────────────────────────────────────────────────────────────
+# The runtime_process crate tests spawn `rill-runtime` as a child. Under QEMU a
+# foreign child cannot exec through the host kernel (no binfmt_misc), and
+# posix_spawn's error channel is broken by QEMU's CLONE_VFORK emulation. Inject
+# the host-native QEMU interpreter so the test launches the child through it.
+export RILL_RUNTIME_EXEC_PREFIX="$RUNNER"
+
 echo "==> cargo test --workspace --target ${TARGET}"
 cargo test --locked --workspace --all-targets --all-features \
   --exclude rill-ml-python --target "$TARGET"

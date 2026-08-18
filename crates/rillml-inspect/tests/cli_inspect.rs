@@ -3,8 +3,34 @@
 use std::fs;
 use std::process::Command;
 
+/// Build a `Command` that runs the `rillml-inspect` CLI binary.
+///
+/// On the Actions-first cross-architecture gates the crate test suite runs under
+/// QEMU user-mode. A guest process that spawns a foreign child ELF via execve
+/// cannot rely on QEMU to intercept it (QEMU passes the exec through to the host
+/// kernel, which fails the foreign image with ENOEXEC unless binfmt_misc is
+/// registered). Rust's `Command::spawn` goes through glibc posix_spawn, whose
+/// error channel is broken under QEMU's CLONE_VFORK emulation, so the parent
+/// observes a failed/empty child instead of the binary's real output. The gate
+/// exports `RILL_RUNTIME_EXEC_PREFIX` = the host-NATIVE QEMU interpreter for the
+/// target; launching the child through it (host-native exec passes through to the
+/// kernel and runs natively) makes the emulated binary start reliably. Unset on
+/// native hosts -> unchanged behaviour.
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_rillml-inspect"))
+    let exe = env!("CARGO_BIN_EXE_rillml-inspect");
+    match std::env::var_os("RILL_RUNTIME_EXEC_PREFIX") {
+        Some(prefix) if !prefix.is_empty() => {
+            let prefix = prefix.to_string_lossy();
+            let mut parts = prefix.split_whitespace().map(str::to_owned);
+            let mut cmd = Command::new(parts.next().expect("RILL_RUNTIME_EXEC_PREFIX is empty"));
+            for part in parts {
+                cmd.arg(part);
+            }
+            cmd.arg(exe);
+            cmd
+        }
+        _ => Command::new(exe),
+    }
 }
 
 #[test]

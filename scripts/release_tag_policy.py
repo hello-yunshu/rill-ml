@@ -111,6 +111,16 @@ def decide_release_tag(
                 f"tag already exists at {tag_sha}, which differs from CI head {target_sha}; "
                 f"immutable release tags cannot move — use a new version",
             )
+        # Successful-release immutability: once a Release workflow run has
+        # concluded success for this tag, its published assets are immutable.
+        # A same-SHA re-dispatch would re-run `publish` and clobber those
+        # assets, so it must never happen. Use a new version instead.
+        if has_successful_release:
+            return Decision(
+                "skip",
+                f"tag already at {tag_sha} with a successful Release; "
+                f"successful release assets are immutable — use a new version",
+            )
         # Same-SHA safe retry: the tag is already at the CI head. Dispatch so
         # the Release job can (re)run against the same commit and publish.
         return Decision(

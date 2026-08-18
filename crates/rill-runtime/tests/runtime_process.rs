@@ -23,6 +23,42 @@ use sha2::{Digest, Sha256};
 #[cfg(feature = "wasm")]
 use std::path::PathBuf;
 
+/// Build a `Command` that runs the `rill-runtime` CLI binary.
+///
+/// Under the Actions-first cross-architecture gates the crate test suite runs
+/// inside QEMU user-mode. QEMU does NOT intercept an emulated process's
+/// `execve` of a *foreign* ELF: it lets the host kernel execute the new image,
+/// which fails with `ENOEXEC` unless binfmt_misc is registered (unavailable on
+/// the CI host). The child therefore dies immediately, and because Rust's
+/// `Command::spawn` goes through glibc `posix_spawn` -- whose error channel is
+/// broken under QEMU's `CLONE_VFORK`-as-`fork` emulation -- the parent sees a
+/// `Broken pipe` when it writes to the child's stdin.
+///
+/// The gate exports `RILL_RUNTIME_EXEC_PREFIX` = the host-NATIVE QEMU
+/// interpreter for the target (e.g. `qemu-riscv64 -cpu rv64 -L
+/// /usr/riscv64-linux-gnu`). A guest exec'ing a host-native binary passes
+/// through to the host kernel and runs it natively (QEMU's documented
+/// behaviour), so the child reliably starts under QEMU with the same
+/// sysroot/-cpu config and the spawned `rill-runtime` is emulated correctly.
+/// On native hosts the variable is unset and the binary runs directly --
+/// identical to the previous behaviour.
+fn runtime_command() -> Command {
+    let bin = env!("CARGO_BIN_EXE_rill-runtime");
+    match std::env::var_os("RILL_RUNTIME_EXEC_PREFIX") {
+        Some(prefix) if !prefix.is_empty() => {
+            let prefix = prefix.to_string_lossy();
+            let mut parts = prefix.split_whitespace().map(str::to_owned);
+            let mut cmd = Command::new(parts.next().expect("RILL_RUNTIME_EXEC_PREFIX is empty"));
+            for part in parts {
+                cmd.arg(part);
+            }
+            cmd.arg(bin);
+            cmd
+        }
+        _ => Command::new(bin),
+    }
+}
+
 #[test]
 fn signed_pack_handshake_and_invoke_work_across_the_real_process_boundary() {
     let signing = SigningKey::from_bytes(&[5; 32]);
@@ -49,7 +85,7 @@ fn signed_pack_handshake_and_invoke_work_across_the_real_process_boundary() {
         "process-test={}",
         hex::encode(signing.verifying_key().to_bytes())
     );
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rill-runtime"))
+    let mut child = runtime_command()
         .args(["serve", "--pack"])
         .arg(&pack_path)
         .args(["--trust-key", &trust])
@@ -140,7 +176,7 @@ fn v1_client_receives_v1_wire_format() {
         "v1-test={}",
         hex::encode(signing.verifying_key().to_bytes())
     );
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rill-runtime"))
+    let mut child = runtime_command()
         .args(["serve", "--pack"])
         .arg(&pack_path)
         .args(["--trust-key", &trust])
@@ -227,7 +263,7 @@ fn builtin_handler_deprecation_notice_printed() {
         "deprecate-test={}",
         hex::encode(signing.verifying_key().to_bytes())
     );
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rill-runtime"))
+    let mut child = runtime_command()
         .args(["serve", "--pack"])
         .arg(&pack_path)
         .args(["--trust-key", &trust])
@@ -322,7 +358,7 @@ fn wasm_handler_handshake_across_process_boundary() {
         hex::encode(handler_signing.verifying_key().to_bytes())
     );
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rill-runtime"))
+    let mut child = runtime_command()
         .args(["serve", "--pack"])
         .arg(&model_path)
         .args(["--trust-key", &model_trust])
@@ -427,7 +463,7 @@ fn missing_handler_option_returns_error() {
     // Start the runtime with --pack and --model-trust-key but NO --handler
     // or --builtin-handler. Do not wire stdin so the process exits
     // immediately after the CLI parser rejects the missing handler option.
-    let output = Command::new(env!("CARGO_BIN_EXE_rill-runtime"))
+    let output = runtime_command()
         .args(["serve", "--pack"])
         .arg(&pack_path)
         .args(["--model-trust-key", &trust])
