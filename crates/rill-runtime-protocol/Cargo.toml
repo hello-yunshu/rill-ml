@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Versioned IPC and package contracts for the Rill local runtime."
+description = "Versioned IPC and package contracts for the RillML local runtime."
 
 [dependencies]
 serde.workspace = true

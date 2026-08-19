@@ -3,7 +3,7 @@ name = "echo-handler"
 version = "1.2.0"
 edition = "2021"
 publish = false
-description = "Business-neutral echo handler for Rill runtime — returns input as output."
+description = "Business-neutral echo handler for RillML Runtime — returns input as output."
 
 [[bin]]
 name = "echo-handler"

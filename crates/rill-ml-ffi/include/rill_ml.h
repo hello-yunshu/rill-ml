@@ -1,7 +1,8 @@
 /*
  * rill_ml.h — Preview C ABI for RillML (opaque-handle FFI).
  *
- * RillML is a lightweight, serializable online machine learning library.
+ * RillML is a lightweight adaptive intelligence runtime for native and edge
+ * applications; `rill-ml` is its adaptive intelligence core library.
  * This header declares the opaque-handle C ABI implemented by the
  * `rill-ml-ffi` crate (see crates/rill-ml-ffi). It is the contract that
  * Android (JNI) and iOS (Swift) bindings compile against.

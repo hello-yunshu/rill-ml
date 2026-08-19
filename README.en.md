@@ -3,7 +3,11 @@
 </p>
 
 <p align="center">
-  Lightweight online machine learning for Rust applications, edge devices, and continuously changing data streams
+  <strong>RillML (Rill)</strong> is a lightweight adaptive intelligence runtime for native and edge applications.
+</p>
+
+<p align="center">
+  It combines online machine learning, bounded adaptation, stable runtime protocols, signed model/handler assets, and safe host integration for continuously changing systems.
 </p>
 
 <p align="center">
@@ -20,13 +24,25 @@
 
 ---
 
-RillML provides incremental learning primitives that can be embedded directly in native Rust applications: online statistics, preprocessors, linear/logistic regression, evaluation metrics, pipelines, progressive evaluation, and optional serde-based state persistence.
+## 1. What is RillML
+
+**RillML** (referred to as **Rill** where the context is unambiguous) is a lightweight adaptive intelligence runtime for native and edge applications.
+
+It is not "just another online machine learning library". It combines the following capabilities into a single independently distributable runtime:
+
+- **Online ML core**: statistics, regression/classification, drift detection, multi-armed bandits and decision primitives, all implemented in pure safe Rust with bounded state;
+- **RillML Runtime (`rill-runtime`)**: a standalone local inference runtime that loads signature-verified WASM handlers in a sandbox, so hosts can integrate safely without linking the engine;
+- **Signed assets**: `.rillpack` model packs, `.rillhandler` handler packs and the Ed25519-signed release index, so every update is verifiable and rollback-able;
+- **Stable protocol boundaries**: `rill-runtime-protocol` provides frozen v1/v2 JSON IPC; `rill-handler-api` provides the frozen v1 WIT ABI;
+- **Safe host integration**: models and handlers can never modify host state directly; all system changes belong to the host governance layer.
 
 The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, signed `.rillpack` model packages, and signed `.rillhandler` WASM handler packages. The runtime loads signature-verified WASM handlers in a sandbox; updating a handler no longer requires recompiling the runtime binary. Hosts can compile only the protocol crate and update the runtime, models, and handlers independently from the main application. Official macOS Runtime releases support Apple Silicon (ARM64) only; no Intel build is provided. The macOS aarch64 asset is unsigned — the project does not configure an Apple Developer ID certificate, and this is a permanent decision that does not block any release. macOS users may need to authorize first launch through standard controls such as Finder right-click → Open or System Settings → Privacy & Security; see [`STABILITY.md`](STABILITY.md) § macOS unsigned policy for details. The 1.0 stability matrix, frozen surface, and Stable/Preview split are documented in [`STABILITY.md`](STABILITY.md); see [`RUNTIME.md`](RUNTIME.md) for the runtime product and release boundary.
 
 > RillML is inspired by the online-learning workflow popularized by [River](https://riverml.xyz/). It is an independent Rust project and is not affiliated with or endorsed by River. It does not currently aim for API or model compatibility.
 
-## Why online learning?
+## 2. Why RillML
+
+### Why online learning?
 
 Traditional machine learning follows a batch workflow: collect data, train offline, deploy a fixed model, and periodically retrain. This works well when data is abundant, static, and centrally available.
 
@@ -40,7 +56,7 @@ Online learning takes a different approach: **process one sample at a time, pred
 
 RillML implements this workflow in pure, safe Rust; fixed-dimension algorithms use bounded state, while dynamic-feature algorithms such as FTRL require `max_features` to be set for bounded state.
 
-## Suitable scenarios
+### Suitable scenarios
 
 - Online regression for IoT telemetry, resource usage, or sensor readings.
 - Sensor anomaly detection with rolling statistics.
@@ -50,7 +66,96 @@ RillML implements this workflow in pure, safe Rust; fixed-dimension algorithms u
 
 **Non-suitable scenarios:** Large-scale offline training (use Linfa/SmartCore/Python), deep learning (use Burn/candle/tch-rs), distributed training, GPU acceleration, research experimentation (Python is better suited). Rust does not make the same algorithm inherently more accurate; the value comes from engineering deployment, state management, and local execution.
 
-## Installation
+### Product boundary
+
+RillML's core value is not "the most algorithms", but:
+
+```text
+online adaptation
+bounded resource usage
+native/edge deployment
+stable protocol boundaries
+signed artifacts
+safe runtime execution
+state lifecycle
+feedback/outcome loop
+drift handling
+decision primitives
+product integration
+```
+
+Relationship to River:
+
+```text
+River   = broad online ML algorithms / experimentation ecosystem
+RillML  = production-oriented adaptive intelligence runtime for native and edge systems
+```
+
+River can be used as a reference, baseline, and offline validation source, but Python is never introduced as a production dependency on target devices.
+
+## 3. Core capabilities
+
+### Module overview
+
+| Category | Modules |
+|---|---|
+| Statistics | Mean, Variance, Std, Count, Sum, Min, Max, EWMean, RollingMean, RollingVariance, P2Quantile, ClippedMean, bounded RollingMedianMad/modified-z, weighted statistics |
+| Preprocessing | StandardScaler, MinMaxScaler, Clipper, OneHotEncoder, OrdinalEncoder, FrequencyEncoder, MissingIndicator, ConstantImputer, MeanImputer, ForwardFill |
+| Sparse features | SparseFeatures, FeatureHasher |
+| Models | LinearRegression, LogisticRegression, MeanRegressor, EWMeanRegressor, LastValueRegressor, FtrlRegressor, FtrlClassifier, GaussianNaiveBayes, BernoulliNaiveBayes, MultinomialNaiveBayes |
+| Optimizers | SGD (with L2), AdaGrad |
+| Losses | SquaredError, HuberLoss, BinaryLogLoss |
+| Metrics (regression) | MAE, MSE, RMSE, R², RollingMAE, RollingMSE |
+| Metrics (classification) | Accuracy, Precision, Recall, F1, LogLoss, RollingAccuracy |
+| Pipelines | RegressionPipeline, ClassificationPipeline |
+| Evaluation | Progressive evaluation (predict → metric → learn) |
+| Persistence | `Snapshot<T>` with versioned envelope (serde feature) |
+| Diagnostics | TrainingSummary, WarmupTracker, BaselineComparator, OnlineModelSelector, ResidualInterval, ModelHealthReport, PredictionReporter |
+| Drift detection | PageHinkley, Adwin, Kswin, portable state V1, DriftConsensus, DriftAwareModel, DriftAction, DriftStrategy |
+| Online decision-making | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb score breakdown, Preview LinUcbFast, DecisionLedger, DecisionReplayHarness |
+| Identity and weights | FeatureSchema, ModelDescriptor, WeightedStatistic/Regressor/Classifier |
+
+**Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count (unbounded by default; set `max_features` to bound); drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
+
+## 4. Architecture
+
+RillML is uniformly expressed as three layers: the Online ML core, the Runtime, and the Integrations layer.
+
+```text
+                       RillML
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+       Online ML      Runtime        Integrations
+          │              │              │
+    statistics         IPC             PM
+    regression         packs           Xray
+    classification     handlers        native apps
+    drift              signing
+    bandits            sandbox
+    decisions          state
+```
+
+Or, from the host perspective:
+
+```text
+Host Application
+      │
+      ▼
+RillML Runtime
+      │
+      ├── Online ML Core
+      ├── State / Snapshot
+      ├── Drift / Decision
+      ├── Signed Model Packs
+      └── Sandboxed Handlers
+```
+
+`rill-ml` is the RillML adaptive intelligence core library; it forms the foundation of the runtime but is not the whole project.
+
+## 5. Quick start
+
+### Installation
 
 ```bash
 cargo add rill-ml
@@ -76,7 +181,7 @@ the Preview group remains at `0.15.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
 
-## Quick start
+### Basic usage
 
 ```rust
 use rill_ml::{
@@ -113,7 +218,34 @@ for (features, target) in samples {
 }
 ```
 
-## Progressive evaluation
+### Examples
+
+| Example | Description | Command |
+|---|---|---|
+| [online_regression](examples/online_regression.rs) | Compare Mean/EWMean/LinearRegression, StandardScaler, Snapshot serialization | `cargo run --example online_regression --features serde` |
+| [online_classification](examples/online_classification.rs) | Online binary classification with LogisticRegression | `cargo run --example online_classification` |
+| [diagnostics_demo](examples/diagnostics_demo.rs) | TrainingSummary, PredictionReporter, OnlineModelSelector, ModelHealthReport | `cargo run --example diagnostics_demo` |
+| [sparse_classification](examples/sparse_classification.rs) | SparseFeatures, FeatureHasher, FTRL, NaiveBayes high-dim sparse classification | `cargo run --example sparse_classification` |
+| [drift_demo](examples/drift_demo.rs) | Page-Hinkley, ADWIN, KSWIN drift detection with DriftAwareModel | `cargo run --example drift_demo` |
+| [bandit_demo](examples/bandit_demo.rs) | EpsilonGreedy, UCB1, ThompsonSampling, LinUCB online decision-making | `cargo run --example bandit_demo` |
+| [sensor_stream](examples/sensor_stream.rs) | Sensor data stream online statistics | `cargo run --example sensor_stream` |
+| [progressive_validation](examples/progressive_validation.rs) | Progressive evaluation flow demo | `cargo run --example progressive_validation` |
+
+## 6. RillML Runtime
+
+`rill-runtime` (display name **RillML Runtime**, shorthand **Rill Runtime**) is a standalone local inference product built on top of `rill-ml`. A host application only needs to compile the small `rill-runtime-protocol`; it does not link the RillML engine into itself, so the Runtime and model packs can be updated independently of the host application.
+
+| Crate | Description | Status | Install |
+|---|---|---|---|
+| `rill-runtime` | Standalone executable runtime that loads signed model and handler packs | Stable | `cargo install rill-runtime` |
+| `rill-runtime-protocol` | Stable, strict, versioned JSON IPC types | Stable | `cargo add rill-runtime-protocol` |
+| `rill-handler-api` | Versioned WIT handler ABI contract (for handler authors) | Stable | `cargo add rill-handler-api` |
+
+The complete runtime product boundary, IPC versions, CLI, and release contract are documented in [`RUNTIME.md`](RUNTIME.md).
+
+## 7. Online ML
+
+### Progressive evaluation
 
 The core contract of online learning is: **predict before you learn**. The `evaluate` module enforces this order:
 
@@ -141,20 +273,7 @@ let samples = vec![
 let final_mae = evaluate_regression(&mut model, &mut mae, samples).unwrap();
 ```
 
-## Examples
-
-| Example | Description | Command |
-|---|---|---|
-| [online_regression](examples/online_regression.rs) | Compare Mean/EWMean/LinearRegression, StandardScaler, Snapshot serialization | `cargo run --example online_regression --features serde` |
-| [online_classification](examples/online_classification.rs) | Online binary classification with LogisticRegression | `cargo run --example online_classification` |
-| [diagnostics_demo](examples/diagnostics_demo.rs) | TrainingSummary, PredictionReporter, OnlineModelSelector, ModelHealthReport | `cargo run --example diagnostics_demo` |
-| [sparse_classification](examples/sparse_classification.rs) | SparseFeatures, FeatureHasher, FTRL, NaiveBayes high-dim sparse classification | `cargo run --example sparse_classification` |
-| [drift_demo](examples/drift_demo.rs) | Page-Hinkley, ADWIN, KSWIN drift detection with DriftAwareModel | `cargo run --example drift_demo` |
-| [bandit_demo](examples/bandit_demo.rs) | EpsilonGreedy, UCB1, ThompsonSampling, LinUCB online decision-making | `cargo run --example bandit_demo` |
-| [sensor_stream](examples/sensor_stream.rs) | Sensor data stream online statistics | `cargo run --example sensor_stream` |
-| [progressive_validation](examples/progressive_validation.rs) | Progressive evaluation flow demo | `cargo run --example progressive_validation` |
-
-## Serialization
+### Serialization
 
 Enable the `serde` feature to serialize and restore model state:
 
@@ -176,38 +295,45 @@ assert!((m.value() - 1.5).abs() < 1e-12);
 
 `Snapshot<T>` wraps model state with a format version and rejects incompatible versions. For untrusted snapshots or application-specific model constraints, use `into_model_with_validation()` to validate restored state before activation. See [`RELIABILITY.md`](RELIABILITY.md) for the complete production integration and fallback guidance.
 
-## Module overview
+## 8. Signed model and handler assets
 
-| Category | Modules |
-|---|---|
-| Statistics | Mean, Variance, Std, Count, Sum, Min, Max, EWMean, RollingMean, RollingVariance, P2Quantile, ClippedMean, bounded RollingMedianMad/modified-z, weighted statistics |
-| Preprocessing | StandardScaler, MinMaxScaler, Clipper, OneHotEncoder, OrdinalEncoder, FrequencyEncoder, MissingIndicator, ConstantImputer, MeanImputer, ForwardFill |
-| Sparse features | SparseFeatures, FeatureHasher |
-| Models | LinearRegression, LogisticRegression, MeanRegressor, EWMeanRegressor, LastValueRegressor, FtrlRegressor, FtrlClassifier, GaussianNaiveBayes, BernoulliNaiveBayes, MultinomialNaiveBayes |
-| Optimizers | SGD (with L2), AdaGrad |
-| Losses | SquaredError, HuberLoss, BinaryLogLoss |
-| Metrics (regression) | MAE, MSE, RMSE, R², RollingMAE, RollingMSE |
-| Metrics (classification) | Accuracy, Precision, Recall, F1, LogLoss, RollingAccuracy |
-| Pipelines | RegressionPipeline, ClassificationPipeline |
-| Evaluation | Progressive evaluation (predict → metric → learn) |
-| Persistence | `Snapshot<T>` with versioned envelope (serde feature) |
-| Diagnostics | TrainingSummary, WarmupTracker, BaselineComparator, OnlineModelSelector, ResidualInterval, ModelHealthReport, PredictionReporter |
-| Drift detection | PageHinkley, Adwin, Kswin, portable state V1, DriftConsensus, DriftAwareModel, DriftAction, DriftStrategy |
-| Online decision-making | EpsilonGreedy, Ucb1, ThompsonSampling, LinUcb score breakdown, Preview LinUcbFast, DecisionLedger, DecisionReplayHarness |
-| Identity and weights | FeatureSchema, ModelDescriptor, WeightedStatistic/Regressor/Classifier |
+RillML's model packs, handler packs, and release index are all signed, verifiable, and rollback-able:
 
-**Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count (unbounded by default; set `max_features` to bound); drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
+- `.rillpack` model packs: model definition, parameters, checksum, and Ed25519 signature.
+- `.rillhandler` handler packs: WASM handler module, manifest, checksum, and Ed25519 signature.
+- `stable-index.json`: versions, platforms, URLs, sizes, and SHA-256 for the Runtime/models/handlers, signed by Ed25519.
 
-## Ecosystem and platform extensions
+Models and handlers use independent trust stores and cannot be merged automatically; model keys cannot sign handlers and vice versa. The release index signature covers the SHA-256, size, version, platform, and URL of every binary, model pack, and handler pack.
+
+## 9. Safety model
+
+RillML follows the principle "the more capable, the clearer the permission boundary":
+
+- Models and handlers can never modify host state directly (no UCI writes, no sysctl writes, no firewall changes, no arbitrary command execution).
+- The Runtime executes handlers inside a Wasmtime sandbox: no WASI permissions, per-call fuel budget and epoch timeout, 64 MiB memory cap, and a 1 MiB JSON I/O cap.
+- Startup self-checks, signature verification, SHA-256 verification, size validation, HTTPS policy, message bounds, and fail-closed fallback are enforced across all asset loading paths.
+
+The complete threat model and safe usage guidance are documented in [`SECURITY.md`](SECURITY.md).
+
+## 10. Platform support
+
+| Platform | Runtime | Core library |
+|---|---|---|
+| Linux x86_64 | Stable | Stable |
+| Windows x86_64 | Stable | Stable |
+| Windows ARM64 (aarch64) | Stable | Stable |
+| macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
+| macOS x86_64 (Intel) | Not released | Stable |
+
+Official macOS Runtime assets are Apple Silicon (ARM64) only, under the permanent unsigned policy; Linux and Windows remain x86_64. The full matrix and Stable/Preview commitments are documented in [`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md).
+
+## 11. Integrations and ecosystem
 
 Workspace crates are split into a Stable group (under the 1.x compatibility freeze) and a Preview group (still at `0.x`). The full stability matrix and frozen surface are documented in [`STABILITY.md`](STABILITY.md). The core library does not pull in `tokio`/`arrow`/`polars`/`wasm-bindgen`/`pyo3` by default.
 
 | Crate | Description | Status | Install |
 |---|---|---|---|
-| `rill-ml` | Core online learning library (the subject of this document) | Stable | `cargo add rill-ml` |
-| `rill-runtime` | Standalone executable runtime that loads signed model and handler packs | Stable | `cargo install rill-runtime` |
-| `rill-runtime-protocol` | Stable, strict, versioned JSON IPC types | Stable | `cargo add rill-runtime-protocol` |
-| `rill-handler-api` | Versioned WIT handler ABI contract (for handler authors) | Stable | `cargo add rill-handler-api` |
+| `rill-ml` | RillML adaptive intelligence core library (the subject of this document) | Stable | `cargo add rill-ml` |
 | `rill-ml-tokio` | Drives `predict → metric → learn` over a `tokio_stream::Stream` | Preview | `cargo add rill-ml-tokio` |
 | `rill-ml-arrow` | Convert between Apache Arrow `RecordBatch`/`Float64Array` and `&[f64]` | Preview | `cargo add rill-ml-arrow` |
 | `rill-ml-polars` | Convert between Polars `DataFrame` and sample pairs; append prediction column | Preview | `cargo add rill-ml-polars` |
@@ -215,8 +341,37 @@ Workspace crates are split into a Stable group (under the 1.x compatibility free
 | `rill-ml-python` | Python bindings (PyO3 + Maturin); PyPI package `rill-ml-python`, `import rill_ml` | Preview | `pip install rill-ml-python` |
 | `rillml-inspect` | CLI to view `Snapshot` JSON, version, and validation status (not a runtime dependency) | Preview | `cargo install rillml-inspect` |
 | `rill-ml-ffi` | Stable C ABI (opaque handle + `rill_ml.h`) for C/C++, Android (JNI), iOS (Swift) | Preview | `cargo add rill-ml-ffi` |
+| `rill-pm-adapter` | `pm-rill-shadow` v1 decision adapter for the OpenWrt Performance Manager (advisory only; does not compile RillML) | Preview | — |
 
-## Roadmap
+### Related projects
+
+| Project | Focus | Relationship to RillML |
+|---|---|---|
+| [River](https://riverml.xyz/) | Python online learning | RillML is inspired by its workflow, independently implemented, no compatibility target |
+| [Linfa](https://github.com/rust-ml/linfa) | Rust batch learning toolkit | Batch-focused; RillML focuses on online/incremental learning |
+| [SmartCore](https://smartcorelib.org/) | Rust ML library | Primarily batch-oriented; RillML targets streaming and edge deployment |
+| [Burn](https://burn-rs.github.io/) | Rust deep learning framework | Targets neural networks and GPU; RillML targets lightweight online models |
+
+These projects are complementary, not competitive.
+
+## 12. Stability
+
+RillML is under the 1.x Stable compatibility commitment. The following contracts remain frozen within 1.x:
+
+```text
+rill-ml Rust public API
+selected serde model state
+rill-runtime-protocol IPC v1/v2
+rill-handler-api WIT ABI v1
+rill-runtime public API / CLI
+.rillpack format v1
+.rillhandler format v1
+stable release-index contract
+```
+
+Stable crate public APIs are recorded in `api-baseline/` and enforced by `cargo-semver-checks` in CI. Do not force a 2.0 for positioning/documentation upgrades: only a real API / ABI / wire / state schema breaking change warrants 2.0. The full policy is documented in [`STABILITY.md`](STABILITY.md).
+
+## 13. Roadmap
 
 RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for the full plan and [`STABILITY.md`](STABILITY.md) for the 1.0 compatibility commitments.
 
@@ -233,6 +388,14 @@ RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for th
 - **v1.1.0** — Interpretable online decision-making: delayed feedback, feature identity, drift consensus, weighted learning, Preview Runtime v3 / Handler v2.
 - **v1.2.0** — Release admission and full-platform post-verification: admission gate, native RISC-V/LoongArch/FreeBSD/Windows verification, index schema v3 with `targetLibc`.
 
+The current 1.x line does not implement full deep learning; the future direction is "frozen neural encoder + RillML online adaptive head" (e.g., DL embedding → LinearRegression / LogisticRegression / LinUCB / Bandit → online adaptation), with an `inference-provider` abstraction reserved in the architecture. RillML is not intended to become a PyTorch/tinygrad replacement.
+
+## 14. Naming
+
+The project is officially named **RillML**.
+
+**Rill** is a short display and conversational name used where the context is unambiguous. The project does not claim the bare `rill` package, module, or CLI namespace. Existing technical names such as `rill-ml`, `rill-runtime`, and `rill_ml` remain intentionally explicit. See [`docs/NAMING.md`](docs/NAMING.md).
+
 ## Correctness and validation
 
 RillML is validated through multiple layers:
@@ -244,21 +407,6 @@ RillML is validated through multiple layers:
 - All examples are actually run and verified.
 
 **Numerical stability:** Welford's algorithm for variance; numerically stable sigmoid; epsilon-guarded scaling; no panics in public APIs, all errors returned as `Result<_, RillError>`.
-
-## Related projects
-
-| Project | Focus | Relationship to RillML |
-|---|---|---|
-| [River](https://riverml.xyz/) | Python online learning | RillML is inspired by its workflow, independently implemented, no compatibility target |
-| [Linfa](https://github.com/rust-ml/linfa) | Rust batch learning toolkit | Batch-focused; RillML focuses on online/incremental learning |
-| [SmartCore](https://smartcorelib.org/) | Rust ML library | Primarily batch-oriented; RillML targets streaming and edge deployment |
-| [Burn](https://burn-rs.github.io/) | Rust deep learning framework | Targets neural networks and GPU; RillML targets lightweight online models |
-
-These projects are complementary, not competitive.
-
-## Naming note
-
-This project is named **RillML**. It is not affiliated with, endorsed by, or related to [Rill Data](https://www.rilldata.com/) or any product named "Rill". RillML does not provide a CLI tool named `rill`.
 
 ## License
 
