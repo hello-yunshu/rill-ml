@@ -1,0 +1,95 @@
+{
+  "generatedAt": "2026-08-20T00:00:00+08:00",
+  "repositoriesScanned": 34,
+  "scanScope": "hello-yunshu owner, active (non-archived) repositories, local clone working trees at HEAD; excludes .git, node_modules, target, __pycache__",
+  "terms": [
+    "Rillun", "rillun", "RILLUN_", ".rillunpack", ".rillunhandler", "rillun:handler",
+    "RillML", "rill-ml", "rill_ml", "rill-runtime", "rill-runtime-protocol",
+    "rill-handler-api", "rill-pm-adapter", "rill-xray-agent", ".rillpack", ".rillhandler", "rill:handler"
+  ],
+  "summary": {
+    "reposWithResidualRillun": 0,
+    "reposWithBrandTerms": [
+      "rill-ml", "rill-xray-agent", "mira-mouse", "luci-app-performance-manager",
+      "Xray_bash_onekey", "lessonforge", "Xray_bash_onekey_api", "github-hey-run"
+    ],
+    "reposUnaffected": 26,
+    "matches": 6
+  },
+  "matches": [
+    {
+      "repository": "hello-yunshu/rill-ml",
+      "path": "docs/audits/RILLML_NAMING_AUDIT.md",
+      "term": "Rillun",
+      "classification": "HISTORICAL",
+      "reason": "Historical audit document; references the superseded 'Rillun' brand only to state its absence (no active brand usage)."
+    },
+    {
+      "repository": "hello-yunshu/rill-ml",
+      "path": "docs/audits/RILLML_FINAL_POSITIONING_AUDIT.md",
+      "term": "Rillun",
+      "classification": "HISTORICAL",
+      "reason": "Historical audit document; references the superseded 'Rillun' brand only to state its absence (no active brand usage)."
+    },
+    {
+      "repository": "hello-yunshu/Xray_bash_onekey_api",
+      "path": ".github/test/test_promote_validation.sh",
+      "term": "rill-ml",
+      "classification": "TECHNICAL_IDENTITY",
+      "reason": "Security regression test fixture: 'rill-ml' appears as a disallowed candidate ref string in shell-injection validation. Not a display-layer brand usage."
+    },
+    {
+      "repository": "hello-yunshu/github-hey-run",
+      "path": "src/config.js",
+      "term": "rill-ml",
+      "classification": "TECHNICAL_IDENTITY",
+      "reason": "App registry config referencing the canonical repository name hello-yunshu/rill-ml. Technical identifier, not a brand display."
+    },
+    {
+      "repository": "hello-yunshu/rill-ml",
+      "path": "docs/NAMING.md",
+      "term": "RillML",
+      "classification": "OFFICIAL_BRAND",
+      "reason": "Single source of truth for brand naming: RillML official brand, Rill shorthand, first-mention relationship RillML (Rill)."
+    },
+    {
+      "repository": "hello-yunshu/rill-ml",
+      "path": "docs/audits/RILLML_FINAL_POSITIONING_AUDIT.md",
+      "term": "RillML",
+      "classification": "OFFICIAL_BRAND",
+      "reason": "Canonical final positioning audit documenting the ecosystem-wide brand relationship."
+    }
+  ],
+  "termDistributionPerRepo": {
+    "rill-ml": {
+      "Rillun": 2, "rillun": 2, "RILLUN_": 2,
+      "rill-ml": 190, "rill_ml": 142, "rill-runtime": 65, "rill-pm-adapter": 18,
+      "rill-xray-agent": 4, ".rillpack": 34, ".rillhandler": 33, "RillML": 103
+    },
+    "rill-xray-agent": {
+      "rill-ml": 10, "rill-runtime": 5, "rill-xray-agent": 140,
+      "rill-pm-adapter": 1, ".rillpack": 1, ".rillhandler": 1, "RillML": 20
+    },
+    "mira-mouse": {
+      "rill-ml": 35, "rill_ml": 9, "rill-runtime": 38,
+      ".rillpack": 15, ".rillhandler": 15, "RillML": 18
+    },
+    "luci-app-performance-manager": {
+      "rill-ml": 14, "rill_ml": 1, "rill-runtime": 25,
+      "rill-pm-adapter": 37, ".rillpack": 2, ".rillhandler": 2, "RillML": 7
+    },
+    "Xray_bash_onekey": {
+      "rill-ml": 3, "rill-runtime": 2, "rill-xray-agent": 49, "RillML": 15
+    },
+    "lessonforge": {
+      "rill-ml": 5, "rill-runtime": 12, ".rillpack": 1, ".rillhandler": 1, "RillML": 8
+    },
+    "Xray_bash_onekey_api": {
+      "rill-ml": 1
+    },
+    "github-hey-run": {
+      "rill-ml": 1
+    }
+  },
+  "conclusion": "No active Rillun brand usage. All Rillun references are historical audit conclusions documenting absence. The two non-downstream hits (Xray_bash_onekey_api, github-hey-run) are technical-identity references, not brand display."
+}
