@@ -1,4 +1,4 @@
-# Rill Runtime 独立产品与发布契约
+# RillML Runtime 独立产品与发布契约
 
 RillML 仍然是可嵌入的 Rust 算法库；`rill-runtime` 是建立在它之上的独立本地推理产品。宿主应用只需要编译很小的 `rill-runtime-protocol`，不需要把 RillML 引擎链接进自身，因此 Runtime 和模型包都能脱离宿主应用单独更新。
 

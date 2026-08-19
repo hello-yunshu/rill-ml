@@ -1,6 +1,8 @@
 //! # RillML
 //!
-//! Lightweight, serializable online machine learning for Rust applications
+//! RillML (Rill) is a lightweight adaptive intelligence runtime for native and
+//! edge applications. This crate is its adaptive intelligence core library:
+//! lightweight, serializable online machine learning for Rust applications
 //! and streaming data.
 //!
 //! RillML provides incremental learning primitives that can be embedded

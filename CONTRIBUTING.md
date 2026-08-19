@@ -3,10 +3,11 @@
 Thank you for your interest in RillML. This document describes how to
 contribute effectively while preserving the project's core principles.
 
-RillML is an online (single-pass, bounded-memory) machine learning library for
-Rust. The bar for additions is **reliability and verifiability**, not algorithm
-count. A small set of well-tested modules is preferred over a large set of
-loosely verified ones.
+RillML (Rill) is a lightweight adaptive intelligence runtime for native and
+edge applications; `rill-ml` is its adaptive intelligence core library (online,
+single-pass, bounded-memory). The bar for additions is **reliability and
+verifiability**, not algorithm count. A small set of well-tested modules is
+preferred over a large set of loosely verified ones.
 
 ## 1. Before you start
 

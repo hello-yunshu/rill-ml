@@ -1,10 +1,10 @@
 //! # rill-ml-ffi
 //!
 //! A C ABI-oriented FFI layer for [RillML](https://crates.io/crates/rill-ml),
-//! the lightweight, serializable online machine learning library. This crate
-//! is the bridge between the Stable Rust core (`rill-ml`) and native consumers
-//! written in C, C++, and languages that bind to C — notably Android (via JNI)
-//! and iOS (via Swift).
+//! the adaptive intelligence runtime for native and edge applications. This
+//! crate is the bridge between the Stable Rust core (`rill-ml`) and native
+//! consumers written in C, C++, and languages that bind to C — notably Android
+//! (via JNI) and iOS (via Swift).
 //!
 //! **Status: Preview (0.x).** `rill-ml-ffi` is not part of the Stable 1.x ABI
 //! freeze. The opaque-handle ABI is designed for future ABI stability, but the

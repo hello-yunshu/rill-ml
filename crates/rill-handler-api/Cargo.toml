@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Versioned WIT ABI and guest SDK for Rill runtime handlers."
+description = "Versioned WIT ABI and guest SDK for RillML Runtime handlers."
 
 [lib]
 name = "rill_handler_api"

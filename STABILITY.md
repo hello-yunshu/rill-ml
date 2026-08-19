@@ -1,5 +1,11 @@
 # RillML 1.0 Stability Policy
 
+> **Naming note:** RillML is the official project name. Rill may be used as a
+> contextual shorthand. The frozen crate/package/ABI names below (e.g.
+> `rill-ml`, `rill-runtime`, `rill-runtime-protocol`, `rill-handler-api`) are
+> technical identifiers and are intentionally kept explicit; they are never
+> replaced with the shorthand. See [`docs/NAMING.md`](docs/NAMING.md).
+
 This document defines the compatibility surface that RillML 1.x commits to
 preserve. It is the single source of truth for what is stable, what is
 preview, and how each artifact may evolve.
