@@ -20,7 +20,8 @@ pub(crate) mod stateful_wasm;
 
 pub use archive::{
     ArchiveError, ReleaseIndexError, TrustStore, canonical_json, sign_release_index,
-    verify_release_index,
+    sign_release_index_with_generation, verify_release_index,
+    verify_release_index_with_trust_metadata,
 };
 pub use handler::builtin::{LINEAR_REGRESSION_CAPABILITY, LinearRegressionInvokeHandler};
 #[cfg(feature = "wasm")]

@@ -209,6 +209,9 @@ pub rill_runtime_protocol::RuntimeResponseV2::Result
 pub rill_runtime_protocol::RuntimeResponseV2::Result::api_version: u32
 pub rill_runtime_protocol::RuntimeResponseV2::Result::output: serde_json::value::Value
 pub rill_runtime_protocol::RuntimeResponseV2::Result::request_id: alloc::string::String
+pub enum rill_runtime_protocol::TrustKeyRole
+pub rill_runtime_protocol::TrustKeyRole::Current
+pub rill_runtime_protocol::TrustKeyRole::Next
 pub struct rill_runtime_protocol::HandlerPackManifest
 pub rill_runtime_protocol::HandlerPackManifest::capabilities: alloc::vec::Vec<alloc::string::String>
 pub rill_runtime_protocol::HandlerPackManifest::format_version: u32
@@ -259,6 +262,32 @@ pub fn rill_runtime_protocol::ReleaseIndexPayload::validate_shape(&self) -> core
 pub struct rill_runtime_protocol::SignedReleaseIndex
 pub rill_runtime_protocol::SignedReleaseIndex::payload: rill_runtime_protocol::ReleaseIndexPayload
 pub rill_runtime_protocol::SignedReleaseIndex::signature: alloc::string::String
+pub struct rill_runtime_protocol::SignedReleaseIndexWithGenerationV1
+pub rill_runtime_protocol::SignedReleaseIndexWithGenerationV1::index: rill_runtime_protocol::SignedReleaseIndex
+pub rill_runtime_protocol::SignedReleaseIndexWithGenerationV1::lifecycle_signature: alloc::string::String
+pub rill_runtime_protocol::SignedReleaseIndexWithGenerationV1::release_generation: u64
+pub rill_runtime_protocol::SignedReleaseIndexWithGenerationV1::schema_version: u32
+impl rill_runtime_protocol::SignedReleaseIndexWithGenerationV1
+pub fn rill_runtime_protocol::SignedReleaseIndexWithGenerationV1::validate_shape(&self) -> core::result::Result<(), &'static str>
+pub struct rill_runtime_protocol::TrustKeyMetadataV1
+pub rill_runtime_protocol::TrustKeyMetadataV1::emergency_revoked: bool
+pub rill_runtime_protocol::TrustKeyMetadataV1::key_id: alloc::string::String
+pub rill_runtime_protocol::TrustKeyMetadataV1::not_after_unix_ms: core::option::Option<u64>
+pub rill_runtime_protocol::TrustKeyMetadataV1::not_before_unix_ms: u64
+pub rill_runtime_protocol::TrustKeyMetadataV1::public_key_hex: alloc::string::String
+pub rill_runtime_protocol::TrustKeyMetadataV1::revoked_at_unix_ms: core::option::Option<u64>
+pub rill_runtime_protocol::TrustKeyMetadataV1::role: rill_runtime_protocol::TrustKeyRole
+impl rill_runtime_protocol::TrustKeyMetadataV1
+pub fn rill_runtime_protocol::TrustKeyMetadataV1::is_active_at(&self, u64) -> bool
+pub fn rill_runtime_protocol::TrustKeyMetadataV1::validate_shape(&self) -> core::result::Result<(), &'static str>
+pub struct rill_runtime_protocol::TrustMetadataV1
+pub rill_runtime_protocol::TrustMetadataV1::keys: alloc::vec::Vec<rill_runtime_protocol::TrustKeyMetadataV1>
+pub rill_runtime_protocol::TrustMetadataV1::metadata_generation: u64
+pub rill_runtime_protocol::TrustMetadataV1::minimum_release_generation: u64
+pub rill_runtime_protocol::TrustMetadataV1::schema_version: u32
+impl rill_runtime_protocol::TrustMetadataV1
+pub fn rill_runtime_protocol::TrustMetadataV1::active_keys_at(&self, u64) -> core::result::Result<alloc::vec::Vec<&rill_runtime_protocol::TrustKeyMetadataV1>, &'static str>
+pub fn rill_runtime_protocol::TrustMetadataV1::validate_shape(&self) -> core::result::Result<(), &'static str>
 pub const rill_runtime_protocol::HANDLER_API_VERSION: u32
 pub const rill_runtime_protocol::HANDLER_PACKAGE_FORMAT_VERSION: u32
 pub const rill_runtime_protocol::MAX_MESSAGE_BYTES: usize
@@ -266,8 +295,10 @@ pub const rill_runtime_protocol::MIN_RUNTIME_API_VERSION: u32
 pub const rill_runtime_protocol::MODEL_PACK_FORMAT_VERSION: u32
 pub const rill_runtime_protocol::PM_ADAPTER_ARTIFACT_ID: &str
 pub const rill_runtime_protocol::PM_ADAPTER_PROTOCOL_VERSION: u32
+pub const rill_runtime_protocol::RELEASE_INDEX_LIFECYCLE_SCHEMA_VERSION: u32
 pub const rill_runtime_protocol::RELEASE_INDEX_SCHEMA_VERSION: u32
 pub const rill_runtime_protocol::RUNTIME_API_VERSION: u32
 pub const rill_runtime_protocol::RUNTIME_ARTIFACT_ID: &str
 pub const rill_runtime_protocol::RUNTIME_ARTIFACT_ID_MUSL: &str
 pub const rill_runtime_protocol::RUNTIME_STATE_FORMAT_VERSION: u32
+pub const rill_runtime_protocol::TRUST_METADATA_SCHEMA_VERSION: u32

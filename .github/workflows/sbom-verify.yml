@@ -1,0 +1,42 @@
+name: SBOM release verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify published SBOM identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.tag }}
+      - name: Download published SBOMs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "${{ inputs.tag }}" --pattern 'rill-ml-*.cdx.json' --dir dist
+          gh release download "${{ inputs.tag }}" --pattern 'rill-ml-*.spdx.json' --dir dist
+      - name: Verify release-bound identity and checksums
+        env:
+          VERSION: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          python3 scripts/verify_sbom.py \
+            --cdx "dist/rill-ml-${version}.cdx.json" \
+            --spdx "dist/rill-ml-${version}.spdx.json" \
+            --version "$version" \
+            --tag "$VERSION" \
+            --commit "$(git rev-parse HEAD)"

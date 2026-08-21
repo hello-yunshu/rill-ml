@@ -16,6 +16,8 @@ layouts are free to evolve without breaking bindings.
 ## ABI contract
 
 See [`include/rill_ml.h`](include/rill_ml.h) for the authoritative header.
+The raw-pointer trust boundary, caller obligations, and test evidence are
+documented in [`docs/FFI_UNSAFE_TRUST_DOMAIN.md`](../../docs/FFI_UNSAFE_TRUST_DOMAIN.md).
 
 ### Opaque handles and ownership
 

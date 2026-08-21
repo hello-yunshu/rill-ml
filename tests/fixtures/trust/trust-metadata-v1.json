@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "metadataGeneration": 1,
+  "minimumReleaseGeneration": 1,
+  "keys": [
+    {
+      "keyId": "rillml-examples-2026-001",
+      "publicKeyHex": "29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e",
+      "role": "current",
+      "notBeforeUnixMs": 0,
+      "notAfterUnixMs": null,
+      "revokedAtUnixMs": null,
+      "emergencyRevoked": false
+    },
+    {
+      "keyId": "example-next-key",
+      "publicKeyHex": "1111111111111111111111111111111111111111111111111111111111111111",
+      "role": "next",
+      "notBeforeUnixMs": 4102444800000,
+      "notAfterUnixMs": null,
+      "revokedAtUnixMs": null,
+      "emergencyRevoked": false
+    }
+  ]
+}

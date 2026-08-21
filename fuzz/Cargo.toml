@@ -1,0 +1,80 @@
+[package]
+name = "rill-ml-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+rust-version = "1.94"
+
+[package.metadata]
+cargo-fuzz = true
+
+# Keep the libFuzzer harness independent from the product workspace. The
+# harness depends on workspace crates by path but is not itself a publishable
+# workspace member.
+[workspace]
+
+[dependencies]
+arbitrary = { version = "1", features = ["derive"] }
+libfuzzer-sys = "0.4"
+ed25519-dalek = "3"
+serde_json = "1"
+zip = "2"
+rill-ml = { path = "..", features = ["serde"] }
+rill-runtime = { path = "../crates/rill-runtime", default-features = false }
+rill-runtime-protocol = { path = "../crates/rill-runtime-protocol" }
+
+[[bin]]
+name = "archive"
+path = "fuzz_targets/archive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "handler"
+path = "fuzz_targets/handler.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "release_index"
+path = "fuzz_targets/release_index.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "trust_metadata"
+path = "fuzz_targets/trust_metadata.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ipc_v1_v2"
+path = "fuzz_targets/ipc_v1_v2.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ipc_v3_preview"
+path = "fuzz_targets/ipc_v3_preview.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "snapshot"
+path = "fuzz_targets/snapshot.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "handler_json_output"
+path = "fuzz_targets/handler_json_output.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "consumer": "example-consumer",
+  "upstreamRepository": "https://github.com/example/example-consumer",
+  "testedRelease": "1.2.0",
+  "supportedRelease": "1.2.0",
+  "pinnedRelease": "1.2.0",
+  "protocolApi": "v2",
+  "protocolStatus": "tested",
+  "handlerApi": "v1",
+  "platform": {
+    "os": "linux",
+    "arch": "x86_64",
+    "libc": "gnu"
+  },
+  "qualification": "example/non-authoritative",
+  "evidenceCommit": "0000000",
+  "evidenceRun": null
+}

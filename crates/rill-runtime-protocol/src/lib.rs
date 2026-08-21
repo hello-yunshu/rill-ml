@@ -40,6 +40,12 @@ pub const RUNTIME_STATE_FORMAT_VERSION: u32 = 1;
 /// naive-matching gnu and musl builds to the same OS+arch and failing
 /// ambiguously.
 pub const RELEASE_INDEX_SCHEMA_VERSION: u32 = 3;
+/// Version of the external trust metadata used for key rotation and rollback
+/// protection. This is deliberately separate from the frozen release-index v3
+/// payload, so existing v1.2 readers keep their exact fail-closed semantics.
+pub const TRUST_METADATA_SCHEMA_VERSION: u32 = 1;
+/// Version of the signed release-generation envelope used with trust metadata.
+pub const RELEASE_INDEX_LIFECYCLE_SCHEMA_VERSION: u32 = 1;
 /// Hard upper bound for one newline-delimited IPC message.
 pub const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 
@@ -434,6 +440,153 @@ pub struct SignedReleaseIndex {
     pub payload: ReleaseIndexPayload,
     /// Lowercase hexadecimal Ed25519 signature over canonical payload JSON.
     pub signature: String,
+}
+
+/// A trusted publisher key and its lifecycle state.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TrustKeyMetadataV1 {
+    pub key_id: String,
+    pub public_key_hex: String,
+    pub role: TrustKeyRole,
+    pub not_before_unix_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_after_unix_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revoked_at_unix_ms: Option<u64>,
+    #[serde(default)]
+    pub emergency_revoked: bool,
+}
+
+/// Rotation role for a trusted publisher key.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum TrustKeyRole {
+    Current,
+    Next,
+}
+
+impl TrustKeyMetadataV1 {
+    pub fn validate_shape(&self) -> Result<(), &'static str> {
+        if self.key_id.is_empty() || self.key_id.len() > 96 {
+            return Err("invalid trust key id");
+        }
+        if self.public_key_hex.len() != 64
+            || !self
+                .public_key_hex
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err("invalid trust public key");
+        }
+        if let Some(not_after) = self.not_after_unix_ms
+            && not_after <= self.not_before_unix_ms
+        {
+            return Err("trust key validity window is empty");
+        }
+        Ok(())
+    }
+
+    /// Whether this key may authenticate an artifact at `now_unix_ms`.
+    pub fn is_active_at(&self, now_unix_ms: u64) -> bool {
+        self.not_before_unix_ms <= now_unix_ms
+            && self
+                .not_after_unix_ms
+                .is_none_or(|not_after| now_unix_ms < not_after)
+            && self
+                .revoked_at_unix_ms
+                .is_none_or(|revoked_at| now_unix_ms < revoked_at)
+            && !self.emergency_revoked
+    }
+}
+
+/// External trust metadata for publisher key rotation.
+///
+/// The metadata is signed/distributed by the consumer's trust root. It is not
+/// embedded into release-index schema v3. `minimumReleaseGeneration` is the
+/// consumer's monotonic rollback floor and must only move forward.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TrustMetadataV1 {
+    pub schema_version: u32,
+    pub metadata_generation: u64,
+    pub minimum_release_generation: u64,
+    pub keys: Vec<TrustKeyMetadataV1>,
+}
+
+impl TrustMetadataV1 {
+    pub fn validate_shape(&self) -> Result<(), &'static str> {
+        if self.schema_version != TRUST_METADATA_SCHEMA_VERSION {
+            return Err("unsupported trust metadata schema");
+        }
+        if self.keys.is_empty() || self.keys.len() > 64 {
+            return Err("invalid trust key count");
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        for key in &self.keys {
+            key.validate_shape()?;
+            if !ids.insert(&key.key_id) {
+                return Err("duplicate trust key id");
+            }
+        }
+        if !self
+            .keys
+            .iter()
+            .any(|key| matches!(&key.role, TrustKeyRole::Current))
+        {
+            return Err("trust metadata has no current key");
+        }
+        Ok(())
+    }
+
+    /// Returns the active current/next keys at a point in time.
+    pub fn active_keys_at(
+        &self,
+        now_unix_ms: u64,
+    ) -> Result<Vec<&TrustKeyMetadataV1>, &'static str> {
+        self.validate_shape()?;
+        let active: Vec<_> = self
+            .keys
+            .iter()
+            .filter(|key| key.is_active_at(now_unix_ms))
+            .collect();
+        if !active
+            .iter()
+            .any(|key| matches!(&key.role, TrustKeyRole::Current))
+        {
+            return Err("trust metadata has no active current key");
+        }
+        Ok(active)
+    }
+}
+
+/// A signed v3 index plus a monotonic generation used for rollback protection.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SignedReleaseIndexWithGenerationV1 {
+    pub schema_version: u32,
+    pub release_generation: u64,
+    pub index: SignedReleaseIndex,
+    /// Lowercase hexadecimal signature over the lifecycle envelope fields and
+    /// the embedded signed index. This binds the generation to the publisher.
+    pub lifecycle_signature: String,
+}
+
+impl SignedReleaseIndexWithGenerationV1 {
+    pub fn validate_shape(&self) -> Result<(), &'static str> {
+        if self.schema_version != RELEASE_INDEX_LIFECYCLE_SCHEMA_VERSION {
+            return Err("unsupported release lifecycle schema");
+        }
+        if self.lifecycle_signature.len() != 128
+            || !self
+                .lifecycle_signature
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err("invalid release lifecycle signature");
+        }
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------
