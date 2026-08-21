@@ -1,0 +1,13 @@
+[
+  {"id":"handshake","kind":"handshake","requestId":"fixture-handshake-001","apiVersion":2},
+  {"id":"health","kind":"health","requestId":"fixture-health-001","apiVersion":2},
+  {"id":"invoke","kind":"result","requestId":"fixture-invoke-001","apiVersion":2},
+  {"id":"requestId","kind":"error","code":"invalidRequestId","apiVersion":2},
+  {"id":"api-mismatch","kind":"error","code":"incompatibleApiVersion","apiVersion":99},
+  {"id":"capability-mismatch","kind":"error","code":"unsupportedCapability","apiVersion":2},
+  {"id":"malformed-json","kind":"error","code":"invalidJson","apiVersion":2},
+  {"id":"oversized-message","kind":"error","code":"invalidJson","apiVersion":2},
+  {"id":"handler-timeout","kind":"error","code":"handlerTimeout","apiVersion":2},
+  {"id":"handler-trap","kind":"error","code":"handlerTrap","apiVersion":2},
+  {"id":"invalid-output","kind":"error","code":"handlerInvalidOutput","apiVersion":2}
+]

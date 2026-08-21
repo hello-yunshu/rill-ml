@@ -69,6 +69,43 @@ pub enum NewFeaturePolicy {
     Ignore,
 }
 
+/// Bounded-resource diagnostics for a sparse FTRL model.
+///
+/// `saturation` is `current_features / configured_max` when a finite cap is
+/// configured. `new_features_rejected` means that the configured Reject policy
+/// would reject another unseen feature at the current size; it is a current
+/// admission signal, not a hidden mutation counter.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct FtrlResourceDiagnostics {
+    /// Number of distinct feature identifiers currently stored.
+    pub current_features: usize,
+    /// Configured maximum number of stored feature identifiers.
+    pub configured_max: Option<usize>,
+    /// Current feature count divided by the configured maximum.
+    pub saturation: Option<f64>,
+    /// Whether an unseen feature would be rejected under the current policy.
+    pub new_features_rejected: bool,
+}
+
+impl FtrlResourceDiagnostics {
+    fn from_model(
+        current_features: usize,
+        configured_max: Option<usize>,
+        policy: NewFeaturePolicy,
+    ) -> Self {
+        let saturation = configured_max.map(|max| current_features as f64 / max as f64);
+        let new_features_rejected = configured_max
+            .is_some_and(|max| current_features >= max && policy == NewFeaturePolicy::Reject);
+        Self {
+            current_features,
+            configured_max,
+            saturation,
+            new_features_rejected,
+        }
+    }
+}
+
 /// Configuration for FTRL models.
 ///
 /// Controls the per-coordinate learning rate and regularization strengths.
@@ -517,6 +554,15 @@ impl FtrlRegressor {
         self.params.len()
     }
 
+    /// Report feature-capacity and new-feature admission diagnostics.
+    pub fn resource_diagnostics(&self) -> FtrlResourceDiagnostics {
+        FtrlResourceDiagnostics::from_model(
+            self.params.len(),
+            self.config.max_features,
+            self.config.new_feature_policy,
+        )
+    }
+
     /// Compute the raw prediction `w · x + b` without updating state.
     fn predict_inner(&self, features: &SparseFeatures) -> Result<f64, RillError> {
         let dot = compute_dot(&self.params, &self.config, features)?;
@@ -775,6 +821,15 @@ impl FtrlClassifier {
     /// Number of distinct features the model has seen.
     pub fn feature_count(&self) -> usize {
         self.params.len()
+    }
+
+    /// Report feature-capacity and new-feature admission diagnostics.
+    pub fn resource_diagnostics(&self) -> FtrlResourceDiagnostics {
+        FtrlResourceDiagnostics::from_model(
+            self.params.len(),
+            self.config.max_features,
+            self.config.new_feature_policy,
+        )
     }
 
     /// Compute the probability `sigmoid(w · x + b)` without updating state.

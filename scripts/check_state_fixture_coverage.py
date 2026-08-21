@@ -28,7 +28,35 @@ import argparse
 import pathlib
 import re
 import sys
-import tomllib
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.x runners without the stdlib TOML parser.
+    tomllib = None
+
+
+def load_manifest_text(text: str) -> dict[str, list[dict[str, str]]]:
+    """Load this deliberately small manifest on old offline Python runners."""
+    if tomllib is not None:
+        return tomllib.loads(text)
+
+    data: dict[str, list[dict[str, str]]] = {}
+    current: tuple[str, dict[str, str]] | None = None
+    for raw_line in text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        section = re.fullmatch(r"\[\[(stable_state|preview_state|portable_state)\]\]", line)
+        if section:
+            entry: dict[str, str] = {}
+            data.setdefault(section.group(1), []).append(entry)
+            current = (section.group(1), entry)
+            continue
+        field = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*\"([^\"]*)\"", line)
+        if field is None or current is None:
+            raise ValueError(f"unsupported manifest line: {raw_line}")
+        current[1][field.group(1)] = field.group(2)
+    return data
 
 
 def parse_manifest(manifest_path: pathlib.Path) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
@@ -40,15 +68,15 @@ def parse_manifest(manifest_path: pathlib.Path) -> tuple[list[dict[str, str]], l
         raise RuntimeError(f"state-schema-manifest.toml not found at {manifest_path}")
 
     try:
-        data = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+        data = load_manifest_text(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
         raise RuntimeError(f"failed to parse {manifest_path}: {exc}") from exc
     return list(data.get("stable_state", [])), list(data.get("preview_state", []))
 
 
 def parse_portable_states(manifest_path: pathlib.Path) -> list[dict[str, str]]:
     """Return explicitly versioned portable-state entries."""
-    data = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    data = load_manifest_text(manifest_path.read_text(encoding="utf-8"))
     return list(data.get("portable_state", []))
 
 
