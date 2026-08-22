@@ -195,7 +195,7 @@ behaviour. For a WASM-free build: `cargo install rill-runtime --no-default-featu
 load `.rillhandler`).
 
 The version tracks `[workspace.package].version`; query the current release via `cargo metadata`
-or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.3.0`;
+or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.5.0`;
 the Preview group remains at `0.15.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
@@ -407,6 +407,7 @@ RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for th
 - **v1.1.0** — Interpretable online decision-making: delayed feedback, feature identity, drift consensus, weighted learning, Preview Runtime v3 / Handler v2.
 - **v1.2.0** — Release admission and full-platform post-verification: admission gate, native RISC-V/LoongArch/FreeBSD/Windows verification, index schema v3 with `targetLibc`.
 - **v1.3.0** — Product-surface drift gates, Stable/Preview version convergence, TrustMetadata v1 key lifecycle, offline/released conformance, real fuzz harnesses, CycloneDX/SPDX SBOMs, and FTRL resource diagnostics.
+- **v1.5.0** — Stateful Runtime v3 production qualification boundaries, hard resource limits, structured health/diagnostics, state rollback, and post-push simulated consumer/fault qualification harnesses.
 
 The current 1.x line does not implement full deep learning; the future direction is "frozen neural encoder + RillML online adaptive head" (e.g., DL embedding → LinearRegression / LogisticRegression / LinUCB / Bandit → online adaptation), with an `inference-provider` abstraction reserved in the architecture. RillML is not intended to become a PyTorch/tinygrad replacement.
 

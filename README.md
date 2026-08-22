@@ -189,7 +189,7 @@ cargo add rill-ml --features serde
 因此 `cargo install rill-runtime` 行为与官方 GitHub 二进制一致。如需 WASM-free 构建：
 `cargo install rill-runtime --no-default-features`（无法加载 `.rillhandler`）。
 
-版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.3.0`，Preview 组为 `0.15.0`。
+版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.5.0`，Preview 组为 `0.15.0`。
 
 **环境要求：** Rust 1.94+（Edition 2024），无需 nightly。
 
@@ -400,6 +400,7 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](
 - **v1.1.0** — 可解释在线决策：延迟反馈、特征身份、漂移共识、带权学习与 Preview Runtime v3/Handler v2。
 - **v1.2.0** — 发布准入与全平台复验：发布准入门禁、RISC-V/LoongArch/FreeBSD/Windows 原生复验、索引 schema v3 与 `targetLibc`。
 - **v1.3.0** — 产品面一致性门禁、Stable/Preview 版本收敛、TrustMetadata v1 密钥轮换生命周期、离线/已发布 Conformance Kit、真实 fuzz harness、CycloneDX/SPDX SBOM 与 FTRL 资源诊断。
+- **v1.5.0** — Stateful Runtime v3 生产资格边界、hard resource limits、结构化 health/diagnostics、状态回滚与后置 simulated consumer/fault qualification harness。
 
 当前 1.x 不实现完整深度学习；未来方向是"冻结的神经编码器 + RillML 在线自适应头"（如 DL embedding → LinearRegression / LogisticRegression / LinUCB / Bandit → online adaptation），并在架构上预留 `inference-provider` 抽象。RillML 不应变成 PyTorch/tinygrad 的替代品。
 
