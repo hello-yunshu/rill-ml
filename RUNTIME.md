@@ -85,9 +85,11 @@ fail-closed，不会提交 Runtime 持有的状态。
 Release-index schema v3 remains frozen. Consumers that need rotation and
 rollback protection can opt into `TrustMetadataV1` plus the signed
 `SignedReleaseIndexWithGenerationV1` envelope. It supports current/next key
-overlap, validity windows, revocation, emergency revoke and a monotonic
-release-generation floor; malformed or stale metadata fails closed. Migration
-steps are documented in [`docs/TRUST_KEY_LIFECYCLE_V1.md`](docs/TRUST_KEY_LIFECYCLE_V1.md).
+overlap, validity windows, revocation, emergency revoke, and separate
+metadata/release monotonic floors. Consumers pass their persisted
+`TrustVerificationFloorV1` and same-generation metadata digest; malformed,
+stale, or conflicting metadata fails closed. Migration steps are documented in
+[`docs/TRUST_KEY_LIFECYCLE_V1.md`](docs/TRUST_KEY_LIFECYCLE_V1.md).
 
 模型包保存经过签名的不可变参数；在线学习状态和具体业务语义由宿主应用管理。
 

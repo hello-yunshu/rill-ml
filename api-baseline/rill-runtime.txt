@@ -73,6 +73,8 @@ pub rill_runtime::ReleaseIndexError::Canonical(rill_runtime::ArchiveError)
 pub rill_runtime::ReleaseIndexError::Downgrade
 pub rill_runtime::ReleaseIndexError::Json(serde_json::error::Error)
 pub rill_runtime::ReleaseIndexError::Manifest(alloc::string::String)
+pub rill_runtime::ReleaseIndexError::MetadataConflict
+pub rill_runtime::ReleaseIndexError::MetadataDowngrade
 pub rill_runtime::ReleaseIndexError::Signature
 pub rill_runtime::ReleaseIndexError::TrustMetadata(alloc::string::String)
 pub rill_runtime::ReleaseIndexError::UnknownKey
@@ -242,4 +244,5 @@ pub fn rill_runtime::load_model_pack<R: alloc::io::read::Read + core::io::seek::
 pub fn rill_runtime::sign_release_index(rill_runtime_protocol::ReleaseIndexPayload, &ed25519_dalek::signing::SigningKey) -> core::result::Result<rill_runtime_protocol::SignedReleaseIndex, rill_runtime::ReleaseIndexError>
 pub fn rill_runtime::sign_release_index_with_generation(rill_runtime_protocol::ReleaseIndexPayload, u64, &ed25519_dalek::signing::SigningKey) -> core::result::Result<rill_runtime_protocol::SignedReleaseIndexWithGenerationV1, rill_runtime::ReleaseIndexError>
 pub fn rill_runtime::verify_release_index(&rill_runtime_protocol::SignedReleaseIndex, &rill_runtime::TrustStore) -> core::result::Result<(), rill_runtime::ReleaseIndexError>
-pub fn rill_runtime::verify_release_index_with_trust_metadata(&rill_runtime_protocol::SignedReleaseIndexWithGenerationV1, &rill_runtime_protocol::TrustMetadataV1, u64) -> core::result::Result<(), rill_runtime::ReleaseIndexError>
+pub fn rill_runtime::trust_metadata_digest(&rill_runtime_protocol::TrustMetadataV1) -> core::result::Result<alloc::string::String, rill_runtime::ReleaseIndexError>
+pub fn rill_runtime::verify_release_index_with_trust_metadata(&rill_runtime_protocol::SignedReleaseIndexWithGenerationV1, &rill_runtime_protocol::TrustMetadataV1, &rill_runtime_protocol::TrustVerificationFloorV1, u64) -> core::result::Result<(), rill_runtime::ReleaseIndexError>

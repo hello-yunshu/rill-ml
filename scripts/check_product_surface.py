@@ -70,12 +70,25 @@ def run(root: Path) -> dict[str, object]:
     readme_en = read(root, "README.en.md")
     cli = read(root, "crates/rill-runtime/src/bin/rill-runtime.rs")
     protocol = read(root, "crates/rill-runtime-protocol/src/lib.rs")
+    release_plan = read(root, "release-plan.toml")
 
     checks = [
         check(
             package_version == stable_version,
             "version.workspace-release-plan",
             f"Cargo workspace={package_version}, release-plan={stable_version}",
+        ),
+        check(
+            f'version = "{stable_version}"' in release_plan
+            and f'version = "{preview_version}"' in release_plan
+            and all(f'"{crate}"' in release_plan for crate in (
+                "rill-handler-api",
+                "rill-runtime-protocol",
+                "rill-ml",
+                "rill-runtime",
+            )),
+            "release-plan.stable-preview-groups",
+            "release-plan.toml declares the four Stable crates and the independent Preview group",
         ),
         check(
             f"当前 Stable 组版本为 `{stable_version}`" in readme
@@ -110,10 +123,26 @@ def run(root: Path) -> dict[str, object]:
             "production CLI rejects an omitted handler and marks the built-in path deprecated",
         ),
         check(
+            'name = "rill-runtime"' in cli
+            and "enum Command" in cli
+            and "Serve" in cli
+            and 'long = "model-trust-key"' in cli
+            and "pack: PathBuf" in cli,
+            "cli.help.surface",
+            "production CLI source declares rill-runtime, serve, model trust, and pack surfaces checked by CI help smoke",
+        ),
+        check(
             re.search(r"pub const RUNTIME_API_VERSION:\s*u32\s*=\s*2\s*;", protocol) is not None
+            and re.search(r"pub const RELEASE_INDEX_SCHEMA_VERSION:\s*u32\s*=\s*3\s*;", protocol) is not None
             and "pub mod v3;" in protocol,
             "protocol.stable-v2-preview-v3",
-            "Stable runtime API remains v2 while the separate v3 module exists",
+            "Stable runtime API remains v2, release-index schema remains v3, and the separate Preview v3 module exists",
+        ),
+        check(
+            "Release-index schema v3 remains frozen" in runtime_doc
+            and "SignedReleaseIndexWithGenerationV1" in runtime_doc,
+            "release-index.docs",
+            "RUNTIME.md describes the frozen release-index schema and lifecycle envelope",
         ),
         check(
             "V3 当前是 opt-in 的开发接口" not in runtime_doc

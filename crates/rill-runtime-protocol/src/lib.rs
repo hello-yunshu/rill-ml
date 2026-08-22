@@ -504,7 +504,8 @@ impl TrustKeyMetadataV1 {
 ///
 /// The metadata is signed/distributed by the consumer's trust root. It is not
 /// embedded into release-index schema v3. `minimumReleaseGeneration` is the
-/// consumer's monotonic rollback floor and must only move forward.
+/// metadata publisher's release floor; consumers enforce their independent
+/// release floor through [`TrustVerificationFloorV1`].
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TrustMetadataV1 {
@@ -512,6 +513,22 @@ pub struct TrustMetadataV1 {
     pub metadata_generation: u64,
     pub minimum_release_generation: u64,
     pub keys: Vec<TrustKeyMetadataV1>,
+}
+
+/// Monotonic state persisted by a consumer that opts into trust-metadata
+/// lifecycle verification.
+///
+/// RillML does not persist this value on behalf of a host. A consumer should
+/// atomically replace it only after accepting authenticated metadata. When a
+/// digest is present, the metadata bytes at the same generation are also
+/// pinned, so a same-generation content fork fails closed.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TrustVerificationFloorV1 {
+    pub minimum_metadata_generation: u64,
+    pub minimum_release_generation: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata_digest: Option<String>,
 }
 
 impl TrustMetadataV1 {

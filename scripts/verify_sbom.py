@@ -37,6 +37,8 @@ def identity(value: object, version: str, tag: str, commit: str) -> list[str]:
                 errors.append(f"invalid artifact SHA-256 for {item['name']}")
             if not isinstance(item.get("size"), int) or item["size"] <= 0:
                 errors.append(f"invalid artifact size for {item['name']}")
+    if not isinstance(value.get("dependencyCount"), int) or value["dependencyCount"] <= 0:
+        errors.append("release identity must include a positive dependency count")
     return errors
 
 
@@ -48,6 +50,27 @@ def verify_cyclonedx(path: Path, version: str, tag: str, commit: str) -> list[st
     component = value.get("metadata", {}).get("component", {})
     if component.get("version") != version:
         errors.append("CycloneDX metadata version mismatch")
+    if not isinstance(value.get("metadata", {}).get("timestamp"), str):
+        errors.append("CycloneDX metadata timestamp is missing")
+    components = value.get("components")
+    dependencies = value.get("dependencies")
+    if not isinstance(components, list) or not components:
+        errors.append("CycloneDX must contain dependency components")
+    if not isinstance(dependencies, list) or not dependencies:
+        errors.append("CycloneDX must contain dependency relationships")
+    else:
+        refs = {item.get("bom-ref") for item in components if isinstance(item, dict)}
+        refs.update(item.get("ref") for item in dependencies if isinstance(item, dict))
+        if component.get("bom-ref") not in refs:
+            errors.append("CycloneDX root component is not referenced by dependencies")
+        for item in dependencies:
+            if not isinstance(item, dict) or (
+                "dependsOn" in item and not isinstance(item.get("dependsOn"), list)
+            ):
+                errors.append("CycloneDX dependency entry is malformed")
+                continue
+            if any(dependency not in refs for dependency in item.get("dependsOn", [])):
+                errors.append("CycloneDX dependency points to an unknown component")
     metadata_props = properties(value.get("metadata", {}).get("properties"))
     if metadata_props.get("rillml.release.tag") != tag or metadata_props.get("rillml.release.commit") != commit:
         errors.append("CycloneDX metadata release identity mismatch")
@@ -66,6 +89,27 @@ def verify_spdx(path: Path, version: str, tag: str, commit: str) -> list[str]:
         errors.append("SPDX format or document name mismatch")
     if value.get("documentNamespace") != f"https://rillml.dev/sbom/{tag}/{commit}":
         errors.append("SPDX document namespace mismatch")
+    creation = value.get("creationInfo")
+    if not isinstance(creation, dict) or not isinstance(creation.get("created"), str):
+        errors.append("SPDX creationInfo.created is missing")
+    packages = value.get("packages")
+    relationships = value.get("relationships")
+    if not isinstance(packages, list) or not packages:
+        errors.append("SPDX must contain dependency packages")
+    if not isinstance(relationships, list) or not any(
+        isinstance(item, dict) and item.get("relationshipType") == "DESCRIBES"
+        for item in relationships or []
+    ):
+        errors.append("SPDX document must describe a root package")
+    for package in packages or []:
+        if not isinstance(package, dict):
+            errors.append("SPDX package entry is malformed")
+            continue
+        for field in ("SPDXID", "name", "versionInfo", "downloadLocation", "licenseConcluded", "licenseDeclared", "copyrightText"):
+            if not isinstance(package.get(field), str):
+                errors.append(f"SPDX package is missing {field}")
+        if package.get("filesAnalyzed") is not False:
+            errors.append("SPDX package filesAnalyzed must be false for cargo inventory packages")
     annotations = value.get("annotations", [])
     comments = [item.get("comment") for item in annotations if isinstance(item, dict)]
     try:

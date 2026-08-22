@@ -728,6 +728,7 @@ version = "0.0.0"
 dependencies = [
  "arbitrary",
  "ed25519-dalek",
+ "hex",
  "libfuzzer-sys",
  "rill-ml",
  "rill-runtime",

@@ -114,9 +114,8 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Install wasm-tools
-        # Compatible-range policy: matches the `wasm-handler` CI job.
-        # `~1.254.0` allows patch upgrades within the 1.254 minor line.
-        run: cargo install wasm-tools --locked --version "~1.254.0"
+        # Exact release-tool version shared with the release packaging job.
+        run: cargo install wasm-tools --locked --version "1.254.0"
       - name: Record resolved wasm-tools version
         run: wasm-tools --version
       - name: Runtime --help smoke (aarch64)
@@ -213,9 +212,9 @@ jobs:
       - name: Record resolved nightly toolchain version
         run: rustc --version
       - name: Install cargo-public-api
-        # Compatible-range policy: ``~0.52`` allows patch upgrades within
-        # the 0.52 minor line; ``--locked`` pins transitive dependencies.
-        run: cargo install cargo-public-api --locked --version "~0.52"
+        # Exact release-tool version; bump deliberately with the reviewed API
+        # baselines when the generator changes.
+        run: cargo install cargo-public-api --locked --version "0.52.0"
       - name: Record resolved cargo-public-api version
         run: cargo public-api --version
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
@@ -232,7 +231,7 @@ jobs:
     # changing function signatures, removing public fields).
     #
     # The baseline is the most recently published Stable release
-    # (1.0.0) on crates.io. The four Stable crates are checked
+    # (1.2.0) on crates.io. The four Stable crates are checked
     # individually:
     #   rill-ml, rill-runtime-protocol, rill-handler-api, rill-runtime
     #
@@ -255,34 +254,32 @@ jobs:
       - name: Record resolved nightly toolchain version
         run: rustc --version
       - name: Install cargo-semver-checks
-        # Compatible-range policy: ``~0.49`` allows patch upgrades within
-        # the 0.49 minor line; ``--locked`` pins transitive dependencies.
+        # Exact release-tool version; the nightly/tool adapter pair is reviewed
+        # together because rustdoc JSON changes can invalidate the gate.
         # v0.49+ is required because the workspace uses ``resolver = "3"``
         # (Edition 2024); older versions like 0.35 fail to parse the
         # ``Cargo.toml`` with "unknown variant `3`".
-        run: cargo install cargo-semver-checks --locked --version "~0.49"
+        run: cargo install cargo-semver-checks --locked --version "0.49.0"
       - name: Record resolved cargo-semver-checks version
         run: cargo semver-checks --version
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      # 1.2.0 admission: cargo-semver-checks MUST verify 1.1.0 -> 1.2.0
-      # (the most recent published Stable baseline) AND 1.0.0 -> 1.2.0 (double
-      # baseline sanity). Only baselining against 1.0.0 would miss a regression
-      # introduced in 1.1.x, so 1.1.0 is the authoritative gate.
-      - name: Run semver-checks for rill-ml (baseline 1.1.0)
-        run: cargo semver-checks --package rill-ml --baseline-version 1.1.0 --all-features
-      - name: Run semver-checks for rill-handler-api (baseline 1.1.0)
-        run: cargo semver-checks --package rill-handler-api --baseline-version 1.1.0
-      - name: Run semver-checks for rill-runtime-protocol (baseline 1.1.0)
-        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.1.0
-      - name: Run semver-checks for rill-runtime (baseline 1.1.0)
-        run: cargo semver-checks --package rill-runtime --baseline-version 1.1.0
-      - name: Run semver-checks for rill-ml (baseline 1.0.0)
+      # 1.3.0 admission: the immediately previous Stable release 1.2.0 is
+      # authoritative. Historical 1.1.0 and 1.0.0 checks remain sanity gates.
+      - name: Run semver-checks for rill-ml (baseline 1.2.0)
+        run: cargo semver-checks --package rill-ml --baseline-version 1.2.0 --all-features
+      - name: Run semver-checks for rill-handler-api (baseline 1.2.0)
+        run: cargo semver-checks --package rill-handler-api --baseline-version 1.2.0
+      - name: Run semver-checks for rill-runtime-protocol (baseline 1.2.0)
+        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.2.0
+      - name: Run semver-checks for rill-runtime (baseline 1.2.0)
+        run: cargo semver-checks --package rill-runtime --baseline-version 1.2.0
+      - name: Run historical semver sanity for rill-ml (baseline 1.0.0)
         run: cargo semver-checks --package rill-ml --baseline-version 1.0.0 --all-features
-      - name: Run semver-checks for rill-handler-api (baseline 1.0.0)
+      - name: Run historical semver sanity for rill-handler-api (baseline 1.0.0)
         run: cargo semver-checks --package rill-handler-api --baseline-version 1.0.0
-      - name: Run semver-checks for rill-runtime-protocol (baseline 1.0.0)
+      - name: Run historical semver sanity for rill-runtime-protocol (baseline 1.0.0)
         run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.0.0
-      - name: Run semver-checks for rill-runtime (baseline 1.0.0)
+      - name: Run historical semver sanity for rill-runtime (baseline 1.0.0)
         run: cargo semver-checks --package rill-runtime --baseline-version 1.0.0
 
   install-smoke:
@@ -394,14 +391,8 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Install wasm-tools
-        # Compatible-range policy: ``~1.254.0`` allows patch upgrades
-        # within the 1.254 minor line; ``--locked`` pins transitive
-        # dependencies for the install. This is NOT exact pinning —
-        # different CI runs may resolve different patch versions when
-        # a new patch is published. Bump together with the release
-        # job's wasm-tools range when upgrading. Patch upgrades are
-        # allowed so security fixes land without a manual bump.
-        run: cargo install wasm-tools --locked --version "~1.254.0"
+        # Exact release-tool version shared with the release packaging job.
+        run: cargo install wasm-tools --locked --version "1.254.0"
       - name: Record resolved wasm-tools version
         run: wasm-tools --version
       - name: Build echo handler component
@@ -552,9 +543,7 @@ jobs:
           pip install --upgrade pip
           # Install the Python build toolchain.
           # ``requirements-dev.txt`` is the source of truth for the
-          # maturin and pytest compatible-range constraints used by CI
-          # and release. This is NOT exact pinning — ``pip install``
-          # resolves the latest matching patch at install time.
+          # maturin and pytest exact versions used by CI and release.
           pip install -r scripts/requirements-dev.txt
           # Record the actually resolved versions for traceability.
           maturin --version
@@ -926,7 +915,7 @@ jobs:
           # cache" warnings). Consistent with the rust-cache key below.
           cache-key: ${{ matrix.rust_target }}
       - name: Install cargo-zigbuild
-        run: pip3 install cargo-zigbuild
+        run: pip3 install --disable-pip-version-check "cargo-zigbuild==0.20.1"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: runtime-${{ matrix.rust_target }}-zigbuild
@@ -989,7 +978,7 @@ jobs:
           # cache" warnings). Consistent with the rust-cache key below.
           cache-key: ${{ matrix.rust_target }}
       - name: Install cargo-zigbuild
-        run: pip3 install cargo-zigbuild
+        run: pip3 install --disable-pip-version-check "cargo-zigbuild==0.20.1"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: pm-adapter-${{ matrix.rust_target }}-zigbuild
@@ -1165,13 +1154,8 @@ jobs:
             --model models/example-default/model.json \
             --output "dist/example-default-${VERSION}.rillpack"
       - name: Install wasm-tools
-        # Compatible-range policy: matches the CI build in the
-        # ``wasm-handler`` job. ``~1.254.0`` allows patch upgrades
-        # within the 1.254 minor line; ``--locked`` pins transitive
-        # dependencies for the install. This is NOT exact pinning —
-        # different release runs may resolve different patch versions
-        # when a new patch is published.
-        run: cargo install wasm-tools --locked --version "~1.254.0"
+        # Exact release-tool version shared with the CI build job.
+        run: cargo install wasm-tools --locked --version "1.254.0"
       - name: Record resolved wasm-tools version
         run: wasm-tools --version
       - name: Build and sign echo handler package
@@ -1319,6 +1303,21 @@ jobs:
             --version "$VERSION" \
             --tag "$RELEASE_TAG" \
             --commit "$(git rev-parse HEAD)"
+      - name: Install pinned standard SBOM validators
+        run: |
+          python3 -m pip install --disable-pip-version-check -r scripts/requirements-sbom.txt
+          npm install --global --ignore-scripts @cyclonedx/cyclonedx-cli@0.29.0
+      - name: Validate published SBOMs against standards
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          set -euo pipefail
+          cyclonedx validate \
+            --input-file "dist/rill-ml-${VERSION}.cdx.json" \
+            --input-format json \
+            --input-version 1.5
+          python3 scripts/validate_sbom_standards.py \
+            --spdx "dist/rill-ml-${VERSION}.spdx.json"
   release-host-smoke:
     name: Independent released-asset host smoke
     if: github.event_name == 'workflow_dispatch'
@@ -1737,13 +1736,10 @@ jobs:
         if: steps.python_version_check.outputs.should_publish == 'true'
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         if: steps.python_version_check.outputs.should_publish == 'true'
-      - name: Install Python build toolchain (compatible range)
+      - name: Install Python build toolchain (exact versions)
         if: steps.python_version_check.outputs.should_publish == 'true'
-        # ``requirements-dev.txt`` is the source of truth for the
-        # maturin and pytest compatible-range constraints used by both
-        # CI and release. This is NOT exact pinning — ``pip install``
-        # resolves the latest matching patch at install time. CI runs
-        # on different days may pick different patch versions.
+        # ``requirements-dev.txt`` is the exact tool version source of truth
+        # shared by CI and release.
         run: |
           pip install -r scripts/requirements-dev.txt
           # Record the actually resolved versions for release traceability.
