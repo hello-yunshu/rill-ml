@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ inputs.tag }}
       - name: Download published SBOMs
         env:
@@ -43,7 +44,12 @@ jobs:
       - name: Install pinned standard SBOM validators
         run: |
           python3 -m pip install --disable-pip-version-check -r scripts/requirements-sbom.txt
-          npm install --global --ignore-scripts @cyclonedx/cyclonedx-cli@0.29.0
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$RUNNER_TEMP/cyclonedx" \
+            "https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.29.0/cyclonedx-linux-x64"
+          echo "411bd30d28ca705500f0b5a7f4a896749cad1b082deb5245ece7b386e496c48c  $RUNNER_TEMP/cyclonedx" | sha256sum --check --status
+          chmod +x "$RUNNER_TEMP/cyclonedx"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - name: Validate SBOMs against CycloneDX and SPDX standards
         env:
           VERSION: ${{ inputs.tag }}
