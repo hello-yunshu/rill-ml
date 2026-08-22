@@ -11,6 +11,7 @@ independent external-host smoke runner.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -33,7 +34,7 @@ EXPECTED_PROTOCOL_CASES = {
     "handler-trap",
     "invalid-output",
 }
-EXPECTED_RELEASE_VERSION = "1.3.0"
+EXPECTED_RELEASE_VERSION = "1.5.0"
 EXPECTED_ARTIFACTS = {
     ("runtime", "rill-runtime"): {"targetOs": "linux", "targetArch": "x86_64", "targetLibc": "gnu"},
     ("model", "rillml.example.default"): {"targetOs": None, "targetArch": None, "targetLibc": None},
@@ -210,17 +211,84 @@ def not_run_report() -> tuple[dict[str, object], int]:
     )
 
 
+def candidate_report(args: argparse.Namespace) -> tuple[dict[str, object], int]:
+    """Run bounded v3 qualification against a SHA-bound candidate binary."""
+    required = (args.runtime, args.expected_version, args.candidate_commit)
+    if any(value is None for value in required):
+        return (
+            {
+                "tool": "rillml-conformance",
+                "mode": "candidate",
+                "status": "BLOCKED",
+                "evidenceType": "candidate-artifact",
+                "checks": [result("candidate-binding", "BLOCKED", "--runtime, --expected-version and --candidate-commit are required")],
+            },
+            2,
+        )
+    runtime = Path(args.runtime)
+    if not runtime.is_file():
+        return (
+            {
+                "tool": "rillml-conformance",
+                "mode": "candidate",
+                "status": "FAIL",
+                "evidenceType": "candidate-artifact",
+                "checks": [result("candidate-binding", "FAIL", f"candidate binary does not exist: {runtime}")],
+            },
+            1,
+        )
+    digest = hashlib.sha256(runtime.read_bytes()).hexdigest()
+    version_probe = subprocess.run([str(runtime), "--version"], capture_output=True, text=True, check=False)
+    version_ok = args.expected_version in (version_probe.stdout + version_probe.stderr)
+    command = [
+        sys.executable,
+        str(ROOT / "scripts/run_runtime_final_qualification.py"),
+        "--runtime",
+        str(runtime),
+        "--observations",
+        str(args.observations),
+        "--json",
+    ]
+    completed = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
+    try:
+        qualification = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        qualification = {"status": "FAIL", "error": completed.stdout or completed.stderr}
+    binding_status = "PASS" if version_ok and completed.returncode == 0 else "FAIL"
+    report = {
+        "tool": "rillml-conformance",
+        "mode": "candidate",
+        "status": binding_status,
+        "evidenceType": "candidate-artifact",
+        "candidateCommit": args.candidate_commit,
+        "candidatePath": str(runtime),
+        "candidateSha256": digest,
+        "candidateVersion": args.expected_version,
+        "checks": [
+            result("candidate-version", "PASS" if version_ok else "FAIL", version_probe.stdout.strip() or version_probe.stderr.strip()),
+            result("candidate-v3-qualification", binding_status, qualification.get("status", "FAIL")),
+        ],
+        "qualification": qualification,
+    }
+    return report, 0 if binding_status == "PASS" else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("offline", "released", "not-run"), default="offline")
+    parser.add_argument("--mode", choices=("offline", "candidate", "released", "not-run"), default="offline")
     parser.add_argument("--index-url")
     parser.add_argument("--expected-version")
     parser.add_argument("--rill-pack-bin", type=Path, default=ROOT / "target/release/rill-pack")
     parser.add_argument("--log", type=Path, default=ROOT / "conformance/released-smoke.json")
+    parser.add_argument("--runtime", type=Path)
+    parser.add_argument("--candidate-commit")
+    parser.add_argument("--observations", type=int, default=3)
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args()
     if args.mode == "offline":
         report, exit_code = offline_report(), 0
+    elif args.mode == "candidate":
+        report, exit_code = candidate_report(args)
     elif args.mode == "released":
         report, exit_code = released_report(args)
     else:
