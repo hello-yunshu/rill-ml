@@ -12,8 +12,10 @@ use rill_handler_api::v2::{
     HANDLER_API_VERSION, MAX_EVENT_BYTES, MAX_OUTPUT_BYTES, MAX_STATE_BYTES,
 };
 use rill_runtime_protocol::v3::{
-    EnvelopeV3, IdentityV3, PREVIEW_CHANNEL_V3, RUNTIME_API_VERSION_V3, ResourceProfileV1,
-    RuntimeErrorCodeV3, RuntimeErrorV3, RuntimeRequestV3, RuntimeResponseBodyV3, RuntimeResponseV3,
+    EnvelopeV3, IdentityV3, PREVIEW_CHANNEL_V3, PreviewErrorCodeV3, RUNTIME_API_VERSION_V3,
+    ResourceProfileV1, RuntimeErrorCodeV3, RuntimeErrorV3, RuntimeErrorV3Preview, RuntimeRequestV3,
+    RuntimeResponseBodyV3, RuntimeResponseBodyV3Preview, RuntimeResponseV3,
+    RuntimeResponseV3Preview,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -577,7 +579,6 @@ impl StatefulRuntimeEngineV3 {
                     capabilities: self.config.capabilities.clone(),
                     feature_schema_hash: self.config.feature_schema_hash.clone(),
                     handler_api_version: HANDLER_API_VERSION,
-                    channel: Some(PREVIEW_CHANNEL_V3.into()),
                 },
             ),
             RuntimeRequestV3::Health {} => self.response(
@@ -585,8 +586,6 @@ impl StatefulRuntimeEngineV3 {
                 self.current_generation(),
                 RuntimeResponseBodyV3::Health {
                     healthy: self.is_healthy(),
-                    status: Some(self.health_status()),
-                    reason_codes: self.health_reason_codes(),
                 },
             ),
             request => self.handle_stateful(envelope, request, now_unix_ms),
@@ -617,6 +616,115 @@ impl StatefulRuntimeEngineV3 {
             }
         };
         self.handle_at(envelope, now_unix_ms)
+    }
+
+    /// Handle the additive Preview response surface. The frozen v3 response
+    /// type remains available through `handle_at` for library consumers.
+    pub fn handle_preview_at(
+        &self,
+        envelope: EnvelopeV3,
+        now_unix_ms: u64,
+    ) -> RuntimeResponseV3Preview {
+        let is_decide = matches!(envelope.request, RuntimeRequestV3::Decide { .. });
+        let response = self.handle_at(envelope, now_unix_ms);
+        let body = match response.response {
+            RuntimeResponseBodyV3::Handshake {
+                capabilities,
+                feature_schema_hash,
+                handler_api_version,
+            } => RuntimeResponseBodyV3Preview::Handshake {
+                capabilities,
+                feature_schema_hash,
+                handler_api_version,
+                channel: PREVIEW_CHANNEL_V3.into(),
+            },
+            RuntimeResponseBodyV3::Health { healthy } => RuntimeResponseBodyV3Preview::Health {
+                healthy,
+                status: if healthy {
+                    "healthy".into()
+                } else {
+                    "failed_closed".into()
+                },
+                reason_codes: self.health_reason_codes().unwrap_or_default(),
+            },
+            RuntimeResponseBodyV3::Result { output } => RuntimeResponseBodyV3Preview::Result {
+                output,
+                decision_id: is_decide.then_some(response.request_id.clone()),
+                decision_generation: is_decide.then_some(response.state_generation),
+            },
+            RuntimeResponseBodyV3::Inspection { summary } => {
+                RuntimeResponseBodyV3Preview::Inspection { summary }
+            }
+            RuntimeResponseBodyV3::Snapshot {
+                state_schema_version,
+                state_checksum,
+                state,
+            } => RuntimeResponseBodyV3Preview::Snapshot {
+                state_schema_version,
+                state_checksum,
+                state,
+            },
+            RuntimeResponseBodyV3::Reset { reset } => RuntimeResponseBodyV3Preview::Reset { reset },
+            RuntimeResponseBodyV3::Error { error } => RuntimeResponseBodyV3Preview::Error {
+                error: RuntimeErrorV3Preview {
+                    code: preview_error_code(error.code, &error.message),
+                    message: error.message,
+                    retryable: preview_error_code(error.code, "").is_retryable(),
+                },
+            },
+        };
+        RuntimeResponseV3Preview {
+            request_id: response.request_id,
+            api_version: response.api_version,
+            runtime_identity: response.runtime_identity,
+            model_generation: response.model_generation,
+            state_generation: response.state_generation,
+            response: body,
+        }
+    }
+
+    pub fn handle_preview_json_at(
+        &self,
+        message: &[u8],
+        now_unix_ms: u64,
+    ) -> RuntimeResponseV3Preview {
+        if message.len() > rill_runtime_protocol::MAX_MESSAGE_BYTES {
+            return self.preview_error_response(
+                "invalid-request".into(),
+                PreviewErrorCodeV3::PayloadTooLarge,
+                "request exceeds the IPC message limit",
+            );
+        }
+        match serde_json::from_slice::<EnvelopeV3>(message) {
+            Ok(envelope) => self.handle_preview_at(envelope, now_unix_ms),
+            Err(_) => self.preview_error_response(
+                "invalid-request".into(),
+                PreviewErrorCodeV3::InvalidJson,
+                "request is not valid IPC V3 JSON",
+            ),
+        }
+    }
+
+    fn preview_error_response(
+        &self,
+        request_id: String,
+        code: PreviewErrorCodeV3,
+        message: &str,
+    ) -> RuntimeResponseV3Preview {
+        RuntimeResponseV3Preview {
+            request_id,
+            api_version: RUNTIME_API_VERSION_V3,
+            runtime_identity: self.config.runtime_identity.clone(),
+            model_generation: self.config.model_generation,
+            state_generation: self.current_generation(),
+            response: RuntimeResponseBodyV3Preview::Error {
+                error: RuntimeErrorV3Preview {
+                    code,
+                    message: message.into(),
+                    retryable: code.is_retryable(),
+                },
+            },
+        }
     }
 
     fn handle_stateful(
@@ -694,7 +802,7 @@ impl StatefulRuntimeEngineV3 {
             {
                 return self.error_response(
                     request_id,
-                    RuntimeErrorCodeV3::DuplicateDecision,
+                    RuntimeErrorCodeV3::Internal,
                     "decision id was already used",
                     state.snapshot.state_generation,
                 );
@@ -704,7 +812,7 @@ impl StatefulRuntimeEngineV3 {
             {
                 return self.error_response(
                     request_id,
-                    RuntimeErrorCodeV3::CapacityExceeded,
+                    RuntimeErrorCodeV3::Internal,
                     "pending decision capacity is exhausted",
                     state.snapshot.state_generation,
                 );
@@ -727,7 +835,7 @@ impl StatefulRuntimeEngineV3 {
             let Some(entry) = state.pending_decisions.get(decision_id) else {
                 return self.error_response(
                     request_id,
-                    RuntimeErrorCodeV3::UnknownDecision,
+                    RuntimeErrorCodeV3::Internal,
                     "decision id is not pending",
                     state.snapshot.state_generation,
                 );
@@ -735,7 +843,7 @@ impl StatefulRuntimeEngineV3 {
             if entry.model_generation != *generation {
                 return self.error_response(
                     request_id,
-                    RuntimeErrorCodeV3::StaleFeedback,
+                    RuntimeErrorCodeV3::IncompatibleGeneration,
                     "feedback generation is stale",
                     state.snapshot.state_generation,
                 );
@@ -865,7 +973,7 @@ impl StatefulRuntimeEngineV3 {
             state.last_error = Some("model state resource limit exceeded".into());
             return self.error_response(
                 request_id,
-                RuntimeErrorCodeV3::CapacityExceeded,
+                RuntimeErrorCodeV3::Internal,
                 "model state resource limit exceeded",
                 state.snapshot.state_generation,
             );
@@ -885,7 +993,7 @@ impl StatefulRuntimeEngineV3 {
             result.next_state,
         );
         state.previous_good = Some(previous_snapshot);
-        let decision_id = if matches!(request, RuntimeRequestV3::Decide { .. }) {
+        if matches!(request, RuntimeRequestV3::Decide { .. }) {
             let entry = DecisionLedgerEntryV3 {
                 decision_id: request_id.clone(),
                 model_generation: self.config.model_generation,
@@ -896,7 +1004,6 @@ impl StatefulRuntimeEngineV3 {
                 outcome_time_unix_ms: None,
             };
             state.pending_decisions.insert(request_id.clone(), entry);
-            Some(request_id.clone())
         } else {
             if let RuntimeRequestV3::Feedback {
                 decision_id,
@@ -926,8 +1033,7 @@ impl StatefulRuntimeEngineV3 {
                     .completed_decisions
                     .insert(entry.decision_id.clone(), entry);
             }
-            None
-        };
+        }
         self.response(
             request_id,
             next_generation,
@@ -937,8 +1043,6 @@ impl StatefulRuntimeEngineV3 {
                 },
                 _ => RuntimeResponseBodyV3::Result {
                     output: result.output,
-                    decision_id: decision_id.clone(),
-                    decision_generation: decision_id.as_ref().map(|_| next_generation),
                 },
             },
         )
@@ -1128,6 +1232,36 @@ fn map_handler_error(kind: StatefulHandlerErrorKindV2) -> (RuntimeErrorCodeV3, &
         | StatefulHandlerErrorKindV2::Internal => {
             (RuntimeErrorCodeV3::Internal, "internal runtime error")
         }
+    }
+}
+
+fn preview_error_code(code: RuntimeErrorCodeV3, message: &str) -> PreviewErrorCodeV3 {
+    match message {
+        "decision id was already used" => PreviewErrorCodeV3::DuplicateDecision,
+        "decision id is not pending" => PreviewErrorCodeV3::UnknownDecision,
+        "feedback generation is stale" => PreviewErrorCodeV3::StaleFeedback,
+        "pending decision capacity is exhausted" => PreviewErrorCodeV3::CapacityExceeded,
+        _ => match code {
+            RuntimeErrorCodeV3::InvalidJson => PreviewErrorCodeV3::InvalidJson,
+            RuntimeErrorCodeV3::InvalidRequestId
+            | RuntimeErrorCodeV3::InvalidClientIdentity
+            | RuntimeErrorCodeV3::IncompatibleApiVersion => PreviewErrorCodeV3::InvalidEnvelope,
+            RuntimeErrorCodeV3::InvalidEnvelope => PreviewErrorCodeV3::InvalidEnvelope,
+            RuntimeErrorCodeV3::PayloadTooLarge => PreviewErrorCodeV3::PayloadTooLarge,
+            RuntimeErrorCodeV3::UnsupportedCapability => PreviewErrorCodeV3::UnsupportedCapability,
+            RuntimeErrorCodeV3::StateMismatch => PreviewErrorCodeV3::StateMismatch,
+            RuntimeErrorCodeV3::ExpiredRequest => PreviewErrorCodeV3::ExpiredRequest,
+            RuntimeErrorCodeV3::IncompatibleGeneration => {
+                PreviewErrorCodeV3::IncompatibleGeneration
+            }
+            RuntimeErrorCodeV3::DuplicateFeedback => PreviewErrorCodeV3::DuplicateFeedback,
+            RuntimeErrorCodeV3::HandlerTimeout => PreviewErrorCodeV3::HandlerTimeout,
+            RuntimeErrorCodeV3::HandlerTrap => PreviewErrorCodeV3::HandlerTrap,
+            RuntimeErrorCodeV3::HandlerOutputTooLarge => PreviewErrorCodeV3::HandlerOutputTooLarge,
+            RuntimeErrorCodeV3::HandlerInvalidOutput => PreviewErrorCodeV3::HandlerInvalidOutput,
+            RuntimeErrorCodeV3::InvalidState => PreviewErrorCodeV3::InvalidState,
+            RuntimeErrorCodeV3::Internal => PreviewErrorCodeV3::Internal,
+        },
     }
 }
 

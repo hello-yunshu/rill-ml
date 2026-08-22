@@ -282,15 +282,62 @@ pub enum RuntimeResponseBodyV3 {
         capabilities: Vec<String>,
         feature_schema_hash: String,
         handler_api_version: u32,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        channel: Option<String>,
     },
     Health {
         healthy: bool,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        status: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        reason_codes: Option<Vec<String>>,
+    },
+    Result {
+        output: serde_json::Value,
+    },
+    Inspection {
+        summary: serde_json::Value,
+    },
+    Snapshot {
+        state_schema_version: u32,
+        state_checksum: String,
+        state: String,
+    },
+    Reset {
+        reset: bool,
+    },
+    Error {
+        error: RuntimeErrorV3,
+    },
+}
+
+/// Additive response surface for the opt-in Preview subprocess. The original
+/// `RuntimeResponseV3` remains frozen; this type carries channel, health and
+/// decision metadata without changing its public enum variants.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimeResponseV3Preview {
+    pub request_id: String,
+    pub api_version: u32,
+    pub runtime_identity: IdentityV3,
+    pub model_generation: u64,
+    pub state_generation: u64,
+    pub response: RuntimeResponseBodyV3Preview,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum RuntimeResponseBodyV3Preview {
+    Handshake {
+        capabilities: Vec<String>,
+        feature_schema_hash: String,
+        handler_api_version: u32,
+        channel: String,
+    },
+    Health {
+        healthy: bool,
+        status: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        reason_codes: Vec<String>,
     },
     Result {
         output: serde_json::Value,
@@ -311,8 +358,52 @@ pub enum RuntimeResponseBodyV3 {
         reset: bool,
     },
     Error {
-        error: RuntimeErrorV3,
+        error: RuntimeErrorV3Preview,
     },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimeErrorV3Preview {
+    pub code: PreviewErrorCodeV3,
+    pub message: String,
+    pub retryable: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PreviewErrorCodeV3 {
+    InvalidJson,
+    InvalidEnvelope,
+    PayloadTooLarge,
+    UnsupportedCapability,
+    StateMismatch,
+    ExpiredRequest,
+    IncompatibleGeneration,
+    DuplicateDecision,
+    DuplicateFeedback,
+    UnknownDecision,
+    StaleFeedback,
+    CapacityExceeded,
+    HandlerTimeout,
+    HandlerTrap,
+    HandlerOutputTooLarge,
+    HandlerInvalidOutput,
+    InvalidState,
+    Internal,
+}
+
+impl PreviewErrorCodeV3 {
+    pub const fn is_retryable(self) -> bool {
+        matches!(
+            self,
+            Self::StateMismatch
+                | Self::ExpiredRequest
+                | Self::HandlerTimeout
+                | Self::CapacityExceeded
+                | Self::Internal
+        )
+    }
 }
 
 /// V3 error object. Code semantics are versioned with V3 and do not alter the
@@ -361,11 +452,6 @@ pub enum RuntimeErrorCodeV3 {
     ExpiredRequest,
     IncompatibleGeneration,
     DuplicateFeedback,
-    DuplicateDecision,
-    UnknownDecision,
-    StaleFeedback,
-    CapacityExceeded,
-    InvalidOutcome,
     HandlerTimeout,
     HandlerTrap,
     HandlerOutputTooLarge,
@@ -378,7 +464,7 @@ impl RuntimeErrorCodeV3 {
     pub const fn is_retryable(self) -> bool {
         matches!(
             self,
-            Self::StateMismatch | Self::HandlerTimeout | Self::Internal | Self::CapacityExceeded
+            Self::StateMismatch | Self::HandlerTimeout | Self::Internal
         )
     }
 }

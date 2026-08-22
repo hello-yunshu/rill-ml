@@ -342,7 +342,7 @@ fn preview_serve(
             .duration_since(UNIX_EPOCH)
             .map_err(|error| CliError::Preview(error.to_string()))?
             .as_millis() as u64;
-        let response = engine.handle_json_at(&line, now);
+        let response = engine.handle_preview_json_at(&line, now);
         if response.state_generation != before.state_generation {
             let snapshot = engine
                 .runtime_snapshot()
