@@ -20,6 +20,13 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+- Added the explicit opt-in `rill-runtime preview-serve --state PATH` IPC v3
+  subprocess surface. Stable `serve` remains v1/v2-only.
+- Added a bounded v3 `ResourceProfileV1`, persistent decision ledger with
+  duplicate/unknown/stale feedback rejection, atomic runtime snapshots,
+  candidate/previous-good activation hooks, rollback, and migration hooks.
+- Preview health/inspect responses now expose machine-readable channel, health,
+  generations, resource utilization, restart count, and rollback availability.
 
 
 

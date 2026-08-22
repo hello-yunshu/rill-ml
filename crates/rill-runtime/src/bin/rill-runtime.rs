@@ -1,9 +1,10 @@
 use std::{
     collections::BTreeMap,
-    fs::File,
+    fs::{self, File, OpenOptions},
     io::{self, BufRead, BufReader, BufWriter, Read, Write},
     path::PathBuf,
     sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use clap::{Parser, Subcommand};
@@ -12,7 +13,9 @@ use ed25519_dalek::VerifyingKey;
 use rill_runtime::effective_capabilities;
 use rill_runtime::{
     HandlerIdentity, HandlerPackError, InvokeHandler, LinearRegressionInvokeHandler,
-    LoadedHandlerPack, ModelPackError, RuntimeEngine, TrustStore, load_model_pack,
+    LoadedHandlerPack, ModelPackError, RuntimeEngine, StatefulHandlerMetadataV2,
+    StatefulHandlerResultV2, StatefulHandlerV2, StatefulRuntimeConfigV3, StatefulRuntimeEngineV3,
+    StatefulRuntimeSnapshotV3, TrustStore, load_model_pack,
 };
 use rill_runtime_protocol::{
     MAX_MESSAGE_BYTES, MIN_RUNTIME_API_VERSION, RUNTIME_API_VERSION, RuntimeRequest,
@@ -56,6 +59,21 @@ enum Command {
         #[arg(long)]
         builtin_handler: Option<String>,
     },
+    /// Explicit opt-in Preview Stateful Runtime v3 subprocess surface.
+    /// Stable `serve` remains v1/v2-only and is never switched implicitly.
+    PreviewServe {
+        /// Atomic runtime snapshot path. The file contains handler state and
+        /// the delayed decision ledger and is preserved across restart.
+        #[arg(long)]
+        state: PathBuf,
+        #[arg(
+            long,
+            default_value = "abababababababababababababababababababababababababababababababab"
+        )]
+        feature_schema_hash: String,
+        #[arg(long, default_value_t = 0)]
+        model_generation: u64,
+    },
     /// Verify and print metadata for a signed model package.
     InspectPack {
         #[arg(long)]
@@ -92,6 +110,8 @@ enum CliError {
     ConflictingHandlerOption,
     #[error("unknown built-in handler: {0}")]
     UnknownBuiltinHandler(String),
+    #[error("preview runtime error: {0}")]
+    Preview(String),
     #[error(
         "no --handler or --builtin-handler specified; \
          pass --handler PATH to load a signed .rillhandler, \
@@ -164,6 +184,11 @@ fn run(cli: Cli) -> Result<(), CliError> {
                 .with_handler_identity(identity);
             serve(engine)
         }
+        Command::PreviewServe {
+            state,
+            feature_schema_hash,
+            model_generation,
+        } => preview_serve(state, feature_schema_hash, model_generation),
         Command::InspectPack { pack, trust_keys } => {
             let trust = parse_trust_store(&trust_keys)?;
             let (_, inspection) = load_model_pack(File::open(pack)?, &trust)?;
@@ -180,6 +205,172 @@ fn run(cli: Cli) -> Result<(), CliError> {
             Ok(())
         }
     }
+}
+
+#[derive(Debug)]
+struct PreviewBuiltinHandler {
+    metadata: StatefulHandlerMetadataV2,
+}
+
+impl PreviewBuiltinHandler {
+    fn new() -> Self {
+        Self {
+            metadata: StatefulHandlerMetadataV2 {
+                id: "rillml.preview.stateful-runtime".into(),
+                version: "3.0.0-preview".into(),
+                api_version: 2,
+                capabilities: vec![
+                    "org.rill.preview.observe".into(),
+                    "org.rill.preview.decide".into(),
+                    "org.rill.preview.feedback".into(),
+                    "org.rill.preview.inspect".into(),
+                    "org.rill.preview.snapshot".into(),
+                    "org.rill.preview.reset".into(),
+                ],
+                state_schema_version: 1,
+            },
+        }
+    }
+}
+
+impl StatefulHandlerV2 for PreviewBuiltinHandler {
+    fn metadata(&self) -> &StatefulHandlerMetadataV2 {
+        &self.metadata
+    }
+
+    fn handle(
+        &self,
+        event_json: &[u8],
+        current_state: &[u8],
+        _deterministic_seed: Option<u64>,
+    ) -> Result<StatefulHandlerResultV2, rill_runtime::StatefulHandlerErrorV2> {
+        let mut state: serde_json::Value = serde_json::from_slice(current_state).map_err(|_| {
+            rill_runtime::StatefulHandlerErrorV2::new(
+                rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+            )
+        })?;
+        let event: serde_json::Value = serde_json::from_slice(event_json).map_err(|_| {
+            rill_runtime::StatefulHandlerErrorV2::new(
+                rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+            )
+        })?;
+        let method = event
+            .get("method")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        let key = match method {
+            "observe" => "observations",
+            "decide" => "decisions",
+            "feedback" => "feedback",
+            _ => "inspections",
+        };
+        let next = state
+            .get(key)
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+            + 1;
+        state[key] = serde_json::json!(next);
+        let output = serde_json::json!({
+            "accepted": true,
+            "method": method,
+            "stateCounters": state,
+        });
+        Ok(StatefulHandlerResultV2 {
+            output,
+            next_state: serde_json::to_vec(&state).map_err(|_| {
+                rill_runtime::StatefulHandlerErrorV2::new(
+                    rill_runtime::StatefulHandlerErrorKindV2::Internal,
+                )
+            })?,
+        })
+    }
+}
+
+fn preview_serve(
+    state_path: PathBuf,
+    feature_schema_hash: String,
+    model_generation: u64,
+) -> Result<(), CliError> {
+    let handler = Arc::new(PreviewBuiltinHandler::new());
+    let config = StatefulRuntimeConfigV3::new(
+        rill_runtime_protocol::v3::IdentityV3 {
+            name: "rill-runtime".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
+        },
+        model_generation,
+        feature_schema_hash,
+        handler.metadata.capabilities.clone(),
+        br#"{"decisions":0,"feedback":0,"observations":0,"inspections":0}"#.to_vec(),
+    );
+    let engine = StatefulRuntimeEngineV3::new(config, handler)
+        .map_err(|error| CliError::Preview(error.to_string()))?;
+    if state_path.exists() {
+        let bytes = fs::read(&state_path)?;
+        let snapshot: StatefulRuntimeSnapshotV3 = serde_json::from_slice(&bytes)
+            .map_err(|error| CliError::Preview(format!("invalid state snapshot: {error}")))?;
+        engine
+            .restore_runtime_snapshot(snapshot)
+            .map_err(|error| CliError::Preview(format!("state recovery rejected: {error}")))?;
+    }
+
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    let mut input = BufReader::new(stdin.lock());
+    let mut output = BufWriter::new(stdout.lock());
+    let mut line = Vec::new();
+    loop {
+        line.clear();
+        let bytes_read = (&mut input)
+            .take((MAX_MESSAGE_BYTES + 2) as u64)
+            .read_until(b'\n', &mut line)?;
+        if bytes_read == 0 {
+            break;
+        }
+        while matches!(line.last(), Some(b'\n' | b'\r')) {
+            line.pop();
+        }
+        if line.is_empty() {
+            continue;
+        }
+        if line.len() > MAX_MESSAGE_BYTES {
+            return Err(CliError::MessageTooLarge);
+        }
+        let before = engine
+            .snapshot()
+            .map_err(|error| CliError::Preview(error.to_string()))?;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|error| CliError::Preview(error.to_string()))?
+            .as_millis() as u64;
+        let response = engine.handle_preview_json_at(&line, now);
+        if response.state_generation != before.state_generation {
+            let snapshot = engine
+                .runtime_snapshot()
+                .map_err(|error| CliError::Preview(error.to_string()))?;
+            write_atomic_snapshot(&state_path, &snapshot)?;
+        }
+        serde_json::to_writer(&mut output, &response)?;
+        output.write_all(b"\n")?;
+        output.flush()?;
+    }
+    Ok(())
+}
+
+fn write_atomic_snapshot(
+    path: &PathBuf,
+    snapshot: &StatefulRuntimeSnapshotV3,
+) -> Result<(), CliError> {
+    let temp = path.with_extension("tmp");
+    let bytes = serde_json::to_vec(snapshot)?;
+    let mut file = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(&temp)?;
+    file.write_all(&bytes)?;
+    file.sync_all()?;
+    fs::rename(temp, path)?;
+    Ok(())
 }
 
 #[cfg(feature = "wasm")]

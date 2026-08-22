@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "scenarios": [
+    {"id":"kill-during-snapshot","category":"state","expected":"fail_closed","seed":101},
+    {"id":"kill-during-migration","category":"state","expected":"preserve_previous_good","seed":102},
+    {"id":"corrupted-state","category":"state","expected":"reject_startup","seed":103},
+    {"id":"truncated-state","category":"state","expected":"reject_startup","seed":104},
+    {"id":"bad-signature","category":"trust","expected":"reject_asset","seed":105},
+    {"id":"bad-sbom-checksum","category":"supply_chain","expected":"reject_asset","seed":106},
+    {"id":"bad-release-index","category":"supply_chain","expected":"reject_asset","seed":107},
+    {"id":"missing-model","category":"startup","expected":"fail_closed","seed":108},
+    {"id":"missing-handler","category":"startup","expected":"fail_closed","seed":109},
+    {"id":"handler-crash","category":"handler","expected":"fail_closed","seed":110},
+    {"id":"handler-timeout","category":"handler","expected":"retryable_error","seed":111},
+    {"id":"handler-memory-pressure","category":"resource","expected":"capacity_exceeded","seed":112},
+    {"id":"malformed-ipc","category":"protocol","expected":"reject_request","seed":113},
+    {"id":"slow-consumer","category":"lifecycle","expected":"deadline_error","seed":114},
+    {"id":"duplicate-decision","category":"ledger","expected":"reject_request","seed":115},
+    {"id":"late-outcome","category":"ledger","expected":"stale_feedback","seed":116},
+    {"id":"disk-full","category":"state","expected":"fail_closed","seed":117},
+    {"id":"readonly-state-dir","category":"state","expected":"fail_closed","seed":118},
+    {"id":"stale-lock","category":"state","expected":"recover_or_fail_closed","seed":119},
+    {"id":"concurrent-startup","category":"lifecycle","expected":"single_active_writer","seed":120}
+  ]
+}

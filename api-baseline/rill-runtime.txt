@@ -90,6 +90,14 @@ pub rill_runtime::StatefulHandlerErrorKindV2::MetadataMismatch
 pub rill_runtime::StatefulHandlerErrorKindV2::OutputTooLarge
 pub rill_runtime::StatefulHandlerErrorKindV2::Timeout
 pub rill_runtime::StatefulHandlerErrorKindV2::Trap
+pub struct rill_runtime::DecisionLedgerEntryV3
+pub rill_runtime::DecisionLedgerEntryV3::created_at_unix_ms: u64
+pub rill_runtime::DecisionLedgerEntryV3::decision_id: alloc::string::String
+pub rill_runtime::DecisionLedgerEntryV3::model_generation: u64
+pub rill_runtime::DecisionLedgerEntryV3::outcome_time_unix_ms: core::option::Option<u64>
+pub rill_runtime::DecisionLedgerEntryV3::reward: core::option::Option<alloc::string::String>
+pub rill_runtime::DecisionLedgerEntryV3::selected_arm: core::option::Option<u32>
+pub rill_runtime::DecisionLedgerEntryV3::state_generation: u64
 pub struct rill_runtime::HandlerIdentity
 pub rill_runtime::HandlerIdentity::effective_capabilities: alloc::vec::Vec<alloc::string::String>
 pub rill_runtime::HandlerIdentity::handler_api_version: u32
@@ -168,16 +176,34 @@ pub rill_runtime::StatefulRuntimeConfigV3::feature_schema_hash: alloc::string::S
 pub rill_runtime::StatefulRuntimeConfigV3::initial_state: alloc::vec::Vec<u8>
 pub rill_runtime::StatefulRuntimeConfigV3::initial_state_generation: u64
 pub rill_runtime::StatefulRuntimeConfigV3::model_generation: u64
+pub rill_runtime::StatefulRuntimeConfigV3::resource_profile: rill_runtime_protocol::v3::ResourceProfileV1
 pub rill_runtime::StatefulRuntimeConfigV3::runtime_identity: rill_runtime_protocol::v3::IdentityV3
 impl rill_runtime::StatefulRuntimeConfigV3
 pub fn rill_runtime::StatefulRuntimeConfigV3::new(rill_runtime_protocol::v3::IdentityV3, u64, alloc::string::String, alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<u8>) -> Self
+pub fn rill_runtime::StatefulRuntimeConfigV3::with_resource_profile(self, rill_runtime_protocol::v3::ResourceProfileV1) -> Self
 pub struct rill_runtime::StatefulRuntimeEngineV3
 impl rill_runtime::StatefulRuntimeEngineV3
 pub fn rill_runtime::StatefulRuntimeEngineV3::handle_at(&self, rill_runtime_protocol::v3::EnvelopeV3, u64) -> rill_runtime_protocol::v3::RuntimeResponseV3
 pub fn rill_runtime::StatefulRuntimeEngineV3::handle_json_at(&self, &[u8], u64) -> rill_runtime_protocol::v3::RuntimeResponseV3
+pub fn rill_runtime::StatefulRuntimeEngineV3::handle_preview_at(&self, rill_runtime_protocol::v3::EnvelopeV3, u64) -> rill_runtime_protocol::v3::RuntimeResponseV3Preview
+pub fn rill_runtime::StatefulRuntimeEngineV3::handle_preview_json_at(&self, &[u8], u64) -> rill_runtime_protocol::v3::RuntimeResponseV3Preview
 pub fn rill_runtime::StatefulRuntimeEngineV3::new(rill_runtime::StatefulRuntimeConfigV3, alloc::sync::Arc<dyn rill_runtime::StatefulHandlerV2>) -> core::result::Result<Self, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::promote_candidate(&self) -> core::result::Result<u64, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::restore_runtime_snapshot(&self, rill_runtime::StatefulRuntimeSnapshotV3) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
 pub fn rill_runtime::StatefulRuntimeEngineV3::restore_snapshot(&self, rill_runtime::StatefulStateSnapshotV2) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::restore_snapshot_with_migration(&self, rill_runtime::StatefulStateSnapshotV2, &dyn rill_runtime::StatefulStateMigratorV1) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::rollback_previous_good(&self) -> core::result::Result<u64, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::runtime_snapshot(&self) -> core::result::Result<rill_runtime::StatefulRuntimeSnapshotV3, rill_runtime::StatefulHandlerErrorV2>
 pub fn rill_runtime::StatefulRuntimeEngineV3::snapshot(&self) -> core::result::Result<rill_runtime::StatefulStateSnapshotV2, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::stage_candidate(&self, rill_runtime::StatefulStateSnapshotV2) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub struct rill_runtime::StatefulRuntimeSnapshotV3
+pub rill_runtime::StatefulRuntimeSnapshotV3::checksum_sha256: alloc::string::String
+pub rill_runtime::StatefulRuntimeSnapshotV3::completed_decisions: alloc::collections::btree::map::BTreeMap<alloc::string::String, rill_runtime::DecisionLedgerEntryV3>
+pub rill_runtime::StatefulRuntimeSnapshotV3::format_version: u32
+pub rill_runtime::StatefulRuntimeSnapshotV3::handler_snapshot: rill_runtime::StatefulStateSnapshotV2
+pub rill_runtime::StatefulRuntimeSnapshotV3::pending_decisions: alloc::collections::btree::map::BTreeMap<alloc::string::String, rill_runtime::DecisionLedgerEntryV3>
+impl rill_runtime::StatefulRuntimeSnapshotV3
+pub const rill_runtime::StatefulRuntimeSnapshotV3::FORMAT_VERSION: u32
 pub struct rill_runtime::StatefulStateSnapshotV2
 pub rill_runtime::StatefulStateSnapshotV2::checksum_sha256: alloc::string::String
 pub rill_runtime::StatefulStateSnapshotV2::state: alloc::vec::Vec<u8>
@@ -235,6 +261,8 @@ pub fn rill_runtime::StatefulHandlerV2::metadata(&self) -> &rill_runtime::Statef
 impl rill_runtime::StatefulHandlerV2 for rill_runtime::WasmStatefulHandlerV2
 pub fn rill_runtime::WasmStatefulHandlerV2::handle(&self, &[u8], &[u8], core::option::Option<u64>) -> core::result::Result<rill_runtime::StatefulHandlerResultV2, rill_runtime::StatefulHandlerErrorV2>
 pub fn rill_runtime::WasmStatefulHandlerV2::metadata(&self) -> &rill_runtime::StatefulHandlerMetadataV2
+pub trait rill_runtime::StatefulStateMigratorV1: core::marker::Send + core::marker::Sync
+pub fn rill_runtime::StatefulStateMigratorV1::migrate(&self, u32, &[u8]) -> core::result::Result<(u32, alloc::vec::Vec<u8>), rill_runtime::StatefulHandlerErrorV2>
 pub fn rill_runtime::build_signed_handler_pack(&rill_runtime_protocol::HandlerPackManifest, &[u8], &ed25519_dalek::signing::SigningKey) -> core::result::Result<alloc::vec::Vec<u8>, rill_runtime::HandlerPackError>
 pub fn rill_runtime::build_signed_model_pack(&rill_runtime_protocol::ModelPackManifest, &serde_json::value::Value, &ed25519_dalek::signing::SigningKey) -> core::result::Result<alloc::vec::Vec<u8>, rill_runtime::ModelPackError>
 pub fn rill_runtime::canonical_json(&[u8]) -> core::result::Result<alloc::vec::Vec<u8>, rill_runtime::ArchiveError>

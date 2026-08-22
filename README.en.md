@@ -36,8 +36,11 @@ It is not "just another online machine learning library". It combines the follow
 - **Stable protocol boundaries**: `rill-runtime-protocol` provides frozen v1/v2 JSON IPC; `rill-handler-api` provides the frozen v1 WIT ABI;
 - **Safe host integration**: models and handlers can never modify host state directly; all system changes belong to the host governance layer.
 
-The production Runtime CLI accepts Stable IPC v1/v2 only. Preview IPC v3 is
-currently **library-only** and is not exposed as a production CLI/subprocess
+The Stable `serve` Runtime CLI continues to accept only IPC v1/v2. Preview IPC
+v3 is exposed only through the explicit `preview-serve --state PATH`
+subprocess surface, whose handshake carries machine-readable
+`channel: "preview"`; it does not change `serve` semantics or get enabled
+implicitly. The production `serve` command must explicitly
 entrypoint. `serve` requires an explicit signed `--handler` or the deprecated
 `--builtin-handler linear-regression`; omitting both fails closed rather than
 silently falling back.
