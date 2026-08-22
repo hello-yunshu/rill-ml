@@ -15,7 +15,7 @@ def main() -> int:
     from spdx_tools.spdx.parser.parse_anything import parse_file
     from spdx_tools.spdx.validation.document_validator import validate_full_spdx_document
 
-    document = parse_file(file_name=str(args.spdx), file_type="json")
+    document = parse_file(file_name=str(args.spdx))
     errors = validate_full_spdx_document(document)
     if errors:
         for error in errors:

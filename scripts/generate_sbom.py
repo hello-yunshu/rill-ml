@@ -65,6 +65,7 @@ def artifact_evidence(values: list[str]) -> list[dict[str, object]]:
             {
                 "name": name,
                 "path": name,
+                "sha1": hashlib.sha1(content).hexdigest(),
                 "sha256": hashlib.sha256(content).hexdigest(),
                 "size": len(content),
             }
@@ -99,6 +100,17 @@ def write_json(path: Path, value: object) -> None:
         json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def spdx_download_location(source: str | None) -> str:
+    """Return an SPDX-valid URL while retaining Cargo's exact source separately."""
+    if source is None:
+        return "NOASSERTION"
+    for prefix in ("registry+", "sparse+", "git+"):
+        if source.startswith(prefix):
+            location = source[len(prefix) :]
+            return location.split("#", 1)[0]
+    return "NOASSERTION"
 
 
 def main() -> int:
@@ -220,7 +232,7 @@ def main() -> int:
             "SPDXID": spdx_refs[item["id"]],
             "name": item["name"],
             "versionInfo": item["version"],
-            "downloadLocation": item["source"] or "NOASSERTION",
+            "downloadLocation": spdx_download_location(item.get("source")),
             "filesAnalyzed": False,
             "licenseConcluded": "NOASSERTION",
             "licenseDeclared": "NOASSERTION",
@@ -233,6 +245,8 @@ def main() -> int:
                 }
             ],
         }
+        if item.get("source"):
+            package["sourceInfo"] = f"Cargo source: {item['source']}"
         if item.get("checksum"):
             package["checksums"] = [{"algorithm": "SHA256", "checksumValue": item["checksum"]}]
         spdx_packages.append(package)
@@ -240,7 +254,13 @@ def main() -> int:
         {
             "SPDXID": f"SPDXRef-Artifact-{item['name'].replace('/', '_')}",
             "fileName": item["name"],
-            "checksums": [{"algorithm": "SHA256", "checksumValue": item["sha256"]}],
+            "checksums": [
+                {
+                    "algorithm": "SHA1",
+                    "checksumValue": item["sha1"],
+                },
+                {"algorithm": "SHA256", "checksumValue": item["sha256"]},
+            ],
             "licenseConcluded": "NOASSERTION",
             "licenseInfoInFiles": ["NOASSERTION"],
             "copyrightText": "NOASSERTION",
@@ -263,7 +283,7 @@ def main() -> int:
     relationships.extend(
         {
             "spdxElementId": spdx_refs[root_package["id"]],
-            "relationshipType": "CONTAINS",
+            "relationshipType": "GENERATES",
             "relatedSpdxElement": file["SPDXID"],
         }
         for file in spdx_files
