@@ -198,11 +198,12 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git tag -a "$TAG" "$TARGET_SHA" -m "Release $TAG"
-            # The checkout intentionally disables persisted credentials. Supply
-            # the workflow token only for this single tag push so the runner
-            # can publish the immutable tag without storing credentials.
-            git -c http.extraHeader="AUTHORIZATION: bearer $GH_TOKEN" \
-              push origin "refs/tags/$TAG"
+            # The checkout intentionally disables persisted credentials. Use
+            # a one-shot authenticated URL so git's HTTPS transport receives
+            # the workflow token for this tag push without storing credentials
+            # or relying on a credential helper that may be unavailable.
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+              "refs/tags/$TAG"
             echo "Created $TAG at $TARGET_SHA"
           fi
           # Release tags are IMMUTABLE: if the tag already exists it is either
