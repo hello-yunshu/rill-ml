@@ -20,6 +20,14 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+
+## [1.5.0] - 2026-08-22
+
+### Changed
+
+- Stable crates advance additively to `1.5.0`; Preview crates remain at
+  `0.15.0` and are not published by the Stable release path.
+
 - Added the explicit opt-in `rill-runtime preview-serve --state PATH` IPC v3
   subprocess surface. Stable `serve` remains v1/v2-only.
 - Added a bounded v3 `ResourceProfileV1`, persistent decision ledger with
@@ -32,6 +40,9 @@ with the Rust-specific convention that 0.x releases may break the public API.
   fail-closed at capacity, and reset/promote/rollback clear stale ledger entries.
 - Added clock-injected `RuntimeDiagnosticsV1` with bounded resource usage and
   machine-readable health status.
+- Added post-push simulated consumer and deterministic fault qualification
+  runners. Their output is explicitly marked simulated and is never native or
+  real-consumer evidence.
 
 
 
@@ -1616,6 +1627,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.3.0...HEAD
+[1.5.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.0
 [1.3.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.3.0
 [1.2.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0
 [1.2.0-rc.3]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0-rc.3

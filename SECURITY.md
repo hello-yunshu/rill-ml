@@ -12,10 +12,10 @@ the 1.x freeze.
 
 | Version line | Status | Supported | Channel |
 | ------------ | ------ | --------- | ------- |
-| `1.3.x` | Current stable | :white_check_mark: | `local-ai-stable` |
-| `1.2.x` | Previous stable line | :white_check_mark: (security fixes only) | Immutable releases |
+| `1.5.x` | Current stable | :white_check_mark: | `local-ai-stable` |
+| `1.3.x` | Previous stable line | :white_check_mark: (security fixes only) | Immutable releases |
 | `1.1.x` | Previous stable line | :white_check_mark: (security fixes only) | Immutable releases |
-| `1.3.0-rc.x` | Superseded candidate | :x: | `local-ai-candidate` |
+| `1.5.0-rc.x` | Superseded candidate | :x: | `local-ai-candidate` |
 | `< 1.0.0` | EOL | :x: | — |
 
 The `local-ai-stable` pointer tracks the latest independently smoked final

@@ -45,8 +45,8 @@ depending on a `1.x` crate is valid in Cargo.
 
 The public Rust API of each Stable crate is frozen by an API baseline stored
 under `api-baseline/` and enforced by `cargo-semver-checks` in CI.
-For the `1.3.0` admission, `1.2.0` is the authoritative recent Stable
-baseline; `1.1.0` and `1.0.0` remain historical sanity baselines only.
+For the `1.5.0` admission, `1.2.0` remains the authoritative recent Stable
+baseline; `1.3.0` and `1.0.0` remain historical sanity baselines only.
 
 ### `#[non_exhaustive]` policy
 

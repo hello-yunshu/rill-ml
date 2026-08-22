@@ -20,4 +20,8 @@ The final-stage runners are `scripts/run_runtime_final_qualification.py` for
 the three simulated consumer shapes and `scripts/run_runtime_fault_smoke.py`
 for deterministic bounded fault coverage. Every runner reports
 `evidenceType: simulated`; none of this output is native or real-consumer
-proof.
+proof. `conformance/run.py --mode candidate` adds a candidate-artifact layer:
+it records the binary SHA-256, checks the reported version, binds the supplied
+commit identity, and then runs the bounded v3 qualification. A local path is
+still candidate evidence, not public-release evidence; public-asset
+qualification must be repeated after downloading the actual GitHub Release.
