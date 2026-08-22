@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -111,6 +112,16 @@ def spdx_download_location(source: str | None) -> str:
             location = source[len(prefix) :]
             return location.split("#", 1)[0]
     return "NOASSERTION"
+
+
+def spdx_artifact_ref(name: str) -> str:
+    """Create an SPDX 2.3 identifier from an arbitrary release filename."""
+    # SPDX identifiers permit only letters, numbers, ``.`` and ``-`` after
+    # the required ``SPDXRef-`` prefix. Release asset names use underscores
+    # for target/libc separation, so normalize every other character instead
+    # of emitting an invalid document that only the in-repo checker accepts.
+    normalized = re.sub(r"[^A-Za-z0-9.-]+", "-", name)
+    return f"SPDXRef-Artifact-{normalized}"
 
 
 def main() -> int:
@@ -252,7 +263,7 @@ def main() -> int:
         spdx_packages.append(package)
     spdx_files = [
         {
-            "SPDXID": f"SPDXRef-Artifact-{item['name'].replace('/', '_')}",
+            "SPDXID": spdx_artifact_ref(str(item["name"])),
             "fileName": item["name"],
             "checksums": [
                 {

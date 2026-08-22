@@ -1091,11 +1091,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ env.RELEASE_TAG }}
+          # Build assets are bound to RELEASE_TAG above. This job also runs
+          # release tooling (SBOM/index generators); use the workflow revision
+          # so an immutable same-tag retry can carry a reviewed tooling fix
+          # without rewriting the tag's source commit.
+          ref: ${{ github.sha }}
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
         with:
           toolchain: 1.94.0
           targets: wasm32-unknown-unknown
+      - name: Resolve immutable tag commit for release identity
+        id: release_identity
+        shell: bash
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "refs/tags/$TAG:refs/tags/$TAG"
+          tag_ref="${TAG}^{}"
+          echo "commit=$(git rev-parse "$tag_ref")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
@@ -1311,7 +1325,7 @@ jobs:
           python3 scripts/generate_sbom.py \
             --version "$VERSION" \
             --tag "$RELEASE_TAG" \
-            --commit "$(git rev-parse HEAD)" \
+            --commit "${{ steps.release_identity.outputs.commit }}" \
             --output-dir dist \
             "${artifact_args[@]}"
       - name: Publish versioned release
