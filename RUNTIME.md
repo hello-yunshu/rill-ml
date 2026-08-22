@@ -49,7 +49,10 @@ rill-runtime serve \
   --model-trust-key model-key=PUBLIC_KEY_HEX
 ```
 
-`--handler` 与 `--builtin-handler` 互斥。不指定 handler 时默认使用内置线性回归并打印弃用提示。
+`--handler` 与 `--builtin-handler` 互斥。不指定 `--handler` 且不指定
+`--builtin-handler` 时，Runtime 会拒绝启动并给出显式参数错误；不会隐式
+回退到内置 handler。`--builtin-handler linear-regression` 是保留的、已弃用
+兼容路径。
 
 ## IPC 协议版本
 
@@ -59,7 +62,8 @@ rill-runtime serve \
 
 Runtime 根据请求的 `apiVersion` 选择响应格式。V1 响应完全省略 handler 字段；V2 响应包含完整 handler 身份。两个 wire schema 是独立的类型，不使用带大量 `Option` 字段的结构冒充两个版本。
 
-V3 当前是 opt-in 的开发接口，不改变 `RUNTIME_API_VERSION = 2`，也不修改
+V3 当前是 **library-only Preview**，未暴露为 production CLI/subprocess 入口；
+它是调用方显式选择的库侧接口，不改变 `RUNTIME_API_VERSION = 2`，也不修改
 v1/v2 fixture。`StatefulRuntimeEngineV3::handle_at` 由调用方传入时钟，先校验
 消息大小、capability、deadline、特征 schema 与 generation，再调用 Preview
 Stateful Handler v2。任何 trap、timeout、非法或超大输出/next state 都
@@ -75,6 +79,17 @@ fail-closed，不会提交 Runtime 持有的状态。
 - macOS Runtime 除发布索引签名外还必须通过 `codesign --verify --strict`。
 - Runtime 缺失、超时、崩溃、包损坏、API 不兼容、模型数据不足或候选误差没有胜过基线时，宿主继续使用确定性回退。
 - Handler trap、超时或非法输出后，runtime 进程仍能返回 health/error 响应。
+
+### Publisher key lifecycle
+
+Release-index schema v3 remains frozen. Consumers that need rotation and
+rollback protection can opt into `TrustMetadataV1` plus the signed
+`SignedReleaseIndexWithGenerationV1` envelope. It supports current/next key
+overlap, validity windows, revocation, emergency revoke, and separate
+metadata/release monotonic floors. Consumers pass their persisted
+`TrustVerificationFloorV1` and same-generation metadata digest; malformed,
+stale, or conflicting metadata fails closed. Migration steps are documented in
+[`docs/TRUST_KEY_LIFECYCLE_V1.md`](docs/TRUST_KEY_LIFECYCLE_V1.md).
 
 模型包保存经过签名的不可变参数；在线学习状态和具体业务语义由宿主应用管理。
 

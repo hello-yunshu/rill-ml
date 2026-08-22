@@ -116,12 +116,8 @@ impl Transformer for MinMaxScaler {
     }
 
     fn reset(&mut self) {
-        for m in &mut self.mins {
-            *m = None;
-        }
-        for m in &mut self.maxs {
-            *m = None;
-        }
+        self.mins.fill(None);
+        self.maxs.fill(None);
     }
 }
 

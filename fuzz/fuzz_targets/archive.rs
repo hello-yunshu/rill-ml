@@ -1,0 +1,9 @@
+#![no_main]
+
+use libfuzzer_sys::fuzz_target;
+use rill_runtime::{TrustStore, load_model_pack};
+use std::io::Cursor;
+
+fuzz_target!(|data: &[u8]| {
+    let _ = load_model_pack(Cursor::new(data), &TrustStore::default());
+});

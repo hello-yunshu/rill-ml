@@ -161,9 +161,7 @@ impl AdaGrad {
 
     /// Reset to initial state.
     pub fn reset(&mut self) {
-        for g in &mut self.grad_sq_weights {
-            *g = 0.0;
-        }
+        self.grad_sq_weights.fill(0.0);
         self.grad_sq_intercept = 0.0;
         self.samples_seen = 0;
     }

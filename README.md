@@ -36,6 +36,11 @@
 - **稳定协议边界**：`rill-runtime-protocol` 提供 v1/v2 冻结的 JSON IPC；`rill-handler-api` 提供 v1 冻结的 WIT ABI；
 - **安全宿主集成**：模型与 handler 永远无法直接修改宿主状态，所有系统变更都归宿主治理层负责。
 
+Runtime 的生产 CLI 仅接受 Stable IPC v1/v2；Preview IPC v3 目前是
+library-only，未暴露为 production CLI/subprocess 入口。`serve` 必须显式
+提供签名 `--handler` 或已弃用的 `--builtin-handler linear-regression`，
+缺少两者时会 fail-closed，不会隐式回退。
+
 Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定、签名 `.rillpack` 模型包和签名 `.rillhandler` WASM handler 包。Runtime 在沙箱内加载经过签名验证的 WASM handler，更新 handler 不需要重新编译 runtime 二进制。宿主可以只依赖协议 crate，让 Runtime、模型和 handler 各自独立更新。官方 macOS Runtime 仅发布 Apple Silicon（ARM64）版本，不提供 Intel 构建。macOS aarch64 资产为未签名（unsigned）形态——项目不配置 Apple Developer ID 证书，这是永久决策，不影响发布。macOS 用户首次运行可能需要在 Finder 中右键选择"打开"，或在"系统设置 → 隐私与安全性"中允许，详见 [`STABILITY.md`](STABILITY.md) § macOS unsigned policy。1.0 稳定性矩阵、冻结范围与 Stable/Preview 划分详见 [`STABILITY.md`](STABILITY.md)；运行时产品边界详见 [`RUNTIME.md`](RUNTIME.md)。
 
 > RillML 受 [River](https://riverml.xyz/) 推广的在线学习工作流启发，是独立的 Rust 项目，与 River 无关联，目前不追求 API 或模型兼容性。
@@ -117,6 +122,15 @@ RillML  = 面向原生与边缘系统的生产级自适应智能运行时
 
 **内存界限：** 非滚动统计量 O(1)；线性模型 O(d)；滚动统计量 O(window_size)；稀疏模型（FTRL）O(k)，k 为已见特征数（默认无上限，需设置 `max_features` 才能有界）；漂移检测器 O(1) 或 O(window_size)；LinUCB O(arm_count × d²)。
 
+FTRL 的 `resource_diagnostics()` 只读报告当前特征数、有限上限、饱和度和
+新特征拒绝信号；它不会替代 `learn` 的准入策略。无界默认值是兼容性选择，
+面向不可信或开放词表输入的长期服务应配置有限 `max_features`。详见
+[`docs/FTRL_RESOURCE_DIAGNOSTICS.md`](docs/FTRL_RESOURCE_DIAGNOSTICS.md)。
+
+延迟反馈使用调用方时钟、显式 generation、有限 pending/completed 容量和
+精确重放语义；`DecisionLedger` 不会隐式淘汰状态。详见
+[`docs/DECISION_LEDGER_V1.md`](docs/DECISION_LEDGER_V1.md)。
+
 ## 4. 架构
 
 RillML 统一表达为三层：在线机器学习核心、Runtime 与集成层。
@@ -174,7 +188,7 @@ cargo add rill-ml --features serde
 因此 `cargo install rill-runtime` 行为与官方 GitHub 二进制一致。如需 WASM-free 构建：
 `cargo install rill-runtime --no-default-features`（无法加载 `.rillhandler`）。
 
-版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.2.0`，Preview 组为 `0.15.0`。
+版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.3.0`，Preview 组为 `0.15.0`。
 
 **环境要求：** Rust 1.94+（Edition 2024），无需 nightly。
 
@@ -384,6 +398,7 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](
 - **v1.0.0** — 首个 1.x 正式稳定版本；不可变公开资产通过独立 host smoke 后才推进 `local-ai-stable`。
 - **v1.1.0** — 可解释在线决策：延迟反馈、特征身份、漂移共识、带权学习与 Preview Runtime v3/Handler v2。
 - **v1.2.0** — 发布准入与全平台复验：发布准入门禁、RISC-V/LoongArch/FreeBSD/Windows 原生复验、索引 schema v3 与 `targetLibc`。
+- **v1.3.0** — 产品面一致性门禁、Stable/Preview 版本收敛、TrustMetadata v1 密钥轮换生命周期、离线/已发布 Conformance Kit、真实 fuzz harness、CycloneDX/SPDX SBOM 与 FTRL 资源诊断。
 
 当前 1.x 不实现完整深度学习；未来方向是"冻结的神经编码器 + RillML 在线自适应头"（如 DL embedding → LinearRegression / LogisticRegression / LinUCB / Bandit → online adaptation），并在架构上预留 `inference-provider` 抽象。RillML 不应变成 PyTorch/tinygrad 的替代品。
 

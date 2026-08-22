@@ -1,0 +1,3 @@
+# Exact release SBOM validator version. Transitive dependencies are resolved
+# by this package's locked release metadata in the Actions environment.
+spdx-tools==0.8.3

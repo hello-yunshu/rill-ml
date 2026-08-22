@@ -145,7 +145,7 @@ if [[ "$ZIGBUILD" == "1" ]]; then
   # musl links genuinely against Zig's musl via cargo-zigbuild (pip pulls the
   # ziglang binary). Debian bookworm's pip is PEP 668 externally-managed, so we
   # pass --break-system-packages. No cross linker is needed.
-  INSTALL_STEP="RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip && rm -rf /var/lib/apt/lists/* && pip3 install --break-system-packages cargo-zigbuild"
+  INSTALL_STEP="RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip && rm -rf /var/lib/apt/lists/* && pip3 install --break-system-packages cargo-zigbuild==0.20.1"
 elif [[ -n "$INSTALL_PKGS" ]]; then
   INSTALL_STEP="RUN apt-get update && apt-get install -y --no-install-recommends ${INSTALL_PKGS} && rm -rf /var/lib/apt/lists/*"
 else

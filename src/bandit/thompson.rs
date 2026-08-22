@@ -327,18 +327,10 @@ impl Bandit for ThompsonSampling {
     }
 
     fn reset(&mut self) {
-        for a in &mut self.alphas {
-            *a = self.config.alpha_prior;
-        }
-        for b in &mut self.betas {
-            *b = self.config.beta_prior;
-        }
-        for p in &mut self.pulls {
-            *p = 0;
-        }
-        for r in &mut self.total_rewards {
-            *r = 0.0;
-        }
+        self.alphas.fill(self.config.alpha_prior);
+        self.betas.fill(self.config.beta_prior);
+        self.pulls.fill(0);
+        self.total_rewards.fill(0.0);
         self.samples_seen = 0;
     }
 

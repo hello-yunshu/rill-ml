@@ -118,9 +118,7 @@ impl Transformer for ForwardFill {
     }
 
     fn reset(&mut self) {
-        for v in &mut self.last_values {
-            *v = None;
-        }
+        self.last_values.fill(None);
         self.samples_seen = 0;
     }
 }
