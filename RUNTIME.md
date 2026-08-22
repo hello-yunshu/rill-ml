@@ -62,12 +62,21 @@ rill-runtime serve \
 
 Runtime 根据请求的 `apiVersion` 选择响应格式。V1 响应完全省略 handler 字段；V2 响应包含完整 handler 身份。两个 wire schema 是独立的类型，不使用带大量 `Option` 字段的结构冒充两个版本。
 
-V3 当前是 **library-only Preview**，未暴露为 production CLI/subprocess 入口；
-它是调用方显式选择的库侧接口，不改变 `RUNTIME_API_VERSION = 2`，也不修改
-v1/v2 fixture。`StatefulRuntimeEngineV3::handle_at` 由调用方传入时钟，先校验
+V3 的 Stable v1/v2 生产路径仍保持原样；Preview 现在通过明确的
+`rill-runtime preview-serve --state PATH` 子进程入口暴露。该命令自身就是
+opt-in 边界，不会被 `serve` 隐式启用；握手返回机器可读的
+`channel: "preview"`。Preview 入口使用原子状态文件保存 handler snapshot 与
+decision ledger，重启后可继续处理 delayed feedback，并在重复 feedback、未知
+decision、generation mismatch、容量耗尽时 fail-closed。
+
+`RUNTIME_API_VERSION = 2` 及 v1/v2 fixture 仍冻结不变。`StatefulRuntimeEngineV3::handle_at` 由调用方传入时钟，先校验
 消息大小、capability、deadline、特征 schema 与 generation，再调用 Preview
 Stateful Handler v2。任何 trap、timeout、非法或超大输出/next state 都
-fail-closed，不会提交 Runtime 持有的状态。
+fail-closed，不会提交 Runtime 持有的状态。`ResourceProfileV1` 为 IPC frame、
+state、snapshot、pending/completed decision 和诊断记录提供有限上限；
+`inspect`/`health` 返回 channel、generation、resource utilization、rollback
+availability 与稳定状态标识。Stable v3 仍须通过 candidate/public-asset
+conformance 后才可启用。
 
 ## 安全与回退
 

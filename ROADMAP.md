@@ -164,6 +164,9 @@ Python 绑定
 | v1.0.0 | 最终稳定版本 | 候选准入全部通过后发布 |
 | v1.1.0 | 可解释在线决策 | 延迟反馈、特征身份、漂移共识、带权学习与 Preview Runtime v3/Handler v2 |
 | v1.2.0 | 发布准入与全平台复验 | 发布准入门禁、RISC-V/LoongArch/FreeBSD/Windows 原生复验、索引 schema v3 与 `targetLibc` |
+| 1.3.0 | 生态收敛与 Trust | 正式发布闭环、不可变资产、SBOM、TrustMetadata 与全平台公开资产复验 |
+| 1.4.x | Stateful Runtime Qualification | opt-in Preview v3 subprocess、decision ledger、状态迁移/回滚、Resource Profile 与运行诊断 |
+| 1.5.0 | Production Adaptive Runtime | Stable v3 准入、硬资源边界、health、consumer conformance、后置 soak/fault 与公开发布 |
 
 ---
 

@@ -27,6 +27,73 @@ pub const MAX_CAPABILITIES_V3: usize = 32;
 /// Maximum error message length.
 pub const MAX_ERROR_MESSAGE_LEN_V3: usize = 512;
 
+/// Stable machine-readable marker for the opt-in v3 executable channel.
+pub const PREVIEW_CHANNEL_V3: &str = "preview";
+
+/// Bounded runtime policy shared by preview and stable v3 consumers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ResourceProfileV1 {
+    pub max_ipc_frame_bytes: u32,
+    pub max_model_state_bytes: u32,
+    pub max_snapshot_bytes: u32,
+    pub max_handler_package_bytes: u32,
+    pub max_model_pack_bytes: u32,
+    pub max_features: u32,
+    pub max_pending_decisions: u32,
+    pub max_completed_decisions: u32,
+    pub max_diagnostic_records: u32,
+    pub request_deadline_ms: u64,
+    pub shutdown_deadline_ms: u64,
+    pub snapshot_deadline_ms: u64,
+    pub restart_backoff_ms: u64,
+}
+
+impl Default for ResourceProfileV1 {
+    fn default() -> Self {
+        Self {
+            max_ipc_frame_bytes: crate::MAX_MESSAGE_BYTES as u32,
+            max_model_state_bytes: 256 * 1024,
+            max_snapshot_bytes: 512 * 1024,
+            max_handler_package_bytes: 4 * 1024 * 1024,
+            max_model_pack_bytes: 128 * 1024 * 1024,
+            max_features: 100_000,
+            max_pending_decisions: 1_024,
+            max_completed_decisions: 4_096,
+            max_diagnostic_records: 256,
+            request_deadline_ms: 5_000,
+            shutdown_deadline_ms: 2_000,
+            snapshot_deadline_ms: 2_000,
+            restart_backoff_ms: 100,
+        }
+    }
+}
+
+impl ResourceProfileV1 {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.max_ipc_frame_bytes == 0
+            || self.max_ipc_frame_bytes as usize > crate::MAX_MESSAGE_BYTES
+            || self.max_model_state_bytes == 0
+            || self.max_snapshot_bytes == 0
+            || self.max_handler_package_bytes == 0
+            || self.max_model_pack_bytes == 0
+            || self.max_features == 0
+            || self.max_pending_decisions == 0
+            || self.max_completed_decisions == 0
+            || self.max_diagnostic_records == 0
+            || self.request_deadline_ms == 0
+            || self.shutdown_deadline_ms == 0
+            || self.snapshot_deadline_ms == 0
+        {
+            return Err("resource profile contains a zero limit");
+        }
+        if self.max_completed_decisions < self.max_pending_decisions {
+            return Err("completed decision history must hold pending capacity");
+        }
+        Ok(())
+    }
+}
+
 /// Client or runtime identity carried explicitly by V3.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -215,12 +282,22 @@ pub enum RuntimeResponseBodyV3 {
         capabilities: Vec<String>,
         feature_schema_hash: String,
         handler_api_version: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        channel: Option<String>,
     },
     Health {
         healthy: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason_codes: Option<Vec<String>>,
     },
     Result {
         output: serde_json::Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        decision_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        decision_generation: Option<u64>,
     },
     Inspection {
         summary: serde_json::Value,
@@ -284,6 +361,11 @@ pub enum RuntimeErrorCodeV3 {
     ExpiredRequest,
     IncompatibleGeneration,
     DuplicateFeedback,
+    DuplicateDecision,
+    UnknownDecision,
+    StaleFeedback,
+    CapacityExceeded,
+    InvalidOutcome,
     HandlerTimeout,
     HandlerTrap,
     HandlerOutputTooLarge,
@@ -296,7 +378,7 @@ impl RuntimeErrorCodeV3 {
     pub const fn is_retryable(self) -> bool {
         matches!(
             self,
-            Self::StateMismatch | Self::HandlerTimeout | Self::Internal
+            Self::StateMismatch | Self::HandlerTimeout | Self::Internal | Self::CapacityExceeded
         )
     }
 }

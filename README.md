@@ -36,8 +36,9 @@
 - **稳定协议边界**：`rill-runtime-protocol` 提供 v1/v2 冻结的 JSON IPC；`rill-handler-api` 提供 v1 冻结的 WIT ABI；
 - **安全宿主集成**：模型与 handler 永远无法直接修改宿主状态，所有系统变更都归宿主治理层负责。
 
-Runtime 的生产 CLI 仅接受 Stable IPC v1/v2；Preview IPC v3 目前是
-library-only，未暴露为 production CLI/subprocess 入口。`serve` 必须显式
+Runtime 的 Stable CLI `serve` 仍仅接受 Stable IPC v1/v2；Preview IPC v3 通过
+明确 opt-in 的 `preview-serve --state PATH` subprocess 入口提供，握手带有
+机器可读的 `channel: "preview"`，不会改变 `serve` 的默认语义。`serve` 必须显式
 提供签名 `--handler` 或已弃用的 `--builtin-handler linear-regression`，
 缺少两者时会 fail-closed，不会隐式回退。
 
