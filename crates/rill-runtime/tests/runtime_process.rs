@@ -6,6 +6,7 @@ use std::{
 
 use ed25519_dalek::SigningKey;
 use rill_runtime::{LINEAR_REGRESSION_CAPABILITY, build_signed_model_pack};
+use rill_runtime_protocol::v3::{EnvelopeV3, IdentityV3, RUNTIME_API_VERSION_V3, RuntimeRequestV3};
 use rill_runtime_protocol::{
     MODEL_PACK_FORMAT_VERSION, ModelPackManifest, RUNTIME_API_VERSION, RuntimeRequest,
     RuntimeResponse, RuntimeResponseV2,
@@ -57,6 +58,133 @@ fn runtime_command() -> Command {
         }
         _ => Command::new(bin),
     }
+}
+
+fn preview_envelope(
+    request_id: &str,
+    capability: Option<&str>,
+    state_generation: u64,
+    request: RuntimeRequestV3,
+) -> EnvelopeV3 {
+    EnvelopeV3 {
+        request_id: request_id.into(),
+        api_version: RUNTIME_API_VERSION_V3,
+        client_identity: IdentityV3 {
+            name: "process-test-host".into(),
+            version: "1".into(),
+        },
+        capability: capability.map(str::to_owned),
+        deadline_unix_ms: None,
+        feature_schema_hash: capability.map(|_| "ab".repeat(32)),
+        model_generation: 0,
+        state_generation,
+        payload_limit: rill_runtime_protocol::MAX_MESSAGE_BYTES as u32,
+        request,
+    }
+}
+
+#[test]
+fn preview_v3_real_subprocess_restart_and_feedback_ledger() {
+    let temporary = tempfile::tempdir().unwrap();
+    let state_path = temporary.path().join("preview-state.json");
+    let handshake = preview_envelope("hello", None, 0, RuntimeRequestV3::Handshake {});
+    let decide = preview_envelope(
+        "decision-1",
+        Some("org.rill.preview.decide"),
+        0,
+        RuntimeRequestV3::Decide {
+            context: serde_json::json!({"features": [1.0]}),
+            deterministic_seed: Some(7),
+        },
+    );
+    let mut first = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = first.stdin.as_mut().unwrap();
+        for request in [&handshake, &decide] {
+            serde_json::to_writer(&mut *stdin, request).unwrap();
+            stdin.write_all(b"\n").unwrap();
+        }
+    }
+    let first_output = first.wait_with_output().unwrap();
+    assert!(
+        first_output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first_output.stderr)
+    );
+    let first_lines = first_output
+        .stdout
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(first_lines.len(), 2);
+    assert_eq!(first_lines[0]["response"]["channel"], "preview");
+    assert_eq!(first_lines[1]["response"]["decisionId"], "decision-1");
+    assert!(state_path.is_file());
+
+    let feedback = preview_envelope(
+        "feedback-1",
+        Some("org.rill.preview.feedback"),
+        1,
+        RuntimeRequestV3::Feedback {
+            decision_id: "decision-1".into(),
+            selected_arm: 0,
+            reward: 1.0,
+            outcome_time_ms: 2,
+            generation: 0,
+        },
+    );
+    let duplicate = preview_envelope(
+        "feedback-2",
+        Some("org.rill.preview.feedback"),
+        2,
+        RuntimeRequestV3::Feedback {
+            decision_id: "decision-1".into(),
+            selected_arm: 0,
+            reward: 1.0,
+            outcome_time_ms: 2,
+            generation: 0,
+        },
+    );
+    let mut second = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = second.stdin.as_mut().unwrap();
+        for request in [&feedback, &duplicate] {
+            serde_json::to_writer(&mut *stdin, request).unwrap();
+            stdin.write_all(b"\n").unwrap();
+        }
+    }
+    let second_output = second.wait_with_output().unwrap();
+    assert!(
+        second_output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second_output.stderr)
+    );
+    let second_lines = second_output
+        .stdout
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(second_lines[0]["response"]["kind"], "result");
+    assert_eq!(
+        second_lines[1]["response"]["error"]["code"],
+        "duplicateFeedback"
+    );
 }
 
 #[test]

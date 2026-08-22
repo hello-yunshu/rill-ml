@@ -3,14 +3,19 @@
 //! The host owns persistence and only commits a handler's proposed next state
 //! after all bounds, JSON, schema-version and checksum checks succeed.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
 use rill_handler_api::v2::{
     HANDLER_API_VERSION, MAX_EVENT_BYTES, MAX_OUTPUT_BYTES, MAX_STATE_BYTES,
 };
 use rill_runtime_protocol::v3::{
-    EnvelopeV3, IdentityV3, RUNTIME_API_VERSION_V3, RuntimeErrorCodeV3, RuntimeErrorV3,
-    RuntimeRequestV3, RuntimeResponseBodyV3, RuntimeResponseV3,
+    EnvelopeV3, IdentityV3, PREVIEW_CHANNEL_V3, PreviewErrorCodeV3, RUNTIME_API_VERSION_V3,
+    ResourceProfileV1, RuntimeErrorCodeV3, RuntimeErrorV3, RuntimeErrorV3Preview, RuntimeRequestV3,
+    RuntimeResponseBodyV3, RuntimeResponseBodyV3Preview, RuntimeResponseV3,
+    RuntimeResponseV3Preview,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -163,6 +168,108 @@ pub struct StatefulStateSnapshotV2 {
     pub checksum_sha256: String,
 }
 
+/// One decision retained across process restart for delayed feedback.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DecisionLedgerEntryV3 {
+    pub decision_id: String,
+    pub model_generation: u64,
+    pub state_generation: u64,
+    pub created_at_unix_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_arm: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reward: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_time_unix_ms: Option<u64>,
+}
+
+/// Durable v3 runtime envelope. The handler snapshot and decision ledger are
+/// checksummed together so feedback cannot silently cross a restore boundary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StatefulRuntimeSnapshotV3 {
+    pub format_version: u32,
+    pub handler_snapshot: StatefulStateSnapshotV2,
+    pub pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    pub completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    pub checksum_sha256: String,
+}
+
+impl StatefulRuntimeSnapshotV3 {
+    pub const FORMAT_VERSION: u32 = 1;
+
+    fn checksum_input(
+        handler_snapshot: &StatefulStateSnapshotV2,
+        pending_decisions: &BTreeMap<String, DecisionLedgerEntryV3>,
+        completed_decisions: &BTreeMap<String, DecisionLedgerEntryV3>,
+    ) -> Vec<u8> {
+        serde_json::to_vec(&(handler_snapshot, pending_decisions, completed_decisions))
+            .expect("runtime snapshot fields are serializable")
+    }
+
+    fn new(
+        handler_snapshot: StatefulStateSnapshotV2,
+        pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+        completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    ) -> Self {
+        let checksum_sha256 = state_checksum(&Self::checksum_input(
+            &handler_snapshot,
+            &pending_decisions,
+            &completed_decisions,
+        ));
+        Self {
+            format_version: Self::FORMAT_VERSION,
+            handler_snapshot,
+            pending_decisions,
+            completed_decisions,
+            checksum_sha256,
+        }
+    }
+
+    fn validate(&self, expected_schema_version: u32) -> Result<(), StatefulHandlerErrorV2> {
+        if self.format_version != Self::FORMAT_VERSION {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::IncompatibleVersion,
+            ));
+        }
+        self.handler_snapshot.validate(expected_schema_version)?;
+        if self.checksum_sha256
+            != state_checksum(&Self::checksum_input(
+                &self.handler_snapshot,
+                &self.pending_decisions,
+                &self.completed_decisions,
+            ))
+        {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
+        for (key, entry) in self
+            .pending_decisions
+            .iter()
+            .chain(self.completed_decisions.iter())
+        {
+            if key != &entry.decision_id || entry.decision_id.is_empty() {
+                return Err(StatefulHandlerErrorV2::new(
+                    StatefulHandlerErrorKindV2::InvalidState,
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Host-provided migration hook. Migrations return a new state and never
+/// mutate the input, allowing the caller to preserve the previous-good copy.
+pub trait StatefulStateMigratorV1: Send + Sync {
+    fn migrate(
+        &self,
+        from_schema_version: u32,
+        state: &[u8],
+    ) -> Result<(u32, Vec<u8>), StatefulHandlerErrorV2>;
+}
+
 impl StatefulStateSnapshotV2 {
     pub fn new(state_schema_version: u32, state_generation: u64, state: Vec<u8>) -> Self {
         let checksum_sha256 = state_checksum(&state);
@@ -199,6 +306,7 @@ pub struct StatefulRuntimeConfigV3 {
     pub feature_schema_hash: String,
     pub capabilities: Vec<String>,
     pub initial_state: Vec<u8>,
+    pub resource_profile: ResourceProfileV1,
 }
 
 impl StatefulRuntimeConfigV3 {
@@ -216,13 +324,25 @@ impl StatefulRuntimeConfigV3 {
             feature_schema_hash,
             capabilities,
             initial_state,
+            resource_profile: ResourceProfileV1::default(),
         }
+    }
+
+    pub fn with_resource_profile(mut self, resource_profile: ResourceProfileV1) -> Self {
+        self.resource_profile = resource_profile;
+        self
     }
 }
 
 #[derive(Debug, Clone)]
 struct RuntimeStateV3 {
     snapshot: StatefulStateSnapshotV2,
+    previous_good: Option<StatefulStateSnapshotV2>,
+    candidate: Option<StatefulStateSnapshotV2>,
+    pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    restart_count: u64,
+    last_error: Option<String>,
 }
 
 /// Preview Runtime V3 engine for Stateful Handler ABI v2.
@@ -249,6 +369,9 @@ impl StatefulRuntimeEngineV3 {
         })?;
         validate_feature_schema_hash(&config.feature_schema_hash)?;
         validate_capabilities(&config.capabilities)?;
+        config.resource_profile.validate().map_err(|detail| {
+            StatefulHandlerErrorV2::with_detail(StatefulHandlerErrorKindV2::InvalidModel, detail)
+        })?;
         if config.capabilities != metadata.capabilities {
             return Err(StatefulHandlerErrorV2::new(
                 StatefulHandlerErrorKindV2::MetadataMismatch,
@@ -264,11 +387,24 @@ impl StatefulRuntimeEngineV3 {
             config.initial_state_generation,
             config.initial_state.clone(),
         );
+        if snapshot.state.len() > config.resource_profile.max_model_state_bytes as usize {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
         Ok(Self {
             config,
             metadata,
             handler,
-            state: Mutex::new(RuntimeStateV3 { snapshot }),
+            state: Mutex::new(RuntimeStateV3 {
+                snapshot,
+                previous_good: None,
+                candidate: None,
+                pending_decisions: BTreeMap::new(),
+                completed_decisions: BTreeMap::new(),
+                restart_count: 0,
+                last_error: None,
+            }),
         })
     }
 
@@ -278,11 +414,18 @@ impl StatefulRuntimeEngineV3 {
         snapshot: StatefulStateSnapshotV2,
     ) -> Result<(), StatefulHandlerErrorV2> {
         snapshot.validate(self.metadata.state_schema_version)?;
+        if snapshot.state.len() > self.config.resource_profile.max_model_state_bytes as usize {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
         let mut state = self
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
+        state.previous_good = Some(state.snapshot.clone());
         state.snapshot = snapshot;
+        state.restart_count = state.restart_count.saturating_add(1);
         Ok(())
     }
 
@@ -291,6 +434,121 @@ impl StatefulRuntimeEngineV3 {
             .lock()
             .map(|state| state.snapshot.clone())
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))
+    }
+
+    /// Return the handler state plus the durable decision ledger.
+    pub fn runtime_snapshot(&self) -> Result<StatefulRuntimeSnapshotV3, StatefulHandlerErrorV2> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
+        Ok(StatefulRuntimeSnapshotV3::new(
+            state.snapshot.clone(),
+            state.pending_decisions.clone(),
+            state.completed_decisions.clone(),
+        ))
+    }
+
+    /// Restore handler state and delayed feedback atomically.
+    pub fn restore_runtime_snapshot(
+        &self,
+        snapshot: StatefulRuntimeSnapshotV3,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        snapshot.validate(self.metadata.state_schema_version)?;
+        if snapshot.handler_snapshot.state.len()
+            > self.config.resource_profile.max_model_state_bytes as usize
+            || snapshot.pending_decisions.len()
+                > self.config.resource_profile.max_pending_decisions as usize
+            || snapshot.completed_decisions.len()
+                > self.config.resource_profile.max_completed_decisions as usize
+        {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
+        state.previous_good = Some(state.snapshot.clone());
+        state.snapshot = snapshot.handler_snapshot;
+        state.pending_decisions = snapshot.pending_decisions;
+        state.completed_decisions = snapshot.completed_decisions;
+        state.restart_count = state.restart_count.saturating_add(1);
+        Ok(())
+    }
+
+    /// Validate and retain a candidate without activating it.
+    pub fn stage_candidate(
+        &self,
+        snapshot: StatefulStateSnapshotV2,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        snapshot.validate(self.metadata.state_schema_version)?;
+        if snapshot.state.len() > self.config.resource_profile.max_model_state_bytes as usize {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
+        state.candidate = Some(snapshot);
+        Ok(())
+    }
+
+    /// Atomically activate a previously staged candidate.
+    pub fn promote_candidate(&self) -> Result<u64, StatefulHandlerErrorV2> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
+        let candidate = state
+            .candidate
+            .take()
+            .ok_or_else(|| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::InvalidState))?;
+        state.previous_good = Some(state.snapshot.clone());
+        state.snapshot = candidate;
+        Ok(state.snapshot.state_generation)
+    }
+
+    /// Restore the most recent previous-good state after a failed activation.
+    pub fn rollback_previous_good(&self) -> Result<u64, StatefulHandlerErrorV2> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
+        let previous = state
+            .previous_good
+            .take()
+            .ok_or_else(|| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::InvalidState))?;
+        let failed = std::mem::replace(&mut state.snapshot, previous);
+        state.previous_good = Some(failed);
+        state.candidate = None;
+        Ok(state.snapshot.state_generation)
+    }
+
+    /// Migrate a snapshot without destructive in-place mutation.
+    pub fn restore_snapshot_with_migration(
+        &self,
+        snapshot: StatefulStateSnapshotV2,
+        migrator: &dyn StatefulStateMigratorV1,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        if snapshot.state_schema_version == self.metadata.state_schema_version {
+            return self.restore_snapshot(snapshot);
+        }
+        let (schema_version, state) =
+            migrator.migrate(snapshot.state_schema_version, &snapshot.state)?;
+        if schema_version != self.metadata.state_schema_version {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::IncompatibleVersion,
+            ));
+        }
+        self.restore_snapshot(StatefulStateSnapshotV2::new(
+            schema_version,
+            snapshot.state_generation,
+            state,
+        ))
     }
 
     /// Handle one request at a caller-supplied clock value. No system clock is
@@ -326,9 +584,11 @@ impl StatefulRuntimeEngineV3 {
             RuntimeRequestV3::Health {} => self.response(
                 envelope.request_id,
                 self.current_generation(),
-                RuntimeResponseBodyV3::Health { healthy: true },
+                RuntimeResponseBodyV3::Health {
+                    healthy: self.is_healthy(),
+                },
             ),
-            request => self.handle_stateful(envelope, request),
+            request => self.handle_stateful(envelope, request, now_unix_ms),
         }
     }
 
@@ -358,10 +618,120 @@ impl StatefulRuntimeEngineV3 {
         self.handle_at(envelope, now_unix_ms)
     }
 
+    /// Handle the additive Preview response surface. The frozen v3 response
+    /// type remains available through `handle_at` for library consumers.
+    pub fn handle_preview_at(
+        &self,
+        envelope: EnvelopeV3,
+        now_unix_ms: u64,
+    ) -> RuntimeResponseV3Preview {
+        let is_decide = matches!(envelope.request, RuntimeRequestV3::Decide { .. });
+        let response = self.handle_at(envelope, now_unix_ms);
+        let body = match response.response {
+            RuntimeResponseBodyV3::Handshake {
+                capabilities,
+                feature_schema_hash,
+                handler_api_version,
+            } => RuntimeResponseBodyV3Preview::Handshake {
+                capabilities,
+                feature_schema_hash,
+                handler_api_version,
+                channel: PREVIEW_CHANNEL_V3.into(),
+            },
+            RuntimeResponseBodyV3::Health { healthy } => RuntimeResponseBodyV3Preview::Health {
+                healthy,
+                status: if healthy {
+                    "healthy".into()
+                } else {
+                    "failed_closed".into()
+                },
+                reason_codes: self.health_reason_codes().unwrap_or_default(),
+            },
+            RuntimeResponseBodyV3::Result { output } => RuntimeResponseBodyV3Preview::Result {
+                output,
+                decision_id: is_decide.then_some(response.request_id.clone()),
+                decision_generation: is_decide.then_some(response.state_generation),
+            },
+            RuntimeResponseBodyV3::Inspection { summary } => {
+                RuntimeResponseBodyV3Preview::Inspection { summary }
+            }
+            RuntimeResponseBodyV3::Snapshot {
+                state_schema_version,
+                state_checksum,
+                state,
+            } => RuntimeResponseBodyV3Preview::Snapshot {
+                state_schema_version,
+                state_checksum,
+                state,
+            },
+            RuntimeResponseBodyV3::Reset { reset } => RuntimeResponseBodyV3Preview::Reset { reset },
+            RuntimeResponseBodyV3::Error { error } => RuntimeResponseBodyV3Preview::Error {
+                error: RuntimeErrorV3Preview {
+                    code: preview_error_code(error.code, &error.message),
+                    message: error.message,
+                    retryable: preview_error_code(error.code, "").is_retryable(),
+                },
+            },
+        };
+        RuntimeResponseV3Preview {
+            request_id: response.request_id,
+            api_version: response.api_version,
+            runtime_identity: response.runtime_identity,
+            model_generation: response.model_generation,
+            state_generation: response.state_generation,
+            response: body,
+        }
+    }
+
+    pub fn handle_preview_json_at(
+        &self,
+        message: &[u8],
+        now_unix_ms: u64,
+    ) -> RuntimeResponseV3Preview {
+        if message.len() > rill_runtime_protocol::MAX_MESSAGE_BYTES {
+            return self.preview_error_response(
+                "invalid-request".into(),
+                PreviewErrorCodeV3::PayloadTooLarge,
+                "request exceeds the IPC message limit",
+            );
+        }
+        match serde_json::from_slice::<EnvelopeV3>(message) {
+            Ok(envelope) => self.handle_preview_at(envelope, now_unix_ms),
+            Err(_) => self.preview_error_response(
+                "invalid-request".into(),
+                PreviewErrorCodeV3::InvalidJson,
+                "request is not valid IPC V3 JSON",
+            ),
+        }
+    }
+
+    fn preview_error_response(
+        &self,
+        request_id: String,
+        code: PreviewErrorCodeV3,
+        message: &str,
+    ) -> RuntimeResponseV3Preview {
+        RuntimeResponseV3Preview {
+            request_id,
+            api_version: RUNTIME_API_VERSION_V3,
+            runtime_identity: self.config.runtime_identity.clone(),
+            model_generation: self.config.model_generation,
+            state_generation: self.current_generation(),
+            response: RuntimeResponseBodyV3Preview::Error {
+                error: RuntimeErrorV3Preview {
+                    code,
+                    message: message.into(),
+                    retryable: code.is_retryable(),
+                },
+            },
+        }
+    }
+
     fn handle_stateful(
         &self,
         envelope: EnvelopeV3,
         request: RuntimeRequestV3,
+        now_unix_ms: u64,
     ) -> RuntimeResponseV3 {
         let request_id = envelope.request_id;
         let capability = envelope.capability.unwrap_or_default();
@@ -424,6 +794,60 @@ impl StatefulRuntimeEngineV3 {
                 "state generation does not match",
                 state.snapshot.state_generation,
             );
+        }
+
+        if let RuntimeRequestV3::Decide { .. } = &request {
+            if state.pending_decisions.contains_key(&request_id)
+                || state.completed_decisions.contains_key(&request_id)
+            {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::Internal,
+                    "decision id was already used",
+                    state.snapshot.state_generation,
+                );
+            }
+            if state.pending_decisions.len()
+                >= self.config.resource_profile.max_pending_decisions as usize
+            {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::Internal,
+                    "pending decision capacity is exhausted",
+                    state.snapshot.state_generation,
+                );
+            }
+        }
+        if let RuntimeRequestV3::Feedback {
+            decision_id,
+            generation,
+            ..
+        } = &request
+        {
+            if state.completed_decisions.contains_key(decision_id) {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::DuplicateFeedback,
+                    "feedback was already applied",
+                    state.snapshot.state_generation,
+                );
+            }
+            let Some(entry) = state.pending_decisions.get(decision_id) else {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::Internal,
+                    "decision id is not pending",
+                    state.snapshot.state_generation,
+                );
+            };
+            if entry.model_generation != *generation {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::IncompatibleGeneration,
+                    "feedback generation is stale",
+                    state.snapshot.state_generation,
+                );
+            }
         }
 
         if let RuntimeRequestV3::Snapshot {} = request {
@@ -503,6 +927,7 @@ impl StatefulRuntimeEngineV3 {
                 Ok(result) => result,
                 Err(error) => {
                     let (code, message) = map_handler_error(error.kind());
+                    state.last_error = Some(message.into());
                     return self.error_response(
                         request_id,
                         code,
@@ -544,6 +969,15 @@ impl StatefulRuntimeEngineV3 {
                 state.snapshot.state_generation,
             );
         }
+        if result.next_state.len() > self.config.resource_profile.max_model_state_bytes as usize {
+            state.last_error = Some("model state resource limit exceeded".into());
+            return self.error_response(
+                request_id,
+                RuntimeErrorCodeV3::Internal,
+                "model state resource limit exceeded",
+                state.snapshot.state_generation,
+            );
+        }
         let Some(next_generation) = state.snapshot.state_generation.checked_add(1) else {
             return self.error_response(
                 request_id,
@@ -552,23 +986,118 @@ impl StatefulRuntimeEngineV3 {
                 state.snapshot.state_generation,
             );
         };
+        let previous_snapshot = state.snapshot.clone();
         state.snapshot = StatefulStateSnapshotV2::new(
             self.metadata.state_schema_version,
             next_generation,
             result.next_state,
         );
+        state.previous_good = Some(previous_snapshot);
+        if matches!(request, RuntimeRequestV3::Decide { .. }) {
+            let entry = DecisionLedgerEntryV3 {
+                decision_id: request_id.clone(),
+                model_generation: self.config.model_generation,
+                state_generation: next_generation,
+                created_at_unix_ms: now_unix_ms,
+                selected_arm: None,
+                reward: None,
+                outcome_time_unix_ms: None,
+            };
+            state.pending_decisions.insert(request_id.clone(), entry);
+        } else {
+            if let RuntimeRequestV3::Feedback {
+                decision_id,
+                selected_arm,
+                reward,
+                outcome_time_ms,
+                ..
+            } = &request
+            {
+                let mut entry = state
+                    .pending_decisions
+                    .remove(decision_id)
+                    .ok_or_else(|| {
+                        StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal)
+                    })
+                    .unwrap();
+                entry.selected_arm = Some(*selected_arm);
+                entry.reward = Some(reward.to_string());
+                entry.outcome_time_unix_ms = Some(*outcome_time_ms);
+                if state.completed_decisions.len()
+                    >= self.config.resource_profile.max_completed_decisions as usize
+                    && let Some(oldest) = state.completed_decisions.keys().next().cloned()
+                {
+                    state.completed_decisions.remove(&oldest);
+                }
+                state
+                    .completed_decisions
+                    .insert(entry.decision_id.clone(), entry);
+            }
+        }
         self.response(
             request_id,
             next_generation,
             match request {
                 RuntimeRequestV3::Inspect {} => RuntimeResponseBodyV3::Inspection {
-                    summary: result.output,
+                    summary: self.inspection_summary(&state, result.output),
                 },
                 _ => RuntimeResponseBodyV3::Result {
                     output: result.output,
                 },
             },
         )
+    }
+
+    fn is_healthy(&self) -> bool {
+        self.state
+            .lock()
+            .map(|state| state.last_error.is_none())
+            .unwrap_or(false)
+    }
+
+    fn health_status(&self) -> String {
+        if self.is_healthy() {
+            "healthy".into()
+        } else {
+            "failed_closed".into()
+        }
+    }
+
+    fn health_reason_codes(&self) -> Option<Vec<String>> {
+        self.state
+            .lock()
+            .ok()
+            .and_then(|state| state.last_error.as_ref().map(|error| vec![error.clone()]))
+    }
+
+    fn inspection_summary(
+        &self,
+        state: &RuntimeStateV3,
+        handler_summary: serde_json::Value,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "runtimeVersion": self.config.runtime_identity.version,
+            "protocolVersion": RUNTIME_API_VERSION_V3,
+            "channel": PREVIEW_CHANNEL_V3,
+            "modelGeneration": self.config.model_generation,
+            "stateGeneration": state.snapshot.state_generation,
+            "stateSchemaVersion": state.snapshot.state_schema_version,
+            "stateChecksum": state.snapshot.checksum_sha256,
+            "pendingDecisions": state.pending_decisions.len(),
+            "completedDecisions": state.completed_decisions.len(),
+            "resourceProfile": self.config.resource_profile,
+            "resourceUtilization": {
+                "stateBytes": state.snapshot.state.len(),
+                "pendingDecisions": state.pending_decisions.len(),
+                "completedDecisions": state.completed_decisions.len(),
+            },
+            "rollbackAvailable": state.previous_good.is_some(),
+            "candidateAvailable": state.candidate.is_some(),
+            "restartCount": state.restart_count,
+            "health": self.health_status(),
+            "lastError": state.last_error,
+            "handler": handler_summary,
+        })
     }
 
     fn current_generation(&self) -> u64 {
@@ -703,6 +1232,36 @@ fn map_handler_error(kind: StatefulHandlerErrorKindV2) -> (RuntimeErrorCodeV3, &
         | StatefulHandlerErrorKindV2::Internal => {
             (RuntimeErrorCodeV3::Internal, "internal runtime error")
         }
+    }
+}
+
+fn preview_error_code(code: RuntimeErrorCodeV3, message: &str) -> PreviewErrorCodeV3 {
+    match message {
+        "decision id was already used" => PreviewErrorCodeV3::DuplicateDecision,
+        "decision id is not pending" => PreviewErrorCodeV3::UnknownDecision,
+        "feedback generation is stale" => PreviewErrorCodeV3::StaleFeedback,
+        "pending decision capacity is exhausted" => PreviewErrorCodeV3::CapacityExceeded,
+        _ => match code {
+            RuntimeErrorCodeV3::InvalidJson => PreviewErrorCodeV3::InvalidJson,
+            RuntimeErrorCodeV3::InvalidRequestId
+            | RuntimeErrorCodeV3::InvalidClientIdentity
+            | RuntimeErrorCodeV3::IncompatibleApiVersion => PreviewErrorCodeV3::InvalidEnvelope,
+            RuntimeErrorCodeV3::InvalidEnvelope => PreviewErrorCodeV3::InvalidEnvelope,
+            RuntimeErrorCodeV3::PayloadTooLarge => PreviewErrorCodeV3::PayloadTooLarge,
+            RuntimeErrorCodeV3::UnsupportedCapability => PreviewErrorCodeV3::UnsupportedCapability,
+            RuntimeErrorCodeV3::StateMismatch => PreviewErrorCodeV3::StateMismatch,
+            RuntimeErrorCodeV3::ExpiredRequest => PreviewErrorCodeV3::ExpiredRequest,
+            RuntimeErrorCodeV3::IncompatibleGeneration => {
+                PreviewErrorCodeV3::IncompatibleGeneration
+            }
+            RuntimeErrorCodeV3::DuplicateFeedback => PreviewErrorCodeV3::DuplicateFeedback,
+            RuntimeErrorCodeV3::HandlerTimeout => PreviewErrorCodeV3::HandlerTimeout,
+            RuntimeErrorCodeV3::HandlerTrap => PreviewErrorCodeV3::HandlerTrap,
+            RuntimeErrorCodeV3::HandlerOutputTooLarge => PreviewErrorCodeV3::HandlerOutputTooLarge,
+            RuntimeErrorCodeV3::HandlerInvalidOutput => PreviewErrorCodeV3::HandlerInvalidOutput,
+            RuntimeErrorCodeV3::InvalidState => PreviewErrorCodeV3::InvalidState,
+            RuntimeErrorCodeV3::Internal => PreviewErrorCodeV3::Internal,
+        },
     }
 }
 

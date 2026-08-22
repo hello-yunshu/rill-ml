@@ -27,6 +27,73 @@ pub const MAX_CAPABILITIES_V3: usize = 32;
 /// Maximum error message length.
 pub const MAX_ERROR_MESSAGE_LEN_V3: usize = 512;
 
+/// Stable machine-readable marker for the opt-in v3 executable channel.
+pub const PREVIEW_CHANNEL_V3: &str = "preview";
+
+/// Bounded runtime policy shared by preview and stable v3 consumers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ResourceProfileV1 {
+    pub max_ipc_frame_bytes: u32,
+    pub max_model_state_bytes: u32,
+    pub max_snapshot_bytes: u32,
+    pub max_handler_package_bytes: u32,
+    pub max_model_pack_bytes: u32,
+    pub max_features: u32,
+    pub max_pending_decisions: u32,
+    pub max_completed_decisions: u32,
+    pub max_diagnostic_records: u32,
+    pub request_deadline_ms: u64,
+    pub shutdown_deadline_ms: u64,
+    pub snapshot_deadline_ms: u64,
+    pub restart_backoff_ms: u64,
+}
+
+impl Default for ResourceProfileV1 {
+    fn default() -> Self {
+        Self {
+            max_ipc_frame_bytes: crate::MAX_MESSAGE_BYTES as u32,
+            max_model_state_bytes: 256 * 1024,
+            max_snapshot_bytes: 512 * 1024,
+            max_handler_package_bytes: 4 * 1024 * 1024,
+            max_model_pack_bytes: 128 * 1024 * 1024,
+            max_features: 100_000,
+            max_pending_decisions: 1_024,
+            max_completed_decisions: 4_096,
+            max_diagnostic_records: 256,
+            request_deadline_ms: 5_000,
+            shutdown_deadline_ms: 2_000,
+            snapshot_deadline_ms: 2_000,
+            restart_backoff_ms: 100,
+        }
+    }
+}
+
+impl ResourceProfileV1 {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.max_ipc_frame_bytes == 0
+            || self.max_ipc_frame_bytes as usize > crate::MAX_MESSAGE_BYTES
+            || self.max_model_state_bytes == 0
+            || self.max_snapshot_bytes == 0
+            || self.max_handler_package_bytes == 0
+            || self.max_model_pack_bytes == 0
+            || self.max_features == 0
+            || self.max_pending_decisions == 0
+            || self.max_completed_decisions == 0
+            || self.max_diagnostic_records == 0
+            || self.request_deadline_ms == 0
+            || self.shutdown_deadline_ms == 0
+            || self.snapshot_deadline_ms == 0
+        {
+            return Err("resource profile contains a zero limit");
+        }
+        if self.max_completed_decisions < self.max_pending_decisions {
+            return Err("completed decision history must hold pending capacity");
+        }
+        Ok(())
+    }
+}
+
 /// Client or runtime identity carried explicitly by V3.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -236,6 +303,107 @@ pub enum RuntimeResponseBodyV3 {
     Error {
         error: RuntimeErrorV3,
     },
+}
+
+/// Additive response surface for the opt-in Preview subprocess. The original
+/// `RuntimeResponseV3` remains frozen; this type carries channel, health and
+/// decision metadata without changing its public enum variants.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimeResponseV3Preview {
+    pub request_id: String,
+    pub api_version: u32,
+    pub runtime_identity: IdentityV3,
+    pub model_generation: u64,
+    pub state_generation: u64,
+    pub response: RuntimeResponseBodyV3Preview,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum RuntimeResponseBodyV3Preview {
+    Handshake {
+        capabilities: Vec<String>,
+        feature_schema_hash: String,
+        handler_api_version: u32,
+        channel: String,
+    },
+    Health {
+        healthy: bool,
+        status: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        reason_codes: Vec<String>,
+    },
+    Result {
+        output: serde_json::Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        decision_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        decision_generation: Option<u64>,
+    },
+    Inspection {
+        summary: serde_json::Value,
+    },
+    Snapshot {
+        state_schema_version: u32,
+        state_checksum: String,
+        state: String,
+    },
+    Reset {
+        reset: bool,
+    },
+    Error {
+        error: RuntimeErrorV3Preview,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimeErrorV3Preview {
+    pub code: PreviewErrorCodeV3,
+    pub message: String,
+    pub retryable: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PreviewErrorCodeV3 {
+    InvalidJson,
+    InvalidEnvelope,
+    PayloadTooLarge,
+    UnsupportedCapability,
+    StateMismatch,
+    ExpiredRequest,
+    IncompatibleGeneration,
+    DuplicateDecision,
+    DuplicateFeedback,
+    UnknownDecision,
+    StaleFeedback,
+    CapacityExceeded,
+    HandlerTimeout,
+    HandlerTrap,
+    HandlerOutputTooLarge,
+    HandlerInvalidOutput,
+    InvalidState,
+    Internal,
+}
+
+impl PreviewErrorCodeV3 {
+    pub const fn is_retryable(self) -> bool {
+        matches!(
+            self,
+            Self::StateMismatch
+                | Self::ExpiredRequest
+                | Self::HandlerTimeout
+                | Self::CapacityExceeded
+                | Self::Internal
+        )
+    }
 }
 
 /// V3 error object. Code semantics are versioned with V3 and do not alter the

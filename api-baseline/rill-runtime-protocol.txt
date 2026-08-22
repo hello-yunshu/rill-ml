@@ -14,6 +14,27 @@ pub const rill_runtime_protocol::error_code::NO_INVOKE_HANDLER: &str
 pub const rill_runtime_protocol::error_code::UNSUPPORTED_CAPABILITY: &str
 pub fn rill_runtime_protocol::error_code::is_frozen(&str) -> bool
 pub mod rill_runtime_protocol::v3
+pub enum rill_runtime_protocol::v3::PreviewErrorCodeV3
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::CapacityExceeded
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::DuplicateDecision
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::DuplicateFeedback
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::ExpiredRequest
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::HandlerInvalidOutput
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::HandlerOutputTooLarge
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::HandlerTimeout
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::HandlerTrap
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::IncompatibleGeneration
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::Internal
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::InvalidEnvelope
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::InvalidJson
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::InvalidState
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::PayloadTooLarge
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::StaleFeedback
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::StateMismatch
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::UnknownDecision
+pub rill_runtime_protocol::v3::PreviewErrorCodeV3::UnsupportedCapability
+impl rill_runtime_protocol::v3::PreviewErrorCodeV3
+pub const fn rill_runtime_protocol::v3::PreviewErrorCodeV3::is_retryable(self) -> bool
 #[non_exhaustive] pub enum rill_runtime_protocol::v3::ProtocolV3Error
 pub rill_runtime_protocol::v3::ProtocolV3Error::IncompatibleApiVersion
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidCapabilities
@@ -91,6 +112,30 @@ pub rill_runtime_protocol::v3::RuntimeResponseBodyV3::Snapshot
 pub rill_runtime_protocol::v3::RuntimeResponseBodyV3::Snapshot::state: alloc::string::String
 pub rill_runtime_protocol::v3::RuntimeResponseBodyV3::Snapshot::state_checksum: alloc::string::String
 pub rill_runtime_protocol::v3::RuntimeResponseBodyV3::Snapshot::state_schema_version: u32
+pub enum rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Error
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Error::error: rill_runtime_protocol::v3::RuntimeErrorV3Preview
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Handshake
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Handshake::capabilities: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Handshake::channel: alloc::string::String
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Handshake::feature_schema_hash: alloc::string::String
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Handshake::handler_api_version: u32
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Health
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Health::healthy: bool
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Health::reason_codes: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Health::status: alloc::string::String
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Inspection
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Inspection::summary: serde_json::value::Value
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Reset
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Reset::reset: bool
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Result
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Result::decision_generation: core::option::Option<u64>
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Result::decision_id: core::option::Option<alloc::string::String>
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Result::output: serde_json::value::Value
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Snapshot
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Snapshot::state: alloc::string::String
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Snapshot::state_checksum: alloc::string::String
+pub rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview::Snapshot::state_schema_version: u32
 pub struct rill_runtime_protocol::v3::EnvelopeV3
 pub rill_runtime_protocol::v3::EnvelopeV3::api_version: u32
 pub rill_runtime_protocol::v3::EnvelopeV3::capability: core::option::Option<alloc::string::String>
@@ -110,6 +155,24 @@ pub rill_runtime_protocol::v3::IdentityV3::name: alloc::string::String
 pub rill_runtime_protocol::v3::IdentityV3::version: alloc::string::String
 impl rill_runtime_protocol::v3::IdentityV3
 pub fn rill_runtime_protocol::v3::IdentityV3::validate(&self) -> core::result::Result<(), rill_runtime_protocol::v3::ProtocolV3Error>
+pub struct rill_runtime_protocol::v3::ResourceProfileV1
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_completed_decisions: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_diagnostic_records: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_features: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_handler_package_bytes: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_ipc_frame_bytes: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_model_pack_bytes: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_model_state_bytes: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_pending_decisions: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_snapshot_bytes: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::request_deadline_ms: u64
+pub rill_runtime_protocol::v3::ResourceProfileV1::restart_backoff_ms: u64
+pub rill_runtime_protocol::v3::ResourceProfileV1::shutdown_deadline_ms: u64
+pub rill_runtime_protocol::v3::ResourceProfileV1::snapshot_deadline_ms: u64
+impl rill_runtime_protocol::v3::ResourceProfileV1
+pub fn rill_runtime_protocol::v3::ResourceProfileV1::validate(&self) -> core::result::Result<(), &'static str>
+impl core::default::Default for rill_runtime_protocol::v3::ResourceProfileV1
+pub fn rill_runtime_protocol::v3::ResourceProfileV1::default() -> Self
 pub struct rill_runtime_protocol::v3::RuntimeErrorV3
 pub rill_runtime_protocol::v3::RuntimeErrorV3::code: rill_runtime_protocol::v3::RuntimeErrorCodeV3
 pub rill_runtime_protocol::v3::RuntimeErrorV3::message: alloc::string::String
@@ -117,6 +180,10 @@ pub rill_runtime_protocol::v3::RuntimeErrorV3::retryable: bool
 impl rill_runtime_protocol::v3::RuntimeErrorV3
 pub fn rill_runtime_protocol::v3::RuntimeErrorV3::new(rill_runtime_protocol::v3::RuntimeErrorCodeV3, impl core::convert::Into<alloc::string::String>) -> Self
 pub fn rill_runtime_protocol::v3::RuntimeErrorV3::validate(&self) -> core::result::Result<(), rill_runtime_protocol::v3::ProtocolV3Error>
+pub struct rill_runtime_protocol::v3::RuntimeErrorV3Preview
+pub rill_runtime_protocol::v3::RuntimeErrorV3Preview::code: rill_runtime_protocol::v3::PreviewErrorCodeV3
+pub rill_runtime_protocol::v3::RuntimeErrorV3Preview::message: alloc::string::String
+pub rill_runtime_protocol::v3::RuntimeErrorV3Preview::retryable: bool
 pub struct rill_runtime_protocol::v3::RuntimeResponseV3
 pub rill_runtime_protocol::v3::RuntimeResponseV3::api_version: u32
 pub rill_runtime_protocol::v3::RuntimeResponseV3::model_generation: u64
@@ -126,6 +193,13 @@ pub rill_runtime_protocol::v3::RuntimeResponseV3::runtime_identity: rill_runtime
 pub rill_runtime_protocol::v3::RuntimeResponseV3::state_generation: u64
 impl rill_runtime_protocol::v3::RuntimeResponseV3
 pub fn rill_runtime_protocol::v3::RuntimeResponseV3::validate(&self) -> core::result::Result<(), rill_runtime_protocol::v3::ProtocolV3Error>
+pub struct rill_runtime_protocol::v3::RuntimeResponseV3Preview
+pub rill_runtime_protocol::v3::RuntimeResponseV3Preview::api_version: u32
+pub rill_runtime_protocol::v3::RuntimeResponseV3Preview::model_generation: u64
+pub rill_runtime_protocol::v3::RuntimeResponseV3Preview::request_id: alloc::string::String
+pub rill_runtime_protocol::v3::RuntimeResponseV3Preview::response: rill_runtime_protocol::v3::RuntimeResponseBodyV3Preview
+pub rill_runtime_protocol::v3::RuntimeResponseV3Preview::runtime_identity: rill_runtime_protocol::v3::IdentityV3
+pub rill_runtime_protocol::v3::RuntimeResponseV3Preview::state_generation: u64
 pub const rill_runtime_protocol::v3::FEATURE_SCHEMA_HASH_LEN_V3: usize
 pub const rill_runtime_protocol::v3::MAX_CAPABILITIES_V3: usize
 pub const rill_runtime_protocol::v3::MAX_CAPABILITY_LEN_V3: usize
@@ -134,6 +208,7 @@ pub const rill_runtime_protocol::v3::MAX_ERROR_MESSAGE_LEN_V3: usize
 pub const rill_runtime_protocol::v3::MAX_IDENTITY_NAME_LEN_V3: usize
 pub const rill_runtime_protocol::v3::MAX_IDENTITY_VERSION_LEN_V3: usize
 pub const rill_runtime_protocol::v3::MAX_REQUEST_ID_LEN_V3: usize
+pub const rill_runtime_protocol::v3::PREVIEW_CHANNEL_V3: &str
 pub const rill_runtime_protocol::v3::RUNTIME_API_VERSION_V3: u32
 pub enum rill_runtime_protocol::ReleaseArtifactKind
 pub rill_runtime_protocol::ReleaseArtifactKind::Handler

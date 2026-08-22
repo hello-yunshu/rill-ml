@@ -103,10 +103,11 @@ def run(root: Path) -> dict[str, object]:
             f"README.en.md advertises Stable {stable_version} / Preview {preview_version}",
         ),
         check(
-            "library-only Preview" in runtime_doc
-            and "未暴露为 production CLI/subprocess 入口" in runtime_doc,
-            "preview-v3.library-only",
-            "RUNTIME.md states that IPC v3 is library-only and not a production CLI entrypoint",
+            "preview-serve --state PATH" in runtime_doc
+            and 'channel: "preview"' in runtime_doc
+            and "不会被 `serve` 隐式启用" in runtime_doc,
+            "preview-v3.explicit-opt-in",
+            "RUNTIME.md states that IPC v3 is an explicit opt-in preview subprocess",
         ),
         check(
             "不指定 `--handler` 且不指定" in runtime_doc

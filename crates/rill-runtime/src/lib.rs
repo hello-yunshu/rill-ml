@@ -44,8 +44,9 @@ pub use server::{
     RuntimeEngine, StderrLogSink,
 };
 pub use stateful::{
-    StatefulHandlerErrorKindV2, StatefulHandlerErrorV2, StatefulHandlerMetadataV2,
-    StatefulHandlerResultV2, StatefulHandlerV2, StatefulRuntimeConfigV3, StatefulRuntimeEngineV3,
+    DecisionLedgerEntryV3, StatefulHandlerErrorKindV2, StatefulHandlerErrorV2,
+    StatefulHandlerMetadataV2, StatefulHandlerResultV2, StatefulHandlerV2, StatefulRuntimeConfigV3,
+    StatefulRuntimeEngineV3, StatefulRuntimeSnapshotV3, StatefulStateMigratorV1,
     StatefulStateSnapshotV2,
 };
 #[cfg(feature = "wasm")]
