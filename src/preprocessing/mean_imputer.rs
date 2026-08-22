@@ -146,12 +146,8 @@ impl Transformer for MeanImputer {
     }
 
     fn reset(&mut self) {
-        for c in &mut self.counts {
-            *c = 0;
-        }
-        for m in &mut self.means {
-            *m = 0.0;
-        }
+        self.counts.fill(0);
+        self.means.fill(0.0);
         self.samples_seen = 0;
     }
 }

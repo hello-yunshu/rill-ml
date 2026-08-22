@@ -178,9 +178,7 @@ impl OnlineBinaryClassifier for LogisticRegression {
     }
 
     fn reset(&mut self) {
-        for w in &mut self.weights {
-            *w = 0.0;
-        }
+        self.weights.fill(0.0);
         self.intercept = 0.0;
         self.optimizer.reset();
         self.samples_seen = 0;
