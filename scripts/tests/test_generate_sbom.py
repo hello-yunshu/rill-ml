@@ -30,7 +30,7 @@ class SbomTests(unittest.TestCase):
                 "--output-dir",
                 str(output),
                 "--artifact",
-                f"rill-runtime-linux-x86_64={artifact}",
+                f"rill-runtime-linux-x86_64_musl={artifact}",
             ]
             first = subprocess.run(command, cwd=ROOT, check=False, capture_output=True, text=True)
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
@@ -41,11 +41,12 @@ class SbomTests(unittest.TestCase):
 
             cdx = json.loads((output / "rill-ml-1.3.0.cdx.json").read_text(encoding="utf-8"))
             self.assertEqual(cdx["metadata"]["properties"][0]["value"], "v1.3.0")
-            artifact_component = next(component for component in cdx["components"] if component["name"] == "rill-runtime-linux-x86_64")
+            artifact_component = next(component for component in cdx["components"] if component["name"] == "rill-runtime-linux-x86_64_musl")
             self.assertEqual(artifact_component["hashes"][0]["content"], hashlib.sha256(artifact.read_bytes()).hexdigest())
             spdx = json.loads((output / "rill-ml-1.3.0.spdx.json").read_text(encoding="utf-8"))
             self.assertEqual(spdx["name"], "rill-ml-1.3.0")
-            self.assertEqual(spdx["files"][0]["fileName"], "rill-runtime-linux-x86_64")
+            self.assertEqual(spdx["files"][0]["fileName"], "rill-runtime-linux-x86_64_musl")
+            self.assertNotIn("_", spdx["files"][0]["SPDXID"])
 
             verify = subprocess.run(
                 [
