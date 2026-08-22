@@ -16,3 +16,8 @@ The eventual 1.5 qualification matrix has three distinct evidence classes:
 The harness keeps those classes separate in its result schema. Full synthetic
 load, extended soak and fault-injection runs are deliberately post-push
 activities and must not replace normal Actions or public-asset verification.
+The final-stage runners are `scripts/run_runtime_final_qualification.py` for
+the three simulated consumer shapes and `scripts/run_runtime_fault_smoke.py`
+for deterministic bounded fault coverage. Every runner reports
+`evidenceType: simulated`; none of this output is native or real-consumer
+proof.

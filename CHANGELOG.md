@@ -27,6 +27,11 @@ with the Rust-specific convention that 0.x releases may break the public API.
   candidate/previous-good activation hooks, rollback, and migration hooks.
 - Preview health/inspect responses now expose machine-readable channel, health,
   generations, resource utilization, restart count, and rollback availability.
+- Hardened the production qualification surface: inspect no longer re-enters the
+  state mutex, IPC/snapshot limits are enforced, completed decision history is
+  fail-closed at capacity, and reset/promote/rollback clear stale ledger entries.
+- Added clock-injected `RuntimeDiagnosticsV1` with bounded resource usage and
+  machine-readable health status.
 
 
 
