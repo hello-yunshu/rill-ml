@@ -12,7 +12,9 @@ use std::{
 };
 
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use rill_runtime_protocol::ReleaseIndexPayload;
+use rill_runtime_protocol::{
+    ReleaseIndexPayload, SignedReleaseIndexWithGenerationV1, TrustMetadataV1,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -77,6 +79,14 @@ pub enum ReleaseIndexError {
     Signature,
     #[error("canonical JSON error: {0}")]
     Canonical(ArchiveError),
+    #[error("invalid trust metadata: {0}")]
+    TrustMetadata(String),
+    #[error("trust metadata generation is older than the consumer metadata floor")]
+    MetadataDowngrade,
+    #[error("trust metadata content conflicts with the consumer metadata floor")]
+    MetadataConflict,
+    #[error("release index generation is older than the consumer rollback floor")]
+    Downgrade,
 }
 
 /// Limits for a specific pack type.
@@ -150,6 +160,125 @@ pub fn verify_release_index(
     let canonical = canonical_json(&serialized).map_err(ReleaseIndexError::Canonical)?;
     key.verify(&canonical, &signature)
         .map_err(|_| ReleaseIndexError::Signature)
+}
+
+/// Sign a v3 release index together with a monotonic generation envelope.
+///
+/// The v3 payload itself is unchanged. Consumers that opt into key lifecycle
+/// metadata verify this envelope and enforce its generation floor.
+pub fn sign_release_index_with_generation(
+    payload: ReleaseIndexPayload,
+    release_generation: u64,
+    signing_key: &SigningKey,
+) -> Result<SignedReleaseIndexWithGenerationV1, ReleaseIndexError> {
+    let index = sign_release_index(payload, signing_key)?;
+    let mut envelope = SignedReleaseIndexWithGenerationV1 {
+        schema_version: rill_runtime_protocol::RELEASE_INDEX_LIFECYCLE_SCHEMA_VERSION,
+        release_generation,
+        index,
+        lifecycle_signature: String::new(),
+    };
+    let canonical = lifecycle_signing_bytes(&envelope)?;
+    envelope.lifecycle_signature = hex::encode(signing_key.sign(&canonical).to_bytes());
+    Ok(envelope)
+}
+
+/// Verify a signed v3 index against rotating trust metadata.
+///
+/// This is a new opt-in reader. The legacy `verify_release_index` path remains
+/// exactly the v3 reader used by existing 1.x consumers. Trust metadata is
+/// fail-closed: malformed, future, expired, revoked, emergency-revoked,
+/// unknown-key and downgraded generations are rejected.
+pub fn verify_release_index_with_trust_metadata(
+    envelope: &SignedReleaseIndexWithGenerationV1,
+    metadata: &TrustMetadataV1,
+    floor: &rill_runtime_protocol::TrustVerificationFloorV1,
+    now_unix_ms: u64,
+) -> Result<(), ReleaseIndexError> {
+    envelope
+        .validate_shape()
+        .map_err(|error| ReleaseIndexError::TrustMetadata(error.into()))?;
+    metadata
+        .validate_shape()
+        .map_err(|error| ReleaseIndexError::TrustMetadata(error.into()))?;
+    if metadata.metadata_generation < floor.minimum_metadata_generation {
+        return Err(ReleaseIndexError::MetadataDowngrade);
+    }
+    if metadata.metadata_generation == floor.minimum_metadata_generation {
+        let expected = floor
+            .metadata_digest
+            .as_deref()
+            .ok_or(ReleaseIndexError::MetadataConflict)?;
+        if !is_sha256_hex(expected) || trust_metadata_digest(metadata)? != expected {
+            return Err(ReleaseIndexError::MetadataConflict);
+        }
+    }
+    if envelope.release_generation < floor.minimum_release_generation
+        || envelope.release_generation < metadata.minimum_release_generation
+    {
+        return Err(ReleaseIndexError::Downgrade);
+    }
+    let active = metadata
+        .active_keys_at(now_unix_ms)
+        .map_err(|error| ReleaseIndexError::TrustMetadata(error.into()))?;
+    let mut keys = BTreeMap::new();
+    for key in active {
+        let bytes = hex::decode(&key.public_key_hex)
+            .map_err(|_| ReleaseIndexError::TrustMetadata("invalid trust public key".into()))?;
+        let bytes: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| ReleaseIndexError::TrustMetadata("invalid trust public key".into()))?;
+        let public_key = VerifyingKey::from_bytes(&bytes)
+            .map_err(|_| ReleaseIndexError::TrustMetadata("invalid trust public key".into()))?;
+        keys.insert(key.key_id.clone(), public_key);
+    }
+    let publisher_key = keys
+        .get(&envelope.index.payload.publisher_key_id)
+        .ok_or(ReleaseIndexError::UnknownKey)?;
+    let lifecycle_signature = hex::decode(&envelope.lifecycle_signature)
+        .map_err(|_| ReleaseIndexError::TrustMetadata("invalid lifecycle signature".into()))?;
+    let lifecycle_signature = Signature::from_slice(&lifecycle_signature)
+        .map_err(|_| ReleaseIndexError::TrustMetadata("invalid lifecycle signature".into()))?;
+    let canonical = lifecycle_signing_bytes(envelope)?;
+    publisher_key
+        .verify(&canonical, &lifecycle_signature)
+        .map_err(|_| ReleaseIndexError::Signature)?;
+    verify_release_index(&envelope.index, &TrustStore(keys))
+}
+
+/// Return the canonical SHA-256 identity a consumer may persist alongside a
+/// metadata generation in [`rill_runtime_protocol::TrustVerificationFloorV1`].
+pub fn trust_metadata_digest(metadata: &TrustMetadataV1) -> Result<String, ReleaseIndexError> {
+    metadata
+        .validate_shape()
+        .map_err(|error| ReleaseIndexError::TrustMetadata(error.into()))?;
+    let serialized = serde_json::to_vec(metadata)?;
+    let canonical = canonical_json(&serialized).map_err(ReleaseIndexError::Canonical)?;
+    Ok(hex::encode(Sha256::digest(canonical)))
+}
+
+fn is_sha256_hex(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LifecycleSigningView<'a> {
+    schema_version: u32,
+    release_generation: u64,
+    index: &'a rill_runtime_protocol::SignedReleaseIndex,
+}
+
+fn lifecycle_signing_bytes(
+    envelope: &SignedReleaseIndexWithGenerationV1,
+) -> Result<Vec<u8>, ReleaseIndexError> {
+    let view = LifecycleSigningView {
+        schema_version: envelope.schema_version,
+        release_generation: envelope.release_generation,
+        index: &envelope.index,
+    };
+    let serialized = serde_json::to_vec(&view)?;
+    canonical_json(&serialized).map_err(ReleaseIndexError::Canonical)
 }
 
 fn validate_release_payload(payload: &ReleaseIndexPayload) -> Result<(), ReleaseIndexError> {
@@ -530,5 +659,243 @@ mod tests {
             matches!(result, Err(ArchiveError::Limit("compression ratio"))),
             "expected overflow rejection, got: {result:?}"
         );
+    }
+
+    fn lifecycle_payload() -> ReleaseIndexPayload {
+        use rill_runtime_protocol::{
+            RELEASE_INDEX_SCHEMA_VERSION, RUNTIME_API_VERSION, RUNTIME_ARTIFACT_ID,
+            ReleaseArtifact, ReleaseArtifactKind,
+        };
+        ReleaseIndexPayload {
+            schema_version: RELEASE_INDEX_SCHEMA_VERSION,
+            channel: "stable".into(),
+            generated_at: "2026-08-22T00:00:00Z".into(),
+            publisher_key_id: "current".into(),
+            artifacts: vec![ReleaseArtifact {
+                kind: ReleaseArtifactKind::Runtime,
+                id: RUNTIME_ARTIFACT_ID.into(),
+                version: "1.3.0".into(),
+                runtime_api_version: RUNTIME_API_VERSION,
+                target_os: Some("linux".into()),
+                target_arch: Some("x86_64".into()),
+                target_libc: Some("gnu".into()),
+                handler_api_version: None,
+                min_runtime_version: None,
+                pm_adapter_protocol_version: None,
+                url: "https://example.invalid/runtime".into(),
+                sha256: "ab".repeat(32),
+                size: 1024,
+            }],
+        }
+    }
+
+    fn metadata(signing: &SigningKey) -> rill_runtime_protocol::TrustMetadataV1 {
+        use rill_runtime_protocol::{
+            TRUST_METADATA_SCHEMA_VERSION, TrustKeyMetadataV1, TrustKeyRole,
+        };
+        rill_runtime_protocol::TrustMetadataV1 {
+            schema_version: TRUST_METADATA_SCHEMA_VERSION,
+            metadata_generation: 1,
+            minimum_release_generation: 1,
+            keys: vec![TrustKeyMetadataV1 {
+                key_id: "current".into(),
+                public_key_hex: hex::encode(signing.verifying_key().to_bytes()),
+                role: TrustKeyRole::Current,
+                not_before_unix_ms: 0,
+                not_after_unix_ms: None,
+                revoked_at_unix_ms: None,
+                emergency_revoked: false,
+            }],
+        }
+    }
+
+    fn floor(
+        metadata: &rill_runtime_protocol::TrustMetadataV1,
+    ) -> rill_runtime_protocol::TrustVerificationFloorV1 {
+        rill_runtime_protocol::TrustVerificationFloorV1 {
+            minimum_metadata_generation: metadata.metadata_generation,
+            minimum_release_generation: metadata.minimum_release_generation,
+            metadata_digest: Some(trust_metadata_digest(metadata).unwrap()),
+        }
+    }
+
+    #[test]
+    fn trust_metadata_current_key_passes() {
+        let signing = SigningKey::from_bytes(&[71; 32]);
+        let envelope =
+            sign_release_index_with_generation(lifecycle_payload(), 1, &signing).unwrap();
+        let trust = metadata(&signing);
+        verify_release_index_with_trust_metadata(&envelope, &trust, &floor(&trust), 100).unwrap();
+    }
+
+    #[test]
+    fn trust_metadata_overlap_next_key_passes() {
+        use rill_runtime_protocol::{TrustKeyMetadataV1, TrustKeyRole};
+        let current = SigningKey::from_bytes(&[72; 32]);
+        let next = SigningKey::from_bytes(&[73; 32]);
+        let mut trust = metadata(&current);
+        trust.keys.push(TrustKeyMetadataV1 {
+            key_id: "next".into(),
+            public_key_hex: hex::encode(next.verifying_key().to_bytes()),
+            role: TrustKeyRole::Next,
+            not_before_unix_ms: 50,
+            not_after_unix_ms: None,
+            revoked_at_unix_ms: None,
+            emergency_revoked: false,
+        });
+        let mut payload = lifecycle_payload();
+        payload.publisher_key_id = "next".into();
+        let envelope = sign_release_index_with_generation(payload, 2, &next).unwrap();
+        verify_release_index_with_trust_metadata(&envelope, &trust, &floor(&trust), 100).unwrap();
+    }
+
+    #[test]
+    fn trust_metadata_rejects_future_expired_revoked_and_emergency_keys() {
+        let signing = SigningKey::from_bytes(&[74; 32]);
+        let envelope =
+            sign_release_index_with_generation(lifecycle_payload(), 1, &signing).unwrap();
+        let mut future = metadata(&signing);
+        future.keys[0].not_before_unix_ms = 101;
+        let future_floor = floor(&future);
+        assert!(
+            verify_release_index_with_trust_metadata(&envelope, &future, &future_floor, 100)
+                .is_err()
+        );
+        let mut expired = metadata(&signing);
+        expired.keys[0].not_after_unix_ms = Some(100);
+        let expired_floor = floor(&expired);
+        assert!(
+            verify_release_index_with_trust_metadata(&envelope, &expired, &expired_floor, 100)
+                .is_err()
+        );
+        let mut revoked = metadata(&signing);
+        revoked.keys[0].revoked_at_unix_ms = Some(100);
+        let revoked_floor = floor(&revoked);
+        assert!(
+            verify_release_index_with_trust_metadata(&envelope, &revoked, &revoked_floor, 100)
+                .is_err()
+        );
+        let mut emergency = metadata(&signing);
+        emergency.keys[0].emergency_revoked = true;
+        let emergency_floor = floor(&emergency);
+        assert!(
+            verify_release_index_with_trust_metadata(&envelope, &emergency, &emergency_floor, 100)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn trust_metadata_rejects_unknown_damaged_and_downgraded() {
+        use rill_runtime_protocol::TrustKeyMetadataV1;
+        let signing = SigningKey::from_bytes(&[75; 32]);
+        let envelope =
+            sign_release_index_with_generation(lifecycle_payload(), 1, &signing).unwrap();
+        let other = SigningKey::from_bytes(&[76; 32]);
+        let mut unknown = metadata(&other);
+        unknown.keys[0].key_id = "other".into();
+        assert!(matches!(
+            verify_release_index_with_trust_metadata(&envelope, &unknown, &floor(&unknown), 100),
+            Err(ReleaseIndexError::UnknownKey)
+        ));
+        let accepted = metadata(&signing);
+        let accepted_floor = floor(&accepted);
+        let mut damaged = metadata(&signing);
+        damaged.keys.push(TrustKeyMetadataV1 {
+            key_id: "current".into(),
+            public_key_hex: hex::encode(signing.verifying_key().to_bytes()),
+            role: rill_runtime_protocol::TrustKeyRole::Next,
+            not_before_unix_ms: 0,
+            not_after_unix_ms: None,
+            revoked_at_unix_ms: None,
+            emergency_revoked: false,
+        });
+        assert!(matches!(
+            verify_release_index_with_trust_metadata(&envelope, &damaged, &accepted_floor, 100),
+            Err(ReleaseIndexError::TrustMetadata(_))
+        ));
+        let mut downgrade = metadata(&signing);
+        downgrade.minimum_release_generation = 2;
+        assert!(matches!(
+            verify_release_index_with_trust_metadata(
+                &envelope,
+                &downgrade,
+                &floor(&downgrade),
+                100
+            ),
+            Err(ReleaseIndexError::Downgrade)
+        ));
+    }
+
+    #[test]
+    fn trust_metadata_rejects_generation_tampering() {
+        let signing = SigningKey::from_bytes(&[77; 32]);
+        let mut envelope =
+            sign_release_index_with_generation(lifecycle_payload(), 1, &signing).unwrap();
+        envelope.release_generation = 2;
+        let trust = metadata(&signing);
+        assert!(matches!(
+            verify_release_index_with_trust_metadata(&envelope, &trust, &floor(&trust), 100),
+            Err(ReleaseIndexError::Signature)
+        ));
+    }
+
+    #[test]
+    fn trust_metadata_rejects_old_authenticated_document_after_revocation() {
+        use rill_runtime_protocol::{TrustKeyMetadataV1, TrustKeyRole};
+        let current = SigningKey::from_bytes(&[78; 32]);
+        let revoked = SigningKey::from_bytes(&[79; 32]);
+        let mut accepted = metadata(&current);
+        accepted.metadata_generation = 10;
+        accepted.keys.push(TrustKeyMetadataV1 {
+            key_id: "revoked".into(),
+            public_key_hex: hex::encode(revoked.verifying_key().to_bytes()),
+            role: TrustKeyRole::Next,
+            not_before_unix_ms: 0,
+            not_after_unix_ms: None,
+            revoked_at_unix_ms: Some(100),
+            emergency_revoked: false,
+        });
+        let consumer_floor = floor(&accepted);
+
+        let mut old = accepted.clone();
+        old.metadata_generation = 9;
+        old.keys[1].revoked_at_unix_ms = None;
+        let mut payload = lifecycle_payload();
+        payload.publisher_key_id = "revoked".into();
+        let envelope = sign_release_index_with_generation(payload, 2, &revoked).unwrap();
+
+        assert!(matches!(
+            verify_release_index_with_trust_metadata(&envelope, &old, &consumer_floor, 100),
+            Err(ReleaseIndexError::MetadataDowngrade)
+        ));
+    }
+
+    #[test]
+    fn trust_metadata_rejects_same_generation_content_conflict() {
+        let signing = SigningKey::from_bytes(&[80; 32]);
+        let accepted = metadata(&signing);
+        let floor = floor(&accepted);
+        let mut conflicting = accepted.clone();
+        conflicting.keys[0].emergency_revoked = true;
+        let envelope =
+            sign_release_index_with_generation(lifecycle_payload(), 1, &signing).unwrap();
+
+        assert!(matches!(
+            verify_release_index_with_trust_metadata(&envelope, &conflicting, &floor, 100),
+            Err(ReleaseIndexError::MetadataConflict)
+        ));
+    }
+
+    #[test]
+    fn trust_metadata_accepts_future_generation_for_consumer_promotion() {
+        let signing = SigningKey::from_bytes(&[81; 32]);
+        let accepted = metadata(&signing);
+        let floor = floor(&accepted);
+        let mut future = accepted.clone();
+        future.metadata_generation = accepted.metadata_generation + 1;
+        let envelope =
+            sign_release_index_with_generation(lifecycle_payload(), 2, &signing).unwrap();
+
+        verify_release_index_with_trust_metadata(&envelope, &future, &floor, 100).unwrap();
     }
 }

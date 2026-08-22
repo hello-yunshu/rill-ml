@@ -331,15 +331,9 @@ impl Transformer for StandardScaler {
     }
 
     fn reset(&mut self) {
-        for c in &mut self.counts {
-            *c = 0;
-        }
-        for m in &mut self.means {
-            *m = 0.0;
-        }
-        for m2 in &mut self.m2s {
-            *m2 = 0.0;
-        }
+        self.counts.fill(0);
+        self.means.fill(0.0);
+        self.m2s.fill(0.0);
     }
 }
 

@@ -36,6 +36,12 @@ It is not "just another online machine learning library". It combines the follow
 - **Stable protocol boundaries**: `rill-runtime-protocol` provides frozen v1/v2 JSON IPC; `rill-handler-api` provides the frozen v1 WIT ABI;
 - **Safe host integration**: models and handlers can never modify host state directly; all system changes belong to the host governance layer.
 
+The production Runtime CLI accepts Stable IPC v1/v2 only. Preview IPC v3 is
+currently **library-only** and is not exposed as a production CLI/subprocess
+entrypoint. `serve` requires an explicit signed `--handler` or the deprecated
+`--builtin-handler linear-regression`; omitting both fails closed rather than
+silently falling back.
+
 The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, signed `.rillpack` model packages, and signed `.rillhandler` WASM handler packages. The runtime loads signature-verified WASM handlers in a sandbox; updating a handler no longer requires recompiling the runtime binary. Hosts can compile only the protocol crate and update the runtime, models, and handlers independently from the main application. Official macOS Runtime releases support Apple Silicon (ARM64) only; no Intel build is provided. The macOS aarch64 asset is unsigned — the project does not configure an Apple Developer ID certificate, and this is a permanent decision that does not block any release. macOS users may need to authorize first launch through standard controls such as Finder right-click → Open or System Settings → Privacy & Security; see [`STABILITY.md`](STABILITY.md) § macOS unsigned policy for details. The 1.0 stability matrix, frozen surface, and Stable/Preview split are documented in [`STABILITY.md`](STABILITY.md); see [`RUNTIME.md`](RUNTIME.md) for the runtime product and release boundary.
 
 > RillML is inspired by the online-learning workflow popularized by [River](https://riverml.xyz/). It is an independent Rust project and is not affiliated with or endorsed by River. It does not currently aim for API or model compatibility.
@@ -117,6 +123,16 @@ River can be used as a reference, baseline, and offline validation source, but P
 
 **Memory bounds:** Non-rolling statistics O(1); linear models O(d); rolling statistics O(window_size); sparse models (FTRL) O(k), k = seen feature count (unbounded by default; set `max_features` to bound); drift detectors O(1) or O(window_size); LinUCB O(arm_count × d²).
 
+FTRL's `resource_diagnostics()` reports the current feature count, configured
+cap, saturation, and new-feature rejection signal without mutating the model.
+The unbounded default preserves compatibility; long-running services that
+accept untrusted or open-ended vocabularies should configure a finite
+`max_features`. See [`docs/FTRL_RESOURCE_DIAGNOSTICS.md`](docs/FTRL_RESOURCE_DIAGNOSTICS.md).
+
+Delayed feedback uses a caller-owned clock, explicit model generations,
+bounded pending/completed storage, and exact replay semantics; `DecisionLedger`
+never silently evicts state. See [`docs/DECISION_LEDGER_V1.md`](docs/DECISION_LEDGER_V1.md).
+
 ## 4. Architecture
 
 RillML is uniformly expressed as three layers: the Online ML core, the Runtime, and the Integrations layer.
@@ -176,7 +192,7 @@ behaviour. For a WASM-free build: `cargo install rill-runtime --no-default-featu
 load `.rillhandler`).
 
 The version tracks `[workspace.package].version`; query the current release via `cargo metadata`
-or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.2.0`;
+or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.3.0`;
 the Preview group remains at `0.15.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
@@ -387,6 +403,7 @@ RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for th
 - **v1.0.0** — First stable 1.x release; `local-ai-stable` advances only after the immutable public assets pass the independent host smoke.
 - **v1.1.0** — Interpretable online decision-making: delayed feedback, feature identity, drift consensus, weighted learning, Preview Runtime v3 / Handler v2.
 - **v1.2.0** — Release admission and full-platform post-verification: admission gate, native RISC-V/LoongArch/FreeBSD/Windows verification, index schema v3 with `targetLibc`.
+- **v1.3.0** — Product-surface drift gates, Stable/Preview version convergence, TrustMetadata v1 key lifecycle, offline/released conformance, real fuzz harnesses, CycloneDX/SPDX SBOMs, and FTRL resource diagnostics.
 
 The current 1.x line does not implement full deep learning; the future direction is "frozen neural encoder + RillML online adaptive head" (e.g., DL embedding → LinearRegression / LogisticRegression / LinUCB / Bandit → online adaptation), with an `inference-provider` abstraction reserved in the architecture. RillML is not intended to become a PyTorch/tinygrad replacement.
 

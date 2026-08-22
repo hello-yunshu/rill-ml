@@ -365,3 +365,30 @@ fn ftrl_classifier_logloss_decreases() {
         "LogLoss should decrease over training: first={first}, last={last}"
     );
 }
+
+#[test]
+fn ftrl_resource_diagnostics_report_cap_and_rejection_signal() {
+    let mut config = FtrlConfig::default();
+    config.max_features = Some(2);
+    let mut model = FtrlRegressor::new(config).unwrap();
+    let first = SparseFeatures::from_sorted(vec![(0, 1.0)]).unwrap();
+    let second = SparseFeatures::from_sorted(vec![(1, 1.0)]).unwrap();
+    model.learn(&first, 1.0).unwrap();
+    let before_capacity = model.resource_diagnostics();
+    assert_eq!(before_capacity.current_features, 1);
+    assert_eq!(before_capacity.configured_max, Some(2));
+    assert_eq!(before_capacity.saturation, Some(0.5));
+    assert!(!before_capacity.new_features_rejected);
+
+    model.learn(&second, 1.0).unwrap();
+    let at_capacity = model.resource_diagnostics();
+    assert_eq!(at_capacity.current_features, 2);
+    assert_eq!(at_capacity.saturation, Some(1.0));
+    assert!(at_capacity.new_features_rejected);
+
+    let unbounded = FtrlRegressor::new(FtrlConfig::default()).unwrap();
+    let diagnostics = unbounded.resource_diagnostics();
+    assert_eq!(diagnostics.configured_max, None);
+    assert_eq!(diagnostics.saturation, None);
+    assert!(!diagnostics.new_features_rejected);
+}

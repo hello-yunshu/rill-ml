@@ -1059,6 +1059,7 @@ pub const fn rill_ml::models::FtrlClassifier::config(&self) -> &rill_ml::models:
 pub fn rill_ml::models::FtrlClassifier::feature_count(&self) -> usize
 pub fn rill_ml::models::FtrlClassifier::intercept(&self) -> f64
 pub fn rill_ml::models::FtrlClassifier::new(rill_ml::models::FtrlConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlClassifier::resource_diagnostics(&self) -> rill_ml::models::FtrlResourceDiagnostics
 pub fn rill_ml::models::FtrlClassifier::weights(&self) -> alloc::vec::Vec<(rill_ml::sparse::FeatureId, f64)>
 impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlClassifier
 pub fn rill_ml::models::FtrlClassifier::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
@@ -1089,6 +1090,7 @@ pub const fn rill_ml::models::FtrlRegressor::config(&self) -> &rill_ml::models::
 pub fn rill_ml::models::FtrlRegressor::feature_count(&self) -> usize
 pub fn rill_ml::models::FtrlRegressor::intercept(&self) -> f64
 pub fn rill_ml::models::FtrlRegressor::new(rill_ml::models::FtrlConfig) -> core::result::Result<Self, rill_ml::error::RillError>
+pub fn rill_ml::models::FtrlRegressor::resource_diagnostics(&self) -> rill_ml::models::FtrlResourceDiagnostics
 pub fn rill_ml::models::FtrlRegressor::weights(&self) -> alloc::vec::Vec<(rill_ml::sparse::FeatureId, f64)>
 impl rill_ml::persistence::ValidateState for rill_ml::models::FtrlRegressor
 pub fn rill_ml::models::FtrlRegressor::validate_state(&self) -> core::result::Result<(), rill_ml::error::RillError>
@@ -1099,6 +1101,11 @@ pub fn rill_ml::models::FtrlRegressor::reset(&mut self)
 pub fn rill_ml::models::FtrlRegressor::samples_seen(&self) -> u64
 impl<'de> serde_core::de::Deserialize<'de> for rill_ml::models::FtrlRegressor
 pub fn rill_ml::models::FtrlRegressor::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
+pub struct rill_ml::models::FtrlResourceDiagnostics
+pub rill_ml::models::FtrlResourceDiagnostics::configured_max: core::option::Option<usize>
+pub rill_ml::models::FtrlResourceDiagnostics::current_features: usize
+pub rill_ml::models::FtrlResourceDiagnostics::new_features_rejected: bool
+pub rill_ml::models::FtrlResourceDiagnostics::saturation: core::option::Option<f64>
 pub struct rill_ml::models::GaussianNaiveBayes
 impl rill_ml::models::GaussianNaiveBayes
 pub const fn rill_ml::models::GaussianNaiveBayes::alpha(&self) -> f64

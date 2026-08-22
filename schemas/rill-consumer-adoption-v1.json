@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rillml.dev/schemas/rill-consumer-adoption-v1.json",
+  "title": "RillML Consumer Adoption Contract v1",
+  "description": "A consumer-owned qualification record. RillML publishes this schema and fixtures, not authoritative consumer status.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "consumer",
+    "upstreamRepository",
+    "testedRelease",
+    "supportedRelease",
+    "pinnedRelease",
+    "protocolApi",
+    "protocolStatus",
+    "handlerApi",
+    "platform",
+    "qualification",
+    "evidenceCommit",
+    "evidenceRun"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "consumer": { "type": "string", "minLength": 1, "maxLength": 96 },
+    "upstreamRepository": { "type": "string", "pattern": "^https://[^\\s]+$" },
+    "testedRelease": { "type": "string", "minLength": 1, "maxLength": 48 },
+    "supportedRelease": { "type": "string", "minLength": 1, "maxLength": 48 },
+    "pinnedRelease": {
+      "anyOf": [
+        { "type": "string", "minLength": 1, "maxLength": 48 },
+        { "type": "null" }
+      ]
+    },
+    "protocolApi": { "type": "string", "pattern": "^v[0-9]+$" },
+    "protocolStatus": {
+      "type": "string",
+      "enum": ["tested", "supported", "not-tested", "blocked"]
+    },
+    "handlerApi": { "type": "string", "pattern": "^v[0-9]+$" },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch"],
+      "properties": {
+        "os": { "type": "string", "minLength": 1, "maxLength": 48 },
+        "arch": { "type": "string", "minLength": 1, "maxLength": 48 },
+        "libc": { "type": "string", "maxLength": 48 }
+      }
+    },
+    "qualification": {
+      "type": "string",
+      "enum": ["example/non-authoritative", "tested", "supported", "blocked", "not-qualified"]
+    },
+    "evidenceCommit": { "type": "string", "pattern": "^[0-9a-f]{7,64}$" },
+    "evidenceRun": {
+      "anyOf": [
+        { "type": "string", "minLength": 1, "maxLength": 256 },
+        { "type": "null" }
+      ]
+    }
+  }
+}

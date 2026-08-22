@@ -23,6 +23,31 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 
 
+
+## [1.3.0] - 2026-08-22
+
+### Changed
+
+- Stable crates advance additively to `1.3.0`; Preview crates remain at
+  `0.15.0` and are not published by the Stable release path.
+- IPC v3 is explicitly documented and gated as a library-only Preview surface;
+  the production Runtime CLI remains Stable IPC v1/v2 and fails closed when no
+  explicit handler is selected.
+- Added a fail-closed product-surface gate, consumer-owned adoption schema and
+  validator, and deterministic offline/released conformance entrypoint.
+- Added TrustMetadata v1 current/next key overlap, validity, revocation,
+  emergency revoke, metadata-generation/digest rollback protection, and
+  monotonic release-generation verification while preserving the frozen
+  release-index v3 payload.
+- Added real libFuzzer targets and seed corpora for archive, handler, index,
+  trust metadata, IPC, snapshot, and handler JSON boundaries.
+- Release assets now carry deterministic dependency-complete CycloneDX and SPDX
+  SBOMs bound to the version, tag, commit, dependency graph, artifact names,
+  sizes, and SHA-256 values; standard validators and the release-bound verifier
+  run again after publication.
+- Added FTRL feature-capacity diagnostics, DecisionLedger contract
+  documentation, and an explicit C FFI unsafe trust-domain document.
+
 ## [1.2.0] - 2026-08-18
 
 ### Changed
@@ -1578,7 +1603,8 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.3.0
 [1.2.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0
 [1.2.0-rc.3]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0-rc.3
 [1.2.0-rc.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0-rc.2

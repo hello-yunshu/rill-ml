@@ -10,7 +10,9 @@ pub(crate) mod naive_bayes;
 pub use baseline::{
     BaselineConfig, ExponentiallyWeightedMeanRegressor, LastValueRegressor, MeanRegressor,
 };
-pub use ftrl::{FtrlClassifier, FtrlConfig, FtrlRegressor, NewFeaturePolicy};
+pub use ftrl::{
+    FtrlClassifier, FtrlConfig, FtrlRegressor, FtrlResourceDiagnostics, NewFeaturePolicy,
+};
 pub use linear_regression::{LinearRegression, LinearRegressionConfig};
 pub use logistic_regression::{LogisticRegression, LogisticRegressionConfig};
 pub use naive_bayes::{

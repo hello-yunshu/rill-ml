@@ -1,0 +1,43 @@
+{
+  "payload": {
+    "schemaVersion": 3,
+    "channel": "stable",
+    "generatedAt": "2026-08-22T00:00:00Z",
+    "publisherKeyId": "fixture-publisher",
+    "artifacts": [
+      {
+        "kind": "runtime",
+        "id": "rill-runtime",
+        "version": "1.3.0",
+        "runtimeApiVersion": 2,
+        "targetOs": "linux",
+        "targetArch": "x86_64",
+        "targetLibc": "gnu",
+        "url": "https://example.invalid/rill-runtime-1.3.0-linux-x86_64",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "size": 1024
+      },
+      {
+        "kind": "model",
+        "id": "rillml.example.default",
+        "version": "1.3.0",
+        "runtimeApiVersion": 2,
+        "url": "https://example.invalid/example-default-1.3.0.rillpack",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "size": 1024
+      },
+      {
+        "kind": "handler",
+        "id": "org.example.echo",
+        "version": "1.3.0",
+        "runtimeApiVersion": 2,
+        "handlerApiVersion": 1,
+        "minRuntimeVersion": "1.3.0",
+        "url": "https://example.invalid/echo-handler-1.3.0.rillhandler",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "size": 1024
+      }
+    ]
+  },
+  "signature": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+}

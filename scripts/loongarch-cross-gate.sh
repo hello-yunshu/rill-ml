@@ -152,7 +152,7 @@ mkdir -p target
 ( cd handlers/echo-handler && \
   cargo build --locked --release --target wasm32-unknown-unknown >/dev/null )
 if ! command -v wasm-tools >/dev/null 2>&1; then
-  cargo install wasm-tools --locked --version "~1.254.0"
+  cargo install wasm-tools --locked --version "1.254.0"
 fi
 wasm-tools component new \
   handlers/echo-handler/target/wasm32-unknown-unknown/release/echo-handler.wasm \
