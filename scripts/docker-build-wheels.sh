@@ -27,7 +27,7 @@ cd "$(dirname "$0")/.."
 
 # Pin a concrete release tag (never `latest`/`main`) for reproducibility.
 # v1.14.1 is a real ghcr.io/pyo3/maturin release tag and matches
-# scripts/requirements-dev.txt (maturin>=1.14,<1.15). Override via MATURIN_IMAGE.
+# scripts/requirements-dev.txt (maturin==1.14.1). Override via MATURIN_IMAGE.
 MATURIN_IMAGE="${MATURIN_IMAGE:-ghcr.io/pyo3/maturin:v1.14.1}"
 # Space-separated Docker platforms to build, overridable via TARGETS.
 TARGETS="${TARGETS:-linux/amd64 linux/arm64}"

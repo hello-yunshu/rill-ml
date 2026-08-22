@@ -288,6 +288,10 @@ pub rill_runtime_protocol::TrustMetadataV1::schema_version: u32
 impl rill_runtime_protocol::TrustMetadataV1
 pub fn rill_runtime_protocol::TrustMetadataV1::active_keys_at(&self, u64) -> core::result::Result<alloc::vec::Vec<&rill_runtime_protocol::TrustKeyMetadataV1>, &'static str>
 pub fn rill_runtime_protocol::TrustMetadataV1::validate_shape(&self) -> core::result::Result<(), &'static str>
+pub struct rill_runtime_protocol::TrustVerificationFloorV1
+pub rill_runtime_protocol::TrustVerificationFloorV1::metadata_digest: core::option::Option<alloc::string::String>
+pub rill_runtime_protocol::TrustVerificationFloorV1::minimum_metadata_generation: u64
+pub rill_runtime_protocol::TrustVerificationFloorV1::minimum_release_generation: u64
 pub const rill_runtime_protocol::HANDLER_API_VERSION: u32
 pub const rill_runtime_protocol::HANDLER_PACKAGE_FORMAT_VERSION: u32
 pub const rill_runtime_protocol::MAX_MESSAGE_BYTES: usize

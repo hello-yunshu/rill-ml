@@ -36,13 +36,15 @@ with the Rust-specific convention that 0.x releases may break the public API.
 - Added a fail-closed product-surface gate, consumer-owned adoption schema and
   validator, and deterministic offline/released conformance entrypoint.
 - Added TrustMetadata v1 current/next key overlap, validity, revocation,
-  emergency revoke, and monotonic release-generation verification while
-  preserving the frozen release-index v3 payload.
+  emergency revoke, metadata-generation/digest rollback protection, and
+  monotonic release-generation verification while preserving the frozen
+  release-index v3 payload.
 - Added real libFuzzer targets and seed corpora for archive, handler, index,
   trust metadata, IPC, snapshot, and handler JSON boundaries.
-- Release assets now carry deterministic CycloneDX and SPDX SBOMs bound to the
-  version, tag, commit, artifact names, sizes, and SHA-256 values; the release
-  path downloads and verifies those exact SBOMs again.
+- Release assets now carry deterministic dependency-complete CycloneDX and SPDX
+  SBOMs bound to the version, tag, commit, dependency graph, artifact names,
+  sizes, and SHA-256 values; standard validators and the release-bound verifier
+  run again after publication.
 - Added FTRL feature-capacity diagnostics, DecisionLedger contract
   documentation, and an explicit C FFI unsafe trust-domain document.
 

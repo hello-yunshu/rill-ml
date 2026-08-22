@@ -81,6 +81,10 @@ pub enum ReleaseIndexError {
     Canonical(ArchiveError),
     #[error("invalid trust metadata: {0}")]
     TrustMetadata(String),
+    #[error("trust metadata generation is older than the consumer metadata floor")]
+    MetadataDowngrade,
+    #[error("trust metadata content conflicts with the consumer metadata floor")]
+    MetadataConflict,
     #[error("release index generation is older than the consumer rollback floor")]
     Downgrade,
 }
@@ -188,12 +192,30 @@ pub fn sign_release_index_with_generation(
 pub fn verify_release_index_with_trust_metadata(
     envelope: &SignedReleaseIndexWithGenerationV1,
     metadata: &TrustMetadataV1,
+    floor: &rill_runtime_protocol::TrustVerificationFloorV1,
     now_unix_ms: u64,
 ) -> Result<(), ReleaseIndexError> {
     envelope
         .validate_shape()
         .map_err(|error| ReleaseIndexError::TrustMetadata(error.into()))?;
-    if envelope.release_generation < metadata.minimum_release_generation {
+    metadata
+        .validate_shape()
+        .map_err(|error| ReleaseIndexError::TrustMetadata(error.into()))?;
+    if metadata.metadata_generation < floor.minimum_metadata_generation {
+        return Err(ReleaseIndexError::MetadataDowngrade);
+    }
+    if metadata.metadata_generation == floor.minimum_metadata_generation {
+        let expected = floor
+            .metadata_digest
+            .as_deref()
+            .ok_or(ReleaseIndexError::MetadataConflict)?;
+        if !is_sha256_hex(expected) || trust_metadata_digest(metadata)? != expected {
+            return Err(ReleaseIndexError::MetadataConflict);
+        }
+    }
+    if envelope.release_generation < floor.minimum_release_generation
+        || envelope.release_generation < metadata.minimum_release_generation
+    {
         return Err(ReleaseIndexError::Downgrade);
     }
     let active = metadata
@@ -222,6 +244,21 @@ pub fn verify_release_index_with_trust_metadata(
         .verify(&canonical, &lifecycle_signature)
         .map_err(|_| ReleaseIndexError::Signature)?;
     verify_release_index(&envelope.index, &TrustStore(keys))
+}
+
+/// Return the canonical SHA-256 identity a consumer may persist alongside a
+/// metadata generation in [`TrustVerificationFloorV1`].
+pub fn trust_metadata_digest(metadata: &TrustMetadataV1) -> Result<String, ReleaseIndexError> {
+    metadata
+        .validate_shape()
+        .map_err(|error| ReleaseIndexError::TrustMetadata(error.into()))?;
+    let serialized = serde_json::to_vec(metadata)?;
+    let canonical = canonical_json(&serialized).map_err(ReleaseIndexError::Canonical)?;
+    Ok(hex::encode(Sha256::digest(canonical)))
+}
+
+fn is_sha256_hex(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 #[derive(Serialize)]
@@ -672,12 +709,23 @@ mod tests {
         }
     }
 
+    fn floor(
+        metadata: &rill_runtime_protocol::TrustMetadataV1,
+    ) -> rill_runtime_protocol::TrustVerificationFloorV1 {
+        rill_runtime_protocol::TrustVerificationFloorV1 {
+            minimum_metadata_generation: metadata.metadata_generation,
+            minimum_release_generation: metadata.minimum_release_generation,
+            metadata_digest: Some(trust_metadata_digest(metadata).unwrap()),
+        }
+    }
+
     #[test]
     fn trust_metadata_current_key_passes() {
         let signing = SigningKey::from_bytes(&[71; 32]);
         let envelope =
             sign_release_index_with_generation(lifecycle_payload(), 1, &signing).unwrap();
-        verify_release_index_with_trust_metadata(&envelope, &metadata(&signing), 100).unwrap();
+        let trust = metadata(&signing);
+        verify_release_index_with_trust_metadata(&envelope, &trust, &floor(&trust), 100).unwrap();
     }
 
     #[test]
@@ -698,7 +746,7 @@ mod tests {
         let mut payload = lifecycle_payload();
         payload.publisher_key_id = "next".into();
         let envelope = sign_release_index_with_generation(payload, 2, &next).unwrap();
-        verify_release_index_with_trust_metadata(&envelope, &trust, 100).unwrap();
+        verify_release_index_with_trust_metadata(&envelope, &trust, &floor(&trust), 100).unwrap();
     }
 
     #[test]
@@ -708,16 +756,20 @@ mod tests {
             sign_release_index_with_generation(lifecycle_payload(), 1, &signing).unwrap();
         let mut future = metadata(&signing);
         future.keys[0].not_before_unix_ms = 101;
-        assert!(verify_release_index_with_trust_metadata(&envelope, &future, 100).is_err());
+        let future_floor = floor(&future);
+        assert!(verify_release_index_with_trust_metadata(&envelope, &future, &future_floor, 100).is_err());
         let mut expired = metadata(&signing);
         expired.keys[0].not_after_unix_ms = Some(100);
-        assert!(verify_release_index_with_trust_metadata(&envelope, &expired, 100).is_err());
+        let expired_floor = floor(&expired);
+        assert!(verify_release_index_with_trust_metadata(&envelope, &expired, &expired_floor, 100).is_err());
         let mut revoked = metadata(&signing);
         revoked.keys[0].revoked_at_unix_ms = Some(100);
-        assert!(verify_release_index_with_trust_metadata(&envelope, &revoked, 100).is_err());
+        let revoked_floor = floor(&revoked);
+        assert!(verify_release_index_with_trust_metadata(&envelope, &revoked, &revoked_floor, 100).is_err());
         let mut emergency = metadata(&signing);
         emergency.keys[0].emergency_revoked = true;
-        assert!(verify_release_index_with_trust_metadata(&envelope, &emergency, 100).is_err());
+        let emergency_floor = floor(&emergency);
+        assert!(verify_release_index_with_trust_metadata(&envelope, &emergency, &emergency_floor, 100).is_err());
     }
 
     #[test]
@@ -730,7 +782,7 @@ mod tests {
         let mut unknown = metadata(&other);
         unknown.keys[0].key_id = "other".into();
         assert!(matches!(
-            verify_release_index_with_trust_metadata(&envelope, &unknown, 100),
+            verify_release_index_with_trust_metadata(&envelope, &unknown, &floor(&unknown), 100),
             Err(ReleaseIndexError::UnknownKey)
         ));
         let mut damaged = metadata(&signing);
@@ -744,13 +796,13 @@ mod tests {
             emergency_revoked: false,
         });
         assert!(matches!(
-            verify_release_index_with_trust_metadata(&envelope, &damaged, 100),
+            verify_release_index_with_trust_metadata(&envelope, &damaged, &floor(&damaged), 100),
             Err(ReleaseIndexError::TrustMetadata(_))
         ));
         let mut downgrade = metadata(&signing);
         downgrade.minimum_release_generation = 2;
         assert!(matches!(
-            verify_release_index_with_trust_metadata(&envelope, &downgrade, 100),
+            verify_release_index_with_trust_metadata(&envelope, &downgrade, &floor(&downgrade), 100),
             Err(ReleaseIndexError::Downgrade)
         ));
     }
@@ -761,9 +813,70 @@ mod tests {
         let mut envelope =
             sign_release_index_with_generation(lifecycle_payload(), 1, &signing).unwrap();
         envelope.release_generation = 2;
+        let trust = metadata(&signing);
         assert!(matches!(
-            verify_release_index_with_trust_metadata(&envelope, &metadata(&signing), 100),
+            verify_release_index_with_trust_metadata(&envelope, &trust, &floor(&trust), 100),
             Err(ReleaseIndexError::Signature)
         ));
+    }
+
+    #[test]
+    fn trust_metadata_rejects_old_authenticated_document_after_revocation() {
+        use rill_runtime_protocol::{TrustKeyMetadataV1, TrustKeyRole};
+        let current = SigningKey::from_bytes(&[78; 32]);
+        let revoked = SigningKey::from_bytes(&[79; 32]);
+        let mut accepted = metadata(&current);
+        accepted.metadata_generation = 10;
+        accepted.keys.push(TrustKeyMetadataV1 {
+            key_id: "revoked".into(),
+            public_key_hex: hex::encode(revoked.verifying_key().to_bytes()),
+            role: TrustKeyRole::Next,
+            not_before_unix_ms: 0,
+            not_after_unix_ms: None,
+            revoked_at_unix_ms: Some(100),
+            emergency_revoked: false,
+        });
+        let consumer_floor = floor(&accepted);
+
+        let mut old = accepted.clone();
+        old.metadata_generation = 9;
+        old.keys[1].revoked_at_unix_ms = None;
+        let mut payload = lifecycle_payload();
+        payload.publisher_key_id = "revoked".into();
+        let envelope = sign_release_index_with_generation(payload, 2, &revoked).unwrap();
+
+        assert!(matches!(
+            verify_release_index_with_trust_metadata(&envelope, &old, &consumer_floor, 100),
+            Err(ReleaseIndexError::MetadataDowngrade)
+        ));
+    }
+
+    #[test]
+    fn trust_metadata_rejects_same_generation_content_conflict() {
+        let signing = SigningKey::from_bytes(&[80; 32]);
+        let accepted = metadata(&signing);
+        let floor = floor(&accepted);
+        let mut conflicting = accepted.clone();
+        conflicting.keys[0].emergency_revoked = true;
+        let envelope =
+            sign_release_index_with_generation(lifecycle_payload(), 1, &signing).unwrap();
+
+        assert!(matches!(
+            verify_release_index_with_trust_metadata(&envelope, &conflicting, &floor, 100),
+            Err(ReleaseIndexError::MetadataConflict)
+        ));
+    }
+
+    #[test]
+    fn trust_metadata_accepts_future_generation_for_consumer_promotion() {
+        let signing = SigningKey::from_bytes(&[81; 32]);
+        let accepted = metadata(&signing);
+        let floor = floor(&accepted);
+        let mut future = accepted.clone();
+        future.metadata_generation = accepted.metadata_generation + 1;
+        let envelope =
+            sign_release_index_with_generation(lifecycle_payload(), 2, &signing).unwrap();
+
+        verify_release_index_with_trust_metadata(&envelope, &future, &floor, 100).unwrap();
     }
 }

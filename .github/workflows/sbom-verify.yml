@@ -40,3 +40,19 @@ jobs:
             --version "$version" \
             --tag "$VERSION" \
             --commit "$(git rev-parse HEAD)"
+      - name: Install pinned standard SBOM validators
+        run: |
+          python3 -m pip install --disable-pip-version-check -r scripts/requirements-sbom.txt
+          npm install --global --ignore-scripts @cyclonedx/cyclonedx-cli@0.29.0
+      - name: Validate SBOMs against CycloneDX and SPDX standards
+        env:
+          VERSION: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          cyclonedx validate \
+            --input-file "dist/rill-ml-${version}.cdx.json" \
+            --input-format json \
+            --input-version 1.5
+          python3 scripts/validate_sbom_standards.py \
+            --spdx "dist/rill-ml-${version}.spdx.json"
