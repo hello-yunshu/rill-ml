@@ -918,10 +918,9 @@ impl StatefulRuntimeEngineV3 {
                 entry.outcome_time_unix_ms = Some(*outcome_time_ms);
                 if state.completed_decisions.len()
                     >= self.config.resource_profile.max_completed_decisions as usize
+                    && let Some(oldest) = state.completed_decisions.keys().next().cloned()
                 {
-                    if let Some(oldest) = state.completed_decisions.keys().next().cloned() {
-                        state.completed_decisions.remove(&oldest);
-                    }
+                    state.completed_decisions.remove(&oldest);
                 }
                 state
                     .completed_decisions
