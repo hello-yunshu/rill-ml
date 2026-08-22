@@ -184,6 +184,58 @@ pub struct DecisionLedgerEntryV3 {
     pub outcome_time_unix_ms: Option<u64>,
 }
 
+/// Machine-readable health state exposed by the production qualification
+/// surface. A failed-closed runtime never reports `Healthy`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeHealthStatusV1 {
+    Healthy,
+    ResourcePressure,
+    FailedClosed,
+}
+
+impl std::fmt::Display for RuntimeHealthStatusV1 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Healthy => "healthy",
+            Self::ResourcePressure => "resource_pressure",
+            Self::FailedClosed => "failed_closed",
+        })
+    }
+}
+
+/// Bounded resource counters included in operational diagnostics.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimeResourceUsageV1 {
+    pub state_bytes: usize,
+    pub snapshot_bytes: usize,
+    pub pending_decisions: usize,
+    pub completed_decisions: usize,
+}
+
+/// Structured, clock-injected runtime diagnostics for consumers and release
+/// qualification. The runtime does not read a clock implicitly; callers pass
+/// the observation time to `diagnostics_at`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimeDiagnosticsV1 {
+    pub runtime_version: String,
+    pub protocol_version: u32,
+    pub channel: String,
+    pub model_generation: u64,
+    pub state_generation: u64,
+    pub state_schema_version: u32,
+    pub observed_at_unix_ms: u64,
+    pub health: RuntimeHealthStatusV1,
+    pub reason_codes: Vec<String>,
+    pub resource_usage: RuntimeResourceUsageV1,
+    pub rollback_available: bool,
+    pub candidate_available: bool,
+    pub restart_count: u64,
+    pub last_error: Option<String>,
+}
+
 /// Durable v3 runtime envelope. The handler snapshot and decision ledger are
 /// checksummed together so feedback cannot silently cross a restore boundary.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -442,11 +494,13 @@ impl StatefulRuntimeEngineV3 {
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        Ok(StatefulRuntimeSnapshotV3::new(
+        let snapshot = StatefulRuntimeSnapshotV3::new(
             state.snapshot.clone(),
             state.pending_decisions.clone(),
             state.completed_decisions.clone(),
-        ))
+        );
+        self.validate_runtime_snapshot_size(&snapshot)?;
+        Ok(snapshot)
     }
 
     /// Restore handler state and delayed feedback atomically.
@@ -466,6 +520,7 @@ impl StatefulRuntimeEngineV3 {
                 StatefulHandlerErrorKindV2::InvalidState,
             ));
         }
+        self.validate_runtime_snapshot_size(&snapshot)?;
         let mut state = self
             .state
             .lock()
@@ -509,6 +564,8 @@ impl StatefulRuntimeEngineV3 {
             .ok_or_else(|| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::InvalidState))?;
         state.previous_good = Some(state.snapshot.clone());
         state.snapshot = candidate;
+        state.pending_decisions.clear();
+        state.completed_decisions.clear();
         Ok(state.snapshot.state_generation)
     }
 
@@ -525,6 +582,8 @@ impl StatefulRuntimeEngineV3 {
         let failed = std::mem::replace(&mut state.snapshot, previous);
         state.previous_good = Some(failed);
         state.candidate = None;
+        state.pending_decisions.clear();
+        state.completed_decisions.clear();
         Ok(state.snapshot.state_generation)
     }
 
@@ -596,7 +655,7 @@ impl StatefulRuntimeEngineV3 {
     /// oversized messages are rejected before a handler can observe them.
     /// The caller supplies the clock so replay and tests remain deterministic.
     pub fn handle_json_at(&self, message: &[u8], now_unix_ms: u64) -> RuntimeResponseV3 {
-        if message.len() > rill_runtime_protocol::MAX_MESSAGE_BYTES {
+        if message.len() > self.config.resource_profile.max_ipc_frame_bytes as usize {
             return self.error_response(
                 "invalid-request".into(),
                 RuntimeErrorCodeV3::PayloadTooLarge,
@@ -688,7 +747,7 @@ impl StatefulRuntimeEngineV3 {
         message: &[u8],
         now_unix_ms: u64,
     ) -> RuntimeResponseV3Preview {
-        if message.len() > rill_runtime_protocol::MAX_MESSAGE_BYTES {
+        if message.len() > self.config.resource_profile.max_ipc_frame_bytes as usize {
             return self.preview_error_response(
                 "invalid-request".into(),
                 PreviewErrorCodeV3::PayloadTooLarge,
@@ -848,6 +907,16 @@ impl StatefulRuntimeEngineV3 {
                     state.snapshot.state_generation,
                 );
             }
+            if state.completed_decisions.len()
+                >= self.config.resource_profile.max_completed_decisions as usize
+            {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::Internal,
+                    "completed decision capacity is exhausted",
+                    state.snapshot.state_generation,
+                );
+            }
         }
 
         if let RuntimeRequestV3::Snapshot {} = request {
@@ -886,6 +955,8 @@ impl StatefulRuntimeEngineV3 {
                 next_generation,
                 self.config.initial_state.clone(),
             );
+            state.pending_decisions.clear();
+            state.completed_decisions.clear();
             return self.response(
                 request_id,
                 next_generation,
@@ -1023,12 +1094,6 @@ impl StatefulRuntimeEngineV3 {
                 entry.selected_arm = Some(*selected_arm);
                 entry.reward = Some(reward.to_string());
                 entry.outcome_time_unix_ms = Some(*outcome_time_ms);
-                if state.completed_decisions.len()
-                    >= self.config.resource_profile.max_completed_decisions as usize
-                    && let Some(oldest) = state.completed_decisions.keys().next().cloned()
-                {
-                    state.completed_decisions.remove(&oldest);
-                }
                 state
                     .completed_decisions
                     .insert(entry.decision_id.clone(), entry);
@@ -1053,14 +1118,6 @@ impl StatefulRuntimeEngineV3 {
             .lock()
             .map(|state| state.last_error.is_none())
             .unwrap_or(false)
-    }
-
-    fn health_status(&self) -> String {
-        if self.is_healthy() {
-            "healthy".into()
-        } else {
-            "failed_closed".into()
-        }
     }
 
     fn health_reason_codes(&self) -> Option<Vec<String>> {
@@ -1094,10 +1151,87 @@ impl StatefulRuntimeEngineV3 {
             "rollbackAvailable": state.previous_good.is_some(),
             "candidateAvailable": state.candidate.is_some(),
             "restartCount": state.restart_count,
-            "health": self.health_status(),
+            "health": self.health_status_for_state(state),
             "lastError": state.last_error,
             "handler": handler_summary,
         })
+    }
+
+    /// Return structured diagnostics using a caller-provided timestamp.
+    pub fn diagnostics_at(
+        &self,
+        observed_at_unix_ms: u64,
+    ) -> Result<RuntimeDiagnosticsV1, StatefulHandlerErrorV2> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
+        let snapshot = StatefulRuntimeSnapshotV3::new(
+            state.snapshot.clone(),
+            state.pending_decisions.clone(),
+            state.completed_decisions.clone(),
+        );
+        let snapshot_bytes = serde_json::to_vec(&snapshot)
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?
+            .len();
+        let usage = RuntimeResourceUsageV1 {
+            state_bytes: state.snapshot.state.len(),
+            snapshot_bytes,
+            pending_decisions: state.pending_decisions.len(),
+            completed_decisions: state.completed_decisions.len(),
+        };
+        let health = self.health_status_for_state(&state);
+        let reason_codes = state
+            .last_error
+            .as_ref()
+            .map(|error| vec![error.clone()])
+            .unwrap_or_default();
+        Ok(RuntimeDiagnosticsV1 {
+            runtime_version: self.config.runtime_identity.version.clone(),
+            protocol_version: RUNTIME_API_VERSION_V3,
+            channel: PREVIEW_CHANNEL_V3.into(),
+            model_generation: self.config.model_generation,
+            state_generation: state.snapshot.state_generation,
+            state_schema_version: state.snapshot.state_schema_version,
+            observed_at_unix_ms,
+            health,
+            reason_codes,
+            resource_usage: usage,
+            rollback_available: state.previous_good.is_some(),
+            candidate_available: state.candidate.is_some(),
+            restart_count: state.restart_count,
+            last_error: state.last_error.clone(),
+        })
+    }
+
+    fn health_status_for_state(&self, state: &RuntimeStateV3) -> RuntimeHealthStatusV1 {
+        if state.last_error.is_some() {
+            return RuntimeHealthStatusV1::FailedClosed;
+        }
+        let profile = &self.config.resource_profile;
+        if state.snapshot.state.len() * 10 >= profile.max_model_state_bytes as usize * 9
+            || state.pending_decisions.len() * 10 >= profile.max_pending_decisions as usize * 9
+            || state.completed_decisions.len() * 10 >= profile.max_completed_decisions as usize * 9
+        {
+            RuntimeHealthStatusV1::ResourcePressure
+        } else {
+            RuntimeHealthStatusV1::Healthy
+        }
+    }
+
+    fn validate_runtime_snapshot_size(
+        &self,
+        snapshot: &StatefulRuntimeSnapshotV3,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        let bytes = serde_json::to_vec(snapshot)
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
+        if bytes.len() > self.config.resource_profile.max_snapshot_bytes as usize {
+            return Err(StatefulHandlerErrorV2::with_detail(
+                StatefulHandlerErrorKindV2::InvalidState,
+                "snapshot exceeds resource limit",
+            ));
+        }
+        Ok(())
     }
 
     fn current_generation(&self) -> u64 {
@@ -1441,5 +1575,67 @@ mod tests {
                 if error.code == RuntimeErrorCodeV3::PayloadTooLarge
         ));
         assert_eq!(engine.snapshot().unwrap(), before);
+    }
+
+    #[test]
+    fn inspect_and_diagnostics_do_not_reenter_the_state_lock() {
+        let engine = engine(StatefulHandlerErrorKindV2::Internal);
+        let mut request = decide(0);
+        request.request = RuntimeRequestV3::Inspect {};
+        let response = engine.handle_preview_at(request, 100);
+        assert!(matches!(
+            response.response,
+            RuntimeResponseBodyV3Preview::Inspection { .. }
+        ));
+        let diagnostics = engine.diagnostics_at(123).unwrap();
+        assert_eq!(diagnostics.observed_at_unix_ms, 123);
+        assert_eq!(diagnostics.health, RuntimeHealthStatusV1::Healthy);
+        assert_eq!(diagnostics.state_generation, 1);
+        assert!(diagnostics.resource_usage.snapshot_bytes > diagnostics.resource_usage.state_bytes);
+    }
+
+    #[test]
+    fn ipc_and_snapshot_limits_fail_closed_without_mutation() {
+        let profile = ResourceProfileV1 {
+            max_ipc_frame_bytes: 128,
+            max_snapshot_bytes: 128,
+            ..ResourceProfileV1::default()
+        };
+        let metadata = StatefulHandlerMetadataV2 {
+            id: "org.example.stateful".into(),
+            version: "2.0.0".into(),
+            api_version: HANDLER_API_VERSION,
+            capabilities: vec!["org.example.decide".into()],
+            state_schema_version: 1,
+        };
+        let config = StatefulRuntimeConfigV3::new(
+            IdentityV3 {
+                name: "rill-runtime".into(),
+                version: "1.0.0".into(),
+            },
+            7,
+            "ab".repeat(32),
+            metadata.capabilities.clone(),
+            br#"{"count":0}"#.to_vec(),
+        )
+        .with_resource_profile(profile);
+        let engine = StatefulRuntimeEngineV3::new(
+            config,
+            Arc::new(TestHandler {
+                metadata,
+                mode: StatefulHandlerErrorKindV2::Internal,
+            }),
+        )
+        .unwrap();
+        let before = engine.snapshot().unwrap();
+        let oversized = vec![b' '; 129];
+        let response = engine.handle_preview_json_at(&oversized, 100);
+        assert!(matches!(
+            response.response,
+            RuntimeResponseBodyV3Preview::Error { error }
+                if error.code == PreviewErrorCodeV3::PayloadTooLarge
+        ));
+        assert_eq!(engine.snapshot().unwrap(), before);
+        assert!(engine.runtime_snapshot().is_err());
     }
 }

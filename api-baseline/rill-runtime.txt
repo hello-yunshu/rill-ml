@@ -78,6 +78,12 @@ pub rill_runtime::ReleaseIndexError::MetadataDowngrade
 pub rill_runtime::ReleaseIndexError::Signature
 pub rill_runtime::ReleaseIndexError::TrustMetadata(alloc::string::String)
 pub rill_runtime::ReleaseIndexError::UnknownKey
+pub enum rill_runtime::RuntimeHealthStatusV1
+pub rill_runtime::RuntimeHealthStatusV1::FailedClosed
+pub rill_runtime::RuntimeHealthStatusV1::Healthy
+pub rill_runtime::RuntimeHealthStatusV1::ResourcePressure
+impl core::fmt::Display for rill_runtime::RuntimeHealthStatusV1
+pub fn rill_runtime::RuntimeHealthStatusV1::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 #[non_exhaustive] pub enum rill_runtime::StatefulHandlerErrorKindV2
 pub rill_runtime::StatefulHandlerErrorKindV2::DuplicateFeedback
 pub rill_runtime::StatefulHandlerErrorKindV2::IncompatibleVersion
@@ -143,6 +149,21 @@ pub rill_runtime::ModelPackInspection::publisher_key_id: alloc::string::String
 pub rill_runtime::ModelPackInspection::runtime_api_version: u32
 pub rill_runtime::ModelPackInspection::signature_verified: bool
 pub rill_runtime::ModelPackInspection::version: alloc::string::String
+pub struct rill_runtime::RuntimeDiagnosticsV1
+pub rill_runtime::RuntimeDiagnosticsV1::candidate_available: bool
+pub rill_runtime::RuntimeDiagnosticsV1::channel: alloc::string::String
+pub rill_runtime::RuntimeDiagnosticsV1::health: rill_runtime::RuntimeHealthStatusV1
+pub rill_runtime::RuntimeDiagnosticsV1::last_error: core::option::Option<alloc::string::String>
+pub rill_runtime::RuntimeDiagnosticsV1::model_generation: u64
+pub rill_runtime::RuntimeDiagnosticsV1::observed_at_unix_ms: u64
+pub rill_runtime::RuntimeDiagnosticsV1::protocol_version: u32
+pub rill_runtime::RuntimeDiagnosticsV1::reason_codes: alloc::vec::Vec<alloc::string::String>
+pub rill_runtime::RuntimeDiagnosticsV1::resource_usage: rill_runtime::RuntimeResourceUsageV1
+pub rill_runtime::RuntimeDiagnosticsV1::restart_count: u64
+pub rill_runtime::RuntimeDiagnosticsV1::rollback_available: bool
+pub rill_runtime::RuntimeDiagnosticsV1::runtime_version: alloc::string::String
+pub rill_runtime::RuntimeDiagnosticsV1::state_generation: u64
+pub rill_runtime::RuntimeDiagnosticsV1::state_schema_version: u32
 pub struct rill_runtime::RuntimeEngine
 impl rill_runtime::RuntimeEngine
 pub fn rill_runtime::RuntimeEngine::effective_capabilities(&self) -> &[alloc::string::String]
@@ -152,6 +173,11 @@ pub fn rill_runtime::RuntimeEngine::new(rill_runtime::LoadedModelPack) -> Self
 pub fn rill_runtime::RuntimeEngine::with_handler_identity(self, rill_runtime::HandlerIdentity) -> Self
 pub fn rill_runtime::RuntimeEngine::with_invoke_handler(self, alloc::sync::Arc<dyn rill_runtime::InvokeHandler>) -> Self
 pub fn rill_runtime::RuntimeEngine::with_log_sink(self, alloc::sync::Arc<dyn rill_runtime::HostLogSink>) -> Self
+pub struct rill_runtime::RuntimeResourceUsageV1
+pub rill_runtime::RuntimeResourceUsageV1::completed_decisions: usize
+pub rill_runtime::RuntimeResourceUsageV1::pending_decisions: usize
+pub rill_runtime::RuntimeResourceUsageV1::snapshot_bytes: usize
+pub rill_runtime::RuntimeResourceUsageV1::state_bytes: usize
 pub struct rill_runtime::StatefulHandlerErrorV2
 impl rill_runtime::StatefulHandlerErrorV2
 pub fn rill_runtime::StatefulHandlerErrorV2::detail(&self) -> core::option::Option<&str>
@@ -183,6 +209,7 @@ pub fn rill_runtime::StatefulRuntimeConfigV3::new(rill_runtime_protocol::v3::Ide
 pub fn rill_runtime::StatefulRuntimeConfigV3::with_resource_profile(self, rill_runtime_protocol::v3::ResourceProfileV1) -> Self
 pub struct rill_runtime::StatefulRuntimeEngineV3
 impl rill_runtime::StatefulRuntimeEngineV3
+pub fn rill_runtime::StatefulRuntimeEngineV3::diagnostics_at(&self, u64) -> core::result::Result<rill_runtime::RuntimeDiagnosticsV1, rill_runtime::StatefulHandlerErrorV2>
 pub fn rill_runtime::StatefulRuntimeEngineV3::handle_at(&self, rill_runtime_protocol::v3::EnvelopeV3, u64) -> rill_runtime_protocol::v3::RuntimeResponseV3
 pub fn rill_runtime::StatefulRuntimeEngineV3::handle_json_at(&self, &[u8], u64) -> rill_runtime_protocol::v3::RuntimeResponseV3
 pub fn rill_runtime::StatefulRuntimeEngineV3::handle_preview_at(&self, rill_runtime_protocol::v3::EnvelopeV3, u64) -> rill_runtime_protocol::v3::RuntimeResponseV3Preview

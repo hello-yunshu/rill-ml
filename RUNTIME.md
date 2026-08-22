@@ -75,8 +75,12 @@ Stateful Handler v2。任何 trap、timeout、非法或超大输出/next state �
 fail-closed，不会提交 Runtime 持有的状态。`ResourceProfileV1` 为 IPC frame、
 state、snapshot、pending/completed decision 和诊断记录提供有限上限；
 `inspect`/`health` 返回 channel、generation、resource utilization、rollback
-availability 与稳定状态标识。Stable v3 仍须通过 candidate/public-asset
-conformance 后才可启用。
+availability 与稳定状态标识。Runtime 还提供时钟注入的
+`RuntimeDiagnosticsV1`，可由 consumer 记录结构化 health、reason code、资源
+计数和恢复信息；库不会隐式读取系统时钟。IPC frame、snapshot、state 和
+decision ledger 上限均是 hard limit，达到上限时 fail-closed，不通过淘汰旧
+记录来制造“成功”。Stable v3 仍须通过 candidate/public-asset conformance
+后才可启用。
 
 ## 安全与回退
 

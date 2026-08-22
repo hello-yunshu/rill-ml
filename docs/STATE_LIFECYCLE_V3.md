@@ -22,3 +22,13 @@ returned schema and checksum before activation and retains the old snapshot as
 
 The v3 API remains Preview until candidate and public-release conformance both
 pass. Stable v1/v2 state and IPC semantics are not silently redirected to v3.
+
+## Operational boundary
+
+`RuntimeDiagnosticsV1` is the consumer-facing, clock-injected diagnostic
+snapshot. It reports health (`healthy`, `resource_pressure`, or
+`failed_closed`), reason codes, state/snapshot/ledger usage, generation and
+rollback availability. IPC frames, snapshots, state and completed decision
+history are hard bounded; saturation rejects the operation and preserves the
+prior state. Reset, candidate promotion and rollback clear delayed decisions
+whose generation belongs to the replaced state.
