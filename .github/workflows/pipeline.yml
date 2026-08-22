@@ -927,11 +927,6 @@ jobs:
             target_arch: loongarch64
             libc: gnu
             asset_suffix: linux-loongarch64
-          - rust_target: x86_64-unknown-freebsd
-            target_os: freebsd
-            target_arch: x86_64
-            libc: gnu
-            asset_suffix: freebsd-x86_64
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -973,6 +968,46 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: runtime-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ matrix.libc }}
+          path: dist/rill-runtime-*
+          if-no-files-found: error
+
+  # FreeBSD cannot be built with cargo-zigbuild: Zig has no FreeBSD target
+  # support. Build the release binary inside the same native FreeBSD VM tier
+  # used by the Stable gate and post-release verifier, so the published asset
+  # is both natively linked and kernel-tested rather than a mislabeled Linux
+  # cross-build.
+  build-runtime-freebsd:
+    name: Runtime freebsd x86_64 native VM
+    if: github.event_name == 'workflow_dispatch'
+    needs: package-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ env.RELEASE_TAG }}
+      - name: Build FreeBSD runtime in native VM
+        uses: vmactions/freebsd-vm@83b151f58c6047089f4c80eb5ba2039d158ce093
+        with:
+          usesh: true
+          prepare: |
+            pkg install -y rust bash
+          run: |
+            set -euo pipefail
+            version="${{ env.RELEASE_TAG }}"
+            version="${version#v}"
+            rust_target=x86_64-unknown-freebsd
+            cargo build --locked --release --target "$rust_target" \
+              -p rill-runtime --bin rill-runtime --features wasm
+            mkdir -p dist
+            cp "target/$rust_target/release/rill-runtime" \
+              "dist/rill-runtime-${version}-freebsd-x86_64"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: runtime-freebsd-x86_64
           path: dist/rill-runtime-*
           if-no-files-found: error
 
@@ -1040,7 +1075,7 @@ jobs:
   publish:
     name: Sign and publish
     if: github.event_name == 'workflow_dispatch'
-    needs: [build-runtime, build-runtime-cross, build-pm-adapter-cross]
+    needs: [build-runtime, build-runtime-cross, build-runtime-freebsd, build-pm-adapter-cross]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
