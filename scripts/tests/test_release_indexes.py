@@ -48,10 +48,11 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
 
     def test_s390x_powerpc64le_loongarch64_and_freebsd_runtimes_are_built_and_indexed(self) -> None:
         # Phase: promote linux s390x / powerpc64le / loongarch64 and
-        # x86_64-unknown-freebsd to Supported. Each must be cross-built by
-        # build-runtime-cross and listed in the release index with the stable
-        # <os>-<arch> naming contract. FreeBSD is re-verified in a native VM
-        # (post-release-verify-freebsd), not Docker/QEMU.
+        # x86_64-unknown-freebsd to Supported. Linux targets are
+        # cross-built by build-runtime-cross; FreeBSD is built in its native
+        # VM job because cargo-zigbuild does not support that target. Each is
+        # listed in the release index with the stable <os>-<arch> naming
+        # contract and FreeBSD is re-verified in a native VM.
         workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
         release_index = (ROOT / "scripts/build-release-index.py").read_text(encoding="utf-8")
         self.assertIn("s390x-unknown-linux-gnu", workflow)
@@ -61,6 +62,7 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
         self.assertIn("loongarch64-unknown-linux-gnu", workflow)
         self.assertIn("linux-loongarch64", release_index)
         self.assertIn("x86_64-unknown-freebsd", workflow)
+        self.assertIn("build-runtime-freebsd", workflow)
         self.assertIn("freebsd-x86_64", release_index)
         self.assertIn("post-release-verify-freebsd", workflow)
 
