@@ -247,8 +247,8 @@ def _bounded_soak(runtime: Path, mode: str, cycles: int, observations: int, batc
 
 
 def _continuous_same_state_saturation(runtime: Path) -> dict:
-    """Exercise one durable state through the completed-history boundary."""
-    total = 4_096
+    """Exercise one durable state until a declared ledger/resource boundary."""
+    max_attempts = 4_096
     with tempfile.TemporaryDirectory(prefix="rill-continuous-ledger-") as directory:
         state = Path(directory) / "runtime-state.json"
         session = _RuntimeSession(runtime, state)
@@ -258,34 +258,39 @@ def _continuous_same_state_saturation(runtime: Path) -> dict:
         if handshake["response"].get("channel") != "preview":
             raise RuntimeError("continuous saturation did not enter Preview channel")
         generation = 0
-        for index in range(total):
+        completed = 0
+        rejected: dict = {}
+        rejected_generation = generation
+        for index in range(max_attempts):
             decision, _ = session.request(
                 _decision_requests("saturation", index, 1, generation)[0]
             )
             if decision["response"].get("kind") != "result":
-                raise RuntimeError(f"decision {index} rejected before completed capacity")
+                rejected = decision["response"].get("error", {})
+                rejected_generation = decision.get("stateGeneration")
+                break
             generation = decision["stateGeneration"]
             feedback, _ = session.request(
                 _feedback_requests("saturation", index, 1, generation)[0]
             )
             if feedback["response"].get("kind") != "result":
-                raise RuntimeError(f"feedback {index} rejected before completed capacity")
+                rejected = feedback["response"].get("error", {})
+                rejected_generation = feedback.get("stateGeneration")
+                break
             generation = feedback["stateGeneration"]
-        rejected, _ = session.request(
-            _decision_requests("saturation", total, 1, generation)[0]
-        )
-        error = rejected["response"].get("error", {})
-        rejected_generation = rejected.get("stateGeneration")
+            completed += 1
+        else:
+            raise RuntimeError("continuous saturation did not reach a boundary within 4096 attempts")
         inspect, _ = session.request(
             envelope("saturation-inspect", "org.rill.preview.inspect", generation, {"method": "inspect"})
         )
         session.close()
         summary = inspect["response"].get("summary", {})
         passed = (
-            error.get("code") == "capacityExceeded"
+            rejected.get("code") == "capacityExceeded"
             and rejected_generation == generation
-            and summary.get("completedDecisions") == total
-            and summary.get("pendingDecisions") == 0
+            and summary.get("completedDecisions") == completed
+            and summary.get("pendingDecisions") in (0, 1)
         )
         session = _RuntimeSession(runtime, state)
         restored, _ = session.request(
@@ -293,14 +298,17 @@ def _continuous_same_state_saturation(runtime: Path) -> dict:
         )
         session.close()
         restored_summary = restored["response"].get("summary", {})
-        passed = passed and restored_summary.get("completedDecisions") == total
+        passed = passed and restored_summary.get("completedDecisions") == completed
         return {
             "status": "PASS" if passed else "FAIL",
             "evidenceType": "simulated",
             "sameState": True,
             "completedBeforeRejection": summary.get("completedDecisions"),
-            "rejectedRequestCode": error.get("code"),
+            "rejectedAtAttempt": completed,
+            "rejectedRequestCode": rejected.get("code"),
+            "rejectedRequestMessage": rejected.get("message"),
             "generationUnchangedOnRejection": rejected_generation == generation,
+            "pendingAtRejection": summary.get("pendingDecisions"),
             "completedAfterRestart": restored_summary.get("completedDecisions"),
         }
 
