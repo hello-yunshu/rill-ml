@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require readable GitHub Actions refs and reject fixed commit SHAs."""
+"""Require readable refs and reject fixed commit SHAs for GitHub Actions."""
 
 from __future__ import annotations
 
@@ -23,6 +23,9 @@ def scan(root: Path) -> dict[str, object]:
             if match is None:
                 continue
             reference = match.group(1)
+            if reference.startswith("./"):
+                references.append({"action": reference, "ref": "local", "path": str(path), "line": str(line_number)})
+                continue
             if "@" not in reference:
                 errors.append(f"{path}:{line_number}: missing @ref: {reference}")
                 continue

@@ -42,10 +42,44 @@ def _child_max_rss_bytes() -> int:
     return int(value if sys.platform == "darwin" else value * 1024)
 
 
-def _timed_run(runtime: Path, state: Path, requests: list[dict]) -> tuple[list[dict], float, int]:
-    start = time.perf_counter()
-    responses = run_process(runtime, state, requests)
-    return responses, time.perf_counter() - start, _child_max_rss_bytes()
+class _RuntimeSession:
+    """Persistent newline-delimited Preview session with request correlation."""
+
+    def __init__(self, runtime: Path, state: Path) -> None:
+        self.process = subprocess.Popen(
+            [str(runtime), "preview-serve", "--state", str(state)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+
+    def request(self, request: dict) -> tuple[dict, float]:
+        if self.process.stdin is None or self.process.stdout is None:
+            raise RuntimeError("runtime session pipes are unavailable")
+        started = time.perf_counter()
+        self.process.stdin.write(json.dumps(request, separators=(",", ":")) + "\n")
+        self.process.stdin.flush()
+        line = self.process.stdout.readline()
+        elapsed = time.perf_counter() - started
+        if not line:
+            stderr = self.process.stderr.read() if self.process.stderr is not None else ""
+            raise RuntimeError(f"runtime session ended before response: {stderr}")
+        response = json.loads(line)
+        if response.get("requestId") != request.get("requestId"):
+            raise RuntimeError(
+                f"response/request id mismatch: {response.get('requestId')} != {request.get('requestId')}"
+            )
+        return response, elapsed
+
+    def close(self) -> None:
+        if self.process.stdin is not None:
+            self.process.stdin.close()
+        return_code = self.process.wait(timeout=10)
+        if return_code != 0:
+            stderr = self.process.stderr.read() if self.process.stderr is not None else ""
+            raise RuntimeError(f"runtime session exited with {return_code}: {stderr}")
 
 
 def _decision_requests(mode: str, start: int, count: int, state_generation: int) -> list[dict]:
@@ -88,70 +122,62 @@ def _feedback_requests(mode: str, start: int, count: int, state_generation: int)
 def _phase(runtime: Path, mode: str, observations: int, batch_size: int) -> dict:
     with tempfile.TemporaryDirectory(prefix=f"rill-{mode}-") as directory:
         state = Path(directory) / "runtime-state.json"
-        cold_start, cold_elapsed, max_rss = _timed_run(
-            runtime,
-            state,
-            [envelope(f"{mode}-cold-start", None, 0, {"method": "handshake"})],
+        session = _RuntimeSession(runtime, state)
+        cold_start, cold_elapsed = session.request(
+            envelope(f"{mode}-cold-start", None, 0, {"method": "handshake"})
         )
-        if cold_start[0]["response"].get("channel") != "preview":
+        if cold_start["response"].get("channel") != "preview":
             raise RuntimeError(f"{mode}: preview channel was not advertised")
 
-        decision_seconds: list[float] = []
-        feedback_seconds: list[float] = []
+        decision_latencies: list[float] = []
         state_generation = 0
         accepted = 0
-        for start in range(0, observations, batch_size):
-            count = min(batch_size, observations - start)
-            responses, elapsed, max_rss = _timed_run(
-                runtime, state, _decision_requests(mode, start, count, state_generation)
-            )
-            results = [item for item in responses if item["response"].get("kind") == "result"]
-            if len(results) != count:
-                raise RuntimeError(f"{mode}: accepted {len(results)} of {count} decisions")
-            decision_seconds.append(elapsed / count)
-            accepted += count
-            state_generation += count
+        for index in range(observations):
+            request = _decision_requests(mode, index, 1, state_generation)[0]
+            response, elapsed = session.request(request)
+            if response["response"].get("kind") != "result":
+                raise RuntimeError(f"{mode}: decision {index} was rejected")
+            decision_latencies.append(elapsed)
+            accepted += 1
+            state_generation = response["stateGeneration"]
+        session.close()
 
         state_bytes_after_decisions = state.stat().st_size
-        restore, restore_elapsed, max_rss = _timed_run(
-            runtime,
-            state,
-            [envelope(f"{mode}-restore-inspect", "org.rill.preview.inspect", state_generation, {"method": "inspect"})],
+        session = _RuntimeSession(runtime, state)
+        restore, restore_elapsed = session.request(
+            envelope(f"{mode}-restore-inspect", "org.rill.preview.inspect", state_generation, {"method": "inspect"})
         )
-        if restore[0]["response"].get("kind") != "inspection":
+        if restore["response"].get("kind") != "inspection":
             raise RuntimeError(f"{mode}: restart inspect was rejected")
-        state_generation += 1
+        state_generation = restore["stateGeneration"]
 
+        feedback_latencies: list[float] = []
         feedback_accepted = 0
-        for start in range(0, observations, batch_size):
-            count = min(batch_size, observations - start)
-            responses, elapsed, max_rss = _timed_run(
-                runtime, state, _feedback_requests(mode, start, count, state_generation)
-            )
-            if any(item["response"].get("kind") != "result" for item in responses):
-                raise RuntimeError(f"{mode}: feedback after restart was rejected")
-            feedback_seconds.append(elapsed / count)
-            feedback_accepted += count
-            state_generation += count
+        for index in range(observations):
+            request = _feedback_requests(mode, index, 1, state_generation)[0]
+            response, elapsed = session.request(request)
+            if response["response"].get("kind") != "result":
+                raise RuntimeError(f"{mode}: feedback {index} after restart was rejected")
+            feedback_latencies.append(elapsed)
+            feedback_accepted += 1
+            state_generation = response["stateGeneration"]
 
         state_bytes_after_feedback = state.stat().st_size
-        snapshot, snapshot_elapsed, max_rss = _timed_run(
-            runtime,
-            state,
-            [envelope(f"{mode}-snapshot", "org.rill.preview.snapshot", state_generation, {"method": "snapshot"})],
+        snapshot, snapshot_elapsed = session.request(
+            envelope(f"{mode}-snapshot", "org.rill.preview.snapshot", state_generation, {"method": "snapshot"})
         )
-        if snapshot[0]["response"].get("kind") != "snapshot":
+        if snapshot["response"].get("kind") != "snapshot":
             raise RuntimeError(f"{mode}: snapshot was rejected")
 
-        inspect, inspect_elapsed, max_rss = _timed_run(
-            runtime,
-            state,
-            [envelope(f"{mode}-inspect", "org.rill.preview.inspect", state_generation, {"method": "inspect"})],
+        inspect, inspect_elapsed = session.request(
+            envelope(f"{mode}-inspect", "org.rill.preview.inspect", state_generation, {"method": "inspect"})
         )
-        summary = inspect[0]["response"].get("summary", {})
+        session.close()
+        summary = inspect["response"].get("summary", {})
         if summary.get("pendingDecisions") != 0 or summary.get("completedDecisions") != observations:
             raise RuntimeError(f"{mode}: ledger summary did not converge: {summary}")
         return {
+            "status": "PASS",
             "mode": mode,
             "observations": observations,
             "batchSize": batch_size,
@@ -159,16 +185,23 @@ def _phase(runtime: Path, mode: str, observations: int, batch_size: int) -> dict
             "feedbackAccepted": feedback_accepted,
             "pendingDecisions": summary.get("pendingDecisions"),
             "completedDecisions": summary.get("completedDecisions"),
-            "decisionSecondsPerObservation": decision_seconds,
-            "feedbackSecondsPerObservation": feedback_seconds,
+            "decisionLatencySeconds": decision_latencies,
+            "feedbackLatencySeconds": feedback_latencies,
             "coldStartSeconds": cold_elapsed,
             "restoreSeconds": restore_elapsed,
             "snapshotSeconds": snapshot_elapsed,
             "inspectSeconds": inspect_elapsed,
             "stateBytesAfterDecisions": state_bytes_after_decisions,
             "stateBytesAfterFeedback": state_bytes_after_feedback,
-            "stateGeneration": inspect[0].get("stateGeneration"),
-            "childMaxRssBytes": max_rss,
+            "stateGeneration": inspect.get("stateGeneration"),
+            "processTreeChildHighWaterMarkBytes": _child_max_rss_bytes(),
+            "rssEvidence": {
+                "metric": "processTreeChildHighWaterMarkBytes",
+                "sampleCount": 1,
+                "evidencePlatform": sys.platform,
+                "perPidPerCycle": False,
+                "note": "resource.RUSAGE_CHILDREN high-water mark; not an independent per-cycle RSS sample",
+            },
         }
 
 
@@ -199,7 +232,7 @@ def _resource_cap_probe(runtime: Path) -> dict:
 def _bounded_soak(runtime: Path, mode: str, cycles: int, observations: int, batch_size: int) -> dict:
     samples = [_phase(runtime, f"{mode}-soak-{cycle}", observations, batch_size) for cycle in range(cycles)]
     sizes = [sample["stateBytesAfterFeedback"] for sample in samples]
-    rss = [sample["childMaxRssBytes"] for sample in samples]
+    rss = [sample["processTreeChildHighWaterMarkBytes"] for sample in samples]
     return {
         "status": "PASS" if max(sizes) < 512 * 1024 and max(rss) < 512 * 1024 * 1024 else "FAIL",
         "evidenceType": "simulated",
@@ -208,9 +241,68 @@ def _bounded_soak(runtime: Path, mode: str, cycles: int, observations: int, batc
         "observationsPerCycle": observations,
         "totalObservations": cycles * observations,
         "stateBytes": {"min": min(sizes), "max": max(sizes), "samples": sizes},
-        "childMaxRssBytes": {"min": min(rss), "max": max(rss), "samples": rss},
-        "boundedMemoryAssertion": "state < 512 KiB and child RSS < 512 MiB per cycle",
+        "processTreeChildHighWaterMarkBytes": {"min": min(rss), "max": max(rss), "samples": rss},
+        "boundedMemoryAssertion": "state < 512 KiB and process-tree child high-water mark < 512 MiB per cycle",
     }
+
+
+def _continuous_same_state_saturation(runtime: Path) -> dict:
+    """Exercise one durable state through the completed-history boundary."""
+    total = 4_096
+    with tempfile.TemporaryDirectory(prefix="rill-continuous-ledger-") as directory:
+        state = Path(directory) / "runtime-state.json"
+        session = _RuntimeSession(runtime, state)
+        handshake, _ = session.request(
+            envelope("saturation-handshake", None, 0, {"method": "handshake"})
+        )
+        if handshake["response"].get("channel") != "preview":
+            raise RuntimeError("continuous saturation did not enter Preview channel")
+        generation = 0
+        for index in range(total):
+            decision, _ = session.request(
+                _decision_requests("saturation", index, 1, generation)[0]
+            )
+            if decision["response"].get("kind") != "result":
+                raise RuntimeError(f"decision {index} rejected before completed capacity")
+            generation = decision["stateGeneration"]
+            feedback, _ = session.request(
+                _feedback_requests("saturation", index, 1, generation)[0]
+            )
+            if feedback["response"].get("kind") != "result":
+                raise RuntimeError(f"feedback {index} rejected before completed capacity")
+            generation = feedback["stateGeneration"]
+        rejected, _ = session.request(
+            _decision_requests("saturation", total, 1, generation)[0]
+        )
+        error = rejected["response"].get("error", {})
+        rejected_generation = rejected.get("stateGeneration")
+        inspect, _ = session.request(
+            envelope("saturation-inspect", "org.rill.preview.inspect", generation, {"method": "inspect"})
+        )
+        session.close()
+        summary = inspect["response"].get("summary", {})
+        passed = (
+            error.get("code") == "capacityExceeded"
+            and rejected_generation == generation
+            and summary.get("completedDecisions") == total
+            and summary.get("pendingDecisions") == 0
+        )
+        session = _RuntimeSession(runtime, state)
+        restored, _ = session.request(
+            envelope("saturation-restart-inspect", "org.rill.preview.inspect", inspect["stateGeneration"], {"method": "inspect"})
+        )
+        session.close()
+        restored_summary = restored["response"].get("summary", {})
+        passed = passed and restored_summary.get("completedDecisions") == total
+        return {
+            "status": "PASS" if passed else "FAIL",
+            "evidenceType": "simulated",
+            "sameState": True,
+            "completedBeforeRejection": summary.get("completedDecisions"),
+            "rejectedRequestCode": error.get("code"),
+            "generationUnchangedOnRejection": rejected_generation == generation,
+            "completedAfterRestart": restored_summary.get("completedDecisions"),
+        }
 
 
 def qualify(runtime: Path, observations: int, modes: list[str], batch_size: int, soak_cycles: int, soak_mode: str) -> dict:
@@ -221,8 +313,10 @@ def qualify(runtime: Path, observations: int, modes: list[str], batch_size: int,
     if soak_cycles < 0 or soak_cycles > 100:
         raise ValueError("soak-cycles must be between 0 and 100")
     phases = [_phase(runtime, mode, observations, batch_size) for mode in modes]
-    decision_rates = [rate for phase in phases for rate in phase["decisionSecondsPerObservation"]]
-    feedback_rates = [rate for phase in phases for rate in phase["feedbackSecondsPerObservation"]]
+    decision_rates = [rate for phase in phases for rate in phase["decisionLatencySeconds"]]
+    feedback_rates = [rate for phase in phases for rate in phase["feedbackLatencySeconds"]]
+    resource_cap_probe = _resource_cap_probe(runtime)
+    continuous_saturation = _continuous_same_state_saturation(runtime)
     result = {
         "schemaVersion": SCHEMA_VERSION,
         "status": "PASS",
@@ -231,16 +325,20 @@ def qualify(runtime: Path, observations: int, modes: list[str], batch_size: int,
         "consumerQualification": "simulated-only",
         "phases": phases,
         "benchmark": {
-            "decisionSecondsPerObservationP50": _percentile(decision_rates, 0.50),
-            "decisionSecondsPerObservationP95": _percentile(decision_rates, 0.95),
-            "decisionSecondsPerObservationP99": _percentile(decision_rates, 0.99),
-            "feedbackSecondsPerObservationP50": _percentile(feedback_rates, 0.50),
-            "feedbackSecondsPerObservationP95": _percentile(feedback_rates, 0.95),
-            "feedbackSecondsPerObservationP99": _percentile(feedback_rates, 0.99),
+            "decisionLatencySecondsP50": _percentile(decision_rates, 0.50),
+            "decisionLatencySecondsP95": _percentile(decision_rates, 0.95),
+            "decisionLatencySecondsP99": _percentile(decision_rates, 0.99),
+            "feedbackLatencySecondsP50": _percentile(feedback_rates, 0.50),
+            "feedbackLatencySecondsP95": _percentile(feedback_rates, 0.95),
+            "feedbackLatencySecondsP99": _percentile(feedback_rates, 0.99),
+            "decisionLatencySecondsMax": max(decision_rates),
+            "feedbackLatencySecondsMax": max(feedback_rates),
+            "decisionLatencySampleCount": len(decision_rates),
+            "feedbackLatencySampleCount": len(feedback_rates),
             "observationsPerPhase": observations,
             "batchSize": batch_size,
         },
-        "resourceCapProbe": _resource_cap_probe(runtime),
+        "resourceCapProbe": resource_cap_probe,
         "evidence": [
             "real-child-process",
             "preview-handshake",
@@ -252,10 +350,24 @@ def qualify(runtime: Path, observations: int, modes: list[str], batch_size: int,
             "resource-cap-rejection",
         ],
     }
+    required_checks = [
+        {"checkId": f"consumer-phase:{phase['mode']}", "status": phase["status"]}
+        for phase in phases
+    ]
+    required_checks.append(
+        {"checkId": "resource-cap-probe", "status": resource_cap_probe["status"]}
+    )
+    required_checks.append(
+        {"checkId": "continuous-same-state-saturation", "status": continuous_saturation["status"]}
+    )
+    result["continuousSameStateSaturation"] = continuous_saturation
     if soak_cycles:
         result["soak"] = _bounded_soak(runtime, soak_mode, soak_cycles, observations, batch_size)
-        if result["soak"]["status"] != "PASS" or result["resourceCapProbe"]["status"] != "PASS":
-            result["status"] = "FAIL"
+        required_checks.append(
+            {"checkId": "bounded-soak", "status": result["soak"]["status"]}
+        )
+    result["requiredChecks"] = required_checks
+    result["status"] = "PASS" if all(item["status"] == "PASS" for item in required_checks) else "FAIL"
     return result
 
 

@@ -195,7 +195,7 @@ behaviour. For a WASM-free build: `cargo install rill-runtime --no-default-featu
 load `.rillhandler`).
 
 The version tracks `[workspace.package].version`; query the current release via `cargo metadata`
-or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.5.0`;
+or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.5.1`;
 the Preview group remains at `0.15.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.

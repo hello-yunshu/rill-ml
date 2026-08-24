@@ -21,6 +21,17 @@ with the Rust-specific convention that 0.x releases may break the public API.
 ## [Unreleased]
 
 
+
+## [1.5.1] - 2026-08-24
+
+### Fixed
+
+- Hardened Preview v3 resource admission, snapshot persistence, ledger capacity
+  handling, and single-writer state ownership.
+- Made final qualification required-check aggregation fail closed and changed
+  latency reporting to use correlated per-request samples.
+- Kept GitHub Actions refs readable and made the action gate reject fixed SHAs.
+
 ## [1.5.0] - 2026-08-22
 
 ### Changed
@@ -1627,6 +1638,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.3.0...HEAD
+[1.5.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.1
 [1.5.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.0
 [1.3.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.3.0
 [1.2.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.2.0
