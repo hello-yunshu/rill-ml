@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
     io::{self, BufRead, BufReader, BufWriter, Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -390,10 +390,11 @@ struct StateFileLock {
 }
 
 impl StateFileLock {
-    fn acquire(state_path: &PathBuf) -> Result<Self, io::Error> {
+    fn acquire(state_path: &Path) -> Result<Self, io::Error> {
         let lock_path = state_path.with_extension("lock");
         let mut file = OpenOptions::new()
             .create(true)
+            .truncate(true)
             .read(true)
             .write(true)
             .open(lock_path)?;
