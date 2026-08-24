@@ -1,6 +1,6 @@
 # RillML 1.5.1 final closure audit
 
-Date: 2026-08-24
+Date: 2026-08-25
 
 This document records the 1.5.1 patch line separately from the immutable
 v1.5.0 release. It must not be used to rewrite the v1.5.0 release evidence.
@@ -44,9 +44,23 @@ The audit did not modify the v1.5.0 tag or its public Release assets.
 
 ## Evidence boundary
 
-Local Rust/Python gates pass for the current working tree. The current branch
-has not yet established a same-HEAD remote Actions, merge, 1.5.1 tag, public
-Release, or post-release asset verification result. Those states remain
-`NOT_RUN` until the corresponding remote evidence exists. Simulated consumer
-evidence remains `SIMULATED`, not real PM/Xray/Agent integration; build-only or
-cross-build results remain distinct from native execution.
+Pre-merge evidence for head `0ce2e80` is complete: CI, Cross-platform
+Verification, Security audit, Docs, and Fuzz all completed successfully. The
+Cross-platform workflow completed 13/13 jobs, including native FreeBSD and
+RISC-V gates; the CI semver job used the published `1.5.0` baseline.
+
+The final local qualification passed all required checks: three simulated
+consumer phases, resource-cap probe, 10-cycle bounded soak, and continuous
+same-state saturation. The default profile reached its effective snapshot
+boundary at 2,664 completed decisions, returned `capacityExceeded` without a
+generation change, and retained the ledger after restart. The deterministic
+fault smoke passed 6/20 registry scenarios: corrupted/truncated state,
+malformed IPC, concurrent startup, stale lock, and readonly state directory.
+The other 14 registry scenarios remain explicitly `NOT_RUN`.
+
+Action references use readable names/tags; fixed commit references are rejected
+by the local Action-ref gate. Simulated consumer evidence remains `SIMULATED`,
+not real PM/Xray/Agent integration; build-only or cross-build results remain
+distinct from native execution. Merge, the v1.5.1 tag, public Release, and
+post-release asset verification remain `NOT_RUN` until those exact states are
+observed.
