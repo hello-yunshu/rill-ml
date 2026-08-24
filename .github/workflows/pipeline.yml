@@ -1706,7 +1706,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         # host_smoke.py is run with ``python3``. The Linux jobs use the
         # preinstalled python3; setup-python reliably provides the ``python3``
         # command on Windows runners.
