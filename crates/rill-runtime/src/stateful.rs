@@ -724,13 +724,16 @@ impl StatefulRuntimeEngineV3 {
                 state,
             },
             RuntimeResponseBodyV3::Reset { reset } => RuntimeResponseBodyV3Preview::Reset { reset },
-            RuntimeResponseBodyV3::Error { error } => RuntimeResponseBodyV3Preview::Error {
-                error: RuntimeErrorV3Preview {
-                    code: preview_error_code(error.code, &error.message),
-                    message: error.message,
-                    retryable: preview_error_code(error.code, "").is_retryable(),
-                },
-            },
+            RuntimeResponseBodyV3::Error { error } => {
+                let preview_code = preview_error_code(error.code, &error.message);
+                RuntimeResponseBodyV3Preview::Error {
+                    error: RuntimeErrorV3Preview {
+                        code: preview_code,
+                        message: error.message,
+                        retryable: preview_code.is_retryable(),
+                    },
+                }
+            }
         };
         RuntimeResponseV3Preview {
             request_id: response.request_id,
@@ -868,6 +871,8 @@ impl StatefulRuntimeEngineV3 {
             }
             if state.pending_decisions.len()
                 >= self.config.resource_profile.max_pending_decisions as usize
+                || state.completed_decisions.len()
+                    >= self.config.resource_profile.max_completed_decisions as usize
             {
                 return self.error_response(
                     request_id,
@@ -1041,7 +1046,6 @@ impl StatefulRuntimeEngineV3 {
             );
         }
         if result.next_state.len() > self.config.resource_profile.max_model_state_bytes as usize {
-            state.last_error = Some("model state resource limit exceeded".into());
             return self.error_response(
                 request_id,
                 RuntimeErrorCodeV3::Internal,
@@ -1057,13 +1061,13 @@ impl StatefulRuntimeEngineV3 {
                 state.snapshot.state_generation,
             );
         };
-        let previous_snapshot = state.snapshot.clone();
-        state.snapshot = StatefulStateSnapshotV2::new(
+        let next_snapshot = StatefulStateSnapshotV2::new(
             self.metadata.state_schema_version,
             next_generation,
             result.next_state,
         );
-        state.previous_good = Some(previous_snapshot);
+        let mut next_pending = state.pending_decisions.clone();
+        let mut next_completed = state.completed_decisions.clone();
         if matches!(request, RuntimeRequestV3::Decide { .. }) {
             let entry = DecisionLedgerEntryV3 {
                 decision_id: request_id.clone(),
@@ -1074,7 +1078,7 @@ impl StatefulRuntimeEngineV3 {
                 reward: None,
                 outcome_time_unix_ms: None,
             };
-            state.pending_decisions.insert(request_id.clone(), entry);
+            next_pending.insert(request_id.clone(), entry);
         } else {
             if let RuntimeRequestV3::Feedback {
                 decision_id,
@@ -1084,8 +1088,7 @@ impl StatefulRuntimeEngineV3 {
                 ..
             } = &request
             {
-                let mut entry = state
-                    .pending_decisions
+                let mut entry = next_pending
                     .remove(decision_id)
                     .ok_or_else(|| {
                         StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal)
@@ -1094,11 +1097,27 @@ impl StatefulRuntimeEngineV3 {
                 entry.selected_arm = Some(*selected_arm);
                 entry.reward = Some(reward.to_string());
                 entry.outcome_time_unix_ms = Some(*outcome_time_ms);
-                state
-                    .completed_decisions
-                    .insert(entry.decision_id.clone(), entry);
+                next_completed.insert(entry.decision_id.clone(), entry);
             }
         }
+        let prospective = StatefulRuntimeSnapshotV3::new(
+            next_snapshot.clone(),
+            next_pending.clone(),
+            next_completed.clone(),
+        );
+        if self.validate_runtime_snapshot_size(&prospective).is_err() {
+            return self.error_response(
+                request_id,
+                RuntimeErrorCodeV3::Internal,
+                "snapshot resource limit exceeded",
+                state.snapshot.state_generation,
+            );
+        }
+        let previous_snapshot = state.snapshot.clone();
+        state.snapshot = next_snapshot;
+        state.previous_good = Some(previous_snapshot);
+        state.pending_decisions = next_pending;
+        state.completed_decisions = next_completed;
         self.response(
             request_id,
             next_generation,
@@ -1374,7 +1393,10 @@ fn preview_error_code(code: RuntimeErrorCodeV3, message: &str) -> PreviewErrorCo
         "decision id was already used" => PreviewErrorCodeV3::DuplicateDecision,
         "decision id is not pending" => PreviewErrorCodeV3::UnknownDecision,
         "feedback generation is stale" => PreviewErrorCodeV3::StaleFeedback,
-        "pending decision capacity is exhausted" => PreviewErrorCodeV3::CapacityExceeded,
+        "pending decision capacity is exhausted"
+        | "completed decision capacity is exhausted"
+        | "model state resource limit exceeded"
+        | "snapshot resource limit exceeded" => PreviewErrorCodeV3::CapacityExceeded,
         _ => match code {
             RuntimeErrorCodeV3::InvalidJson => PreviewErrorCodeV3::InvalidJson,
             RuntimeErrorCodeV3::InvalidRequestId

@@ -43,15 +43,15 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+      - uses: github/codeql-action/init@v4 # v4
         with:
           # Rust covers src/, crates/, handlers/. Python covers scripts/
           # and crates/rill-ml-python/. `actions` covers the workflows.
           languages: rust, python, actions
-      - uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+      - uses: github/codeql-action/analyze@v4 # v4
 
   audit:
     name: RustSec advisory audit
@@ -62,11 +62,11 @@ jobs:
       checks: write
       issues: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       # RustSec audit-check, pinned to the node24 update commit (858dc40, PR #48).
       # The v2.0.0 tag still targets Node 20 and triggers the deprecation warning.
-      - uses: rustsec/audit-check@858dc40f52ca2b8570b7a997c1c4e35c6fc9a432
+      - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
