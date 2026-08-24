@@ -40,11 +40,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - name: cargo fmt --check
@@ -56,14 +56,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: cargo clippy
         run: cargo clippy --locked --workspace --all-targets --all-features --exclude rill-ml-python -- -D warnings
 
@@ -83,14 +83,14 @@ jobs:
         os: [ubuntu-latest, windows-latest, windows-11-arm, macos-latest]
         rust: [stable]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Install Rust (${{ matrix.rust }})
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: cargo check workspace
         run: cargo check --locked --workspace --all-targets --all-features
       - name: cargo test workspace
@@ -114,13 +114,13 @@ jobs:
     runs-on: windows-11-arm
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: Install wasm-tools
         # Exact release-tool version shared with the release packaging job.
         run: cargo install wasm-tools --locked --version "1.254.0"
@@ -159,14 +159,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Install Rust 1.94.0
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: cargo +1.94 check rill-ml --lib
         run: cargo +1.94.0 check --locked --lib
       - name: cargo +1.94 check rill-ml --lib --features serde
@@ -188,12 +188,12 @@ jobs:
     env:
       RUSTDOCFLAGS: "-D warnings"
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: cargo doc --features serde --no-deps
         run: cargo doc --locked --features serde --no-deps
 
@@ -213,7 +213,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Install Rust (nightly)
@@ -222,7 +222,7 @@ jobs:
         # use `nightly` (latest) here to stay in sync. The semver-checks job
         # pins a specific nightly because cargo-semver-checks has tighter
         # compatibility constraints with the rustdoc JSON format version.
-        uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
+        uses: dtolnay/rust-toolchain@nightly
       - name: Record resolved nightly toolchain version
         run: rustc --version
       - name: Install cargo-public-api
@@ -231,7 +231,7 @@ jobs:
         run: cargo install cargo-public-api --locked --version "0.52.0"
       - name: Record resolved cargo-public-api version
         run: cargo public-api --version
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: Verify Stable-crate public API baseline
         run: python3 scripts/generate_api_baseline.py --verify
 
@@ -255,7 +255,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Install Rust (nightly-2026-07-17)
@@ -264,7 +264,7 @@ jobs:
         # nightly toolchains can introduce breaking changes (e.g. removed
         # built-in traits like RefUnwindSafe/UnwindSafe) that cause the
         # adapter to panic. v0.49.0 was released against nightly-2026-07-17.
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2026-07-17
       - name: Record resolved nightly toolchain version
@@ -278,7 +278,7 @@ jobs:
         run: cargo install cargo-semver-checks --locked --version "0.49.0"
       - name: Record resolved cargo-semver-checks version
         run: cargo semver-checks --version
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
       # 1.3.0 admission: the immediately previous Stable release 1.2.0 is
       # authoritative. Historical 1.1.0 and 1.0.0 checks remain sanity gates.
       - name: Run semver-checks for rill-ml (baseline 1.2.0)
@@ -309,11 +309,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: cargo install rill-runtime (default features)
         run: cargo install --path crates/rill-runtime --root /tmp/rill-install --locked
       - name: Verify rill-runtime --help works
@@ -331,14 +331,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Verify model/runtime index update behavior
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Run product-surface drift gate
         run: python3 scripts/check_product_surface.py --json
-      - name: Run action-pin gate
+      - name: Run action-ref gate
         run: python3 scripts/check_action_pins.py --json
       - name: Run offline conformance gate
         run: python3 conformance/run.py --mode offline --json
@@ -357,7 +357,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Validate Stable state schema fixture coverage
@@ -369,13 +369,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
       - run: cargo check --locked -p rill-ml-wasm --target wasm32-unknown-unknown
       # Canonical gate: builds the publishable npm layout (pkg/ web ESM +
       # pkg-node/ Node CJS), fixes up the wasm-pack .gitignore/.npmignore
@@ -409,13 +409,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: Install wasm-tools
         # Exact release-tool version shared with the release packaging job.
         run: cargo install wasm-tools --locked --version "1.254.0"
@@ -559,11 +559,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: Build and test Python bindings
         run: |
           python3 -m venv .venv
@@ -593,11 +593,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: cargo test rill-ml-ffi (opaque-handle ABI)
         run: cargo test --locked -p rill-ml-ffi
       - name: Compile + run C smoke test (rill_ml.h ABI)
@@ -628,7 +628,7 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           fetch-depth: 1
@@ -664,12 +664,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: Package and verify only Stable crates
         shell: bash
         run: |
@@ -760,15 +760,15 @@ jobs:
             target_arch: aarch64
             extension: ""
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: runtime-${{ matrix.rust_target }}
       - name: Check Apple signing secrets
@@ -860,7 +860,7 @@ jobs:
           output = pathlib.Path("dist") / f"rill-runtime-{version}-{os.environ['TARGET_OS']}-{os.environ['TARGET_ARCH']}{extension}"
           output.parent.mkdir(exist_ok=True)
           shutil.copyfile(source, output)
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         with:
           name: runtime-${{ matrix.target_os }}-${{ matrix.target_arch }}
           path: dist/rill-runtime-*
@@ -928,16 +928,16 @@ jobs:
             libc: gnu
             asset_suffix: linux-loongarch64
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
       - name: Install Zig (C cross toolchain used by cargo-zigbuild)
-        uses: xyzzylabs/setup-zig@df7066a4910fe13f4643390dbbd8ce6a785fff63
+        uses: xyzzylabs/setup-zig@v1
         with:
           # Partition the shared zig cache/tarball keys per target so parallel
           # matrix jobs don't race to save the same key ("Unable to reserve
@@ -945,7 +945,7 @@ jobs:
           cache-key: ${{ matrix.rust_target }}
       - name: Install cargo-zigbuild
         run: pip3 install --disable-pip-version-check "cargo-zigbuild==0.20.1"
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: runtime-${{ matrix.rust_target }}-zigbuild
       - name: Build runtime for ${{ matrix.rust_target }}
@@ -965,7 +965,7 @@ jobs:
           mkdir -p dist
           cp "target/$RUST_TARGET/release/rill-runtime" \
             "dist/rill-runtime-${version}-${ASSET_SUFFIX}"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         with:
           name: runtime-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ matrix.libc }}
           path: dist/rill-runtime-*
@@ -985,12 +985,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
       - name: Build FreeBSD runtime in native VM
-        uses: vmactions/freebsd-vm@83b151f58c6047089f4c80eb5ba2039d158ce093
+        uses: vmactions/freebsd-vm@v1
         with:
           usesh: true
           prepare: |
@@ -1005,7 +1005,7 @@ jobs:
             mkdir -p dist
             cp "target/$rust_target/release/rill-runtime" \
               "dist/rill-runtime-${version}-freebsd-x86_64"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         with:
           name: runtime-freebsd-x86_64
           path: dist/rill-runtime-*
@@ -1032,16 +1032,16 @@ jobs:
             libc: musl
             asset_suffix: linux-aarch64-musl
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
       - name: Install Zig (C cross toolchain used by cargo-zigbuild)
-        uses: xyzzylabs/setup-zig@df7066a4910fe13f4643390dbbd8ce6a785fff63
+        uses: xyzzylabs/setup-zig@v1
         with:
           # Partition the shared zig cache/tarball keys per target so parallel
           # matrix jobs don't race to save the same key ("Unable to reserve
@@ -1049,7 +1049,7 @@ jobs:
           cache-key: ${{ matrix.rust_target }}
       - name: Install cargo-zigbuild
         run: pip3 install --disable-pip-version-check "cargo-zigbuild==0.20.1"
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: pm-adapter-${{ matrix.rust_target }}-zigbuild
       - name: Build PM adapter for ${{ matrix.rust_target }}
@@ -1066,7 +1066,7 @@ jobs:
           mkdir -p dist
           cp "target/$RUST_TARGET/release/rill-pm-adapter" \
             "dist/rill-pm-adapter-${version}-${ASSET_SUFFIX}"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         with:
           name: pm-adapter-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ matrix.libc }}
           path: dist/rill-pm-adapter-*
@@ -1088,7 +1088,7 @@ jobs:
       pointer_release: ${{ steps.version.outputs.pointer_release }}
       pointer_title: ${{ steps.version.outputs.pointer_title }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           # Build assets are bound to RELEASE_TAG above. This job also runs
@@ -1096,7 +1096,7 @@ jobs:
           # so an immutable same-tag retry can carry a reviewed tooling fix
           # without rewriting the tag's source commit.
           ref: ${{ github.sha }}
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
           targets: wasm32-unknown-unknown
@@ -1110,7 +1110,7 @@ jobs:
           git fetch --depth=1 origin "refs/tags/$TAG:refs/tags/$TAG"
           tag_ref="${TAG}^{}"
           echo "commit=$(git rev-parse "$tag_ref")" >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -1365,7 +1365,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
@@ -1418,11 +1418,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
       - name: Build public package verifier
@@ -1437,7 +1437,7 @@ jobs:
             --expected-channel "${{ needs.publish.outputs.channel }}" \
             --rill-pack-bin target/release/rill-pack \
             --log smoke-test/smoke-result.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: released-asset-host-smoke-${{ needs.publish.outputs.version }}
@@ -1453,7 +1453,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
@@ -1466,7 +1466,7 @@ jobs:
             --expected-version "${{ needs.publish.outputs.version }}" \
             --expected-channel "${{ needs.publish.outputs.channel }}" \
             --log smoke-test/adapter-smoke-result.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: adapter-host-smoke-${{ needs.publish.outputs.version }}
@@ -1516,16 +1516,16 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
       - name: Set up QEMU / binfmt_misc
         if: matrix.platform != 'linux/amd64'
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
+        uses: docker/setup-qemu-action@v4
       - name: Set up Docker Buildx
         if: matrix.platform != 'linux/amd64'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e
+        uses: docker/setup-buildx-action@v4
       - name: Build verifier and re-verify the real published asset
         env:
           INDEX_FILE: ${{ needs.publish.outputs.index_file }}
@@ -1562,7 +1562,7 @@ jobs:
                 --rill-pack-bin target/release/rill-pack \
                 --log smoke-test/post-release-${{ matrix.target }}.json
             "
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: post-release-verify-${{ matrix.target }}
@@ -1586,12 +1586,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
       - name: Re-verify the published FreeBSD runtime in a native FreeBSD VM
-        uses: vmactions/freebsd-vm@83b151f58c6047089f4c80eb5ba2039d158ce093
+        uses: vmactions/freebsd-vm@v1
         with:
           usesh: true
           prepare: |
@@ -1611,7 +1611,7 @@ jobs:
               --runtime-id rill-runtime \
               --rill-pack-bin target/release/rill-pack \
               --log smoke-test/post-release-freebsd.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: post-release-verify-freebsd
@@ -1642,11 +1642,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
       - name: Build rill-pack verifier (host, no wasm feature)
@@ -1667,7 +1667,7 @@ jobs:
             --runtime-id rill-runtime \
             --rill-pack-bin target/release/rill-pack \
             --log "smoke-test/post-release-direct-qemu-${{ matrix.target }}.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: post-release-verify-direct-qemu-${{ matrix.target }}
@@ -1699,14 +1699,14 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: actions/setup-python@v6
         # host_smoke.py is run with ``python3``. The Linux jobs use the
         # preinstalled python3; setup-python reliably provides the ``python3``
         # command on Windows runners.
@@ -1735,7 +1735,7 @@ jobs:
             --runtime-id rill-runtime \
             --rill-pack-bin "$pack_bin" \
             --log "smoke-test/post-release-native-${{ matrix.arch }}.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: post-release-verify-native-${{ matrix.arch }}
@@ -1753,11 +1753,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.94.0
       - name: Build public package verifier
@@ -1804,7 +1804,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
@@ -1831,9 +1831,9 @@ jobs:
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
             echo "Python version ($python_version) differs from tag ($tag_version); skipping PyPI publish (Preview crate is not a 1.0 blocking artifact)."
           fi
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+      - uses: dtolnay/rust-toolchain@stable
         if: steps.python_version_check.outputs.should_publish == 'true'
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         if: steps.python_version_check.outputs.should_publish == 'true'
       - name: Install Python build toolchain (exact versions)
         if: steps.python_version_check.outputs.should_publish == 'true'
@@ -1893,7 +1893,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
@@ -1920,7 +1920,7 @@ jobs:
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
             echo "WASM version ($wasm_version) differs from tag ($tag_version); skipping npm publish (Preview crate is not a release-blocking artifact)."
           fi
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+      - uses: dtolnay/rust-toolchain@stable
         if: steps.wasm_version_check.outputs.should_publish == 'true'
       - name: Build WASM package (pkg/ + pkg-node/)
         if: steps.wasm_version_check.outputs.should_publish == 'true'

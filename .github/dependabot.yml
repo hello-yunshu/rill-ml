@@ -32,9 +32,8 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    # Workflows require immutable 40-character action commits. A Dependabot
-    # action update must also update scripts/check_action_pins.py with the
-    # reviewed SHA; mutable major/minor tags are never accepted by CI.
+    # Workflows intentionally use readable action refs rather than fixed
+    # 40-character commit SHAs. Dependabot keeps those named refs current.
     schedule:
       interval: "weekly"
       day: "monday"
