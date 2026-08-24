@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -56,10 +58,66 @@ def run_faults(runtime: Path, registry: Path) -> dict:
         malformed_pass = process.returncode == 0 and b"invalidJson" in process.stdout
         results.append({"scenarioId": "malformed-ipc", "status": "PASS" if malformed_pass else "FAIL"})
 
+        concurrent_state = root / "concurrent-startup.json"
+        first = subprocess.Popen(
+            [str(runtime), "preview-serve", "--state", str(concurrent_state)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            time.sleep(0.2)
+            second = subprocess.run(
+                [str(runtime), "preview-serve", "--state", str(concurrent_state)],
+                input=b"",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            concurrent_pass = second.returncode != 0
+        finally:
+            first.terminate()
+            try:
+                first.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                first.kill()
+                first.communicate()
+        results.append({"scenarioId": "concurrent-startup", "status": "PASS" if concurrent_pass else "FAIL"})
+
+        stale_state = root / "stale-lock.json"
+        stale_lock = Path(f"{stale_state}.lock")
+        stale_lock.write_text("pid=999999\n", encoding="utf-8")
+        process = subprocess.run(
+            [str(runtime), "preview-serve", "--state", str(stale_state)],
+            input=b"{\n",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        stale_lock_pass = process.returncode == 0 and b"invalidJson" in process.stdout
+        results.append({"scenarioId": "stale-lock", "status": "PASS" if stale_lock_pass else "FAIL"})
+
+        readonly_dir = root / "readonly-state-dir"
+        readonly_dir.mkdir()
+        os.chmod(readonly_dir, 0o500)
+        try:
+            process = subprocess.run(
+                [str(runtime), "preview-serve", "--state", str(readonly_dir / "state.json")],
+                input=b"",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            readonly_pass = process.returncode != 0
+        finally:
+            os.chmod(readonly_dir, 0o700)
+        results.append({"scenarioId": "readonly-state-dir", "status": "PASS" if readonly_pass else "FAIL"})
+
     known = {item["id"] for item in scenarios}
     covered = {item["scenarioId"] for item in results}
     required = {"corrupted-state", "truncated-state", "malformed-ipc"}
     missing = sorted(required - known)
+    unexecuted = sorted(known - covered)
     return {
         "schemaVersion": SCHEMA_VERSION,
         "status": "PASS" if all(item["status"] == "PASS" for item in results) and not missing else "FAIL",
@@ -67,8 +125,10 @@ def run_faults(runtime: Path, registry: Path) -> dict:
         "evidenceType": "simulated",
         "registryScenarioCount": len(scenarios),
         "coveredScenarioIds": sorted(covered),
+        "executionCoverage": f"{len(covered)}/{len(known)}",
         "results": results,
         "missingRegistryIds": missing,
+        "unexecutedRegistryIds": unexecuted,
     }
 
 
