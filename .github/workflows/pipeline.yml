@@ -279,24 +279,24 @@ jobs:
       - name: Record resolved cargo-semver-checks version
         run: cargo semver-checks --version
       - uses: Swatinem/rust-cache@v2 # v2
-      # 1.3.0 admission: the immediately previous Stable release 1.2.0 is
-      # authoritative. Historical 1.1.0 and 1.0.0 checks remain sanity gates.
-      - name: Run semver-checks for rill-ml (baseline 1.2.0)
-        run: cargo semver-checks --package rill-ml --baseline-version 1.2.0 --all-features
-      - name: Run semver-checks for rill-handler-api (baseline 1.2.0)
-        run: cargo semver-checks --package rill-handler-api --baseline-version 1.2.0
-      - name: Run semver-checks for rill-runtime-protocol (baseline 1.2.0)
-        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.2.0
-      - name: Run semver-checks for rill-runtime (baseline 1.2.0)
-        run: cargo semver-checks --package rill-runtime --baseline-version 1.2.0
-      - name: Run historical semver sanity for rill-ml (baseline 1.0.0)
-        run: cargo semver-checks --package rill-ml --baseline-version 1.0.0 --all-features
-      - name: Run historical semver sanity for rill-handler-api (baseline 1.0.0)
-        run: cargo semver-checks --package rill-handler-api --baseline-version 1.0.0
-      - name: Run historical semver sanity for rill-runtime-protocol (baseline 1.0.0)
-        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.0.0
-      - name: Run historical semver sanity for rill-runtime (baseline 1.0.0)
-        run: cargo semver-checks --package rill-runtime --baseline-version 1.0.0
+      # 1.5.1 admission: the immediately previous Stable release 1.5.0 is
+      # authoritative. Historical 1.3.0 and 1.0.0 checks remain sanity gates.
+      - name: Run semver-checks for rill-ml (baseline 1.5.0)
+        run: cargo semver-checks --package rill-ml --baseline-version 1.5.0 --all-features
+      - name: Run semver-checks for rill-handler-api (baseline 1.5.0)
+        run: cargo semver-checks --package rill-handler-api --baseline-version 1.5.0
+      - name: Run semver-checks for rill-runtime-protocol (baseline 1.5.0)
+        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.5.0
+      - name: Run semver-checks for rill-runtime (baseline 1.5.0)
+        run: cargo semver-checks --package rill-runtime --baseline-version 1.5.0
+      - name: Run historical semver sanity for rill-ml (baseline 1.3.0)
+        run: cargo semver-checks --package rill-ml --baseline-version 1.3.0 --all-features
+      - name: Run historical semver sanity for rill-handler-api (baseline 1.3.0)
+        run: cargo semver-checks --package rill-handler-api --baseline-version 1.3.0
+      - name: Run historical semver sanity for rill-runtime-protocol (baseline 1.3.0)
+        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.3.0
+      - name: Run historical semver sanity for rill-runtime (baseline 1.3.0)
+        run: cargo semver-checks --package rill-runtime --baseline-version 1.3.0
 
   install-smoke:
     name: cargo install default-feature smoke
