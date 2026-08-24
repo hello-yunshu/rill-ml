@@ -124,9 +124,7 @@ smoke behavior. The 1.3.0 release had the same verified asset/SBOM boundary.
 2. No iOS native runtime or physical-device qualification was claimed.
 3. IPC v3 is Preview and must not be described as Stable v3 without a separate
    stable-admission decision.
-4. The post-simulation runner/doc refinement is local commit `ecdcc84` and was
-   not pushed because the environment rejected the external push request on
-   usage-limit grounds. The published 1.5.0 runtime artifact is unchanged and
-   was fully verified by the official release workflow; this local audit-tool
-   commit must be pushed separately if the repository should retain the richer
-   P95/P99/soak reporting implementation.
+4. The post-simulation runner/doc refinement was pushed in PR #33 at the time
+   of this audit (`06b8649`). It is subsequent audit tooling and does not alter
+   the immutable v1.5.0 tag or its public assets. Runtime behavior changes from
+   the follow-up work belong to the separate 1.5.1 line.

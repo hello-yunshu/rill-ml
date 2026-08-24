@@ -9,6 +9,7 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use ed25519_dalek::VerifyingKey;
+use fs2::FileExt;
 #[cfg(feature = "wasm")]
 use rill_runtime::effective_capabilities;
 use rill_runtime::{
@@ -291,6 +292,7 @@ fn preview_serve(
     feature_schema_hash: String,
     model_generation: u64,
 ) -> Result<(), CliError> {
+    let _state_lock = StateFileLock::acquire(&state_path)?;
     let handler = Arc::new(PreviewBuiltinHandler::new());
     let config = StatefulRuntimeConfigV3::new(
         rill_runtime_protocol::v3::IdentityV3 {
@@ -360,7 +362,13 @@ fn write_atomic_snapshot(
     path: &PathBuf,
     snapshot: &StatefulRuntimeSnapshotV3,
 ) -> Result<(), CliError> {
-    let temp = path.with_extension("tmp");
+    let temp = path.with_file_name(format!(
+        ".{}.{}.tmp",
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("state"),
+        std::process::id()
+    ));
     let bytes = serde_json::to_vec(snapshot)?;
     let mut file = OpenOptions::new()
         .create(true)
@@ -370,7 +378,36 @@ fn write_atomic_snapshot(
     file.write_all(&bytes)?;
     file.sync_all()?;
     fs::rename(temp, path)?;
+    #[cfg(unix)]
+    if let Some(parent) = path.parent() {
+        File::open(parent)?.sync_all()?;
+    }
     Ok(())
+}
+
+struct StateFileLock {
+    _file: File,
+}
+
+impl StateFileLock {
+    fn acquire(state_path: &PathBuf) -> Result<Self, io::Error> {
+        let lock_path = state_path.with_extension("lock");
+        let mut file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(lock_path)?;
+        file.try_lock_exclusive().map_err(|error| {
+            io::Error::new(
+                io::ErrorKind::WouldBlock,
+                format!("state path is already owned by another preview runtime: {error}"),
+            )
+        })?;
+        file.set_len(0)?;
+        writeln!(file, "pid={}", std::process::id())?;
+        file.sync_all()?;
+        Ok(Self { _file: file })
+    }
 }
 
 #[cfg(feature = "wasm")]

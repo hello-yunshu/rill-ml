@@ -1237,6 +1237,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
+name = "fs2"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2886,11 +2896,11 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rill-handler-api"
-version = "1.5.0"
+version = "1.5.1"
 
 [[package]]
 name = "rill-ml"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "approx",
  "criterion",
@@ -2978,10 +2988,11 @@ dependencies = [
 
 [[package]]
 name = "rill-runtime"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "clap",
  "ed25519-dalek",
+ "fs2",
  "hex",
  "rill-handler-api",
  "rill-ml",
@@ -2998,7 +3009,7 @@ dependencies = [
 
 [[package]]
 name = "rill-runtime-protocol"
-version = "1.5.0"
+version = "1.5.1"
 dependencies = [
  "serde",
  "serde_json",
