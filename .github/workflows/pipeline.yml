@@ -87,7 +87,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Rust (${{ matrix.rust }})
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2 # v2
@@ -163,7 +163,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Rust 1.94.0
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - uses: Swatinem/rust-cache@v2 # v2
@@ -244,8 +244,9 @@ jobs:
     # would miss (e.g. tightening trait bounds, deleting enum variants,
     # changing function signatures, removing public fields).
     #
-    # The baseline is the most recently published Stable release
-    # (1.2.0) on crates.io. The four Stable crates are checked
+    # The baseline is read from release-plan.toml so the four Stable crates are
+    # checked against one machine-readable authoritative release. Historical
+    # baselines remain explicit sanity checks below.
     # individually:
     #   rill-ml, rill-runtime-protocol, rill-handler-api, rill-runtime
     #
@@ -264,7 +265,7 @@ jobs:
         # nightly toolchains can introduce breaking changes (e.g. removed
         # built-in traits like RefUnwindSafe/UnwindSafe) that cause the
         # adapter to panic. v0.49.0 was released against nightly-2026-07-17.
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly-2026-07-17
       - name: Record resolved nightly toolchain version
@@ -279,24 +280,33 @@ jobs:
       - name: Record resolved cargo-semver-checks version
         run: cargo semver-checks --version
       - uses: Swatinem/rust-cache@v2 # v2
-      # 1.5.1 admission: the immediately previous Stable release 1.5.0 is
-      # authoritative. Historical 1.3.0 and 1.0.0 checks remain sanity gates.
-      - name: Run semver-checks for rill-ml (baseline 1.5.0)
-        run: cargo semver-checks --package rill-ml --baseline-version 1.5.0 --all-features
-      - name: Run semver-checks for rill-handler-api (baseline 1.5.0)
-        run: cargo semver-checks --package rill-handler-api --baseline-version 1.5.0
-      - name: Run semver-checks for rill-runtime-protocol (baseline 1.5.0)
-        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.5.0
-      - name: Run semver-checks for rill-runtime (baseline 1.5.0)
-        run: cargo semver-checks --package rill-runtime --baseline-version 1.5.0
-      - name: Run historical semver sanity for rill-ml (baseline 1.3.0)
-        run: cargo semver-checks --package rill-ml --baseline-version 1.3.0 --all-features
-      - name: Run historical semver sanity for rill-handler-api (baseline 1.3.0)
-        run: cargo semver-checks --package rill-handler-api --baseline-version 1.3.0
-      - name: Run historical semver sanity for rill-runtime-protocol (baseline 1.3.0)
-        run: cargo semver-checks --package rill-runtime-protocol --baseline-version 1.3.0
-      - name: Run historical semver sanity for rill-runtime (baseline 1.3.0)
-        run: cargo semver-checks --package rill-runtime --baseline-version 1.3.0
+      - name: Read SemVer baselines from release-plan.toml
+        id: baselines
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "authoritative=$(python3 scripts/release_compatibility.py --authoritative)" >> "$GITHUB_OUTPUT"
+          echo "historical=$(python3 scripts/release_compatibility.py --historical)" >> "$GITHUB_OUTPUT"
+      - name: Run authoritative SemVer checks for all Stable crates
+        env:
+          BASELINE: ${{ steps.baselines.outputs.authoritative }}
+        run: |
+          set -euo pipefail
+          cargo semver-checks --package rill-ml --baseline-version "$BASELINE" --all-features
+          cargo semver-checks --package rill-handler-api --baseline-version "$BASELINE"
+          cargo semver-checks --package rill-runtime-protocol --baseline-version "$BASELINE"
+          cargo semver-checks --package rill-runtime --baseline-version "$BASELINE"
+      - name: Run historical SemVer sanity checks
+        env:
+          BASELINES: ${{ steps.baselines.outputs.historical }}
+        run: |
+          set -euo pipefail
+          for baseline in $BASELINES; do
+            cargo semver-checks --package rill-ml --baseline-version "$baseline" --all-features
+            cargo semver-checks --package rill-handler-api --baseline-version "$baseline"
+            cargo semver-checks --package rill-runtime-protocol --baseline-version "$baseline"
+            cargo semver-checks --package rill-runtime --baseline-version "$baseline"
+          done
 
   install-smoke:
     name: cargo install default-feature smoke
@@ -338,6 +348,8 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Run product-surface drift gate
         run: python3 scripts/check_product_surface.py --json
+      - name: Run platform support consistency gate
+        run: python3 scripts/platform_consistency.py --json
       - name: Run action-ref gate
         run: python3 scripts/check_action_pins.py --json
       - name: Run offline conformance gate
@@ -764,7 +776,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
@@ -866,7 +878,10 @@ jobs:
           path: dist/rill-runtime-*
           if-no-files-found: error
 
-  # Phase 6: Linux musl + aarch64 Runtime publish assets. These three targets
+  # Phase 6: Linux musl + cross Runtime publish assets. The source gate and
+  # release index independently decide whether an asset is Full Runtime
+  # Supported. Core-only investigation assets remain downloadable but are not
+  # advertised by the signed Stable index.
   # have no GitHub-hosted native runner. Compiling release assets does NOT
   # require Docker: we cross-compile directly on the ubuntu runner with
   # cargo-zigbuild, which bundles Zig's Clang-based C compiler, assembler and
@@ -907,11 +922,26 @@ jobs:
             target_arch: riscv64
             libc: gnu
             asset_suffix: linux-riscv64
+          - rust_target: riscv64gc-unknown-linux-musl
+            target_os: linux
+            target_arch: riscv64
+            libc: musl
+            asset_suffix: linux-riscv64-musl
           - rust_target: armv7-unknown-linux-gnueabihf
             target_os: linux
             target_arch: armv7
             libc: gnu
             asset_suffix: linux-armv7
+          - rust_target: armv7-unknown-linux-musleabihf
+            target_os: linux
+            target_arch: armv7
+            libc: musl
+            asset_suffix: linux-armv7-musl
+          - rust_target: i686-unknown-linux-musl
+            target_os: linux
+            target_arch: i686
+            libc: musl
+            asset_suffix: linux-i686-musl
           - rust_target: s390x-unknown-linux-gnu
             target_os: linux
             target_arch: s390x
@@ -932,7 +962,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
@@ -1035,7 +1065,7 @@ jobs:
           # so an immutable same-tag retry can carry a reviewed tooling fix
           # without rewriting the tag's source commit.
           ref: ${{ github.sha }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
           targets: wasm32-unknown-unknown
@@ -1247,6 +1277,16 @@ jobs:
             --index "dist/$INDEX_FILE" \
             --key-id "$PUBLISHER_KEY_ID" \
             --public-key-hex "$RILL_PUBLIC_KEY_HEX"
+      - name: Verify release asset set against the signed index
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          INDEX_FILE: ${{ steps.version.outputs.index_file }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-release-assets.py \
+            --index "dist/$INDEX_FILE" \
+            --release-dir dist \
+            --version "$VERSION"
       - name: Generate CycloneDX and SPDX SBOMs
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -1361,7 +1401,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - name: Build public package verifier
@@ -1391,8 +1431,8 @@ jobs:
     # container whose platform matches the target (QEMU/binfmt for aarch64) and
     # runs the signed-model / signed-handler / IPC host smoke. Covers the Linux
     # Supported runtime assets that have usable rust:* container manifests
-    # (gnu+musl of x86_64/aarch64, plus armv7/s390x/powerpc64le). RISC-V64 and
-    # LoongArch64 are re-verified under DIRECT user-mode QEMU instead by
+    # (gnu+musl of x86_64/aarch64). RISC-V64 and LoongArch64 are re-verified
+    # under DIRECT user-mode QEMU instead by
     # post-release-verify-direct-qemu (no container-manifest dependency).
     if: github.event_name == 'workflow_dispatch'
     needs: publish
@@ -1414,15 +1454,15 @@ jobs:
           - target: aarch64-unknown-linux-musl
             platform: linux/arm64
             runtime_id: rill-runtime-musl
-          - target: armv7-unknown-linux-gnueabihf
+          - target: riscv64gc-unknown-linux-musl
+            platform: linux/riscv64
+            runtime_id: rill-runtime-musl
+          - target: armv7-unknown-linux-musleabihf
             platform: linux/arm/v7
-            runtime_id: rill-runtime
-          - target: s390x-unknown-linux-gnu
-            platform: linux/s390x
-            runtime_id: rill-runtime
-          - target: powerpc64le-unknown-linux-gnu
-            platform: linux/ppc64le
-            runtime_id: rill-runtime
+            runtime_id: rill-runtime-musl
+          - target: i686-unknown-linux-musl
+            platform: linux/386
+            runtime_id: rill-runtime-musl
     permissions:
       contents: read
     steps:
@@ -1546,9 +1586,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - riscv64gc-unknown-linux-gnu
-          - loongarch64-unknown-linux-gnu
+        include:
+          - target: riscv64gc-unknown-linux-gnu
+            runtime_id: rill-runtime
+          - target: loongarch64-unknown-linux-gnu
+            runtime_id: rill-runtime
+          - target: riscv64gc-unknown-linux-musl
+            runtime_id: rill-runtime-musl
+          - target: armv7-unknown-linux-musleabihf
+            runtime_id: rill-runtime-musl
+          - target: i686-unknown-linux-musl
+            runtime_id: rill-runtime-musl
     permissions:
       contents: read
     steps:
@@ -1556,7 +1604,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - name: Build rill-pack verifier (host, no wasm feature)
@@ -1574,7 +1622,7 @@ jobs:
             --index-url "$index_url" \
             --expected-version "$VERSION" \
             --expected-channel "$CHANNEL" \
-            --runtime-id rill-runtime \
+            --runtime-id "${{ matrix.runtime_id }}" \
             --rill-pack-bin target/release/rill-pack \
             --log "smoke-test/post-release-direct-qemu-${{ matrix.target }}.json"
       - uses: actions/upload-artifact@v7
@@ -1613,7 +1661,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - uses: actions/setup-python@v7
@@ -1667,7 +1715,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - name: Build public package verifier

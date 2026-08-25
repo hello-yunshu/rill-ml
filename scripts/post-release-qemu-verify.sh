@@ -19,6 +19,8 @@
 #   ./scripts/post-release-qemu-verify.sh <triple> [host_smoke args...]
 #
 #   triple            riscv64gc-unknown-linux-gnu | loongarch64-unknown-linux-gnu
+#                    | riscv64gc-unknown-linux-musl | armv7-unknown-linux-musleabihf
+#                    | i686-unknown-linux-musl
 #   host_smoke args   passed through to smoke-test/host_smoke.py
 #                     (--index-url --expected-version --expected-channel
 #                      --runtime-id --rill-pack-bin --log ...)
@@ -40,6 +42,24 @@ case "$TARGET" in
     echo "==> Installing qemu-user + riscv64 libc sysroot"
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends qemu-user python3 libc6-dev-riscv64-cross
+    ;;
+  riscv64gc-unknown-linux-musl)
+    TARGET_ARCH="riscv64"
+    SYSROOT=""
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends qemu-user python3
+    ;;
+  armv7-unknown-linux-musleabihf)
+    TARGET_ARCH="arm"
+    SYSROOT=""
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends qemu-user python3
+    ;;
+  i686-unknown-linux-musl)
+    TARGET_ARCH="i386"
+    SYSROOT=""
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends qemu-user python3
     ;;
   loongarch64-unknown-linux-gnu)
     TARGET_ARCH="loongarch64"
@@ -100,9 +120,12 @@ fi
 #   riscv64: -cpu rv64 (matches scripts/qemu-cross-gate.sh)
 #   loongarch64: -E LD_LIBRARY_PATH=... so libgcc_s/libstdc++ are found
 #                (matches scripts/loongarch-cross-gate.sh)
-PREFIX_ARGS=("$QEMU" "-L" "$SYSROOT")
+PREFIX_ARGS=("$QEMU")
+if [[ -n "$SYSROOT" ]]; then
+  PREFIX_ARGS+=("-L" "$SYSROOT")
+fi
 case "$TARGET" in
-  riscv64gc-unknown-linux-gnu) PREFIX_ARGS+=("-cpu" "rv64") ;;
+  riscv64gc-unknown-linux-gnu|riscv64gc-unknown-linux-musl) PREFIX_ARGS+=("-cpu" "rv64") ;;
   loongarch64-unknown-linux-gnu) PREFIX_ARGS+=("-E" "LD_LIBRARY_PATH=${SYSROOT}/lib:${SYSROOT}/lib64") ;;
 esac
 EXEC_PREFIX="$(printf '%s ' "${PREFIX_ARGS[@]}")"

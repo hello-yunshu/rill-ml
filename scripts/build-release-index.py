@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
+from platform_support import load_platforms, targets
+
 
 RUNTIME_API_VERSION = 2
 RELEASE_INDEX_SCHEMA_VERSION = 3
@@ -42,7 +44,10 @@ RUNTIMES = (
     ("linux", "aarch64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-aarch64"),
     ("linux", "aarch64", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-aarch64-musl"),
     ("linux", "riscv64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-riscv64"),
+    ("linux", "riscv64", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-riscv64-musl"),
     ("linux", "armv7", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-armv7"),
+    ("linux", "armv7", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-armv7-musl"),
+    ("linux", "i686", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-i686-musl"),
     ("linux", "s390x", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-s390x"),
     ("linux", "powerpc64le", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-powerpc64le"),
     ("linux", "loongarch64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-loongarch64"),
@@ -156,8 +161,24 @@ def main() -> None:
 
     base_url = f"https://github.com/{args.repository}/releases/download/{args.tag}"
     artifacts: list[dict[str, object]] = []
+    # The release workflow may still upload a Core-only investigation asset,
+    # but the signed Stable index must only advertise Full Runtime targets.
+    # This prevents a --no-default-features build from being selected as if it
+    # were the complete WASM-capable Runtime product.
+    root = Path(__file__).resolve().parents[1]
+    runtime_supported = targets(root, surface="runtime_supported")
+    runtime_records = [
+        entry for entry in load_platforms(root) if entry["triple"] in runtime_supported
+    ]
     for target_os, target_arch, target_libc, artifact_id, pattern in RUNTIMES:
         name = pattern.format(version=args.version)
+        if not any(
+            entry["target_os"] == target_os
+            and entry["target_arch"] == target_arch
+            and (entry["target_libc"] if target_os == "linux" else None) == target_libc
+            for entry in runtime_records
+        ):
+            continue
         asset_path = args.release_dir / name
         if not asset_path.is_file():
             # A platform asset may be intentionally skipped by the release

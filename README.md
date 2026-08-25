@@ -189,7 +189,7 @@ cargo add rill-ml --features serde
 因此 `cargo install rill-runtime` 行为与官方 GitHub 二进制一致。如需 WASM-free 构建：
 `cargo install rill-runtime --no-default-features`（无法加载 `.rillhandler`）。
 
-版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.5.2`，Preview 组为 `0.15.0`。
+版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.5.3`，Preview 组为 `0.15.0`。
 
 **环境要求：** Rust 1.94+（Edition 2024），无需 nightly。
 
@@ -336,8 +336,11 @@ RillML 遵循"能力越强、权限边界越清晰"的安全理念：
 | Windows ARM64 (aarch64) | Stable | Stable |
 | macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | 不发布 | Stable |
+| Linux riscv64 GNU | Stable | Stable |
+| Linux musl x86_64/aarch64/riscv64/armv7/i686 | Stable | Stable |
+| Linux armv7/s390x/powerpc64le GNU | 未列出（仅 Core） | Stable |
 
-官方 macOS Runtime 资产仅 Apple Silicon（ARM64），且为永久未签名策略；Linux 与 Windows 仍为 x86_64。完整矩阵与 Stable/Preview 承诺见 [`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md)。
+官方 macOS Runtime 资产仅 Apple Silicon（ARM64），且为永久未签名策略。通用 Linux/musl 支持规则见 [`docs/LINUX_MUSL_SUPPORT.md`](docs/LINUX_MUSL_SUPPORT.md)；OpenWrt 消费者资格见 [`docs/consumers/OPENWRT.md`](docs/consumers/OPENWRT.md)。
 
 ## 11. 集成与生态
 

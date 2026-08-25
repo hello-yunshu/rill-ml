@@ -257,11 +257,10 @@ cargo test --locked --workspace --doc --all-features \
 
 if [[ "$RUNTIME_SMOKE" != "0" ]]; then
   echo "==> Runtime smoke for ${TARGET} via QEMU user-mode"
-  # Full default Runtime (wasmtime / Pulley handler enabled). The default is
-  # `--features wasm` which mirrors the shipped release binaries. For targets
-  # where compiling/executing wasmtime under QEMU is not viable (s390x SIGSEGV)
-  # the workflow can pass RUNTIME_FEATURES_FLAGS="--no-default-features"; their
-  # WASM path is still covered by the --all-features crate tests above.
+  # Full default Runtime (wasmtime / Pulley handler enabled) is required for
+  # Full Runtime targets. Core-only investigation targets may explicitly pass
+  # RUNTIME_FEATURES_FLAGS="--no-default-features"; that smoke never qualifies
+  # the Full Runtime and those targets are excluded from the Stable index.
   RUNTIME_FEATURES_FLAGS="${RUNTIME_FEATURES_FLAGS:---features wasm}"
   cargo build --locked --release --target "$TARGET" \
     -p rill-runtime --bin rill-runtime --bin rill-pack $RUNTIME_FEATURES_FLAGS
