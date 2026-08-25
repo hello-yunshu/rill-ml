@@ -1,11 +1,5 @@
 # Changelog
 
-## [1.5.3] - 2026-08-26
-
-- Promote the supported Linux musl matrix for x86_64, aarch64, riscv64, armv7, and i686.
-- Enable Wasmtime Pulley support and record target backend, width, and endianness policy.
-- Skip MIPS/MIPSel musl publication until Rust provides usable MSRV target standard-library artifacts.
-
 All notable changes to RillML will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -28,6 +22,12 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ### Changed
 
+- Planned for 1.5.3: promote the supported Linux musl matrix for x86_64,
+  aarch64, riscv64, armv7, and i686.
+- Planned for 1.5.3: enable Wasmtime Pulley support and record target backend,
+  width, and endianness policy.
+- Planned for 1.5.3: skip MIPS/MIPSel musl publication until Rust provides
+  usable MSRV target standard-library artifacts.
 - Added `platform-support.toml` as the evidence registry for Core and Full
   Runtime surfaces, with a fail-closed consistency gate spanning docs, CI,
   release-index patterns, and post-release verification.

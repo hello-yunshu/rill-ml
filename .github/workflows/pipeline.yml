@@ -87,7 +87,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Rust (${{ matrix.rust }})
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2 # v2
@@ -163,7 +163,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Rust 1.94.0
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - uses: Swatinem/rust-cache@v2 # v2
@@ -265,7 +265,7 @@ jobs:
         # nightly toolchains can introduce breaking changes (e.g. removed
         # built-in traits like RefUnwindSafe/UnwindSafe) that cause the
         # adapter to panic. v0.49.0 was released against nightly-2026-07-17.
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly-2026-07-17
       - name: Record resolved nightly toolchain version
@@ -776,7 +776,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
@@ -962,7 +962,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
           targets: ${{ matrix.rust_target }}
@@ -1065,7 +1065,7 @@ jobs:
           # so an immutable same-tag retry can carry a reviewed tooling fix
           # without rewriting the tag's source commit.
           ref: ${{ github.sha }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
           targets: wasm32-unknown-unknown
@@ -1401,7 +1401,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - name: Build public package verifier
@@ -1604,7 +1604,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - name: Build rill-pack verifier (host, no wasm feature)
@@ -1661,7 +1661,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - uses: actions/setup-python@v7
@@ -1715,7 +1715,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
       - name: Build public package verifier
