@@ -1,0 +1,59 @@
+name: Linux musl Stable
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "handlers/**"
+      - "models/**"
+      - "scripts/**"
+      - "platform-support.toml"
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "handlers/**"
+      - "models/**"
+      - "scripts/**"
+      - "platform-support.toml"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  musl-target:
+    name: Linux musl Stable (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - riscv64gc-unknown-linux-musl
+          - armv7-unknown-linux-musleabihf
+          - i686-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+          targets: ${{ matrix.target }}
+      - name: Install Zig musl linker
+        uses: xyzzylabs/setup-zig@v1
+        with:
+          cache-key: ${{ matrix.target }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: linux-musl-${{ matrix.target }}
+      - name: Run Core and Full Runtime gate
+        run: bash scripts/musl-cross-gate.sh "${{ matrix.target }}"

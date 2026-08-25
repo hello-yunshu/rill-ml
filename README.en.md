@@ -195,7 +195,7 @@ behaviour. For a WASM-free build: `cargo install rill-runtime --no-default-featu
 load `.rillhandler`).
 
 The version tracks `[workspace.package].version`; query the current release via `cargo metadata`
-or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.5.2`;
+or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.5.3`;
 the Preview group remains at `0.15.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
@@ -343,8 +343,11 @@ The complete threat model and safe usage guidance are documented in [`SECURITY.m
 | Windows ARM64 (aarch64) | Stable | Stable |
 | macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | Not released | Stable |
+| Linux riscv64 GNU | Stable | Stable |
+| Linux musl x86_64/aarch64/riscv64/armv7/i686 | Stable | Stable |
+| Linux armv7/s390x/powerpc64le GNU | Not listed (Core only) | Stable |
 
-Official macOS Runtime assets are Apple Silicon (ARM64) only, under the permanent unsigned policy; Linux and Windows remain x86_64. The full matrix and Stable/Preview commitments are documented in [`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md).
+Official macOS Runtime assets are Apple Silicon (ARM64) only, under the permanent unsigned policy. Generic Linux/musl support is documented in [`docs/LINUX_MUSL_SUPPORT.md`](docs/LINUX_MUSL_SUPPORT.md); OpenWrt consumer qualification is documented in [`docs/consumers/OPENWRT.md`](docs/consumers/OPENWRT.md).
 
 ## 11. Integrations and ecosystem
 

@@ -1,0 +1,230 @@
+# Machine-readable Stable platform support policy. This is a claim registry,
+# not execution evidence. platform_consistency.py verifies that every claim
+# has matching source-gate, release-index, and post-release paths; Actions
+# generates the execution evidence separately.
+
+[[target]]
+triple = "x86_64-unknown-linux-gnu"
+target_os = "linux"
+target_arch = "x86_64"
+target_libc = "gnu"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "native"
+post_release_gate = "container"
+asset_suffix = "linux-x86_64"
+
+[[target]]
+triple = "x86_64-unknown-linux-musl"
+target_os = "linux"
+target_arch = "x86_64"
+target_libc = "musl"
+runtime_backend = "cranelift"
+pointer_width = 64
+endianness = "little"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "native-musl"
+post_release_gate = "container"
+asset_suffix = "linux-x86_64-musl"
+
+[[target]]
+triple = "aarch64-unknown-linux-gnu"
+target_os = "linux"
+target_arch = "aarch64"
+target_libc = "gnu"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "native"
+post_release_gate = "container"
+asset_suffix = "linux-aarch64"
+
+[[target]]
+triple = "aarch64-unknown-linux-musl"
+target_os = "linux"
+target_arch = "aarch64"
+target_libc = "musl"
+runtime_backend = "cranelift"
+pointer_width = 64
+endianness = "little"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "native-musl"
+post_release_gate = "container"
+asset_suffix = "linux-aarch64-musl"
+
+[[target]]
+triple = "riscv64gc-unknown-linux-musl"
+target_os = "linux"
+target_arch = "riscv64"
+target_libc = "musl"
+runtime_backend = "cranelift"
+pointer_width = 64
+endianness = "little"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "direct-qemu-musl"
+post_release_gate = "direct-qemu-musl"
+asset_suffix = "linux-riscv64-musl"
+
+[[target]]
+triple = "armv7-unknown-linux-musleabihf"
+target_os = "linux"
+target_arch = "armv7"
+target_libc = "musl"
+runtime_backend = "pulley32"
+pointer_width = 32
+endianness = "little"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "direct-qemu-musl"
+post_release_gate = "direct-qemu-musl"
+asset_suffix = "linux-armv7-musl"
+
+[[target]]
+triple = "i686-unknown-linux-musl"
+target_os = "linux"
+target_arch = "i686"
+target_libc = "musl"
+runtime_backend = "pulley32"
+pointer_width = 32
+endianness = "little"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "direct-qemu-musl"
+post_release_gate = "direct-qemu-musl"
+asset_suffix = "linux-i686-musl"
+
+[[target]]
+triple = "x86_64-pc-windows-msvc"
+target_os = "windows"
+target_arch = "x86_64"
+target_libc = "none"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "native"
+post_release_gate = "native"
+asset_suffix = "windows-x86_64.exe"
+
+[[target]]
+triple = "aarch64-pc-windows-msvc"
+target_os = "windows"
+target_arch = "aarch64"
+target_libc = "none"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "native"
+post_release_gate = "native"
+asset_suffix = "windows-aarch64.exe"
+
+[[target]]
+triple = "aarch64-apple-darwin"
+target_os = "macos"
+target_arch = "aarch64"
+target_libc = "none"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "native"
+post_release_gate = "native"
+asset_suffix = "macos-aarch64"
+
+[[target]]
+triple = "riscv64gc-unknown-linux-gnu"
+target_os = "linux"
+target_arch = "riscv64"
+target_libc = "gnu"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "direct-qemu"
+post_release_gate = "direct-qemu"
+asset_suffix = "linux-riscv64"
+
+[[target]]
+triple = "loongarch64-unknown-linux-gnu"
+target_os = "linux"
+target_arch = "loongarch64"
+target_libc = "gnu"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "direct-qemu"
+post_release_gate = "direct-qemu"
+asset_suffix = "linux-loongarch64"
+
+[[target]]
+triple = "x86_64-unknown-freebsd"
+target_os = "freebsd"
+target_arch = "x86_64"
+target_libc = "none"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "freebsd-vm"
+post_release_gate = "freebsd-vm"
+asset_suffix = "freebsd-x86_64"
+
+# These assets remain available for investigation and downstream experiments,
+# but the source gate only proves Core. They must not enter the Stable index as
+# Full Runtime artifacts until the default WASM feature is real-executed.
+[[target]]
+triple = "armv7-unknown-linux-gnueabihf"
+target_os = "linux"
+target_arch = "armv7"
+target_libc = "gnu"
+core_supported = true
+runtime_supported = false
+release_asset = true
+runtime_features = "none"
+source_gate = "direct-qemu"
+post_release_gate = "not-applicable"
+asset_suffix = "linux-armv7"
+
+[[target]]
+triple = "s390x-unknown-linux-gnu"
+target_os = "linux"
+target_arch = "s390x"
+target_libc = "gnu"
+core_supported = true
+runtime_supported = false
+release_asset = true
+runtime_features = "none"
+source_gate = "direct-qemu"
+post_release_gate = "not-applicable"
+asset_suffix = "linux-s390x"
+
+[[target]]
+triple = "powerpc64le-unknown-linux-gnu"
+target_os = "linux"
+target_arch = "powerpc64le"
+target_libc = "gnu"
+core_supported = true
+runtime_supported = false
+release_asset = true
+runtime_features = "none"
+source_gate = "direct-qemu"
+post_release_gate = "not-applicable"
+asset_suffix = "linux-powerpc64le"

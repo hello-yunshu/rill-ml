@@ -20,6 +20,26 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+### Changed
+
+- Planned for 1.5.3: promote the supported Linux musl matrix for x86_64,
+  aarch64, riscv64, armv7, and i686.
+- Planned for 1.5.3: enable Wasmtime Pulley support and record target backend,
+  width, and endianness policy.
+- Planned for 1.5.3: skip MIPS/MIPSel musl publication until Rust provides
+  usable MSRV target standard-library artifacts.
+- Added `platform-support.toml` as the evidence registry for Core and Full
+  Runtime surfaces, with a fail-closed consistency gate spanning docs, CI,
+  release-index patterns, and post-release verification.
+- Made the SemVer authoritative baseline come from
+  `release-plan.toml [compatibility].authoritative`; historical baselines remain
+  explicit sanity checks.
+- Marked armv7, s390x, and powerpc64le GNU Runtime as Core-only until the
+  default WASM Runtime is real-executed; their investigation assets are omitted
+  from the signed Stable index.
+- Added the OpenWrt/musl consumer qualification contract and explicitly kept
+  consumer-specific host mutation outside RillML ownership.
+
 
 
 
