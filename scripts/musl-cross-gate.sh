@@ -3,7 +3,8 @@
 #
 # This gate proves the supported Core and default Full Runtime surfaces with
 # direct target-architecture execution. MIPS/MIPSel are intentionally absent:
-# their Rust 1.94 standard-library components are not distributable by rustup.
+# their Rust standard-library components are not distributable by rustup on the
+# pinned release toolchains available to this project.
 #
 # Usage:
 #   ./scripts/musl-cross-gate.sh riscv64gc-unknown-linux-musl
