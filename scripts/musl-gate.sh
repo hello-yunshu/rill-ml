@@ -187,7 +187,7 @@ if [[ "$RUNTIME_SMOKE" != "0" ]]; then
   stage="runtime-invoke"
   serve_capture invoke "$INVOKE"
   RESPONSE="$RUNTIME_RESPONSE"
-  assert_contains invoke-kind "$RESPONSE" '"kind":"invoke"'
+  assert_contains invoke-kind "$RESPONSE" '"kind":"result"'
   assert_contains invoke-features "$RESPONSE" '"features"'
 
   echo '-- runtime smoke PASSED'

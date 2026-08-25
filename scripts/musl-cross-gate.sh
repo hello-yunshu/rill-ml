@@ -166,7 +166,7 @@ if [[ "$RUNTIME_SMOKE" == "1" ]]; then
   stage="runtime-invoke"
   serve_capture invoke "$invoke"
   response="$RUNTIME_RESPONSE"
-  assert_contains invoke-kind "$response" '"kind":"invoke"'
+  assert_contains invoke-kind "$response" '"kind":"result"'
   assert_contains invoke-features "$response" '"features"'
   stage="runtime-malformed-json"
   serve_capture malformed-json "$malformed"
