@@ -103,7 +103,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@master # master
         with:
-          toolchain: 1.97.0
+          toolchain: 1.94.0
           targets: x86_64-unknown-linux-musl
       - uses: Swatinem/rust-cache@v2 # v2
         with:
@@ -121,7 +121,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@master # master
         with:
-          toolchain: 1.97.0
+          toolchain: 1.94.0
           targets: aarch64-unknown-linux-musl
       - uses: Swatinem/rust-cache@v2 # v2
         with:

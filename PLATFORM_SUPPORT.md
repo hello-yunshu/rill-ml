@@ -50,6 +50,9 @@ qualified and the signed Stable index must not select the target as a Runtime.
 | `x86_64-unknown-linux-musl` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
 | `aarch64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
 | `aarch64-unknown-linux-musl` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `riscv64gc-unknown-linux-musl` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
+| `armv7-unknown-linux-musleabihf` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
+| `i686-unknown-linux-musl` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
 | `x86_64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-apple-darwin` | ✅ | ✅ (unsigned) | Rust | – | ✅ | ✅ | ✅ |
@@ -63,9 +66,8 @@ qualified and the signed Stable index must not select the target as a Runtime.
 \* ARM64 GNU/musl Core and Runtime are executed under Docker + QEMU/binfmt on
 x86_64 hosts, and natively when an ARM64 host is available. The same applies to
 the niche Linux targets armv7, s390x, and powerpc64le, which are real-executed
-under Docker + QEMU/binfmt for Core. Their current source Runtime smoke uses a
-WASM-free build, so they are intentionally Core-only until the default WASM
-Runtime is real-executed with bounded resource evidence.
+under Docker + QEMU/binfmt for Core. The supported musl armv7 and i686 rows use
+the Pulley32 backend and are separately executed under direct QEMU.
 
 **RISC-V 64** (`riscv64gc-unknown-linux-gnu`) is cross-compiled and published as
 part of the release asset matrix. Its source Stable Gate runs the full test
@@ -87,7 +89,8 @@ The **Release** column reflects the published asset matrix. `asset only` means
 the binary is retained for investigation but is deliberately omitted from the
 signed Stable release-index Runtime selection:
 `linux-x86_64` (GNU), `linux-x86_64-musl`, `linux-aarch64` (GNU),
-`linux-aarch64-musl`, `linux-riscv64`, `linux-armv7`, `linux-s390x`,
+`linux-aarch64-musl`, `linux-riscv64`, `linux-riscv64-musl`, `linux-armv7`,
+`linux-armv7-musl`, `linux-i686-musl`, `linux-s390x`,
 `linux-powerpc64le`, `linux-loongarch64`, `freebsd-x86_64`, `windows-x86_64`,
 `windows-aarch64`, and `macos-aarch64` (see `scripts/build-release-index.py`).
 The Linux assets are cross-compiled under Docker on the GitHub-Actions host;
@@ -171,11 +174,8 @@ distinction between "not yet accepted" and "unsupported upstream" is clear.
 |---|---|---|
 | `aarch64-linux-android` | Core FFI | FFI 构建链 + CI 已就绪（Docker NDK 交叉构建）；真机/模拟器执行验证未完成，未列入 Supported |
 | `aarch64-apple-ios` | Core FFI | FFI 构建链 + CI 已就绪（macOS Xcode XCFramework）；真机/模拟器执行验证未完成，未列入 Supported |
-| `riscv64gc-unknown-linux-musl` | Core + Full Runtime | OpenWrt/musl gate and published-asset re-verification are not yet complete |
-| `armv7-unknown-linux-musleabihf` | Core | 32-bit musl linker/QEMU execution and Pulley resource qualification are not yet complete |
-| `i686-unknown-linux-musl` | Core | 32-bit musl source gate, state fixtures, and real execution are not yet complete |
-| `mips-unknown-linux-musl` | Core | MIPS toolchain, endian/width fixtures, QEMU execution, and resource evidence are not yet complete |
-| `mipsel-unknown-linux-musl` | Core | MIPSel toolchain, endian/width fixtures, QEMU execution, and resource evidence are not yet complete |
+| `mips-unknown-linux-musl` | skipped | Rust 1.94 rustup has no distributable target std artifact |
+| `mipsel-unknown-linux-musl` | skipped | Rust 1.94 rustup has no distributable target std artifact |
 
 A "not listed" target is **not** a promise. It is added only when it passes
 the full acceptance gate.

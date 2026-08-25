@@ -922,11 +922,26 @@ jobs:
             target_arch: riscv64
             libc: gnu
             asset_suffix: linux-riscv64
+          - rust_target: riscv64gc-unknown-linux-musl
+            target_os: linux
+            target_arch: riscv64
+            libc: musl
+            asset_suffix: linux-riscv64-musl
           - rust_target: armv7-unknown-linux-gnueabihf
             target_os: linux
             target_arch: armv7
             libc: gnu
             asset_suffix: linux-armv7
+          - rust_target: armv7-unknown-linux-musleabihf
+            target_os: linux
+            target_arch: armv7
+            libc: musl
+            asset_suffix: linux-armv7-musl
+          - rust_target: i686-unknown-linux-musl
+            target_os: linux
+            target_arch: i686
+            libc: musl
+            asset_suffix: linux-i686-musl
           - rust_target: s390x-unknown-linux-gnu
             target_os: linux
             target_arch: s390x
@@ -1439,6 +1454,15 @@ jobs:
           - target: aarch64-unknown-linux-musl
             platform: linux/arm64
             runtime_id: rill-runtime-musl
+          - target: riscv64gc-unknown-linux-musl
+            platform: linux/riscv64
+            runtime_id: rill-runtime-musl
+          - target: armv7-unknown-linux-musleabihf
+            platform: linux/arm/v7
+            runtime_id: rill-runtime-musl
+          - target: i686-unknown-linux-musl
+            platform: linux/386
+            runtime_id: rill-runtime-musl
     permissions:
       contents: read
     steps:
@@ -1562,9 +1586,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - riscv64gc-unknown-linux-gnu
-          - loongarch64-unknown-linux-gnu
+        include:
+          - target: riscv64gc-unknown-linux-gnu
+            runtime_id: rill-runtime
+          - target: loongarch64-unknown-linux-gnu
+            runtime_id: rill-runtime
+          - target: riscv64gc-unknown-linux-musl
+            runtime_id: rill-runtime-musl
+          - target: armv7-unknown-linux-musleabihf
+            runtime_id: rill-runtime-musl
+          - target: i686-unknown-linux-musl
+            runtime_id: rill-runtime-musl
     permissions:
       contents: read
     steps:
@@ -1590,7 +1622,7 @@ jobs:
             --index-url "$index_url" \
             --expected-version "$VERSION" \
             --expected-channel "$CHANNEL" \
-            --runtime-id rill-runtime \
+            --runtime-id "${{ matrix.runtime_id }}" \
             --rill-pack-bin target/release/rill-pack \
             --log "smoke-test/post-release-direct-qemu-${{ matrix.target }}.json"
       - uses: actions/upload-artifact@v7

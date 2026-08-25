@@ -40,9 +40,21 @@ def run(root: Path) -> dict[str, object]:
     builder = (root / "scripts/build-release-index.py").read_text(encoding="utf-8")
     pipeline = (root / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
     cross = (root / ".github/workflows/cross-platform.yml").read_text(encoding="utf-8")
+    musl = (root / ".github/workflows/linux-musl.yml").read_text(encoding="utf-8")
     post_release = (root / "scripts/post-release-qemu-verify.sh").read_text(encoding="utf-8")
 
     checks = [
+        check(
+            "musl.backend-map",
+            all(
+                entry.get("runtime_backend") in {"cranelift", "pulley32", "pulley32be"}
+                and entry.get("pointer_width") in {32, 64}
+                and entry.get("endianness") in {"little", "big"}
+                for entry in entries.values()
+                if entry["target_libc"] == "musl"
+            ),
+            "every musl target records backend, pointer width, and endianness",
+        ),
         check(
             "docs.core-targets",
             set(rows) == supported,
@@ -64,13 +76,14 @@ def run(root: Path) -> dict[str, object]:
         ),
         check(
             "runtime.source-gate",
-            all(triple in cross or triple in pipeline for triple in runtime),
+            all(triple in cross or triple in pipeline or triple in musl for triple in runtime),
             "every Full Runtime target is present in a CI source gate",
         ),
         check(
             "runtime.post-release-gate",
             all(
-                triple in pipeline or (entry["post_release_gate"] == "direct-qemu" and triple in post_release)
+                triple in pipeline
+                or (entry["post_release_gate"] in {"direct-qemu", "direct-qemu-musl"} and triple in post_release)
                 for triple, entry in entries.items()
                 if entry["runtime_supported"]
             ),

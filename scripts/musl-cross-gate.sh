@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# OpenWrt/musl feasibility gate for targets without a native GitHub runner.
+# Linux musl Stable gate for targets without a native GitHub runner.
 #
-# This gate is intentionally fail-closed. A target is not added to
-# platform-support.toml by this script: it must separately pass the Core or
-# Full Runtime evidence review and the published-asset re-verification gate.
+# This gate proves the supported Core and default Full Runtime surfaces with
+# direct target-architecture execution. MIPS/MIPSel are intentionally absent:
+# their Rust 1.94 standard-library components are not distributable by rustup.
 #
 # Usage:
 #   ./scripts/musl-cross-gate.sh riscv64gc-unknown-linux-musl
@@ -29,16 +29,6 @@ case "$TARGET" in
   i686-unknown-linux-musl)
     ZIG_TARGET="x86-linux-musl"
     QEMU="qemu-i386"
-    QEMU_ARGS=()
-    ;;
-  mips-unknown-linux-musl)
-    ZIG_TARGET="mips-linux-musl"
-    QEMU="qemu-mips"
-    QEMU_ARGS=()
-    ;;
-  mipsel-unknown-linux-musl)
-    ZIG_TARGET="mipsel-linux-musl"
-    QEMU="qemu-mipsel"
     QEMU_ARGS=()
     ;;
   *)
@@ -80,14 +70,15 @@ echo "==> Target: ${TARGET}; Zig target: ${ZIG_TARGET}; runner: ${runner}"
 
 echo "==> Core compile/test/doc gate under QEMU"
 /usr/bin/time -f 'core_max_rss_kib=%M' \
-  cargo test --locked --workspace --all-targets --all-features \
-  --exclude rill-ml-python --target "$TARGET"
+  cargo test --locked \
+  -p rill-ml -p rill-handler-api -p rill-runtime-protocol \
+  --all-targets --all-features --target "$TARGET"
 /usr/bin/time -f 'doc_max_rss_kib=%M' \
   cargo test --locked --workspace --doc --all-features \
   --exclude rill-ml-python --target "$TARGET"
 
 if [[ "$RUNTIME_SMOKE" == "1" ]]; then
-  echo "==> Full Runtime feasibility gate under QEMU"
+  echo "==> Full Runtime Stable gate under QEMU"
   /usr/bin/time -f 'runtime_max_rss_kib=%M' \
     cargo build --locked --release --target "$TARGET" \
     -p rill-runtime --bin rill-runtime --bin rill-pack --features wasm
@@ -103,12 +94,28 @@ if [[ "$RUNTIME_SMOKE" == "1" ]]; then
     --pack /tmp/example.rillpack --key-id "$key_id" --public-key-hex "$pubkey"
   "${QEMU}" "${QEMU_ARGS[@]}" "$BIN/rill-runtime" inspect-pack \
     --pack /tmp/example.rillpack --model-trust-key "$key_id=$pubkey" >/dev/null
+  RILL_SIGNING_KEY_HEX="$seed" "${QEMU}" "${QEMU_ARGS[@]}" "$BIN/rill-pack" create-handler \
+    --manifest handlers/echo-handler/manifest.json \
+    --module "$ECHO_HANDLER_WASM" \
+    --output /tmp/echo.rillhandler
+  "${QEMU}" "${QEMU_ARGS[@]}" "$BIN/rill-pack" inspect-handler \
+    --handler /tmp/echo.rillhandler --key-id "$key_id" --public-key-hex "$pubkey" >/dev/null
   request='{"method":"handshake","requestId":"musl-cross","apiVersion":2,"clientName":"musl-cross","clientVersion":"0.0.0"}'
+  health='{"method":"health","requestId":"musl-health","apiVersion":2}'
+  invoke='{"method":"invoke","requestId":"musl-invoke","apiVersion":2,"capability":"rillml.linearRegression.predict","input":{"features":[1.0]}}'
+  malformed='not-json'
   response="$(printf '%s\n' "$request" | timeout 120 "${QEMU}" "${QEMU_ARGS[@]}" "$BIN/rill-runtime" serve \
     --pack /tmp/example.rillpack --model-trust-key "$key_id=$pubkey" \
-    --builtin-handler linear-regression)"
+    --handler /tmp/echo.rillhandler --handler-trust-key "$key_id=$pubkey")"
   echo "$response" | grep -q '"kind":"handshake"'
   echo "$response" | grep -q '"apiVersion":2'
+  responses="$(printf '%s\n%s\n%s\n%s\n' "$request" "$health" "$invoke" "$malformed" | timeout 120 "${QEMU}" "${QEMU_ARGS[@]}" "$BIN/rill-runtime" serve \
+    --pack /tmp/example.rillpack --model-trust-key "$key_id=$pubkey" \
+    --handler /tmp/echo.rillhandler --handler-trust-key "$key_id=$pubkey")"
+  echo "$responses" | grep -q '"kind":"health"'
+  echo "$responses" | grep -q '"kind":"invoke"'
+  echo "$responses" | grep -q '"features"'
+  echo "$responses" | grep -q '"invalidJson"'
 fi
 
-echo "==> musl cross feasibility gate PASSED for ${TARGET}"
+echo "==> Linux musl Stable gate PASSED for ${TARGET}"

@@ -21,10 +21,17 @@ class PlatformSupportTest(unittest.TestCase):
         self.assertGreaterEqual(len(entries), 10)
         runtime = targets(ROOT, surface="runtime_supported")
         self.assertIn("riscv64gc-unknown-linux-gnu", runtime)
+        self.assertIn("riscv64gc-unknown-linux-musl", runtime)
+        self.assertIn("armv7-unknown-linux-musleabihf", runtime)
+        self.assertIn("i686-unknown-linux-musl", runtime)
         self.assertNotIn("armv7-unknown-linux-gnueabihf", runtime)
         for entry in entries:
             if entry["runtime_supported"]:
                 self.assertEqual(entry["runtime_features"], "default")
+            if entry["target_libc"] == "musl":
+                self.assertIn(entry["runtime_backend"], {"cranelift", "pulley32", "pulley32be"})
+                self.assertIn(entry["pointer_width"], {32, 64})
+                self.assertIn(entry["endianness"], {"little", "big"})
 
     def test_consistency_gate_passes(self) -> None:
         result = subprocess.run(
@@ -54,8 +61,8 @@ class ReleaseCompatibilityTest(unittest.TestCase):
             text=True,
             check=True,
         ).stdout.split()
-        self.assertEqual(authoritative, "1.5.1")
-        self.assertEqual(historical, ["1.5.0", "1.3.0", "1.2.0", "1.0.0"])
+        self.assertEqual(authoritative, "1.5.2")
+        self.assertEqual(historical, ["1.5.1", "1.5.0", "1.3.0", "1.2.0", "1.0.0"])
         self.assertNotIn(authoritative, historical)
 
 

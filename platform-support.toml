@@ -1,7 +1,7 @@
-# Machine-readable record of platform surfaces that have passed the Stable
-# acceptance contract.  This file is an evidence registry, not a declaration:
-# platform_consistency.py verifies that every row has a matching source gate,
-# release-index entry, and post-release verifier.
+# Machine-readable Stable platform support policy. This is a claim registry,
+# not execution evidence. platform_consistency.py verifies that every claim
+# has matching source-gate, release-index, and post-release paths; Actions
+# generates the execution evidence separately.
 
 [[target]]
 triple = "x86_64-unknown-linux-gnu"
@@ -21,6 +21,9 @@ triple = "x86_64-unknown-linux-musl"
 target_os = "linux"
 target_arch = "x86_64"
 target_libc = "musl"
+runtime_backend = "cranelift"
+pointer_width = 64
+endianness = "little"
 core_supported = true
 runtime_supported = true
 release_asset = true
@@ -47,6 +50,9 @@ triple = "aarch64-unknown-linux-musl"
 target_os = "linux"
 target_arch = "aarch64"
 target_libc = "musl"
+runtime_backend = "cranelift"
+pointer_width = 64
+endianness = "little"
 core_supported = true
 runtime_supported = true
 release_asset = true
@@ -54,6 +60,54 @@ runtime_features = "default"
 source_gate = "native-musl"
 post_release_gate = "container"
 asset_suffix = "linux-aarch64-musl"
+
+[[target]]
+triple = "riscv64gc-unknown-linux-musl"
+target_os = "linux"
+target_arch = "riscv64"
+target_libc = "musl"
+runtime_backend = "cranelift"
+pointer_width = 64
+endianness = "little"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "direct-qemu-musl"
+post_release_gate = "direct-qemu-musl"
+asset_suffix = "linux-riscv64-musl"
+
+[[target]]
+triple = "armv7-unknown-linux-musleabihf"
+target_os = "linux"
+target_arch = "armv7"
+target_libc = "musl"
+runtime_backend = "pulley32"
+pointer_width = 32
+endianness = "little"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "direct-qemu-musl"
+post_release_gate = "direct-qemu-musl"
+asset_suffix = "linux-armv7-musl"
+
+[[target]]
+triple = "i686-unknown-linux-musl"
+target_os = "linux"
+target_arch = "i686"
+target_libc = "musl"
+runtime_backend = "pulley32"
+pointer_width = 32
+endianness = "little"
+core_supported = true
+runtime_supported = true
+release_asset = true
+runtime_features = "default"
+source_gate = "direct-qemu-musl"
+post_release_gate = "direct-qemu-musl"
+asset_suffix = "linux-i686-musl"
 
 [[target]]
 triple = "x86_64-pc-windows-msvc"

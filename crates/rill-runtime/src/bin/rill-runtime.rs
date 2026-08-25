@@ -37,6 +37,8 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Print additive runtime qualification metadata without starting IPC.
+    Diagnostics,
     /// Serve newline-delimited JSON requests over stdin/stdout.
     Serve {
         #[arg(long)]
@@ -130,6 +132,20 @@ fn main() {
 
 fn run(cli: Cli) -> Result<(), CliError> {
     match cli.command {
+        Command::Diagnostics => {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "schemaVersion": 1,
+                    "backend": runtime_backend(),
+                    "pointerWidth": usize::BITS,
+                    "endianness": runtime_endianness(),
+                    "arch": std::env::consts::ARCH,
+                    "os": std::env::consts::OS,
+                })
+            );
+            Ok(())
+        }
         Command::Serve {
             pack,
             model_trust_keys,
@@ -205,6 +221,28 @@ fn run(cli: Cli) -> Result<(), CliError> {
             println!("{}", serde_json::to_string_pretty(&inspection)?);
             Ok(())
         }
+    }
+}
+
+#[cfg(any(target_arch = "arm", target_arch = "x86", target_arch = "mips"))]
+fn runtime_backend() -> &'static str {
+    if cfg!(target_arch = "mips") && cfg!(target_endian = "big") {
+        "pulley32be"
+    } else {
+        "pulley32"
+    }
+}
+
+#[cfg(not(any(target_arch = "arm", target_arch = "x86", target_arch = "mips")))]
+fn runtime_backend() -> &'static str {
+    "cranelift"
+}
+
+fn runtime_endianness() -> &'static str {
+    if cfg!(target_endian = "big") {
+        "big"
+    } else {
+        "little"
     }
 }
 

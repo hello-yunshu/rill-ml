@@ -27,6 +27,12 @@ REQUIRED_FIELDS = {
     "asset_suffix",
 }
 
+MUSL_RUNTIME_FIELDS = {
+    "runtime_backend",
+    "pointer_width",
+    "endianness",
+}
+
 
 def load_platforms(root: Path) -> list[dict[str, object]]:
     if tomllib is None:
@@ -47,6 +53,19 @@ def load_platforms(root: Path) -> list[dict[str, object]]:
         if triple in seen:
             raise ValueError(f"duplicate platform target: {triple}")
         seen.add(triple)
+        if entry["target_libc"] == "musl":
+            missing_backend = MUSL_RUNTIME_FIELDS - entry.keys()
+            if missing_backend:
+                raise ValueError(
+                    f"musl platform entry is missing backend fields for {triple}: "
+                    f"{sorted(missing_backend)}"
+                )
+            if entry["runtime_backend"] not in {"cranelift", "pulley32", "pulley32be"}:
+                raise ValueError(f"invalid musl runtime backend for {triple}")
+            if entry["pointer_width"] not in {32, 64}:
+                raise ValueError(f"invalid musl pointer width for {triple}")
+            if entry["endianness"] not in {"little", "big"}:
+                raise ValueError(f"invalid musl endianness for {triple}")
         if not isinstance(entry["core_supported"], bool) or not isinstance(
             entry["runtime_supported"], bool
         ):

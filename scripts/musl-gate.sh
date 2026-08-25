@@ -49,6 +49,16 @@ sudo apt-get install -y --no-install-recommends musl-tools python3
 
 echo "==> Adding Rust target ${TARGET}"
 rustup target add "$TARGET"
+rustup target add wasm32-unknown-unknown
+if ! command -v wasm-tools >/dev/null 2>&1; then
+  cargo install wasm-tools --locked --version "1.254.0"
+fi
+( cd handlers/echo-handler && cargo build --locked --release --target wasm32-unknown-unknown )
+mkdir -p target
+wasm-tools component new \
+  handlers/echo-handler/target/wasm32-unknown-unknown/release/echo-handler.wasm \
+  -o target/echo-handler.wasm
+export ECHO_HANDLER_WASM="${PWD}/target/echo-handler.wasm"
 
 # musl-gcc provided by musl-tools is the host-arch musl compiler; static link by
 # default. Configuring it as the linker makes `cargo build --target <musl>`
@@ -78,6 +88,8 @@ if [[ "$RUNTIME_SMOKE" != "0" ]]; then
 
   echo '-- rill-runtime --help'
   run_bin rill-runtime --help >/dev/null
+  echo '-- backend diagnostics'
+  run_bin rill-runtime diagnostics | grep -Eq '"backend":"(cranelift|pulley32|pulley32be)"'
 
   echo '-- generate fresh Ed25519 keypair'
   seed="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
@@ -101,14 +113,30 @@ if [[ "$RUNTIME_SMOKE" != "0" ]]; then
     --pack /tmp/example.rillpack \
     --model-trust-key "$key_id=$pubkey" >/dev/null
 
+  echo '-- create and inspect signed WASM handler pack'
+  RILL_SIGNING_KEY_HEX="$seed" run_bin rill-pack create-handler \
+    --manifest handlers/echo-handler/manifest.json \
+    --module "$ECHO_HANDLER_WASM" \
+    --output /tmp/echo.rillhandler
+  run_bin rill-pack inspect-handler \
+    --handler /tmp/echo.rillhandler \
+    --key-id "$key_id" \
+    --public-key-hex "$pubkey" >/dev/null
+
   echo '-- handshake over IPC'
   REQUEST='{"method":"handshake","requestId":"musl-smoke","apiVersion":2,"clientName":"musl-smoke","clientVersion":"0.0.0"}'
-  RESPONSE="$(printf '%s\n' "$REQUEST" | timeout 40 "$BIN/rill-runtime" serve \
+  HEALTH='{"method":"health","requestId":"musl-health","apiVersion":2}'
+  INVOKE='{"method":"invoke","requestId":"musl-invoke","apiVersion":2,"capability":"rillml.linearRegression.predict","input":{"features":[1.0]}}'
+  RESPONSE="$(printf '%s\n%s\n%s\n' "$REQUEST" "$HEALTH" "$INVOKE" | timeout 40 "$BIN/rill-runtime" serve \
     --pack /tmp/example.rillpack \
     --model-trust-key "$key_id=$pubkey" \
-    --builtin-handler linear-regression)"
+    --handler /tmp/echo.rillhandler \
+    --handler-trust-key "$key_id=$pubkey")"
   echo "$RESPONSE" | grep -q '"kind":"handshake"'
   echo "$RESPONSE" | grep -q '"apiVersion":2'
+  echo "$RESPONSE" | grep -q '"kind":"health"'
+  echo "$RESPONSE" | grep -q '"kind":"invoke"'
+  echo "$RESPONSE" | grep -q '"features"'
 
   echo '-- runtime smoke PASSED'
 fi
