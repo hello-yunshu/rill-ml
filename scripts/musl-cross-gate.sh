@@ -51,6 +51,7 @@ rustup target add "$TARGET"
 export RILL_ZIG_TARGET="$ZIG_TARGET"
 target_key="$(printf '%s' "$TARGET" | tr '[:lower:]-' '[:upper:]_')"
 export "CARGO_TARGET_${target_key}_LINKER=${PWD}/scripts/zig-target-linker.sh"
+export "CC_${target_key}=${PWD}/scripts/zig-target-cc.sh"
 runner="${QEMU} ${QEMU_ARGS[*]}"
 export "CARGO_TARGET_${target_key}_RUNNER=${runner}"
 
