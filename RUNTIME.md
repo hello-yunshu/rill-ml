@@ -16,6 +16,14 @@ RillML 仍然是可嵌入的 Rust 算法库；`rill-runtime` 是建立在它之�
 
 Runtime 使用 stdin/stdout 上的逐行 JSON。每条消息最大 1 MiB，未知字段、未知 API 版本、过长请求 ID 和不合法数值都会被拒绝。握手会返回 Runtime、模型包、handler 身份和能力版本，宿主必须先验证握手，再接受推理结果。
 
+平台资格分为两个独立 surface：Core Supported 只证明 Stable Core 在目标
+架构上真实执行并通过状态/资源/安全 gate；Full Runtime Supported 还必须
+使用默认 `wasm` feature，真实加载签名 model/handler，执行 IPC，并在发布后
+重新下载同一资产执行。Core-only 资产不会进入 Stable release-index 的
+Runtime selection。OpenWrt consumer 的 host mutation、rollback 和 UCI/
+firewall glue 始终由 consumer 自己负责，详见
+[`docs/OPENWRT_CONSUMER_QUALIFICATION.md`](docs/OPENWRT_CONSUMER_QUALIFICATION.md)。
+
 ## Handler 插件架构
 
 `rill-runtime` 在启动时加载经过签名和校验的 WASM handler。Handler 通过 WebAssembly Component Model 实现具体 capability；更新 handler 不需要重新编译或替换 `rill-runtime` 二进制。

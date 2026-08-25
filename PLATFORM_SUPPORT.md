@@ -1,9 +1,9 @@
 # Platform Support
 
 This file is the single user-facing statement of which platforms RillML
-**officially supports**. A platform is listed as **Supported** only when it
-passes the full acceptance gate — not merely because a Rust target exists or
-`cargo build` succeeds.
+**officially supports**. A product surface is listed as **Supported** only when
+it passes the corresponding acceptance gate — not merely because a Rust target
+exists or `cargo build` succeeds.
 
 The acceptance definition:
 
@@ -11,7 +11,7 @@ The acceptance definition:
 reproducible build
 + real execution on the target architecture
 + full Core test suite
-+ full Runtime test suite (where applicable)
++ full Runtime test suite when Full Runtime is listed
 + signed models and handlers actually load
 + complete security boundary
 + release artifact re-verified
@@ -40,7 +40,9 @@ user-visible platform status.
 
 ## Supported Platforms
 
-Only targets that pass the full gate are listed here.
+Rows below have passed the Core gate. The Runtime column is an independent
+surface: `✅` means Full Runtime, while `not listed` means that only Core is
+qualified and the signed Stable index must not select the target as a Runtime.
 
 | Target | Core | Runtime | Binding | Docker/QEMU | Execute | CI | Release |
 |---|---|---|---|---:|---|---|---|
@@ -52,16 +54,18 @@ Only targets that pass the full gate are listed here.
 | `aarch64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-apple-darwin` | ✅ | ✅ (unsigned) | Rust | – | ✅ | ✅ | ✅ |
 | `riscv64gc-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
-| `armv7-unknown-linux-gnueabihf` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
-| `s390x-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
-| `powerpc64le-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅* | ✅* | ✅ | ✅ |
+| `armv7-unknown-linux-gnueabihf` | ✅ | not listed | Rust | ✅* | ✅* | ✅ | asset only |
+| `s390x-unknown-linux-gnu` | ✅ | not listed | Rust | ✅* | ✅* | ✅ | asset only |
+| `powerpc64le-unknown-linux-gnu` | ✅ | not listed | Rust | ✅* | ✅* | ✅ | asset only |
 | `loongarch64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
 | `x86_64-unknown-freebsd` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 
 \* ARM64 GNU/musl Core and Runtime are executed under Docker + QEMU/binfmt on
 x86_64 hosts, and natively when an ARM64 host is available. The same applies to
 the niche Linux targets armv7, s390x, and powerpc64le, which are real-executed
-under Docker + QEMU/binfmt.
+under Docker + QEMU/binfmt for Core. Their current source Runtime smoke uses a
+WASM-free build, so they are intentionally Core-only until the default WASM
+Runtime is real-executed with bounded resource evidence.
 
 **RISC-V 64** (`riscv64gc-unknown-linux-gnu`) is cross-compiled and published as
 part of the release asset matrix. Its source Stable Gate runs the full test
@@ -79,7 +83,9 @@ through the Pulley backend. Its published release asset is downloaded and
 re-executed under the same target environment
 (`scripts/post-release-qemu-verify.sh`).
 
-The **Release** column reflects the published `rill-runtime` asset matrix:
+The **Release** column reflects the published asset matrix. `asset only` means
+the binary is retained for investigation but is deliberately omitted from the
+signed Stable release-index Runtime selection:
 `linux-x86_64` (GNU), `linux-x86_64-musl`, `linux-aarch64` (GNU),
 `linux-aarch64-musl`, `linux-riscv64`, `linux-armv7`, `linux-s390x`,
 `linux-powerpc64le`, `linux-loongarch64`, `freebsd-x86_64`, `windows-x86_64`,
@@ -90,7 +96,7 @@ asset.
 
 ### Notes
 
-- **Runtime** means the full `rill-runtime` product: `--help`,
+- **Full Runtime** means the full `rill-runtime` product: `--help`,
   `inspect-pack`, `inspect-handler`, `serve`, signed model/handler loading,
   WASM sandbox, and newline-delimited IPC.
 - **Windows ARM64** (`aarch64-pc-windows-msvc`) is built, executed, and
@@ -110,6 +116,12 @@ asset.
   execution is verified in a native FreeBSD VM (`vmactions/freebsd-vm` →
   `scripts/freebsd-ci.sh` on every push, and `post-release-verify-freebsd`
   re-verifies the published asset after each release).
+
+- **Core-only Linux targets** (`armv7-unknown-linux-gnueabihf`,
+  `s390x-unknown-linux-gnu`, and `powerpc64le-unknown-linux-gnu`) are not
+  Full Runtime claims. Their release binaries are not selected by the signed
+  Stable index and must not be treated as evidence of signed WASM handler
+  support.
 
 ---
 
@@ -159,9 +171,20 @@ distinction between "not yet accepted" and "unsupported upstream" is clear.
 |---|---|---|
 | `aarch64-linux-android` | Core FFI | FFI 构建链 + CI 已就绪（Docker NDK 交叉构建）；真机/模拟器执行验证未完成，未列入 Supported |
 | `aarch64-apple-ios` | Core FFI | FFI 构建链 + CI 已就绪（macOS Xcode XCFramework）；真机/模拟器执行验证未完成，未列入 Supported |
+| `riscv64gc-unknown-linux-musl` | Core + Full Runtime | OpenWrt/musl gate and published-asset re-verification are not yet complete |
+| `armv7-unknown-linux-musleabihf` | Core | 32-bit musl linker/QEMU execution and Pulley resource qualification are not yet complete |
+| `i686-unknown-linux-musl` | Core | 32-bit musl source gate, state fixtures, and real execution are not yet complete |
+| `mips-unknown-linux-musl` | Core | MIPS toolchain, endian/width fixtures, QEMU execution, and resource evidence are not yet complete |
+| `mipsel-unknown-linux-musl` | Core | MIPSel toolchain, endian/width fixtures, QEMU execution, and resource evidence are not yet complete |
 
 A "not listed" target is **not** a promise. It is added only when it passes
 the full acceptance gate.
+
+The machine-readable evidence registry is [`platform-support.toml`](platform-support.toml).
+It records only targets that have completed the relevant Core/Full Runtime
+acceptance path; adding a row alone never grants support. The consistency gate
+checks this registry against the platform table, CI source gates, release-index
+patterns, and post-release verification.
 
 ---
 
@@ -181,11 +204,11 @@ option. The reproducible entry points are:
 | `scripts/docker-wasm-build.sh` | WASM bindings build + test (web ESM + Node CJS + wasm-bindgen suite) |
 | `scripts/docker-build-android.sh` | Android FFI cross-build via Docker NDK (aarch64 + x86_64 staticlibs + JNI shim) |
 | `scripts/build-ios-framework.sh` | iOS FFI XCFramework build (macOS Xcode, device + simulator) |
-| `scripts/qemu-cross-gate.sh` | Direct QEMU user-mode Stable gate (riscv64 / aarch64 / armv7 / s390x / powerpc64le): full test suite + default WASM Runtime under QEMU, no Docker |
+| `scripts/qemu-cross-gate.sh` | Direct QEMU user-mode gate (riscv64 / aarch64 / armv7 / s390x / powerpc64le): full Core suite and target-specific Runtime smoke, no Docker |
 | `scripts/loongarch-cross-gate.sh` | LoongArch64 Stable gate: pinned cross toolchain + `qemu-loongarch64` user-mode, full WASM handler support through Pulley |
 | `scripts/register_qemu_binfmt.sh` | Register QEMU binfmt_misc handlers for direct foreign ELF execution |
-| `scripts/post-release-qemu-verify.sh` | Post-release re-verify of published RISC-V64 / LoongArch64 release assets under direct QEMU |
-| `scripts/freebsd-ci.sh` | FreeBSD native gate (fmt/clippy, full test suite, Runtime smoke) — executed in a FreeBSD VM via `vmactions/freebsd-vm` |
+| `scripts/post-release-qemu-verify.sh` | Post-release re-verify of published Full Runtime RISC-V64 / LoongArch64 assets under direct QEMU |
+| `scripts/freebsd-ci.sh` | FreeBSD native gate (fmt/clippy, full test suite, Full Runtime smoke) — executed in a FreeBSD VM via `vmactions/freebsd-vm` |
 | `.github/workflows/cross-platform.yml` | CI: native / Docker gates, direct-QEMU cross gates, release smoke, Android/iOS FFI gates, FreeBSD VM native gate |
 
 The Rust toolchain is pinned in `Dockerfile.test` (`RUST_PIN`, default matches

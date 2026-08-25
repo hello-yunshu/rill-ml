@@ -1,0 +1,40 @@
+name: OpenWrt musl feasibility
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  musl-target:
+    name: musl feasibility (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - riscv64gc-unknown-linux-musl
+          - armv7-unknown-linux-musleabihf
+          - i686-unknown-linux-musl
+          - mips-unknown-linux-musl
+          - mipsel-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          targets: ${{ matrix.target }}
+      - name: Install Zig musl linker
+        uses: xyzzylabs/setup-zig@v1
+        with:
+          cache-key: ${{ matrix.target }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: openwrt-musl-${{ matrix.target }}
+      - name: Run fail-closed musl Core/Runtime feasibility gate
+        run: bash scripts/musl-cross-gate.sh "${{ matrix.target }}"

@@ -343,8 +343,11 @@ The complete threat model and safe usage guidance are documented in [`SECURITY.m
 | Windows ARM64 (aarch64) | Stable | Stable |
 | macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | Not released | Stable |
+| Linux riscv64 GNU | Stable | Stable |
+| Linux x86_64/aarch64 musl | Stable | Stable |
+| Linux armv7/s390x/powerpc64le GNU | Not listed (Core only) | Stable |
 
-Official macOS Runtime assets are Apple Silicon (ARM64) only, under the permanent unsigned policy; Linux and Windows remain x86_64. The full matrix and Stable/Preview commitments are documented in [`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md).
+Official macOS Runtime assets are Apple Silicon (ARM64) only, under the permanent unsigned policy. The OpenWrt target libc and Core/Full Runtime boundary are documented in [`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md) and [`docs/OPENWRT_CONSUMER_QUALIFICATION.md`](docs/OPENWRT_CONSUMER_QUALIFICATION.md).
 
 ## 11. Integrations and ecosystem
 

@@ -184,11 +184,10 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────
   # Direct user-mode QEMU gates for the remaining non-native GNU targets.
-  # s390x / powerpc64le are Supported Stable targets; armv7 stays Not listed
-  # (real execution is still verified, never claimed Stable). Their release
-  # Runtime smoke is built --no-default-features because building/executing
-  # wasmtime under QEMU on these arches is not viable (s390x SIGSEGV); the WASM
-  # handler path for each is covered by the --all-features crate tests above.
+  # armv7 / s390x / powerpc64le are Core Supported only. Their release
+  # investigation assets are built with the default feature set, but the source
+  # smoke below deliberately proves only the Core surface because the previous
+  # --no-default-features Runtime smoke cannot qualify the Full Runtime.
   # ────────────────────────────────────────────────────────────────────────
   direct-qemu-gnu:
     name: Direct QEMU gate (${{ matrix.target }})
@@ -278,8 +277,8 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   # FreeBSD x86_64 — real kernel verification via a FreeBSD VM. Docker/QEMU
   # kernel-vs-userspace semantics cannot substitute the FreeBSD kernel, so a
-  # VM is the correct escalation tier. FreeBSD is Not yet claimed Stable; this
-  # is the native execution gate.
+  # VM is the correct escalation tier. FreeBSD is Full Runtime Supported via
+  # this native execution gate.
   # ────────────────────────────────────────────────────────────────────────
   freebsd-ci:
     name: FreeBSD x86_64 Stable Gate (VM)

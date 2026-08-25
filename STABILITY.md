@@ -372,6 +372,15 @@ enforced in CI. An MSRV bump is a minor breaking change and requires a
 | Windows ARM64 (aarch64) | Stable | Stable |
 | macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | Not published | Stable |
+| Linux riscv64 GNU | Stable | Stable |
+| Linux x86_64/aarch64 musl | Stable | Stable |
+| Linux armv7/s390x/powerpc64le GNU | Not listed (Core only) | Stable |
+
+The platform table above is a summary. The machine-readable evidence registry,
+libc mapping, backend requirements, and OpenWrt consumer boundary are defined
+in [`platform-support.toml`](platform-support.toml),
+[`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md), and
+[`docs/OPENWRT_CONSUMER_QUALIFICATION.md`](docs/OPENWRT_CONSUMER_QUALIFICATION.md).
 
 ### macOS unsigned policy (permanent)
 

@@ -336,8 +336,11 @@ RillML 遵循"能力越强、权限边界越清晰"的安全理念：
 | Windows ARM64 (aarch64) | Stable | Stable |
 | macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | 不发布 | Stable |
+| Linux riscv64 GNU | Stable | Stable |
+| Linux x86_64/aarch64 musl | Stable | Stable |
+| Linux armv7/s390x/powerpc64le GNU | 未列出（仅 Core） | Stable |
 
-官方 macOS Runtime 资产仅 Apple Silicon（ARM64），且为永久未签名策略；Linux 与 Windows 仍为 x86_64。完整矩阵与 Stable/Preview 承诺见 [`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md)。
+官方 macOS Runtime 资产仅 Apple Silicon（ARM64），且为永久未签名策略。OpenWrt 目标的 libc、Core/Full Runtime 边界和真实执行要求见 [`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md) 与 [`docs/OPENWRT_CONSUMER_QUALIFICATION.md`](docs/OPENWRT_CONSUMER_QUALIFICATION.md)。
 
 ## 11. 集成与生态
 
