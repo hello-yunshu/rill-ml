@@ -55,13 +55,10 @@ pub const RUNTIME_ARTIFACT_ID: &str = "rill-runtime";
 /// the stable asset identity so gnu and musl builds of the same OS+arch do not
 /// collide in a v2 release index.
 pub const RUNTIME_ARTIFACT_ID_MUSL: &str = "rill-runtime-musl";
-/// Stable artifact id for the OpenWrt Performance Manager decision
-/// adapter. The adapter is a distinct artifact kind (``pm-adapter``)
-/// because it speaks the independent ``pm-rill-shadow`` v1 protocol, not
-/// the Rill Runtime IPC API.
+/// Historical artifact id retained so v1.5.1 release indexes remain readable.
+/// RillML v1.5.2 does not build or publish this adapter.
 pub const PM_ADAPTER_ARTIFACT_ID: &str = "rill-pm-adapter";
-/// ``pm-rill-shadow`` protocol version advertised by released adapter
-/// binaries and required by ``pm-adapter`` index entries.
+/// Historical ``pm-rill-shadow`` protocol version in legacy PM adapter indexes.
 pub const PM_ADAPTER_PROTOCOL_VERSION: u32 = 1;
 
 // ---------------------------------------------------------------------------
@@ -268,8 +265,8 @@ pub struct ReleaseArtifact {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_arch: Option<String>,
     /// The libc/ABI variant (``gnu`` or ``musl``) of a Linux target. Present
-    /// only on Linux runtime/adapter artifacts; non-Linux targets (macOS,
-    /// Windows, FreeBSD) omit it. Introduced in release-index schema v3 so
+    /// on Linux runtime artifacts and historical adapter artifacts;
+    /// non-Linux targets (macOS, Windows, FreeBSD) omit it. Introduced in release-index schema v3 so
     /// gnu and musl builds of the same OS+arch coexist unambiguously.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_libc: Option<String>,
@@ -934,6 +931,21 @@ mod tests {
         let mut bad = artifact.clone();
         bad.id = "org.example.other".into();
         assert!(bad.validate_shape().is_err());
+    }
+
+    #[test]
+    fn historical_v151_pm_adapter_index_remains_readable() {
+        let fixture =
+            include_str!("../../../tests/fixtures/legacy/rill-v1.5.1-pm-adapter-index.json");
+        let index: SignedReleaseIndex = serde_json::from_str(fixture).unwrap();
+        assert_eq!(index.payload.schema_version, RELEASE_INDEX_SCHEMA_VERSION);
+        assert_eq!(index.payload.artifacts.len(), 1);
+        assert_eq!(
+            index.payload.artifacts[0].kind,
+            ReleaseArtifactKind::PmAdapter
+        );
+        assert_eq!(index.payload.artifacts[0].version, "1.5.1");
+        assert!(index.payload.validate_shape().is_ok());
     }
 
     #[test]
