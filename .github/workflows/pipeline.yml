@@ -1011,71 +1011,10 @@ jobs:
           path: dist/rill-runtime-*
           if-no-files-found: error
 
-  build-pm-adapter-cross:
-    name: PM adapter cross ${{ matrix.target_os }} ${{ matrix.target_arch }} ${{ matrix.libc }}
-    if: github.event_name == 'workflow_dispatch'
-    needs: package-check
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - rust_target: x86_64-unknown-linux-musl
-            target_os: linux
-            target_arch: x86_64
-            libc: musl
-            asset_suffix: linux-x86_64-musl
-          - rust_target: aarch64-unknown-linux-musl
-            target_os: linux
-            target_arch: aarch64
-            libc: musl
-            asset_suffix: linux-aarch64-musl
-    steps:
-      - uses: actions/checkout@v7 # v7
-        with:
-          persist-credentials: false
-          ref: ${{ env.RELEASE_TAG }}
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: 1.94.0
-          targets: ${{ matrix.rust_target }}
-      - name: Install Zig (C cross toolchain used by cargo-zigbuild)
-        uses: xyzzylabs/setup-zig@v1
-        with:
-          # Partition the shared zig cache/tarball keys per target so parallel
-          # matrix jobs don't race to save the same key ("Unable to reserve
-          # cache" warnings). Consistent with the rust-cache key below.
-          cache-key: ${{ matrix.rust_target }}
-      - name: Install cargo-zigbuild
-        run: pip3 install --disable-pip-version-check "cargo-zigbuild==0.20.1"
-      - uses: Swatinem/rust-cache@v2 # v2
-        with:
-          key: pm-adapter-${{ matrix.rust_target }}-zigbuild
-      - name: Build PM adapter for ${{ matrix.rust_target }}
-        shell: bash
-        env:
-          VERSION: ${{ env.RELEASE_TAG }}
-          RUST_TARGET: ${{ matrix.rust_target }}
-          ASSET_SUFFIX: ${{ matrix.asset_suffix }}
-        run: |
-          set -euo pipefail
-          version="${VERSION#v}"
-          cargo zigbuild --locked --release --target "$RUST_TARGET" \
-            -p rill-pm-adapter --bin rill-pm-adapter
-          mkdir -p dist
-          cp "target/$RUST_TARGET/release/rill-pm-adapter" \
-            "dist/rill-pm-adapter-${version}-${ASSET_SUFFIX}"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: pm-adapter-${{ matrix.target_os }}-${{ matrix.target_arch }}-${{ matrix.libc }}
-          path: dist/rill-pm-adapter-*
-          if-no-files-found: error
-
   publish:
     name: Sign and publish
     if: github.event_name == 'workflow_dispatch'
-    needs: [build-runtime, build-runtime-cross, build-runtime-freebsd, build-pm-adapter-cross]
+    needs: [build-runtime, build-runtime-cross, build-runtime-freebsd]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -1316,7 +1255,7 @@ jobs:
         run: |
           set -euo pipefail
           artifact_args=()
-          for path in dist/rill-runtime-* dist/rill-pm-adapter-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE"; do
+          for path in dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE"; do
             if [ -f "$path" ]; then
               artifact_args+=(--artifact "$(basename "$path")=$path")
             fi
@@ -1343,13 +1282,13 @@ jobs:
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             # Release already exists — overwrite all assets.
             gh release upload "$RELEASE_TAG" \
-              dist/rill-runtime-* dist/rill-pm-adapter-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" dist/*.cdx.json dist/*.spdx.json \
+              dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" dist/*.cdx.json dist/*.spdx.json \
               --clobber
             gh release edit "$RELEASE_TAG" \
               --title "Rill ML ${{ steps.version.outputs.version }}" \
               "${prerelease_args[@]}"
           else
-            gh release create "$RELEASE_TAG" dist/rill-runtime-* dist/rill-pm-adapter-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" dist/*.cdx.json dist/*.spdx.json \
+            gh release create "$RELEASE_TAG" dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" dist/*.cdx.json dist/*.spdx.json \
               --verify-tag \
               --title "Rill ML ${{ steps.version.outputs.version }}" \
               --notes "macOS aarch64 runtime policy: the official asset is published without Apple Developer ID signing or notarization when signing credentials are absent. This is an accepted, non-blocking policy; the accompanying .unsigned.json sidecar records the exact status. Users can authorize first launch through Finder → Open or System Settings → Privacy & Security." \
@@ -1442,35 +1381,6 @@ jobs:
         with:
           name: released-asset-host-smoke-${{ needs.publish.outputs.version }}
           path: smoke-test/smoke-result.json
-          if-no-files-found: error
-
-  adapter-host-smoke:
-    name: Independent released-adapter host smoke
-    if: github.event_name == 'workflow_dispatch'
-    needs: publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7 # v7
-        with:
-          persist-credentials: false
-          ref: ${{ env.RELEASE_TAG }}
-      - name: Exercise published PM adapter asset
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 smoke-test/adapter_host_smoke.py \
-            --index-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${{ needs.publish.outputs.index_file }}" \
-            --expected-version "${{ needs.publish.outputs.version }}" \
-            --expected-channel "${{ needs.publish.outputs.channel }}" \
-            --log smoke-test/adapter-smoke-result.json
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: adapter-host-smoke-${{ needs.publish.outputs.version }}
-          path: smoke-test/adapter-smoke-result.json
           if-no-files-found: error
 
   post-release-verify:
@@ -1747,7 +1657,7 @@ jobs:
   move-index-pointer:
     name: Promote verified signed index pointer
     if: github.event_name == 'workflow_dispatch'
-    needs: [publish, release-host-smoke, adapter-host-smoke, post-release-verify, post-release-verify-sbom, post-release-verify-direct-qemu, post-release-verify-freebsd, post-release-verify-native]
+    needs: [publish, release-host-smoke, post-release-verify, post-release-verify-sbom, post-release-verify-direct-qemu, post-release-verify-freebsd, post-release-verify-native]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

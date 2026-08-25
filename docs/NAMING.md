@@ -55,7 +55,6 @@ RillML, referred to as Rill where context is unambiguous
 | Tokio adapter | `rill-ml-tokio` |
 | C FFI crate | `rill-ml-ffi`（`rill_ml.h` / `rill_ml_*`） |
 | Inspector CLI | `rillml-inspect` |
-| PM adapter | `rill-pm-adapter` |
 | 签名身份 | `rillml-examples-2026-001` |
 
 ## 正式展示名

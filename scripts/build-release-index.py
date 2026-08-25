@@ -55,21 +55,6 @@ RUNTIMES = (
     ("windows", "aarch64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-windows-aarch64.exe"),
 )
 
-# The OpenWrt Performance Manager (PM) decision adapter. The adapter is
-# advisory-only and published from this repository. It speaks the independent
-# ``pm-rill-shadow`` v1 contract (NOT the Rill Runtime IPC API). Only the
-# musl Linux targets PM consumes are published; other platforms follow Rill's
-# own support matrix and are not claimed here without target evidence.
-PM_ADAPTER_ARTIFACT_ID = "rill-pm-adapter"
-# pm-rill-shadow protocol version advertised by the released adapter binary.
-PM_ADAPTER_PROTOCOL_VERSION = 1
-
-PM_ADAPTERS = (
-    # (target_os, target_arch, target_libc, asset_id, asset_pattern)
-    ("linux", "x86_64", "musl", PM_ADAPTER_ARTIFACT_ID, "rill-pm-adapter-{version}-linux-x86_64-musl"),
-    ("linux", "aarch64", "musl", PM_ADAPTER_ARTIFACT_ID, "rill-pm-adapter-{version}-linux-aarch64-musl"),
-)
-
 # Schemes that must never appear in a signed release-index URL. ``data:``,
 # ``file:``, ``javascript:`` and similar schemes can be used to trick a
 # downstream client into reading local files or executing inline payloads.
@@ -194,28 +179,6 @@ def main() -> None:
         # Schema v3 records the libc/ABI variant explicitly on Linux so readers
         # can disambiguate gnu vs musl without relying on ``id`` naming. Non-Linux
         # targets (macOS/Windows/FreeBSD) have no libc variant and omit the field.
-        if target_libc is not None:
-            fields["targetLibc"] = target_libc
-        artifacts.append(artifact(asset_path, **fields))
-
-    for target_os, target_arch, target_libc, artifact_id, pattern in PM_ADAPTERS:
-        name = pattern.format(version=args.version)
-        asset_path = args.release_dir / name
-        if not asset_path.is_file():
-            # A platform adapter asset may be intentionally skipped; the index
-            # must not claim support for a platform whose asset was not built.
-            continue
-        url = f"{base_url}/{name}"
-        validate_release_url(url)
-        fields = {
-            "kind": "pm-adapter",
-            "id": artifact_id,
-            "version": args.version,
-            "pmAdapterProtocolVersion": PM_ADAPTER_PROTOCOL_VERSION,
-            "targetOs": target_os,
-            "targetArch": target_arch,
-            "url": url,
-        }
         if target_libc is not None:
             fields["targetLibc"] = target_libc
         artifacts.append(artifact(asset_path, **fields))

@@ -22,6 +22,20 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 
 
+
+## [1.5.2] - 2026-08-25
+
+### Changed
+
+- Removed the OpenWrt Performance Manager adapter from the active RillML
+  workspace, release plan, cross-build, release-index publisher, release asset
+  verifier, and post-release smoke pipeline. The adapter is now owned and
+  released by `hello-yunshu/luci-app-performance-manager`.
+- Kept the `pm-adapter` artifact reader and a v1.5.1 signed-index fixture as
+  historical compatibility input; v1.5.2 publishers never emit that artifact.
+- Stable release admission now uses v1.5.1 as its authoritative compatibility
+  baseline.
+
 ## [1.5.1] - 2026-08-24
 
 ### Fixed
@@ -1638,6 +1652,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.3.0...HEAD
+[1.5.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.2
 [1.5.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.1
 [1.5.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.0
 [1.3.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.3.0

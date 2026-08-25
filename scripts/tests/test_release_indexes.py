@@ -66,23 +66,15 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
         self.assertIn("freebsd-x86_64", release_index)
         self.assertIn("post-release-verify-freebsd", workflow)
 
-    def test_pm_adapter_musl_targets_are_built_and_indexed(self) -> None:
-        # CORE BLOCKER A: the rill-pm-adapter must be cross-built by
-        # build-pm-adapter-cross for the musl Linux targets PM consumes
-        # (x86_64 + aarch64) and listed in the release index as a distinct
-        # ``pm-adapter`` artifact kind with the pm-rill-shadow protocol
-        # version.
+    def test_v152_publisher_has_no_active_pm_adapter_surface(self) -> None:
         workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
         release_index = (ROOT / "scripts/build-release-index.py").read_text(encoding="utf-8")
-        self.assertIn("build-pm-adapter-cross", workflow)
-        self.assertIn("x86_64-unknown-linux-musl", workflow)
-        self.assertIn("aarch64-unknown-linux-musl", workflow)
-        self.assertIn("rill-pm-adapter-{version}-linux-x86_64-musl", release_index)
-        self.assertIn("rill-pm-adapter-{version}-linux-aarch64-musl", release_index)
-        self.assertIn('"kind": "pm-adapter"', release_index)
-        self.assertIn("pmAdapterProtocolVersion", release_index)
-        self.assertIn("dist/rill-pm-adapter-*", workflow)
-        self.assertIn("adapter-host-smoke", workflow)
+        plan = (ROOT / "release-plan.toml").read_text(encoding="utf-8")
+        self.assertNotIn("build-pm-adapter-cross", workflow)
+        self.assertNotIn("adapter-host-smoke", workflow)
+        self.assertNotIn("rill-pm-adapter-", release_index)
+        self.assertNotIn('"rill-pm-adapter"', plan)
+        self.assertNotIn("PM_ADAPTERS", release_index)
 
     def test_model_only_release_preserves_runtime_and_rejects_downgrade(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

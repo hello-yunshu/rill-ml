@@ -12,7 +12,8 @@ serde.workspace = true
 serde_json.workspace = true
 
 # cargo-semver-checks lint overrides (see the `semver-checks` CI job).
-# The v1.2.0 release adds the pm-adapter artifact kind:
+# RillML v1.2.0 added the pm-adapter artifact kind. It remains a historical
+# reader surface for v1.5.1 indexes; v1.5.2 no longer publishes that artifact:
 #   - enum_variant_added: ReleaseArtifactKind gains `PmAdapter`. This is
 #     deliberate and additive — old consumers never see the new kind (it is
 #     only emitted by new indexes and the wire format is serde_json), so no

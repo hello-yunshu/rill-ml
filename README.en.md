@@ -195,7 +195,7 @@ behaviour. For a WASM-free build: `cargo install rill-runtime --no-default-featu
 load `.rillhandler`).
 
 The version tracks `[workspace.package].version`; query the current release via `cargo metadata`
-or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.5.1`;
+or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.5.2`;
 the Preview group remains at `0.15.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
@@ -360,7 +360,6 @@ Workspace crates are split into a Stable group (under the 1.x compatibility free
 | `rill-ml-python` | Python bindings (PyO3 + Maturin); PyPI package `rill-ml-python`, `import rill_ml` | Preview | `pip install rill-ml-python` |
 | `rillml-inspect` | CLI to view `Snapshot` JSON, version, and validation status (not a runtime dependency) | Preview | `cargo install rillml-inspect` |
 | `rill-ml-ffi` | Stable C ABI (opaque handle + `rill_ml.h`) for C/C++, Android (JNI), iOS (Swift) | Preview | `cargo add rill-ml-ffi` |
-| `rill-pm-adapter` | `pm-rill-shadow` v1 decision adapter for the OpenWrt Performance Manager (advisory only; does not compile RillML) | Preview | — |
 
 ### Related projects
 

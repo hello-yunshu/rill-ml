@@ -189,7 +189,7 @@ cargo add rill-ml --features serde
 因此 `cargo install rill-runtime` 行为与官方 GitHub 二进制一致。如需 WASM-free 构建：
 `cargo install rill-runtime --no-default-features`（无法加载 `.rillhandler`）。
 
-版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.5.1`，Preview 组为 `0.15.0`。
+版本号跟随 `[workspace.package].version`，可通过 `cargo metadata` 或 [`CHANGELOG.md`](CHANGELOG.md) 查询当前发布版本。当前 Stable 组版本为 `1.5.2`，Preview 组为 `0.15.0`。
 
 **环境要求：** Rust 1.94+（Edition 2024），无需 nightly。
 
@@ -353,7 +353,6 @@ Workspace 下的 crate 分为 Stable 组（1.x 兼容冻结）和 Preview 组（
 | `rill-ml-python` | Python 绑定（PyO3 + Maturin），PyPI 包名 `rill-ml-python`，`import rill_ml` | Preview | `pip install rill-ml-python` |
 | `rillml-inspect` | 查看 `Snapshot` JSON、版本与校验的 CLI（非运行依赖） | Preview | `cargo install rillml-inspect` |
 | `rill-ml-ffi` | 稳定 C ABI（opaque handle + `rill_ml.h`），供 C/C++、Android（JNI）、iOS（Swift）调用 | Preview | `cargo add rill-ml-ffi` |
-| `rill-pm-adapter` | 面向 OpenWrt Performance Manager 的 `pm-rill-shadow` v1 决策适配器（仅建议，不编译 RillML） | Preview | — |
 
 ### 相关项目
 

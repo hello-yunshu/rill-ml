@@ -1,0 +1,23 @@
+{
+  "payload": {
+    "schemaVersion": 3,
+    "channel": "stable",
+    "generatedAt": "2026-08-24T19:30:17Z",
+    "publisherKeyId": "rillml-examples-2026-001",
+    "artifacts": [
+      {
+        "kind": "pm-adapter",
+        "id": "rill-pm-adapter",
+        "version": "1.5.1",
+        "pmAdapterProtocolVersion": 1,
+        "targetOs": "linux",
+        "targetArch": "x86_64",
+        "targetLibc": "musl",
+        "url": "https://github.com/hello-yunshu/rill-ml/releases/download/v1.5.1/rill-pm-adapter-1.5.1-linux-x86_64-musl",
+        "sha256": "253963e3dd88a9c89129643fd22d40e0443ac2631bdb476d452da8c0121ebbb1",
+        "size": 1278072
+      }
+    ]
+  },
+  "signature": "historical-fixture-signature-not-used-for-current-publication"
+}

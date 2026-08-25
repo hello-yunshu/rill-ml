@@ -25,7 +25,6 @@ members = [
     "crates/rill-ml-wasm",
     "crates/rill-ml-python",
     "crates/rill-ml-ffi",
-    "crates/rill-pm-adapter",
 ]
 exclude = [
     "handlers/echo-handler",
@@ -35,7 +34,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "1.5.1"
+version = "1.5.2"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
@@ -44,9 +43,9 @@ repository = "https://github.com/hello-yunshu/rill-ml"
 [workspace.dependencies]
 # Internal workspace crates — Stable crates follow [workspace.package].
 # Preview crates override their own version and depend on Stable crates here.
-rill-handler-api = { version = "1.5.1", path = "crates/rill-handler-api" }
-rill-ml = { version = "1.5.1", path = "." }
-rill-runtime-protocol = { version = "1.5.1", path = "crates/rill-runtime-protocol" }
+rill-handler-api = { version = "1.5.2", path = "crates/rill-handler-api" }
+rill-ml = { version = "1.5.2", path = "." }
+rill-runtime-protocol = { version = "1.5.2", path = "crates/rill-runtime-protocol" }
 # External dependencies.
 ed25519-dalek = "3.0.0"
 hex = "0.4"
