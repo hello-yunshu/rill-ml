@@ -140,10 +140,20 @@ jobs:
       - name: Validate the release version
         if: steps.freshness.outputs.current == 'true'
         id: version
-        run: python3 scripts/release_version.py --github-output "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          set -euo pipefail
+          stable_version="$(awk '/^\[stable\]/{in_stable=1; next} /^\[/{in_stable=0} in_stable && /^version[[:space:]]*=/{match($0, /"[^"]+"/); print substr($0, RSTART + 1, RLENGTH - 2); exit}' release-plan.toml)"
+          if ! grep -Fq "## [${stable_version}] - " CHANGELOG.md; then
+            echo "No dated CHANGELOG section for ${stable_version}; keeping Auto Release skipped until a formal release is prepared."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 scripts/release_version.py --github-output "$GITHUB_OUTPUT"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Create tag or select a safe retry
-        if: steps.freshness.outputs.current == 'true'
+        if: steps.freshness.outputs.current == 'true' && steps.version.outputs.ready == 'true'
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
