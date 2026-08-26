@@ -1,4 +1,4 @@
-"""Load and validate the machine-readable Stable platform evidence registry."""
+"""Load and validate the machine-readable Stable support policy registry."""
 
 from __future__ import annotations
 
@@ -76,6 +76,10 @@ def load_platforms(root: Path) -> list[dict[str, object]]:
             raise ValueError(f"Full Runtime must use default features: {triple}")
         if entry["runtime_supported"] and not entry["release_asset"]:
             raise ValueError(f"Full Runtime requires a release asset: {triple}")
+        if not entry["runtime_supported"] and entry["release_asset"]:
+            raise ValueError(
+                f"Core-only target cannot have a Stable release asset: {triple}"
+            )
         if entry["target_os"] == "linux" and entry["target_libc"] not in {"gnu", "musl"}:
             raise ValueError(f"Linux target has invalid libc: {triple}")
         if entry["target_os"] != "linux" and entry["target_libc"] != "none":

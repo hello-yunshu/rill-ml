@@ -9,7 +9,6 @@ import json
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
-from platform_support import asset_name, load_platforms
 
 
 def main() -> None:
@@ -32,13 +31,11 @@ def main() -> None:
         if path.is_file()
     }
     missing = sorted(set(expected) - set(local))
-    root = Path(__file__).resolve().parents[1]
+    # The current model can be absent from this version's index when an older
+    # model supersedes it; it is still verified separately by rill-pack. No
+    # Runtime binary is allowed to bypass the signed index, including
+    # Core-only investigation builds.
     allowed_unindexed = {f"example-default-{args.version}.rillpack"}
-    allowed_unindexed.update(
-        asset_name(root, str(entry["triple"]), args.version)
-        for entry in load_platforms(root)
-        if entry["release_asset"] and not entry["runtime_supported"]
-    )
     unexpected = sorted(
         name for name in set(local) - set(expected) if name not in allowed_unindexed
     )

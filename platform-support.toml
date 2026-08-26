@@ -1,7 +1,7 @@
-# Machine-readable Stable platform support policy. This is a claim registry,
-# not execution evidence. platform_consistency.py verifies that every claim
-# has matching source-gate, release-index, and post-release paths; Actions
-# generates the execution evidence separately.
+# Machine-readable Stable platform support policy. This is a support policy /
+# claim registry, not execution evidence. platform_consistency.py verifies
+# that every claim has matching source-gate, release-index, and post-release
+# paths; Actions generates the execution evidence separately.
 
 [[target]]
 triple = "x86_64-unknown-linux-gnu"
@@ -187,9 +187,10 @@ source_gate = "freebsd-vm"
 post_release_gate = "freebsd-vm"
 asset_suffix = "freebsd-x86_64"
 
-# These assets remain available for investigation and downstream experiments,
-# but the source gate only proves Core. They must not enter the Stable index as
-# Full Runtime artifacts until the default WASM feature is real-executed.
+# These targets remain available to CI investigation artifacts and downstream
+# experiments, but the source gate only proves Core. They must not enter a
+# Stable Release or Stable index as Full Runtime artifacts until the default
+# WASM feature is real-executed.
 [[target]]
 triple = "armv7-unknown-linux-gnueabihf"
 target_os = "linux"
@@ -197,7 +198,7 @@ target_arch = "armv7"
 target_libc = "gnu"
 core_supported = true
 runtime_supported = false
-release_asset = true
+release_asset = false
 runtime_features = "none"
 source_gate = "direct-qemu"
 post_release_gate = "not-applicable"
@@ -210,7 +211,7 @@ target_arch = "s390x"
 target_libc = "gnu"
 core_supported = true
 runtime_supported = false
-release_asset = true
+release_asset = false
 runtime_features = "none"
 source_gate = "direct-qemu"
 post_release_gate = "not-applicable"
@@ -223,7 +224,7 @@ target_arch = "powerpc64le"
 target_libc = "gnu"
 core_supported = true
 runtime_supported = false
-release_asset = true
+release_asset = false
 runtime_features = "none"
 source_gate = "direct-qemu"
 post_release_gate = "not-applicable"

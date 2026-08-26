@@ -22,7 +22,7 @@ Runtime 使用 stdin/stdout 上的逐行 JSON。每条消息最大 1 MiB，未�
 重新下载同一资产执行。Core-only 资产不会进入 Stable release-index 的
 Runtime selection。OpenWrt consumer 的 host mutation、rollback 和 UCI/
 firewall glue 始终由 consumer 自己负责，详见
-[`docs/OPENWRT_CONSUMER_QUALIFICATION.md`](docs/OPENWRT_CONSUMER_QUALIFICATION.md)。
+[`docs/consumers/OPENWRT_QUALIFICATION.md`](docs/consumers/OPENWRT_QUALIFICATION.md)。
 
 ## Handler 插件架构
 

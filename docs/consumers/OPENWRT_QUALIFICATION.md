@@ -15,9 +15,10 @@ turning product-specific host control into RillML ownership.
   signed model and handler load/invoke, sandbox and capability checks, stable
   IPC, release asset identity, and post-release execution of the downloaded
   asset.
-- A simulated consumer is not OpenWrt qualification. Evidence must identify the
-  consumer repository, RillML version, target triple, libc, artifact URL/hash,
-  and whether execution was on a real device, VM/QEMU, or a host simulation.
+- A simulated consumer is not OpenWrt qualification. Evidence must identify
+  the consumer repository, RillML version, target triple, libc, artifact URL/
+  hash, and whether execution was on a real device, VM/QEMU, or a host
+  simulation.
 
 ## Consumer-owned boundary
 

@@ -48,8 +48,6 @@ RUNTIMES = (
     ("linux", "armv7", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-armv7"),
     ("linux", "armv7", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-armv7-musl"),
     ("linux", "i686", "musl", RUNTIME_ARTIFACT_ID_MUSL, "rill-runtime-{version}-linux-i686-musl"),
-    ("linux", "s390x", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-s390x"),
-    ("linux", "powerpc64le", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-powerpc64le"),
     ("linux", "loongarch64", "gnu", RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-linux-loongarch64"),
     ("freebsd", "x86_64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-freebsd-x86_64"),
     ("macos", "aarch64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-macos-aarch64"),

@@ -57,9 +57,9 @@ qualified and the signed Stable index must not select the target as a Runtime.
 | `aarch64-pc-windows-msvc` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 | `aarch64-apple-darwin` | ✅ | ✅ (unsigned) | Rust | – | ✅ | ✅ | ✅ |
 | `riscv64gc-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
-| `armv7-unknown-linux-gnueabihf` | ✅ | not listed | Rust | ✅* | ✅* | ✅ | asset only |
-| `s390x-unknown-linux-gnu` | ✅ | not listed | Rust | ✅* | ✅* | ✅ | asset only |
-| `powerpc64le-unknown-linux-gnu` | ✅ | not listed | Rust | ✅* | ✅* | ✅ | asset only |
+| `armv7-unknown-linux-gnueabihf` | ✅ | not listed | Rust | ✅* | ✅* | ✅ | investigation only |
+| `s390x-unknown-linux-gnu` | ✅ | not listed | Rust | ✅* | ✅* | ✅ | investigation only |
+| `powerpc64le-unknown-linux-gnu` | ✅ | not listed | Rust | ✅* | ✅* | ✅ | investigation only |
 | `loongarch64-unknown-linux-gnu` | ✅ | ✅ | Rust | ✅ | ✅ | ✅ | ✅ |
 | `x86_64-unknown-freebsd` | ✅ | ✅ | Rust | – | ✅ | ✅ | ✅ |
 
@@ -85,14 +85,15 @@ through the Pulley backend. Its published release asset is downloaded and
 re-executed under the same target environment
 (`scripts/post-release-qemu-verify.sh`).
 
-The **Release** column reflects the published asset matrix. `asset only` means
-the binary is retained for investigation but is deliberately omitted from the
-signed Stable release-index Runtime selection:
+The **Release** column reflects the published asset matrix. `investigation only`
+means the Core build may be retained as a separately named Actions artifact,
+but no binary is placed in the formal GitHub Release or signed Stable
+release-index Runtime selection. The Stable Runtime assets are:
 `linux-x86_64` (GNU), `linux-x86_64-musl`, `linux-aarch64` (GNU),
-`linux-aarch64-musl`, `linux-riscv64`, `linux-riscv64-musl`, `linux-armv7`,
-`linux-armv7-musl`, `linux-i686-musl`, `linux-s390x`,
-`linux-powerpc64le`, `linux-loongarch64`, `freebsd-x86_64`, `windows-x86_64`,
-`windows-aarch64`, and `macos-aarch64` (see `scripts/build-release-index.py`).
+`linux-aarch64-musl`, `linux-riscv64`, `linux-riscv64-musl`,
+`linux-armv7-musl`, `linux-i686-musl`, `linux-loongarch64`,
+`freebsd-x86_64`, `windows-x86_64`, `windows-aarch64`, and `macos-aarch64`
+(see `scripts/build-release-index.py`).
 The Linux assets are cross-compiled under Docker on the GitHub-Actions host;
 the musl and ARM64 Linux assets are now published alongside the x86_64 GNU
 asset.
@@ -122,9 +123,10 @@ asset.
 
 - **Core-only Linux targets** (`armv7-unknown-linux-gnueabihf`,
   `s390x-unknown-linux-gnu`, and `powerpc64le-unknown-linux-gnu`) are not
-  Full Runtime claims. Their release binaries are not selected by the signed
-  Stable index and must not be treated as evidence of signed WASM handler
-  support.
+  Full Runtime claims. Their Core investigation binaries are retained only as
+  separately named Actions artifacts; they are not GitHub Release assets, are
+  not selected by the signed Stable index, and must not be treated as evidence
+  of signed WASM handler support.
 
 ---
 
@@ -180,8 +182,9 @@ distinction between "not yet accepted" and "unsupported upstream" is clear.
 A "not listed" target is **not** a promise. It is added only when it passes
 the full acceptance gate.
 
-The machine-readable evidence registry is [`platform-support.toml`](platform-support.toml).
-It records only targets that have completed the relevant Core/Full Runtime
+The machine-readable support policy / claim registry is
+[`platform-support.toml`](platform-support.toml). It records only targets that
+have completed the relevant Core/Full Runtime
 acceptance path; adding a row alone never grants support. The consistency gate
 checks this registry against the platform table, CI source gates, release-index
 patterns, and post-release verification.
