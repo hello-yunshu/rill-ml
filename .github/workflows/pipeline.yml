@@ -1455,8 +1455,8 @@ jobs:
     # container whose platform matches the target (QEMU/binfmt for aarch64) and
     # runs the signed-model / signed-handler / IPC host smoke. Covers the Linux
     # Supported runtime assets that have usable rust:* container manifests
-    # (gnu+musl of x86_64/aarch64). RISC-V64 and LoongArch64 are re-verified
-    # under DIRECT user-mode QEMU instead by
+    # (gnu+musl of x86_64/aarch64). RISC-V64, LoongArch64, armv7, and i686
+    # are re-verified under DIRECT user-mode QEMU instead by
     # post-release-verify-direct-qemu (no container-manifest dependency).
     if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: publish
@@ -1477,15 +1477,6 @@ jobs:
             runtime_id: rill-runtime
           - target: aarch64-unknown-linux-musl
             platform: linux/arm64
-            runtime_id: rill-runtime-musl
-          - target: riscv64gc-unknown-linux-musl
-            platform: linux/riscv64
-            runtime_id: rill-runtime-musl
-          - target: armv7-unknown-linux-musleabihf
-            platform: linux/arm/v7
-            runtime_id: rill-runtime-musl
-          - target: i686-unknown-linux-musl
-            platform: linux/386
             runtime_id: rill-runtime-musl
     permissions:
       contents: read
