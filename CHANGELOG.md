@@ -20,13 +20,17 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [1.5.3] - 2026-08-27
+
 ### Changed
 
-- Planned for 1.5.3: promote the supported Linux musl matrix for x86_64,
+- Promoted the supported Linux musl matrix for x86_64,
   aarch64, riscv64, armv7, and i686.
-- Planned for 1.5.3: enable Wasmtime Pulley support and record target backend,
+- Enabled Wasmtime Pulley support and recorded target backend,
   width, and endianness policy.
-- Planned for 1.5.3: skip MIPS/MIPSel musl publication until Rust provides
+- Deferred MIPS/MIPSel musl publication until Rust provides
   usable MSRV target standard-library artifacts.
 - Added `platform-support.toml` as the support policy / claim registry for Core
   and Full Runtime surfaces. It is checked by a fail-closed consistency gate;
