@@ -34,8 +34,12 @@ def main() -> None:
     # The current model can be absent from this version's index when an older
     # model supersedes it; it is still verified separately by rill-pack. No
     # Runtime binary is allowed to bypass the signed index, including
-    # Core-only investigation builds.
-    allowed_unindexed = {f"example-default-{args.version}.rillpack"}
+    # Core-only investigation builds. The macOS aarch64 unsigned sidecar is
+    # publication metadata for the runtime asset, not a signed-index artifact.
+    allowed_unindexed = {
+        f"example-default-{args.version}.rillpack",
+        f"rill-runtime-{args.version}-macos-aarch64.unsigned.json",
+    }
     unexpected = sorted(
         name for name in set(local) - set(expected) if name not in allowed_unindexed
     )

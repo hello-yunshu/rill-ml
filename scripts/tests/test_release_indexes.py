@@ -238,6 +238,12 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             valid = self.run_asset_verifier(index, temp, version)
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
+            (temp / f"rill-runtime-{version}-macos-aarch64.unsigned.json").write_text(
+                "{\"codeSigning\": \"unsigned\"}\n", encoding="utf-8"
+            )
+            with_sidecar = self.run_asset_verifier(index, temp, version)
+            self.assertEqual(with_sidecar.returncode, 0, with_sidecar.stderr)
+
             expected_model_name = f"example-default-{version}.rillpack"
             model.rename(temp / expected_model_name)
             artifacts[-1]["url"] = "https://example.invalid/newer-model.rillpack"
