@@ -1618,7 +1618,10 @@ jobs:
       - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-          ref: ${{ env.RELEASE_TAG }}
+          # The runtime under test is downloaded from the immutable release
+          # below. Keep verification tooling on this workflow revision so a
+          # reviewed same-tag retry can carry a post-release verifier fix.
+          ref: ${{ github.sha }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
