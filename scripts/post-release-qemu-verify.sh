@@ -38,6 +38,7 @@ shift
 case "$TARGET" in
   riscv64gc-unknown-linux-gnu)
     TARGET_ARCH="riscv64"
+    INDEX_ARCH="riscv64"
     SYSROOT="/usr/riscv64-linux-gnu"
     echo "==> Installing qemu-user + riscv64 libc sysroot"
     sudo apt-get update
@@ -45,24 +46,28 @@ case "$TARGET" in
     ;;
   riscv64gc-unknown-linux-musl)
     TARGET_ARCH="riscv64"
+    INDEX_ARCH="riscv64"
     SYSROOT=""
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends qemu-user python3
     ;;
   armv7-unknown-linux-musleabihf)
     TARGET_ARCH="arm"
+    INDEX_ARCH="armv7"
     SYSROOT=""
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends qemu-user python3
     ;;
   i686-unknown-linux-musl)
     TARGET_ARCH="i386"
+    INDEX_ARCH="i686"
     SYSROOT=""
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends qemu-user python3
     ;;
   loongarch64-unknown-linux-gnu)
     TARGET_ARCH="loongarch64"
+    INDEX_ARCH="loongarch64"
     echo "==> Installing qemu-user + python3"
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends qemu-user python3
@@ -136,6 +141,6 @@ echo "    exec-prefix: ${EXEC_PREFIX}"
 
 python3 smoke-test/host_smoke.py \
   --target-os linux \
-  --target-arch "$TARGET_ARCH" \
+  --target-arch "$INDEX_ARCH" \
   --exec-prefix "$EXEC_PREFIX" \
   "$@"
