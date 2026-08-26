@@ -1,5 +1,5 @@
 name: CI / Release
-run-name: ${{ github.event_name == 'workflow_dispatch' && format('Release {0}', inputs.tag) || 'CI' }}
+run-name: ${{ github.event_name == 'workflow_dispatch' && (inputs.verification_only == true && format('Verification {0}', inputs.tag) || format('Release {0}', inputs.tag)) || 'CI' }}
 
 on:
   pull_request:
@@ -11,6 +11,11 @@ on:
         description: Existing version tag to publish (e.g. v0.7.0)
         required: true
         type: string
+      verification_only:
+        description: Run read-only CI verification and skip all release jobs
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -27,8 +32,8 @@ env:
   RILL_PUBLIC_KEY_HEX: 29fd1fc2f22bd7e405aec167ff0a0d8de791f011c415075d4c5f9f64fd93fc2e
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CI jobs — run on push (branches) and pull_request, never on workflow_dispatch.
-# Release jobs — run only on workflow_dispatch (auto-release dispatches them
+# CI jobs — run on push (branches), pull_request, and verification-only dispatch.
+# Release jobs — run only on ordinary workflow_dispatch (auto-release dispatches them
 # after CI succeeds; the tag-push trigger is intentionally omitted to avoid
 # duplicate runs).
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,7 +41,7 @@ env:
 jobs:
   fmt:
     name: cargo fmt
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -52,7 +57,7 @@ jobs:
 
   clippy:
     name: cargo clippy
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -69,7 +74,7 @@ jobs:
 
   test:
     name: test (${{ matrix.os }}, ${{ matrix.rust }})
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -110,7 +115,7 @@ jobs:
     # Docker cannot validate Windows native behaviour (no Windows container
     # support on the Linux Docker hosts), so the native runner is the
     # accepted verification path (see PLATFORM_SUPPORT.md).
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: windows-11-arm
     timeout-minutes: 60
     steps:
@@ -155,7 +160,7 @@ jobs:
 
   msrv:
     name: MSRV (1.94) lib check
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -182,7 +187,7 @@ jobs:
 
   doc:
     name: cargo doc
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -209,7 +214,7 @@ jobs:
     #
     # `cargo-public-api` requires the nightly toolchain to build the
     # rustdoc JSON that backs the listing.
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -252,7 +257,7 @@ jobs:
     #
     # `cargo-semver-checks` requires the nightly toolchain to build the
     # rustdoc JSON that backs the analysis.
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -315,7 +320,7 @@ jobs:
     # produces a working binary. This catches regressions where a default
     # feature change breaks the documented install path even when
     # `cargo check` passes.
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -337,7 +342,7 @@ jobs:
 
   release-index-helpers:
     name: release-index helper tests
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -365,7 +370,7 @@ jobs:
     # (ValidateState / custom Deserialize / derive). This closes the gap
     # between the STABILITY.md state-freeze contract and the actual fixture
     # coverage on disk. Preview types are explicitly listed as not covered.
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -377,7 +382,7 @@ jobs:
 
   wasm-build:
     name: WASM bindings build + test (publishable npm package)
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -417,7 +422,7 @@ jobs:
 
   wasm-handler:
     name: WASM handler component build + test
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -567,7 +572,7 @@ jobs:
 
   python-build:
     name: Python bindings build + pytest
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -601,7 +606,7 @@ jobs:
     # crates/rill-ml-ffi/c_examples/basic.c against include/rill_ml.h and
     # the built cdylib, then executes it. Docker/QEMU and native
     # Android/iOS artifact gates live in cross-platform.yml.
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -633,7 +638,7 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────────────────────
   release-admission:
     name: Release admission (same-SHA gates)
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -671,7 +676,7 @@ jobs:
 
   package-check:
     name: cargo package dry-run
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: release-admission
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -740,7 +745,7 @@ jobs:
 
   build-runtime:
     name: Runtime ${{ matrix.target_os }} ${{ matrix.target_arch }}
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: package-check
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -894,7 +899,7 @@ jobs:
   # index.
   build-runtime-cross:
     name: Runtime cross ${{ matrix.target_os }} ${{ matrix.target_arch }} ${{ matrix.libc }}
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: package-check
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1026,7 +1031,7 @@ jobs:
   # cross-build.
   build-runtime-freebsd:
     name: Runtime freebsd x86_64 native VM
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: package-check
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -1061,7 +1066,7 @@ jobs:
 
   publish:
     name: Sign and publish
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: [build-runtime, build-runtime-cross, build-runtime-freebsd]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -1356,7 +1361,7 @@ jobs:
           fi
   post-release-verify-sbom:
     name: Post-release verify SBOM identity
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -1409,7 +1414,7 @@ jobs:
             --spdx "dist/rill-ml-${VERSION}.spdx.json"
   release-host-smoke:
     name: Independent released-asset host smoke
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -1453,7 +1458,7 @@ jobs:
     # (gnu+musl of x86_64/aarch64). RISC-V64 and LoongArch64 are re-verified
     # under DIRECT user-mode QEMU instead by
     # post-release-verify-direct-qemu (no container-manifest dependency).
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -1548,7 +1553,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   post-release-verify-freebsd:
     name: Post-release verify FreeBSD (native VM)
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -1598,7 +1603,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   post-release-verify-direct-qemu:
     name: Post-release verify direct QEMU (${{ matrix.target }})
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -1661,7 +1666,7 @@ jobs:
     # executes that exact binary and runs the signed-model / signed-handler /
     # IPC host smoke (handshake / health / invoke / invalid JSON / graceful
     # shutdown) via the same host_smoke.py used by the other platforms.
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: publish
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -1723,7 +1728,7 @@ jobs:
 
   move-index-pointer:
     name: Promote verified signed index pointer
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: [publish, release-host-smoke, post-release-verify, post-release-verify-sbom, post-release-verify-direct-qemu, post-release-verify-freebsd, post-release-verify-native]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -1776,7 +1781,7 @@ jobs:
 
   publish-python:
     name: Publish Python bindings to PyPI
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: move-index-pointer
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -1865,7 +1870,7 @@ jobs:
 
   publish-wasm:
     name: Publish WASM bindings to npm
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
     needs: move-index-pointer
     runs-on: ubuntu-latest
     timeout-minutes: 30
