@@ -16,6 +16,7 @@ on:
       - "smoke-test/**"
       - ".github/workflows/**"
       - "release-plan.toml"
+      - "CHANGELOG.md"
   pull_request:
     paths:
       - "Cargo.toml"
@@ -29,6 +30,7 @@ on:
       - "smoke-test/**"
       - ".github/workflows/**"
       - "release-plan.toml"
+      - "CHANGELOG.md"
   workflow_dispatch:
 
 permissions:

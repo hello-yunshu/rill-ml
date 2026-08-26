@@ -12,6 +12,7 @@ on:
       - "scripts/**"
       - "platform-support.toml"
       - ".github/workflows/**"
+      - "CHANGELOG.md"
   pull_request:
     paths:
       - "Cargo.toml"
@@ -22,6 +23,7 @@ on:
       - "scripts/**"
       - "platform-support.toml"
       - ".github/workflows/**"
+      - "CHANGELOG.md"
   workflow_dispatch:
 
 permissions:
