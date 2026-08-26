@@ -8,7 +8,7 @@ on:
       - "crates/rill-runtime-protocol/**"
       - "src/**"
   push:
-    branches: [main, master]
+    branches: [main, master, 'release/**']
     paths:
       - "fuzz/**"
       - "crates/rill-runtime/**"

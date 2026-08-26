@@ -28,9 +28,9 @@ with the Rust-specific convention that 0.x releases may break the public API.
   width, and endianness policy.
 - Planned for 1.5.3: skip MIPS/MIPSel musl publication until Rust provides
   usable MSRV target standard-library artifacts.
-- Added `platform-support.toml` as the evidence registry for Core and Full
-  Runtime surfaces, with a fail-closed consistency gate spanning docs, CI,
-  release-index patterns, and post-release verification.
+- Added `platform-support.toml` as the support policy / claim registry for Core
+  and Full Runtime surfaces. It is checked by a fail-closed consistency gate;
+  Actions and published releases remain the execution evidence.
 - Made the SemVer authoritative baseline come from
   `release-plan.toml [compatibility].authoritative`; historical baselines remain
   explicit sanity checks.

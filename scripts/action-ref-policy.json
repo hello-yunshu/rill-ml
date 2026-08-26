@@ -1,0 +1,54 @@
+{
+  "actions": {
+    "actions/cache": {
+      "allowedRefs": ["v4", "v6"]
+    },
+    "actions/checkout": {
+      "allowedRefs": ["v7"]
+    },
+    "actions/download-artifact": {
+      "allowedRefs": ["v8"]
+    },
+    "actions/setup-python": {
+      "allowedRefs": ["v7"]
+    },
+    "actions/upload-artifact": {
+      "allowedRefs": ["v7"]
+    },
+    "docker/setup-buildx-action": {
+      "allowedRefs": ["v4"]
+    },
+    "docker/setup-qemu-action": {
+      "allowedRefs": ["v4"]
+    },
+    "dtolnay/rust-toolchain": {
+      "allowedRefs": ["stable", "nightly"],
+      "exceptions": {
+        "nightly": {
+          "reason": "The fuzz workflow requires the Rust nightly compiler.",
+          "scope": ".github/workflows/fuzz.yml only"
+        },
+        "stable": {
+          "reason": "The repository's release and verification jobs track the current stable Rust channel.",
+          "scope": ".github/workflows/*.yml"
+        }
+      }
+    },
+    "github/codeql-action": {
+      "allowedRefs": ["v4"]
+    },
+    "rustsec/audit-check": {
+      "allowedRefs": ["v2"]
+    },
+    "Swatinem/rust-cache": {
+      "allowedRefs": ["v2"]
+    },
+    "vmactions/freebsd-vm": {
+      "allowedRefs": ["v1"]
+    },
+    "xyzzylabs/setup-zig": {
+      "allowedRefs": ["v1"]
+    }
+  },
+  "forbiddenRefs": ["HEAD", "latest", "main"]
+}

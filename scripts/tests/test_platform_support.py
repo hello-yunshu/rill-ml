@@ -28,6 +28,8 @@ class PlatformSupportTest(unittest.TestCase):
         for entry in entries:
             if entry["runtime_supported"]:
                 self.assertEqual(entry["runtime_features"], "default")
+            else:
+                self.assertFalse(entry["release_asset"])
             if entry["target_libc"] == "musl":
                 self.assertIn(entry["runtime_backend"], {"cranelift", "pulley32", "pulley32be"})
                 self.assertIn(entry["pointer_width"], {32, 64})

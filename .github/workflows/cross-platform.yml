@@ -3,7 +3,7 @@ run-name: Cross-platform verification (${{ github.ref }})
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, 'release/**']
     paths:
       - "Cargo.toml"
       - "Cargo.lock"

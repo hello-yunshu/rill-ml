@@ -46,19 +46,16 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
         self.assertIn("armv7-unknown-linux-gnueabihf", workflow)
         self.assertIn("linux-armv7", release_index)
 
-    def test_s390x_powerpc64le_loongarch64_and_freebsd_runtimes_are_built_and_indexed(self) -> None:
-        # Phase: promote linux s390x / powerpc64le / loongarch64 and
-        # x86_64-unknown-freebsd to Supported. Linux targets are
-        # cross-built by build-runtime-cross; FreeBSD is built in its native
-        # VM job because cargo-zigbuild does not support that target. Each is
-        # listed in the release index with the stable <os>-<arch> naming
-        # contract and FreeBSD is re-verified in a native VM.
+    def test_core_only_gnu_targets_are_not_release_indexed(self) -> None:
+        # These targets remain in the source Core gate and investigation build
+        # matrix, but are not formal Stable Runtime release assets until their
+        # default WASM Runtime path is qualified.
         workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
         release_index = (ROOT / "scripts/build-release-index.py").read_text(encoding="utf-8")
         self.assertIn("s390x-unknown-linux-gnu", workflow)
-        self.assertIn("linux-s390x", release_index)
+        self.assertNotIn("linux-s390x", release_index)
         self.assertIn("powerpc64le-unknown-linux-gnu", workflow)
-        self.assertIn("linux-powerpc64le", release_index)
+        self.assertNotIn("linux-powerpc64le", release_index)
         self.assertIn("loongarch64-unknown-linux-gnu", workflow)
         self.assertIn("linux-loongarch64", release_index)
         self.assertIn("x86_64-unknown-freebsd", workflow)
@@ -255,6 +252,12 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
             tampered = self.run_asset_verifier(index, temp, version)
             self.assertNotEqual(tampered.returncode, 0)
             self.assertIn("differs from the signed immutable asset", tampered.stderr)
+
+            runtime.write_bytes(b"runtime")
+            (temp / f"rill-runtime-{version}-linux-s390x").write_bytes(b"core-only")
+            core_only = self.run_asset_verifier(index, temp, version)
+            self.assertNotEqual(core_only.returncode, 0)
+            self.assertIn("unexpected", core_only.stderr)
 
     @staticmethod
     def run_model_update(

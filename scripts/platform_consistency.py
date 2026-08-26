@@ -75,6 +75,15 @@ def run(root: Path) -> dict[str, object]:
             "every Full Runtime target has a deterministic release-index asset pattern",
         ),
         check(
+            "runtime.core-only-release-assets",
+            all(
+                entry["release_asset"] is False
+                for entry in entries.values()
+                if not entry["runtime_supported"]
+            ),
+            "Core-only targets are excluded from Stable Release assets",
+        ),
+        check(
             "runtime.source-gate",
             all(triple in cross or triple in pipeline or triple in musl for triple in runtime),
             "every Full Runtime target is present in a CI source gate",
