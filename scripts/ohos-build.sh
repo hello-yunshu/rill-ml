@@ -65,9 +65,11 @@ export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_LINKER="$linker"
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_AR="$native/llvm/bin/llvm-ar"
 
 mkdir -p "$(dirname "$OUTPUT")"
-# The target-specific dependency wiring deliberately omits Wasmtime's
-# Cranelift host backend on OHOS. The package still uses the default `wasm`
-# feature, so this is the same Full Runtime surface with Pulley64 selected.
+# The target-specific dependency wiring retains Cranelift as the Pulley
+# bytecode producer, but enables its all-architecture mode so cross-compiling
+# does not link a host-architecture helper object. The package still uses the
+# default `wasm` feature, so this is the same Full Runtime surface with
+# Pulley64 selected.
 cargo build --locked --release --target "$TARGET" -p rill-runtime --bin rill-runtime
 cp "target/$TARGET/release/rill-runtime" "$OUTPUT"
 

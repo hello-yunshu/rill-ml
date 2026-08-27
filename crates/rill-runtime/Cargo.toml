@@ -44,14 +44,15 @@ sha2.workspace = true
 thiserror.workspace = true
 zip.workspace = true
 
-# Cranelift's host-architecture support emits native objects for the build
-# target. OHOS must link only the architecture-neutral Pulley interpreter;
-# existing platforms retain their established Cranelift backend.
+# Pulley uses Cranelift to produce portable Pulley bytecode. OHOS enables
+# Cranelift's all-architecture mode so that cross-compilation does not select a
+# host-architecture helper object; existing platforms retain their established
+# Cranelift backend configuration.
 [target.'cfg(not(target_env = "ohos"))'.dependencies]
 wasmtime = { workspace = true, optional = true, features = ["cranelift"] }
 
 [target.'cfg(target_env = "ohos")'.dependencies]
-wasmtime = { workspace = true, optional = true }
+wasmtime = { workspace = true, optional = true, features = ["cranelift", "all-arch"] }
 
 [dev-dependencies]
 tempfile = "3"
