@@ -154,7 +154,7 @@ if [[ "$_registered" == "1" ]]; then
   echo "==> binfmt_misc '${NAME}' registered:"
   sudo cat "$REG"
 else
-  echo "==> WARN: binfmt_misc handler '${NAME}' not registered"
+  echo "==> NOTICE: binfmt_misc handler '${NAME}' not registered"
   echo "    /proc/sys/fs/binfmt_misc is not writable on this host"
   echo "    (or the name is already held). Continuing -- Cargo's QEMU runner"
   echo "    and in-tree IPC still execute foreign binaries without it."

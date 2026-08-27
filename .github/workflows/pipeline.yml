@@ -800,7 +800,7 @@ jobs:
           if [ -n "${APPLE_CERTIFICATE_P12_BASE64:-}" ] && [ -n "${APPLE_CERTIFICATE_PASSWORD:-}" ] && [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Apple Developer ID secrets are not configured. macOS aarch64 runtime will still be built and uploaded, but the binary will be unsigned and not notarized. This is the accepted permanent project policy (see STABILITY.md § macOS unsigned policy). Configure APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD and APPLE_SIGNING_IDENTITY in the repository secrets to enable optional codesign."
+            echo "NOTICE: Apple Developer ID secrets are not configured. macOS aarch64 runtime will still be built and uploaded, but the binary will be unsigned and not notarized. This is the accepted permanent project policy (see STABILITY.md § macOS unsigned policy). Configure APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD and APPLE_SIGNING_IDENTITY in the repository secrets to enable optional codesign."
             echo "has_secrets=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Build runtime (with wasm feature for handler support)
@@ -1079,12 +1079,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libgl1-mesa-dev
+      - name: Restore OHOS SDK cache
+        uses: actions/cache@v6
+        with:
+          path: ~/ohos-sdk
+          key: ohos-sdk-${{ runner.os }}-${{ runner.arch }}-6.1.1.280
       - name: Set up official HarmonyOS/OpenHarmony SDK
         uses: ErBWs/setup-ohos@v2
         with:
           # HarmonyOS SDK 6.1.1.125 / API 24 Release; CLI tools 6.1.1.280.
           version: 6.1.1.280
-          cache: true
+          cache: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.94.0
@@ -1551,6 +1556,10 @@ jobs:
       - name: Set up QEMU / binfmt_misc
         if: matrix.platform != 'linux/amd64'
         uses: docker/setup-qemu-action@v4
+        with:
+          # Matrix jobs share one cache key; disabling the optional image cache
+          # avoids non-fatal cache reservation races during post-release QA.
+          cache-image: false
       - name: Set up Docker Buildx
         if: matrix.platform != 'linux/amd64'
         uses: docker/setup-buildx-action@v4
@@ -1565,11 +1574,11 @@ jobs:
         run: |
           set -euo pipefail
           index_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${INDEX_FILE}"
-          docker build -t "rill-post-verify-${RUNTIME_ID}" -f- . <<EOF
-          FROM --platform=${PLATFORM} rust:1.94.0-bookworm
+          docker build --platform "${PLATFORM}" -t "rill-post-verify-${RUNTIME_ID}" -f- . <<EOF
+          FROM rust:1.94.0-bookworm
           RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
           EOF
-          docker run --rm \
+          docker run --rm --platform "${PLATFORM}" \
             -e "RUSTFLAGS=-D warnings" \
             -v "$GITHUB_WORKSPACE":/workspace -w /workspace \
             "rill-post-verify-${RUNTIME_ID}" \

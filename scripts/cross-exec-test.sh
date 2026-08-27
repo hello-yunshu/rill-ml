@@ -319,8 +319,8 @@ if [[ "$RUNTIME_SMOKE" == "1" ]]; then
 fi
 
 # Build an image for the target platform with the cross linker installed.
-docker build -t "rillml-cross-${TARGET}:${RUST_PIN}" -f- . <<EOF
-FROM --platform=${PLAT} ${IMAGE}
+docker build --platform "${PLAT}" -t "rillml-cross-${TARGET}:${RUST_PIN}" -f- . <<EOF
+FROM ${IMAGE}
 ${INSTALL_STEP}
 EOF
 

@@ -7,7 +7,7 @@
 #   handshake+invoke over IPC.
 #
 # The target runs inside a container built for the TARGET platform
-# (FROM --platform=...), so the binaries are built natively for that
+# (--platform on docker build), so the binaries are built natively for that
 # architecture and execute without relying on binfmt for the app binary
 # (which cannot satisfy the target's dynamic loader). This mirrors
 # scripts/cross-exec-test.sh.
@@ -42,8 +42,8 @@ _platform() {
 PLAT="$(_platform "$TARGET")" || exit 2
 
 echo "==> Building smoke image for ${TARGET} (Docker platform ${PLAT})"
-docker build -t "rillml-smoke-${TARGET}:${RUST_PIN}" -f- . <<EOF
-FROM --platform=${PLAT} ${IMAGE}
+docker build --platform "${PLAT}" -t "rillml-smoke-${TARGET}:${RUST_PIN}" -f- . <<EOF
+FROM ${IMAGE}
 # python3 is required to derive the Ed25519 pubkey and read the pack manifest.
 RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
 EOF
