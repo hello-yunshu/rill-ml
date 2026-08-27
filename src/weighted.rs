@@ -420,7 +420,6 @@ impl ValidateState for WeightedMse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_abs_diff_eq;
 
     #[test]
     fn weighted_mean_and_variance_match_offline() {
@@ -438,8 +437,8 @@ mod tests {
             mean.update_weighted(x, weight).unwrap();
             variance.update_weighted(x, weight).unwrap();
         }
-        assert_abs_diff_eq!(mean.value().unwrap(), offline_mean, epsilon = 1e-12);
-        assert_abs_diff_eq!(variance.value().unwrap(), offline_variance, epsilon = 1e-12);
+        assert!((mean.value().unwrap() - offline_mean).abs() <= 1e-12);
+        assert!((variance.value().unwrap() - offline_variance).abs() <= 1e-12);
     }
 
     #[test]
@@ -452,11 +451,7 @@ mod tests {
         for _ in 0..3 {
             repeated.update_weighted(5.0, 1.0).unwrap();
         }
-        assert_abs_diff_eq!(
-            weighted.value().unwrap(),
-            repeated.value().unwrap(),
-            epsilon = 1e-12
-        );
+        assert!((weighted.value().unwrap() - repeated.value().unwrap()).abs() <= 1e-12);
     }
 
     #[test]
@@ -490,8 +485,8 @@ mod tests {
             mae.update(truth, prediction, weight).unwrap();
             mse.update(truth, prediction, weight).unwrap();
         }
-        assert_abs_diff_eq!(mae.value().unwrap(), expected_mae, epsilon = 1e-12);
-        assert_abs_diff_eq!(mse.value().unwrap(), expected_mse, epsilon = 1e-12);
+        assert!((mae.value().unwrap() - expected_mae).abs() <= 1e-12);
+        assert!((mse.value().unwrap() - expected_mse).abs() <= 1e-12);
         assert_eq!(mae.samples_seen(), 3);
         assert_eq!(mse.total_weight(), total_weight);
         mae.reset();

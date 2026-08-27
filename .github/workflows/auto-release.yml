@@ -140,6 +140,8 @@ jobs:
       - name: Validate the release version
         if: steps.freshness.outputs.current == 'true'
         id: version
+        env:
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -148,6 +150,15 @@ jobs:
             echo "No dated CHANGELOG section for ${stable_version}; keeping Auto Release skipped until a formal release is prepared."
             echo "ready=false" >> "$GITHUB_OUTPUT"
             exit 0
+          fi
+          tag="v${stable_version}"
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            tag_sha="$(git rev-list -n 1 "$tag")"
+            if [ "$tag_sha" != "$TARGET_SHA" ]; then
+              echo "NOTICE: $tag is already published at $tag_sha; current CI head is $TARGET_SHA. Prepare a new release-plan version instead of moving an immutable tag."
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
           python3 scripts/release_version.py --github-output "$GITHUB_OUTPUT"
           echo "ready=true" >> "$GITHUB_OUTPUT"
