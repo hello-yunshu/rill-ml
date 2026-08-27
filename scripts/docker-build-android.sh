@@ -50,12 +50,13 @@ if docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
 else
     echo "==> Building toolchain image ${IMAGE_TAG} (downloads the Android NDK once)"
     docker build \
+        --platform linux/amd64 \
         --build-arg RUST_PIN="$RUST_PIN" \
         --build-arg NDK_VERSION="$NDK_VERSION" \
         -t "${IMAGE_TAG}" \
         -f- . <<'DOCKERFILE'
-ARG RUST_PIN
-FROM --platform=linux/amd64 rust:${RUST_PIN}-bookworm
+ARG RUST_PIN=1.97.0
+FROM rust:${RUST_PIN}-bookworm
 
 ARG NDK_VERSION
 RUN apt-get update \
