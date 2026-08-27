@@ -1064,10 +1064,49 @@ jobs:
           path: dist/rill-runtime-*
           if-no-files-found: error
 
+  build-runtime-ohos:
+    name: Runtime OHOS aarch64
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
+    needs: package-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ env.RELEASE_TAG }}
+      - name: Install OHOS SDK dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1-mesa-dev
+      - name: Set up official HarmonyOS/OpenHarmony SDK
+        uses: ErBWs/setup-ohos@v2
+        with:
+          # HarmonyOS SDK 6.1.1.125 / API 24 Release; CLI tools 6.1.1.280.
+          version: 6.1.1.280
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.0
+          targets: aarch64-unknown-linux-ohos
+      - name: Build OHOS ARM64 Runtime (default features / Pulley64)
+        shell: bash
+        env:
+          VERSION: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          bash scripts/ohos-build.sh "dist/rill-runtime-${version}-ohos-aarch64"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: runtime-ohos-aarch64
+          path: dist/rill-runtime-*
+          if-no-files-found: error
+
   publish:
     name: Sign and publish
     if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
-    needs: [build-runtime, build-runtime-cross, build-runtime-freebsd]
+    needs: [build-runtime, build-runtime-cross, build-runtime-freebsd, build-runtime-ohos]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -1282,6 +1321,26 @@ jobs:
           target/release/rill-pack sign-index \
             --payload dist/index-payload.json \
             --output "dist/$INDEX_FILE"
+      - name: Build and sign OHOS release-only selection index
+        env:
+          RILL_SIGNING_KEY_HEX: ${{ secrets.RILL_SIGNING_KEY_HEX }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/build-release-index.py \
+            --release-dir dist \
+            --version "$VERSION" \
+            --tag "$RELEASE_TAG" \
+            --repository "$GITHUB_REPOSITORY" \
+            --publisher-key-id "$PUBLISHER_KEY_ID" \
+            --generated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --channel candidate \
+            --release-only \
+            --output dist/ohos-index-payload.json
+          target/release/rill-pack sign-index \
+            --payload dist/ohos-index-payload.json \
+            --output dist/ohos-index.json
       - name: Verify signed outputs before publishing
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -1299,6 +1358,10 @@ jobs:
             --public-key-hex "$RILL_PUBLIC_KEY_HEX"
           target/release/rill-pack verify-index \
             --index "dist/$INDEX_FILE" \
+            --key-id "$PUBLISHER_KEY_ID" \
+            --public-key-hex "$RILL_PUBLIC_KEY_HEX"
+          target/release/rill-pack verify-index \
+            --index dist/ohos-index.json \
             --key-id "$PUBLISHER_KEY_ID" \
             --public-key-hex "$RILL_PUBLIC_KEY_HEX"
       - name: Verify release asset set against the signed index
@@ -1346,13 +1409,13 @@ jobs:
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             # Release already exists — overwrite all assets.
             gh release upload "$RELEASE_TAG" \
-              dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" dist/*.cdx.json dist/*.spdx.json \
+              dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" dist/ohos-index.json dist/*.cdx.json dist/*.spdx.json \
               --clobber
             gh release edit "$RELEASE_TAG" \
               --title "Rill ML ${{ steps.version.outputs.version }}" \
               "${prerelease_args[@]}"
           else
-            gh release create "$RELEASE_TAG" dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" dist/*.cdx.json dist/*.spdx.json \
+            gh release create "$RELEASE_TAG" dist/rill-runtime-* dist/*.rillpack dist/*.rillhandler "dist/$INDEX_FILE" dist/ohos-index.json dist/*.cdx.json dist/*.spdx.json \
               --verify-tag \
               --title "Rill ML ${{ steps.version.outputs.version }}" \
               --notes "macOS aarch64 runtime policy: the official asset is published without Apple Developer ID signing or notarization when signing credentials are absent. This is an accepted, non-blocking policy; the accompanying .unsigned.json sidecar records the exact status. Users can authorize first launch through Finder → Open or System Settings → Privacy & Security." \
@@ -1720,10 +1783,83 @@ jobs:
           # release gate failure, never a warning.
           if-no-files-found: error
 
+  post-release-verify-ohos:
+    name: Post-release verify OHOS ARM64 artifact identity
+    if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Download the exact published OHOS artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "rill-runtime-${VERSION}-ohos-aarch64" \
+            --dir dist
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern ohos-index.json \
+            --dir dist
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.0
+      - name: Build the public release-index verifier
+        run: cargo build --locked --release -p rill-runtime --bin rill-pack --no-default-features
+      - name: Verify downloaded OHOS ELF identity
+        run: bash scripts/ohos-release-verify.sh "dist/rill-runtime-${{ needs.publish.outputs.version }}-ohos-aarch64"
+      - name: Verify signed OHOS release-only index and selector identity
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target/release/rill-pack verify-index \
+            --index dist/ohos-index.json \
+            --key-id "$PUBLISHER_KEY_ID" \
+            --public-key-hex "$RILL_PUBLIC_KEY_HEX"
+          python3 - "$VERSION" <<'PY'
+          import json
+          import sys
+
+          version = sys.argv[1]
+          payload = json.load(open("dist/ohos-index.json", encoding="utf-8"))["payload"]
+          assert payload["channel"] == "candidate"
+          runtimes = [item for item in payload["artifacts"] if item["kind"] == "runtime"]
+          assert len(runtimes) == 1
+          runtime = runtimes[0]
+          assert runtime["version"] == version
+          assert runtime["targetOs"] == "ohos"
+          assert runtime["targetArch"] == "aarch64"
+          assert "targetLibc" not in runtime
+          print("OHOS release-only selector PASS: ohos/aarch64")
+          PY
+      - name: Record release-only evidence boundary
+        run: |
+          echo "OHOS post-release PASS: downloaded release asset identity verified"
+          echo "OHOS real HarmonyOS device execution: NOT_EVALUATED"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: post-release-verify-ohos
+          path: dist/rill-runtime-*-ohos-aarch64
+          if-no-files-found: error
+
   move-index-pointer:
     name: Promote verified signed index pointer
     if: github.event_name == 'workflow_dispatch' && inputs.verification_only != true
-    needs: [publish, release-host-smoke, post-release-verify, post-release-verify-sbom, post-release-verify-direct-qemu, post-release-verify-freebsd, post-release-verify-native]
+    needs: [publish, release-host-smoke, post-release-verify, post-release-verify-sbom, post-release-verify-direct-qemu, post-release-verify-freebsd, post-release-verify-native, post-release-verify-ohos]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

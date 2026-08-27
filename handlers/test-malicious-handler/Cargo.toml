@@ -1,6 +1,6 @@
 [package]
 name = "test-malicious-handler"
-version = "1.5.3"
+version = "1.5.5"
 edition = "2021"
 publish = false
 description = "Malicious test handler for WASM sandbox attack tests — controllable via model JSON mode field."

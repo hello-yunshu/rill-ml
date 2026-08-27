@@ -108,6 +108,12 @@ impl WasmStatefulHandlerV2 {
         config.consume_fuel(true);
         config.epoch_interruption(true);
         config.max_wasm_stack(1024 * 1024);
+        crate::backend::configure_wasmtime(&mut config).map_err(|error| {
+            StatefulHandlerErrorV2::with_detail(
+                StatefulHandlerErrorKindV2::Internal,
+                format!("backend configuration failed: {error}"),
+            )
+        })?;
         let engine = Engine::new(&config).map_err(|error| {
             StatefulHandlerErrorV2::with_detail(
                 StatefulHandlerErrorKindV2::Internal,

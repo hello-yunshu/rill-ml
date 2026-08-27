@@ -42,8 +42,17 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
-wasmtime = { workspace = true, optional = true }
 zip.workspace = true
+
+# Pulley uses Cranelift to produce portable Pulley bytecode. OHOS enables
+# Cranelift's all-architecture mode so that cross-compilation does not select a
+# host-architecture helper object; existing platforms retain their established
+# Cranelift backend configuration.
+[target.'cfg(not(target_env = "ohos"))'.dependencies]
+wasmtime = { workspace = true, optional = true, features = ["cranelift"] }
+
+[target.'cfg(target_env = "ohos")'.dependencies]
+wasmtime = { workspace = true, optional = true, features = ["cranelift", "all-arch"] }
 
 [dev-dependencies]
 tempfile = "3"

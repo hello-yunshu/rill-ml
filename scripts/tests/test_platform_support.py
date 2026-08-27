@@ -63,7 +63,7 @@ class ReleaseCompatibilityTest(unittest.TestCase):
             text=True,
             check=True,
         ).stdout.split()
-        self.assertEqual(authoritative, "1.5.2")
+        self.assertEqual(authoritative, "1.5.3")
         self.assertEqual(historical, ["1.5.1", "1.5.0", "1.3.0", "1.2.0", "1.0.0"])
         self.assertNotIn(authoritative, historical)
 

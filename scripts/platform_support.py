@@ -84,6 +84,17 @@ def load_platforms(root: Path) -> list[dict[str, object]]:
             raise ValueError(f"Linux target has invalid libc: {triple}")
         if entry["target_os"] != "linux" and entry["target_libc"] != "none":
             raise ValueError(f"non-Linux target must use target_libc=none: {triple}")
+        published_asset = entry.get("published_asset", False)
+        if not isinstance(published_asset, bool):
+            raise ValueError(f"published_asset must be a boolean for {triple}")
+        if published_asset and entry["release_asset"]:
+            raise ValueError(
+                f"a published non-Stable asset must not be a Stable release asset: {triple}"
+            )
+        if published_asset and entry["runtime_supported"]:
+            raise ValueError(
+                f"published_asset is only for non-Stable release surfaces: {triple}"
+            )
     return [dict(entry) for entry in platforms]
 
 

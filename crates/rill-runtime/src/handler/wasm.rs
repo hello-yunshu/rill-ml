@@ -201,6 +201,8 @@ impl WasmInvokeHandler {
         config.consume_fuel(true);
         config.epoch_interruption(true);
         config.max_wasm_stack(1024 * 1024);
+        crate::backend::configure_wasmtime(&mut config)
+            .map_err(|e| HandlerLoadError::Init(format!("backend configuration failed: {e}")))?;
 
         let engine = Engine::new(&config)
             .map_err(|e| HandlerLoadError::Init(format!("engine creation failed: {e}")))?;

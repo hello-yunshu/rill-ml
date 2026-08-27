@@ -195,7 +195,7 @@ behaviour. For a WASM-free build: `cargo install rill-runtime --no-default-featu
 load `.rillhandler`).
 
 The version tracks `[workspace.package].version`; query the current release via `cargo metadata`
-or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.5.3`;
+or [`CHANGELOG.md`](CHANGELOG.md). The Stable group is currently at `1.5.5`;
 the Preview group remains at `0.15.0`.
 
 **Requirements:** Rust 1.94+ (Edition 2024), no nightly needed.
@@ -346,6 +346,7 @@ The complete threat model and safe usage guidance are documented in [`SECURITY.m
 | Linux riscv64 GNU | Stable | Stable |
 | Linux musl x86_64/aarch64/riscv64/armv7/i686 | Stable | Stable |
 | Linux armv7/s390x/powerpc64le GNU | Not listed (Core only) | Stable |
+| OpenHarmony / HarmonyOS ARM64 | Release-only (no device evidence; not Stable) | Stable |
 
 Official macOS Runtime assets are Apple Silicon (ARM64) only, under the permanent unsigned policy. Generic Linux/musl support is documented in [`docs/LINUX_MUSL_SUPPORT.md`](docs/LINUX_MUSL_SUPPORT.md); OpenWrt consumer qualification is documented in [`docs/consumers/OPENWRT.md`](docs/consumers/OPENWRT.md).
 

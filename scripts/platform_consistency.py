@@ -99,6 +99,23 @@ def run(root: Path) -> dict[str, object]:
             "every Full Runtime target is present in a post-release verification path",
         ),
         check(
+            "published.non-stable-assets",
+            all(
+                entry.get("published_asset") is True
+                and not entry["runtime_supported"]
+                and entry["asset_suffix"] in pipeline
+                for entry in entries.values()
+                if entry.get("published_asset") is True
+            ),
+            "published non-Stable assets have an explicit release build path",
+        ),
+        check(
+            "published.ohos-not-stable-indexed",
+            "(\"ohos\", \"aarch64\", None, RUNTIME_ARTIFACT_ID" in builder
+            and not entries["aarch64-unknown-linux-ohos"]["runtime_supported"],
+            "OHOS release identity exists but is excluded from Stable selection",
+        ),
+        check(
             "no-stale-gate-comments",
             "armv7 stays Not listed" not in cross and "FreeBSD is Not yet claimed Stable" not in cross,
             "workflow comments do not contradict the registry",

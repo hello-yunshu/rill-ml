@@ -63,6 +63,69 @@ class ReleaseIndexHelpersTest(unittest.TestCase):
         self.assertIn("freebsd-x86_64", release_index)
         self.assertIn("post-release-verify-freebsd", workflow)
 
+    def test_ohos_release_asset_is_not_stable_selected_without_device_claim(self) -> None:
+        # OHOS has a formal release asset identity, but the current Stable
+        # contract remains real-target-execution based. Its binary must be
+        # publishable without being selected as a Stable runtime.
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = pathlib.Path(temp_name)
+            version = "1.5.5"
+            for name in (
+                f"rill-runtime-{version}-linux-x86_64",
+                f"rill-runtime-{version}-ohos-aarch64",
+                f"example-default-{version}.rillpack",
+            ):
+                (temp / name).write_bytes(name.encode())
+            output = temp / "payload.json"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/build-release-index.py"),
+                    "--release-dir", str(temp),
+                    "--version", version,
+                    "--tag", f"v{version}",
+                    "--repository", "example/rill-ml",
+                    "--publisher-key-id", PUBLISHER,
+                    "--generated-at", "2026-08-27T00:00:00Z",
+                    "--output", str(output),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            runtimes = [item for item in payload["artifacts"] if item["kind"] == "runtime"]
+            self.assertNotIn("ohos", {item["targetOs"] for item in runtimes})
+            self.assertIn("rill-runtime-1.5.5-ohos-aarch64", {
+                path.name for path in temp.iterdir()
+            })
+
+            release_only = temp / "ohos-payload.json"
+            release_only_result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/build-release-index.py"),
+                    "--release-dir", str(temp),
+                    "--version", version,
+                    "--tag", f"v{version}",
+                    "--repository", "example/rill-ml",
+                    "--publisher-key-id", PUBLISHER,
+                    "--generated-at", "2026-08-27T00:00:00Z",
+                    "--channel", "candidate",
+                    "--release-only",
+                    "--output", str(release_only),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(release_only_result.returncode, 0, release_only_result.stderr)
+            release_payload = json.loads(release_only.read_text(encoding="utf-8"))
+            release_runtimes = [
+                item for item in release_payload["artifacts"] if item["kind"] == "runtime"
+            ]
+            self.assertEqual(len(release_runtimes), 1)
+            self.assertEqual(release_runtimes[0]["targetOs"], "ohos")
+            self.assertEqual(release_runtimes[0]["targetArch"], "aarch64")
+            self.assertNotIn("targetLibc", release_runtimes[0])
+
     def test_v152_publisher_has_no_active_pm_adapter_surface(self) -> None:
         workflow = (ROOT / ".github/workflows/pipeline.yml").read_text(encoding="utf-8")
         release_index = (ROOT / "scripts/build-release-index.py").read_text(encoding="utf-8")

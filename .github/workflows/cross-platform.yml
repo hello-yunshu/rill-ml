@@ -89,7 +89,42 @@ jobs:
         with:
           key: linux-aarch64-gnu
       - name: Native ARM64 GNU gate (test / doc / runtime smoke)
+        env:
+          # The executable ARM64 runner exercises the same backend policy as
+          # OHOS without claiming HarmonyOS device execution. This flag is
+          # compile-time only and is never set by release builds.
+          RILL_TEST_PULLEY64: "1"
         run: ./scripts/qemu-cross-gate.sh aarch64-unknown-linux-gnu
+
+  ohos-aarch64-source:
+    name: OHOS ARM64 source/build qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7 # v7
+        with:
+          persist-credentials: false
+      - name: Install OHOS SDK dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1-mesa-dev
+      - name: Set up official HarmonyOS/OpenHarmony SDK
+        uses: ErBWs/setup-ohos@v2
+        with:
+          # HarmonyOS SDK 6.1.1.125 / API 24 Release; CLI tools 6.1.1.280.
+          version: 6.1.1.280
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable # stable
+        with:
+          toolchain: 1.97.0
+          targets: aarch64-unknown-linux-ohos
+      - name: Build Full Runtime with official OHOS SDK
+        run: bash scripts/ohos-build.sh dist/rill-runtime-ohos-aarch64
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ohos-runtime-qualification
+          path: dist/rill-runtime-ohos-aarch64
+          if-no-files-found: error
 
   # ────────────────────────────────────────────────────────────────────────
   # Native musl Stable Gates (no container). musl-tools provides the host-arch

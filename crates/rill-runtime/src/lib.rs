@@ -10,6 +10,7 @@
 //! public API surface. Only the re-export path is stable.
 
 pub(crate) mod archive;
+mod backend;
 pub(crate) mod handler;
 pub(crate) mod handler_package;
 pub(crate) mod package;

@@ -34,7 +34,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "1.5.3"
+version = "1.5.5"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
@@ -43,9 +43,9 @@ repository = "https://github.com/hello-yunshu/rill-ml"
 [workspace.dependencies]
 # Internal workspace crates — Stable crates follow [workspace.package].
 # Preview crates override their own version and depend on Stable crates here.
-rill-handler-api = { version = "1.5.3", path = "crates/rill-handler-api" }
-rill-ml = { version = "1.5.3", path = "." }
-rill-runtime-protocol = { version = "1.5.3", path = "crates/rill-runtime-protocol" }
+rill-handler-api = { version = "1.5.5", path = "crates/rill-handler-api" }
+rill-ml = { version = "1.5.5", path = "." }
+rill-runtime-protocol = { version = "1.5.5", path = "crates/rill-runtime-protocol" }
 # External dependencies.
 ed25519-dalek = "3.0.0"
 hex = "0.4"
@@ -66,7 +66,7 @@ getrandom = { version = "0.2", features = ["js"] }
 pyo3 = { version = "0.29", features = ["extension-module"] }
 clap = { version = "4.5", features = ["derive"] }
 libc = "0.2"
-wasmtime = { version = "46", default-features = false, features = ["cranelift", "pulley", "component-model", "runtime", "parallel-compilation"] }
+wasmtime = { version = "46", default-features = false, features = ["pulley", "component-model", "runtime", "parallel-compilation"] }
 
 [features]
 default = ["bandit"]

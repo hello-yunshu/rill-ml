@@ -56,6 +56,11 @@ RUNTIMES = (
     # hosted runner. Asset naming follows the existing stable
     # <os>-<arch> contract (targetOs=windows, targetArch=aarch64).
     ("windows", "aarch64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-windows-aarch64.exe"),
+    # OHOS is a formal release asset but remains outside the Stable selection
+    # surface until real target-device execution is available. The registry
+    # filter below therefore keeps it out of the Stable index while preserving
+    # an explicit identity for selector regression tests and future promotion.
+    ("ohos", "aarch64", None, RUNTIME_ARTIFACT_ID, "rill-runtime-{version}-ohos-aarch64"),
 )
 
 # Schemes that must never appear in a signed release-index URL. ``data:``,
@@ -155,6 +160,11 @@ def main() -> None:
         choices=("stable", "candidate"),
         default="stable",
     )
+    parser.add_argument(
+        "--release-only",
+        action="store_true",
+        help="build the signed candidate surface for explicitly published non-Stable assets",
+    )
     args = parser.parse_args()
 
     base_url = f"https://github.com/{args.repository}/releases/download/{args.tag}"
@@ -164,10 +174,15 @@ def main() -> None:
     # This prevents a --no-default-features build from being selected as if it
     # were the complete WASM-capable Runtime product.
     root = Path(__file__).resolve().parents[1]
-    runtime_supported = targets(root, surface="runtime_supported")
-    runtime_records = [
-        entry for entry in load_platforms(root) if entry["triple"] in runtime_supported
-    ]
+    if args.release_only:
+        runtime_records = [
+            entry for entry in load_platforms(root) if entry.get("published_asset") is True
+        ]
+    else:
+        runtime_supported = targets(root, surface="runtime_supported")
+        runtime_records = [
+            entry for entry in load_platforms(root) if entry["triple"] in runtime_supported
+        ]
     for target_os, target_arch, target_libc, artifact_id, pattern in RUNTIMES:
         name = pattern.format(version=args.version)
         if not any(
