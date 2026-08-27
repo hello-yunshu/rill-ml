@@ -70,7 +70,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl xz-utils \
     && apt-get autoremove -y \\
     && rm -rf /var/lib/apt/lists/* \\
     && node --version
-RUN cargo install wasm-pack --locked --version "~0.13.1" \\
+RUN cargo install wasm-pack --locked --version "~0.15.0" \\
     && cargo install wasm-bindgen-cli --version "=${WB_VERSION}"
 EOF
 

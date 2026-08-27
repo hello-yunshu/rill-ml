@@ -24,8 +24,8 @@ echo "==> Ensuring wasm32-unknown-unknown target is installed"
 rustup target add wasm32-unknown-unknown
 
 if ! wasm-pack --version >/dev/null 2>&1; then
-  echo "==> wasm-pack not found; installing (compatible range ~0.13.1)"
-  cargo install wasm-pack --locked --version "~0.13.1"
+  echo "==> wasm-pack not found; installing (compatible range ~0.15.0)"
+  cargo install wasm-pack --locked --version "~0.15.0"
 else
   echo "==> Using existing wasm-pack: $(wasm-pack --version)"
 fi

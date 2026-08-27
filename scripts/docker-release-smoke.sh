@@ -86,12 +86,23 @@ docker run --rm -v "$PWD":/src -w /src "rillml-smoke-${TARGET}:${RUST_PIN}" bash
     --pack /tmp/example.rillpack \\
     --model-trust-key \"\$key_id=\$pubkey\" >/dev/null
 
-  echo '-- handshake over IPC (v2)'
+  echo '-- create and inspect signed WASM handler pack'
+  RILL_SIGNING_KEY_HEX="\$seed" \$bin/rill-pack create-handler \\
+    --manifest handlers/echo-handler/manifest.json \\
+    --module handlers/echo-handler/echo-handler.wasm \\
+    --output /tmp/echo.rillhandler
+  \$bin/rill-pack inspect-handler \\
+    --handler /tmp/echo.rillhandler \\
+    --key-id "\$key_id" \\
+    --public-key-hex "\$pubkey" >/dev/null
+
+  echo '-- handshake over IPC with signed WASM handler (v2)'
   REQUEST='{\"method\":\"handshake\",\"requestId\":\"docker-smoke\",\"apiVersion\":2,\"clientName\":\"docker-smoke\",\"clientVersion\":\"0.0.0\"}'
   RESPONSE=\$(printf '%s\n' \"\$REQUEST\" | timeout 20 \$bin/rill-runtime serve \\
     --pack /tmp/example.rillpack \\
     --model-trust-key \"\$key_id=\$pubkey\" \\
-    --builtin-handler linear-regression)
+    --handler /tmp/echo.rillhandler \\
+    --handler-trust-key "\$key_id=\$pubkey")
   echo \"\$RESPONSE\" | grep -q '\"kind\":\"handshake\"'
   echo \"\$RESPONSE\" | grep -q '\"apiVersion\":2'
   echo '-- release smoke PASSED'
