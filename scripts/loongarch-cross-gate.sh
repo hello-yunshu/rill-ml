@@ -215,12 +215,23 @@ if [[ "$RUNTIME_SMOKE" != "0" ]]; then
     --pack /tmp/example.rillpack \
     --model-trust-key "$key_id=$pubkey" >/dev/null
 
-  echo '-- handshake + invoke over IPC (builtin handler)'
+  echo '-- create and inspect signed WASM handler pack'
+  RILL_SIGNING_KEY_HEX="$seed" run_qemu rill-pack create-handler \
+    --manifest handlers/echo-handler/manifest.json \
+    --module "$ECHO_HANDLER_WASM" \
+    --output /tmp/echo.rillhandler
+  run_qemu rill-pack inspect-handler \
+    --handler /tmp/echo.rillhandler \
+    --key-id "$key_id" \
+    --public-key-hex "$pubkey" >/dev/null
+
+  echo '-- handshake over IPC with signed WASM handler'
   REQUEST='{"method":"handshake","requestId":"loongarch-smoke","apiVersion":2,"clientName":"loongarch-smoke","clientVersion":"0.0.0"}'
   RESPONSE="$(printf '%s\n' "$REQUEST" | timeout 60 $RUNNER "$BIN/rill-runtime" serve \
     --pack /tmp/example.rillpack \
     --model-trust-key "$key_id=$pubkey" \
-    --builtin-handler linear-regression)"
+    --handler /tmp/echo.rillhandler \
+    --handler-trust-key "$key_id=$pubkey")"
   echo "$RESPONSE" | grep -q '"kind":"handshake"'
   echo "$RESPONSE" | grep -q '"apiVersion":2'
 
