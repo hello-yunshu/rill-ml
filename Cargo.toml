@@ -66,7 +66,7 @@ getrandom = { version = "0.2", features = ["js"] }
 pyo3 = { version = "0.29", features = ["extension-module"] }
 clap = { version = "4.5", features = ["derive"] }
 libc = "0.2"
-wasmtime = { version = "46", default-features = false, features = ["cranelift", "pulley", "component-model", "runtime", "parallel-compilation"] }
+wasmtime = { version = "46", default-features = false, features = ["pulley", "component-model", "runtime", "parallel-compilation"] }
 
 [features]
 default = ["bandit"]
