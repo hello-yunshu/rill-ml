@@ -1,10 +1,15 @@
-# Rill Runtime 可插拔 Handler 改造计划
+# Rill Runtime 可插拔 Handler 改造计划（历史设计记录）
 
-> 状态：设计与实施计划
+> 状态：已实施；本文保留为 v0.6.0 时的设计与实施记录。
 >
 > 基线：RillML 0.6.0
 >
 > 建议目标版本：0.7.0
+
+当前实现与约束以 [`RUNTIME.md`](RUNTIME.md)、[`HANDLER-RFC.md`](HANDLER-RFC.md)
+和 [`STABILITY.md`](STABILITY.md) 为准。本文中的“当前状态与差距”及后续目标架构
+均是当时的设计时点，不应作为当前实现清单；例如 handler manifest、签名包、WASM
+沙箱和资源限制现已实现。
 
 ## 1. 目标
 

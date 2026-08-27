@@ -10,7 +10,7 @@ with the Rust-specific convention that 0.x releases may break the public API.
 > The Stable crates (`rill-ml`, `rill-runtime`, `rill-runtime-protocol`,
 > `rill-handler-api`) are released under the 1.x compatibility freeze. Preview
 > crates (`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`, `rill-ml-arrow`,
-> `rill-ml-polars`, `rillml-inspect`) remain at `0.x`. Final releases update
+> `rill-ml-polars`, `rillml-inspect`, `rill-ml-ffi`) remain at `0.x`. Final releases update
 > `local-ai-stable` only after their immutable public assets pass the
 > independent host smoke; `local-ai-candidate` remains the RC channel. Do not
 > use RillML for
@@ -20,6 +20,14 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated cross-architecture Runtime smoke gates to create, verify, and use a
+  signed WASM handler instead of relying on the deprecated built-in handler.
+- Updated the Docker WASM gate to use the current `wasm-pack ~0.15.0` toolchain
+  while retaining the pinned `wasm-bindgen-cli` version from `Cargo.lock`.
+- Hardened workflow warning and stale-release-tag checks without weakening any
+  release gate.
 
 ## [1.5.5] - 2026-08-27
 
@@ -623,9 +631,8 @@ at `0.13.0`; the new `local-ai-candidate` pointer tracks this RC.
 
 ## [0.13.0] - 2026-07-27
 
-This release closes the sixth-stage minimal final closeout
-([`RILL_ML_TRAE_SIXTH_STAGE_MINIMAL_FINAL_CLOSEOUT_PROMPT.md`](RILL_ML_TRAE_SIXTH_STAGE_MINIMAL_FINAL_CLOSEOUT_PROMPT.md))
-on top of the 0.12.0 baseline. It completes the first fully-green
+This release closes the sixth-stage minimal final closeout on top of the
+0.12.0 baseline. It completes the first fully-green
 Release workflow verification after the fifth-stage PyPI visibility
 fix, and adds two runtime verification hardenings that the fifth-stage
 checks could not cover.
@@ -675,9 +682,7 @@ checks could not cover.
 ## [0.12.0] - 2026-07-27
 
 This release closes the fifth-stage release-consistency and final
-acceptance work
-([`RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md`](RILL_ML_TRAE_FIFTH_STAGE_RELEASE_CONSISTENCY_FINAL_PROMPT.md))
-on top of the 0.10.0 baseline. It bundles the four fourth-stage
+acceptance work on top of the 0.10.0 baseline. It bundles the four fourth-stage
 final-acceptance fixes (which were never published through a clean
 release channel) together with the fifth-stage release-consistency
 work that makes the ticker lifecycle tests actually execute in CI,
@@ -819,9 +824,8 @@ that GitHub and PyPI carry the same code at the same version.
 
 ## [0.10.0] - 2026-07-26
 
-This release closes the third-stage audit
-([`RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md`](RILL_ML_TRAE_THIRD_STAGE_FINAL_CLOSEOUT_PROMPT.md))
-on top of the 0.9.0 baseline. It tightens the serde trust boundary for the
+This release closes the third-stage audit on top of the 0.9.0 baseline. It
+tightens the serde trust boundary for the
 remaining core models, makes the WASM ticker lifecycle directly observable
 from tests, and corrects the audit report and CHANGELOG to match the actual
 repository state. The runtime's public `InvokeErrorKind` enum is expanded
@@ -965,9 +969,8 @@ exhaustive `match` arms and therefore require a minor bump.
 
 ## [0.9.0] - 2026-07-26
 
-This release lands the full code audit
-([`RILL_ML_TRAE_AUDIT_OPTIMIZATION_PROMPT.md`](RILL_ML_TRAE_AUDIT_OPTIMIZATION_PROMPT.md))
-across core correctness, the runtime trust boundary, release reliability,
+This release lands the full code audit across core correctness, the runtime
+trust boundary, release reliability,
 and documentation. Full report:
 [`docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md`](docs/audits/RILL_ML_LATEST_AUDIT_AND_OPTIMIZATION.md).
 
@@ -1689,7 +1692,7 @@ by River but implemented independently.
 - Only `f64` is supported. Dense `&[f64]` feature slices only; no
   `HashMap<String, f64>`.
 
-[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.5.5...HEAD
 [1.5.5]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.5
 [1.5.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.2
 [1.5.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.1

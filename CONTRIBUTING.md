@@ -98,7 +98,7 @@ The Stable crates (`rill-ml`, `rill-runtime`, `rill-runtime-protocol`,
 `rill-handler-api`) are under the 1.x compatibility freeze documented in
 [`STABILITY.md`](STABILITY.md). The Preview crates
 (`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`, `rill-ml-arrow`,
-`rill-ml-polars`, `rillml-inspect`) remain at `0.x`.
+`rill-ml-polars`, `rillml-inspect`, `rill-ml-ffi`) remain at `0.x`.
 
 ### 5.1 1.x breaking-change policy
 

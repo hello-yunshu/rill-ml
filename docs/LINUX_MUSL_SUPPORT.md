@@ -6,7 +6,8 @@ boundary.
 
 ## Stable policy
 
-The v1.5.3 policy covers these feasible Rust 1.94 targets:
+The current 1.5.x policy, introduced in v1.5.3, covers these feasible Rust
+1.94 targets:
 
 | Target | Backend | Width | Endianness | Source gate | Post-release gate |
 |---|---|---:|---|---|---|
@@ -25,8 +26,8 @@ turn a local build into execution evidence.
 
 `mips-unknown-linux-musl` and `mipsel-unknown-linux-musl` are skipped for this
 run because Rust 1.94 has no distributable rustup standard-library artifacts
-for them on the pinned host toolchain. They are not v1.5.3 Stable claims or
-release assets.
+for them on the pinned host toolchain. They are not current 1.5.x Stable claims
+or release assets.
 
 ## Evidence boundary
 

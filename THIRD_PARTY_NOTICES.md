@@ -132,8 +132,10 @@ Dev-dependencies (used only for tests; **not** linked into releases of
 
 ### `rill-runtime` optional dependencies (`wasm` feature)
 
-The `wasm` feature is opt-in. Default builds of `rill-runtime` do not pull in
-Wasmtime and cannot load `.rillhandler` packs. When the feature is enabled:
+The `wasm` feature is enabled by default for `rill-runtime`, so the documented
+`cargo install rill-runtime` path pulls in Wasmtime and can load `.rillhandler`
+packs. Passing `--no-default-features` opts out of Wasmtime; such builds cannot
+load `.rillhandler` packs. When the feature is enabled:
 
 | Crate              | Version range | License        | Required by          |
 | ------------------ | ------------- | -------------- | -------------------- |
@@ -157,8 +159,8 @@ avoid pulling in WASI and other unused subsystems.
 - `wasmtime` is distributed under the Apache-2.0 License with the LLVM
   exception. The LLVM exception explicitly permits static and dynamic linking
   with code under other licenses (including permissive licenses such as MIT)
-  without copyleft-style obligations. RillML's use of Wasmtime as an optional
-  dependency behind the `wasm` feature does not change the licensing of the
+  without copyleft-style obligations. RillML's use of Wasmtime behind the
+  default `wasm` feature does not change the licensing of the
   core `rill-ml`, `rill-handler-api`, or `rill-runtime-protocol` crates.
 - `zip` is distributed under the MIT License.
 

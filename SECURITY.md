@@ -7,7 +7,7 @@ RillML is on the stable 1.x release line. The Stable crates
 are under the 1.x compatibility freeze documented in
 [`STABILITY.md`](STABILITY.md). The Preview crates
 (`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`, `rill-ml-arrow`,
-`rill-ml-polars`, `rillml-inspect`) remain at `0.x` and are not covered by
+`rill-ml-polars`, `rillml-inspect`, `rill-ml-ffi`) remain at `0.x` and are not covered by
 the 1.x freeze.
 
 | Version line | Status | Supported | Channel |
@@ -25,8 +25,8 @@ release never updates the stable pointer.
 ### Backport policy
 
 - Security fixes that affect a Stable crate are backported to the previous
-  supported stable lines listed in the table above (currently `1.1.x` and
-  `1.0.x`), for as long as they appear in the supported versions table.
+  supported stable lines listed in the table above (currently `1.3.x` and
+  `1.1.x`), for as long as they appear in the supported versions table.
 - Security fixes that only affect a Preview crate are applied
   forward-only; Preview crates do not carry a backport guarantee.
 - A fix lands on `main` for the next `1.x` release. If a supported previous
@@ -68,7 +68,7 @@ This policy covers the Stable crates published from this repository:
 - `rill-handler-api` — the WIT ABI v1 contract for handler authors.
 
 The Preview crates (`rill-ml-python`, `rill-ml-wasm`, `rill-ml-tokio`,
-`rill-ml-arrow`, `rill-ml-polars`, `rillml-inspect`) ship from this
+`rill-ml-arrow`, `rill-ml-polars`, `rillml-inspect`, `rill-ml-ffi`) ship from this
 repository but are not under the 1.x compatibility freeze. Security
 issues in Preview crates are still welcome and will be fixed, but they
 do not carry the Stable backport guarantee.
@@ -98,7 +98,7 @@ platform matrix and first-launch authorization guidance.
 
 `rill-runtime` with the `wasm` feature (the default) depends on
 `wasmtime`. A Wasmtime security advisory triggers an out-of-band release
-of the affected Stable release lines (`1.2.x`, `1.1.x`, `1.0.x`).
+of the affected Stable release lines (`1.5.x`, `1.3.x`, `1.1.x`).
 Patch upgrades within the same wasmtime minor line are applied via
 Dependabot PRs and reviewed by maintainers. Minor upgrades require a
 maintainer review of the changelog before merge; the review note is
