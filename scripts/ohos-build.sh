@@ -63,6 +63,13 @@ chmod +x "$linker"
 
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_LINKER="$linker"
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_AR="$native/llvm/bin/llvm-ar"
+# Wasmtime's build script compiles a small C helper through the `cc` crate.
+# The OHOS target is not one of cc's built-in target triples, so configure the
+# target-specific compiler explicitly; otherwise the host clang/gcc can emit
+# an x86_64 helper object that the OHOS linker correctly rejects.
+export CC_AARCH64_UNKNOWN_LINUX_OHOS="$native/llvm/bin/clang"
+export AR_AARCH64_UNKNOWN_LINUX_OHOS="$native/llvm/bin/llvm-ar"
+export CFLAGS_AARCH64_UNKNOWN_LINUX_OHOS="-target aarch64-linux-ohos --sysroot=$native/sysroot -D__MUSL__"
 
 mkdir -p "$(dirname "$OUTPUT")"
 # The target-specific dependency wiring retains Cranelift as the Pulley
