@@ -70,6 +70,10 @@ export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_AR="$native/llvm/bin/llvm-ar"
 export CC_AARCH64_UNKNOWN_LINUX_OHOS="$native/llvm/bin/clang"
 export AR_AARCH64_UNKNOWN_LINUX_OHOS="$native/llvm/bin/llvm-ar"
 export CFLAGS_AARCH64_UNKNOWN_LINUX_OHOS="-target aarch64-linux-ohos --sysroot=$native/sysroot -D__MUSL__"
+# cc also checks the exact target-triple spelling before its normalized form.
+export CC_aarch64_unknown_linux_ohos="$native/llvm/bin/clang"
+export AR_aarch64_unknown_linux_ohos="$native/llvm/bin/llvm-ar"
+export CFLAGS_aarch64_unknown_linux_ohos="-target aarch64-linux-ohos --sysroot=$native/sysroot -D__MUSL__"
 
 mkdir -p "$(dirname "$OUTPUT")"
 # The target-specific dependency wiring retains Cranelift as the Pulley
