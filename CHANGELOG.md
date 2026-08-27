@@ -20,6 +20,20 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+
+## [1.5.5] - 2026-08-27
+
+### Changed
+
+- Added an official OHOS ARM64 (`aarch64-unknown-linux-ohos`) release-only
+  build path using the HarmonyOS SDK 6.1.1 / API 24 Release baseline.
+- Forced Wasmtime Pulley64 for the OHOS target while preserving Cranelift for
+  existing native targets and keeping the sandbox fuel, epoch, and resource
+  limits unchanged.
+- Added OHOS ELF identity and post-release artifact verification. The asset is
+  published but remains outside the Stable support/index claim until real
+  HarmonyOS/OpenHarmony device execution is available.
+
 _No changes yet._
 
 ## [1.5.3] - 2026-08-27
@@ -1676,6 +1690,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.3.0...HEAD
+[1.5.5]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.5
 [1.5.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.2
 [1.5.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.1
 [1.5.0]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.0

@@ -229,3 +229,24 @@ runtime_features = "none"
 source_gate = "direct-qemu"
 post_release_gate = "not-applicable"
 asset_suffix = "linux-powerpc64le"
+
+# The official OHOS ARM64 release surface is intentionally separate from the
+# Stable support claim. The cross-build and software qualification can publish
+# an artifact, but no HarmonyOS/OpenHarmony device is available in the current
+# environment to satisfy the project's real-execution Stable contract.
+[[target]]
+triple = "aarch64-unknown-linux-ohos"
+target_os = "ohos"
+target_arch = "aarch64"
+target_libc = "none"
+runtime_backend = "pulley64"
+pointer_width = 64
+endianness = "little"
+core_supported = false
+runtime_supported = false
+release_asset = false
+published_asset = true
+runtime_features = "default"
+source_gate = "ohos-sdk-cross"
+post_release_gate = "ohos-artifact"
+asset_suffix = "ohos-aarch64"

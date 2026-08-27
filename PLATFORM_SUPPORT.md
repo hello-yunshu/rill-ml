@@ -94,6 +94,11 @@ release-index Runtime selection. The Stable Runtime assets are:
 `linux-armv7-musl`, `linux-i686-musl`, `linux-loongarch64`,
 `freebsd-x86_64`, `windows-x86_64`, `windows-aarch64`, and `macos-aarch64`
 (see `scripts/build-release-index.py`).
+The OHOS ARM64 binary is additionally published as the explicit release-only
+asset `rill-runtime-<version>-ohos-aarch64`. It is intentionally not selected
+by the Stable index: the official OHOS SDK and full default-feature Runtime
+source qualification are available, but no HarmonyOS/OpenHarmony device is
+available in the current environment for the real-execution acceptance gate.
 The Linux assets are cross-compiled under Docker on the GitHub-Actions host;
 the musl and ARM64 Linux assets are now published alongside the x86_64 GNU
 asset.
@@ -176,6 +181,7 @@ distinction between "not yet accepted" and "unsupported upstream" is clear.
 |---|---|---|
 | `aarch64-linux-android` | Core FFI | FFI 构建链 + CI 已就绪（Docker NDK 交叉构建）；真机/模拟器执行验证未完成，未列入 Supported |
 | `aarch64-apple-ios` | Core FFI | FFI 构建链 + CI 已就绪（macOS Xcode XCFramework）；真机/模拟器执行验证未完成，未列入 Supported |
+| `aarch64-unknown-linux-ohos` | Release-only ARM64 Runtime | official OHOS SDK 交叉构建、Full Runtime source qualification 与 Pulley64 software regression 可用；正式 Release asset available；HarmonyOS/OpenHarmony 真机执行证据不可用，未列入 Supported |
 | `mips-unknown-linux-musl` | skipped | Rust 1.94 rustup has no distributable target std artifact |
 | `mipsel-unknown-linux-musl` | skipped | Rust 1.94 rustup has no distributable target std artifact |
 
@@ -212,6 +218,8 @@ option. The reproducible entry points are:
 | `scripts/register_qemu_binfmt.sh` | Register QEMU binfmt_misc handlers for direct foreign ELF execution |
 | `scripts/post-release-qemu-verify.sh` | Post-release re-verify of published Full Runtime RISC-V64 / LoongArch64 assets under direct QEMU |
 | `scripts/freebsd-ci.sh` | FreeBSD native gate (fmt/clippy, full test suite, Full Runtime smoke) — executed in a FreeBSD VM via `vmactions/freebsd-vm` |
+| `scripts/ohos-build.sh` | Official OHOS SDK cross-build of the default-feature ARM64 Runtime; static ELF identity check, no device claim |
+| `scripts/ohos-release-verify.sh` | Post-release OHOS ARM64 ELF identity and non-GNU-loader check |
 | `.github/workflows/cross-platform.yml` | CI: native / Docker gates, direct-QEMU cross gates, release smoke, Android/iOS FFI gates, FreeBSD VM native gate |
 
 The Rust toolchain is pinned in `Dockerfile.test` (`RUST_PIN`, default matches

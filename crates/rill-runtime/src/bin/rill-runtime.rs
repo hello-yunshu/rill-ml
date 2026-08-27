@@ -7,6 +7,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[path = "../backend.rs"]
+mod backend;
+
 use clap::{Parser, Subcommand};
 use ed25519_dalek::VerifyingKey;
 use fs2::FileExt;
@@ -142,6 +145,8 @@ fn run(cli: Cli) -> Result<(), CliError> {
                     "endianness": runtime_endianness(),
                     "arch": std::env::consts::ARCH,
                     "os": std::env::consts::OS,
+                    "platform": backend::platform_identity(),
+                    "targetEnv": backend::target_environment(),
                 })
             );
             Ok(())
@@ -224,18 +229,8 @@ fn run(cli: Cli) -> Result<(), CliError> {
     }
 }
 
-#[cfg(any(target_arch = "arm", target_arch = "x86", target_arch = "mips"))]
 fn runtime_backend() -> &'static str {
-    if cfg!(target_arch = "mips") && cfg!(target_endian = "big") {
-        "pulley32be"
-    } else {
-        "pulley32"
-    }
-}
-
-#[cfg(not(any(target_arch = "arm", target_arch = "x86", target_arch = "mips")))]
-fn runtime_backend() -> &'static str {
-    "cranelift"
+    backend::runtime_backend()
 }
 
 fn runtime_endianness() -> &'static str {
