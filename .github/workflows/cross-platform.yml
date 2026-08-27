@@ -108,12 +108,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libgl1-mesa-dev
+      - name: Restore OHOS SDK cache
+        uses: actions/cache@v6
+        with:
+          path: ~/ohos-sdk
+          key: ohos-sdk-${{ runner.os }}-${{ runner.arch }}-6.1.1.280
       - name: Set up official HarmonyOS/OpenHarmony SDK
         uses: ErBWs/setup-ohos@v2
         with:
           # HarmonyOS SDK 6.1.1.125 / API 24 Release; CLI tools 6.1.1.280.
           version: 6.1.1.280
-          cache: true
+          cache: false
       - uses: dtolnay/rust-toolchain@stable # stable
         with:
           toolchain: 1.97.0
@@ -272,6 +277,10 @@ jobs:
           persist-credentials: false
       - name: Set up QEMU / binfmt_misc
         uses: docker/setup-qemu-action@v4 # v4
+        with:
+          # Avoid the shared binfmt cache reservation race with concurrent
+          # workflow runs; the setup cost is small for this single WASM gate.
+          cache-image: false
       - name: Run WASM build + test
         run: ./scripts/docker-wasm-build.sh
 
