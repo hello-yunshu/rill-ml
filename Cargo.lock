@@ -2896,11 +2896,11 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rill-handler-api"
-version = "1.5.3"
+version = "1.5.5"
 
 [[package]]
 name = "rill-ml"
-version = "1.5.3"
+version = "1.5.5"
 dependencies = [
  "approx",
  "criterion",
@@ -2975,7 +2975,7 @@ dependencies = [
 
 [[package]]
 name = "rill-runtime"
-version = "1.5.3"
+version = "1.5.5"
 dependencies = [
  "clap",
  "ed25519-dalek",
@@ -2996,7 +2996,7 @@ dependencies = [
 
 [[package]]
 name = "rill-runtime-protocol"
-version = "1.5.3"
+version = "1.5.5"
 dependencies = [
  "serde",
  "serde_json",
@@ -3793,6 +3793,7 @@ dependencies = [
  "wasmtime-internal-jit-icache-coherence",
  "wasmtime-internal-unwinder",
  "wasmtime-internal-versioned-export-macros",
+ "wasmtime-internal-winch",
  "windows-sys",
 ]
 
@@ -3948,6 +3949,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmtime-internal-winch"
+version = "46.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "602bbd03c39f2cc204a431b7833b2b8a4146ceddd2720f87a8e3d9ee44a6ff5f"
+dependencies = [
+ "cranelift-codegen",
+ "gimli",
+ "log",
+ "object 0.39.1",
+ "target-lexicon",
+ "wasmparser",
+ "wasmtime-environ",
+ "wasmtime-internal-cranelift",
+ "winch-codegen",
+]
+
+[[package]]
 name = "wasmtime-internal-wit-bindgen"
 version = "46.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4000,6 +4018,25 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "winch-codegen"
+version = "46.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad6cf276b7796717bda3e48532e99e1cbfa239ddb7eb23553a46935e8ce123de"
+dependencies = [
+ "cranelift-assembler-x64",
+ "cranelift-codegen",
+ "gimli",
+ "regalloc2",
+ "smallvec",
+ "target-lexicon",
+ "thiserror 2.0.18",
+ "wasmparser",
+ "wasmtime-environ",
+ "wasmtime-internal-core",
+ "wasmtime-internal-cranelift",
+]
 
 [[package]]
 name = "windows"

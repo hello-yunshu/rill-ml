@@ -9,6 +9,7 @@ import json
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
+from platform_support import load_platforms
 
 
 def main() -> None:
@@ -33,13 +34,20 @@ def main() -> None:
     missing = sorted(set(expected) - set(local))
     # The current model can be absent from this version's index when an older
     # model supersedes it; it is still verified separately by rill-pack. No
-    # Runtime binary is allowed to bypass the signed index, including
-    # Core-only investigation builds. The macOS aarch64 unsigned sidecar is
+    # Runtime binaries are allowed to bypass the Stable selection index only
+    # when the machine-readable registry explicitly marks them as a published
+    # non-Stable release surface. The macOS aarch64 unsigned sidecar is
     # publication metadata for the runtime asset, not a signed-index artifact.
     allowed_unindexed = {
         f"example-default-{args.version}.rillpack",
         f"rill-runtime-{args.version}-macos-aarch64.unsigned.json",
     }
+    root = Path(__file__).resolve().parents[1]
+    for entry in load_platforms(root):
+        if entry.get("published_asset"):
+            allowed_unindexed.add(
+                f"rill-runtime-{args.version}-{entry['asset_suffix']}"
+            )
     unexpected = sorted(
         name for name in set(local) - set(expected) if name not in allowed_unindexed
     )
