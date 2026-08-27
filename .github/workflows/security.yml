@@ -67,8 +67,11 @@ jobs:
       - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      # RustSec audit-check, pinned to the node24 update commit (858dc40, PR #48).
-      # The v2.0.0 tag still targets Node 20 and triggers the deprecation warning.
-      - uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      # The v2.0.0 audit-check tag still targets Node 20. Run the official
+      # RustSec cargo-audit CLI directly until the action publishes a tagged
+      # Node 24 release; this keeps the audit fail-closed without the runtime
+      # deprecation warning.
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --version "0.22.2"
+      - name: Run RustSec advisory audit
+        run: cargo audit
