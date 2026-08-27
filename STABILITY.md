@@ -1,4 +1,4 @@
-# RillML 1.0 Stability Policy
+# RillML 1.x Stability Policy
 
 > **Naming note:** RillML is the official project name. Rill may be used as a
 > contextual shorthand. The frozen crate/package/ABI names below (e.g.
@@ -12,7 +12,7 @@ preview, and how each artifact may evolve.
 
 ## Stability matrix
 
-| Artifact | 1.0 status | Stable commitment |
+| Artifact | 1.x status | Stable commitment |
 |---|---|---|
 | `rill-ml` | Stable | Rust public API; selected serde model state types listed below |
 | `rill-runtime-protocol` | Stable | IPC v1/v2 JSON wire schema, release-index schema |
@@ -24,6 +24,7 @@ preview, and how each artifact may evolve.
 | `rill-ml-arrow` | Preview | Rust adapter; not covered by the 1.x API freeze |
 | `rill-ml-polars` | Preview | Rust adapter; not covered by the 1.x API freeze |
 | `rillml-inspect` | Preview (Tooling) | CLI output and arguments; not covered by the 1.x API freeze |
+| `rill-ml-ffi` | Preview | C ABI and language bindings; not covered by the 1.x API freeze |
 
 ### Rationale for the split
 
@@ -34,8 +35,8 @@ protocol, handler ABI, and core learning library evolve independently within
 
 The Preview crates are adapters and bindings whose surfaces are small but
 still iterating. Keeping them at `0.x` avoids forcing a Python wheel matrix,
-WASM JS fixture freeze, and adapter API baseline into the 1.0 RC admission
-gate. They still ship from this repository and keep their existing security
+WASM JS fixture freeze, and adapter API baseline into the Stable release
+admission gate. They still ship from this repository and keep their existing security
 and test quality, but they do not carry the 1.x no-breaking-change promise.
 
 Preview crates depend on Stable crates via path dependencies. A `0.x` crate
@@ -368,14 +369,17 @@ enforced in CI. An MSRV bump is a minor breaking change and requires a
 | Platform | Runtime | Core library |
 |---|---|---|
 | Linux x86_64 | Stable | Stable |
+| Linux aarch64 GNU | Stable | Stable |
 | Windows x86_64 | Stable | Stable |
 | Windows ARM64 (aarch64) | Stable | Stable |
 | macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | Not published | Stable |
 | Linux riscv64 GNU | Stable | Stable |
-| Linux x86_64/aarch64 musl | Stable | Stable |
+| Linux loongarch64 GNU | Stable | Stable |
+| FreeBSD x86_64 | Stable | Stable |
 | Linux musl x86_64/aarch64/riscv64/armv7/i686 | Stable | Stable |
 | Linux armv7/s390x/powerpc64le GNU | Not listed (Core only) | Stable |
+| OpenHarmony / HarmonyOS ARM64 | Release-only (not supported without device evidence) | Not listed |
 
 The platform table above is a summary. The machine-readable support policy,
 libc mapping, backend requirements, and generic Linux/musl boundary are defined

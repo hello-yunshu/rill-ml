@@ -4,6 +4,13 @@
 > 本规划强调“真实需求驱动、可靠性优先、逐步扩展”，不以完整复制 River 为目标。
 > 品牌与命名规范见 [`docs/NAMING.md`](docs/NAMING.md)。
 
+> 当前基线（2026-08-27）：Stable `1.5.5`，Preview `0.15.0`。当前
+> `1.5.x` 线已包含 Stateful Runtime qualification、Linux/musl 支持收敛、
+> OpenWrt 集成边界，以及 OHOS ARM64 release-only 产物资格；OHOS 尚未因
+> 缺少真机执行证据而列入 Core 或 Runtime 支持。已完成版本的详细变更见
+> [`CHANGELOG.md`](CHANGELOG.md)，机器可读版本与兼容基线见
+> [`release-plan.toml`](release-plan.toml)。
+
 ---
 
 ## 一、项目长期目标
@@ -166,7 +173,7 @@ Python 绑定
 | v1.2.0 | 发布准入与全平台复验 | 发布准入门禁、RISC-V/LoongArch/FreeBSD/Windows 原生复验、索引 schema v3 与 `targetLibc` |
 | 1.3.0 | 生态收敛与 Trust | 正式发布闭环、不可变资产、SBOM、TrustMetadata 与全平台公开资产复验 |
 | 1.4.x | Stateful Runtime Qualification | opt-in Preview v3 subprocess、decision ledger、状态迁移/回滚、Resource Profile 与运行诊断 |
-| 1.5.0 | Production Adaptive Runtime | Stable v3 准入、硬资源边界、health、consumer conformance、后置 soak/fault 与公开发布 |
+| 1.5.x | Production Adaptive Runtime | 1.5.0 的 Stateful Runtime qualification、1.5.1 的发布门禁、1.5.2 的消费者边界、1.5.3 的 Linux/musl 支持收敛，以及 1.5.5 的 OHOS release-only 资格 |
 
 ---
 
@@ -971,9 +978,9 @@ rillml-inspect
 
 ---
 
-# 十·五、v1.0.0-rc.1：候选版本冻结
+# 十·五、v1.0.0-rc.1：候选版本冻结（历史里程碑）
 
-> 状态：当前（v1.0.0-rc.1，2026-07-28）
+> 状态：已完成（v1.0.0-rc.1，2026-07-28）；本节保留为历史冻结记录。
 
 ## 目标
 

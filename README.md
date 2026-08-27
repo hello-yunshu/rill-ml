@@ -42,7 +42,7 @@ Runtime 的 Stable CLI `serve` 仍仅接受 Stable IPC v1/v2；Preview IPC v3 �
 提供签名 `--handler` 或已弃用的 `--builtin-handler linear-regression`，
 缺少两者时会 fail-closed，不会隐式回退。
 
-Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定、签名 `.rillpack` 模型包和签名 `.rillhandler` WASM handler 包。Runtime 在沙箱内加载经过签名验证的 WASM handler，更新 handler 不需要重新编译 runtime 二进制。宿主可以只依赖协议 crate，让 Runtime、模型和 handler 各自独立更新。官方 macOS Runtime 仅发布 Apple Silicon（ARM64）版本，不提供 Intel 构建。macOS aarch64 资产为未签名（unsigned）形态——项目不配置 Apple Developer ID 证书，这是永久决策，不影响发布。macOS 用户首次运行可能需要在 Finder 中右键选择"打开"，或在"系统设置 → 隐私与安全性"中允许，详见 [`STABILITY.md`](STABILITY.md) § macOS unsigned policy。1.0 稳定性矩阵、冻结范围与 Stable/Preview 划分详见 [`STABILITY.md`](STABILITY.md)；运行时产品边界详见 [`RUNTIME.md`](RUNTIME.md)。
+Workspace 还包含可独立分发的 `rill-runtime`、稳定 IPC 约定、签名 `.rillpack` 模型包和签名 `.rillhandler` WASM handler 包。Runtime 在沙箱内加载经过签名验证的 WASM handler，更新 handler 不需要重新编译 runtime 二进制。宿主可以只依赖协议 crate，让 Runtime、模型和 handler 各自独立更新。官方 macOS Runtime 仅发布 Apple Silicon（ARM64）版本，不提供 Intel 构建。macOS aarch64 资产为未签名（unsigned）形态——项目不配置 Apple Developer ID 证书，这是永久决策，不影响发布。macOS 用户首次运行可能需要在 Finder 中右键选择"打开"，或在"系统设置 → 隐私与安全性"中允许，详见 [`STABILITY.md`](STABILITY.md) § macOS unsigned policy。1.x 稳定性矩阵、冻结范围与 Stable/Preview 划分详见 [`STABILITY.md`](STABILITY.md)；运行时产品边界详见 [`RUNTIME.md`](RUNTIME.md)。
 
 > RillML 受 [River](https://riverml.xyz/) 推广的在线学习工作流启发，是独立的 Rust 项目，与 River 无关联，目前不追求 API 或模型兼容性。
 
@@ -332,16 +332,19 @@ RillML 遵循"能力越强、权限边界越清晰"的安全理念：
 | 平台 | Runtime | 核心库 |
 |---|---|---|
 | Linux x86_64 | Stable | Stable |
+| Linux aarch64 GNU | Stable | Stable |
 | Windows x86_64 | Stable | Stable |
 | Windows ARM64 (aarch64) | Stable | Stable |
 | macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | 不发布 | Stable |
 | Linux riscv64 GNU | Stable | Stable |
+| Linux loongarch64 GNU | Stable | Stable |
+| FreeBSD x86_64 | Stable | Stable |
 | Linux musl x86_64/aarch64/riscv64/armv7/i686 | Stable | Stable |
 | Linux armv7/s390x/powerpc64le GNU | 未列出（仅 Core） | Stable |
-| OpenHarmony / HarmonyOS ARM64 | Release-only（无真机证据，未列入 Stable） | Stable |
+| OpenHarmony / HarmonyOS ARM64 | Release-only（无真机证据，未列入支持） | 未列入支持 |
 
-官方 macOS Runtime 资产仅 Apple Silicon（ARM64），且为永久未签名策略。通用 Linux/musl 支持规则见 [`docs/LINUX_MUSL_SUPPORT.md`](docs/LINUX_MUSL_SUPPORT.md)；OpenWrt 消费者资格见 [`docs/consumers/OPENWRT.md`](docs/consumers/OPENWRT.md)。
+官方 macOS Runtime 资产仅 Apple Silicon（ARM64），且为永久未签名策略。通用 Linux/musl 支持规则见 [`docs/LINUX_MUSL_SUPPORT.md`](docs/LINUX_MUSL_SUPPORT.md)；OpenWrt 消费者资格见 [`docs/consumers/OPENWRT.md`](docs/consumers/OPENWRT.md)。OHOS ARM64 仅发布 release-only 资产，尚未列入 Core 或 Runtime 支持，详见 [`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md)。
 
 ## 11. 集成与生态
 
@@ -388,7 +391,7 @@ Stable crate 的公共 API 由 `api-baseline/` 记录并由 CI 中的 `cargo-sem
 
 ## 13. 路线图
 
-RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](ROADMAP.md)，1.0 兼容性承诺参见 [`STABILITY.md`](STABILITY.md)。
+RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](ROADMAP.md)，1.x 兼容性承诺参见 [`STABILITY.md`](STABILITY.md)。
 
 - **v0.1** — 基础闭环：预测、评估、学习、保存、恢复。
 - **v0.2** — 可靠性与诊断：预测报告、冷启动、基线比较。
@@ -404,6 +407,10 @@ RillML 遵循真实需求驱动的路线图。完整规划参见 [`ROADMAP.md`](
 - **v1.2.0** — 发布准入与全平台复验：发布准入门禁、RISC-V/LoongArch/FreeBSD/Windows 原生复验、索引 schema v3 与 `targetLibc`。
 - **v1.3.0** — 产品面一致性门禁、Stable/Preview 版本收敛、TrustMetadata v1 密钥轮换生命周期、离线/已发布 Conformance Kit、真实 fuzz harness、CycloneDX/SPDX SBOM 与 FTRL 资源诊断。
 - **v1.5.0** — Stateful Runtime v3 生产资格边界、hard resource limits、结构化 health/diagnostics、状态回滚与后置 simulated consumer/fault qualification harness。
+- **v1.5.1** — 收紧 Preview 资格门禁、发布检查与可读的 GitHub Actions 引用策略。
+- **v1.5.2** — 将 OpenWrt Performance Manager adapter 移交消费者仓库，RillML 保留通用运行时与兼容读取边界。
+- **v1.5.3** — 收敛 Linux musl 支持矩阵、平台声明注册表与 Stable 发布索引边界。
+- **v1.5.5** — 增加 OHOS ARM64 release-only 构建与产物身份验证；因缺少真机证据不列入支持。
 
 当前 1.x 不实现完整深度学习；未来方向是"冻结的神经编码器 + RillML 在线自适应头"（如 DL embedding → LinearRegression / LogisticRegression / LinUCB / Bandit → online adaptation），并在架构上预留 `inference-provider` 抽象。RillML 不应变成 PyTorch/tinygrad 的替代品。
 

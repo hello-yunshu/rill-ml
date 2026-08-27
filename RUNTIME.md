@@ -87,8 +87,8 @@ availability 与稳定状态标识。Runtime 还提供时钟注入的
 `RuntimeDiagnosticsV1`，可由 consumer 记录结构化 health、reason code、资源
 计数和恢复信息；库不会隐式读取系统时钟。IPC frame、snapshot、state 和
 decision ledger 上限均是 hard limit，达到上限时 fail-closed，不通过淘汰旧
-记录来制造“成功”。Stable v3 仍须通过 candidate/public-asset conformance
-后才可启用。
+记录来制造“成功”。Preview v3 仍须通过 candidate/public-asset conformance
+后才可提升为稳定产品路径。
 
 ## 安全与回退
 
@@ -97,7 +97,10 @@ decision ledger 上限均是 hard limit，达到上限时 fail-closed，不通�
 - 发布索引的签名覆盖每个二进制、模型包和 handler 包的 SHA-256、大小、版本、平台与 URL。
 - Runtime 更新、模型更新与 handler 更新彼此独立，但都必须通过启动自检后才能切换为 `current`。
 - 宿主应用使用同文件系统目录重命名完成 `staging → current`，保留一个 `rollback`；激活失败会自动恢复。
-- macOS Runtime 除发布索引签名外还必须通过 `codesign --verify --strict`。
+- macOS Runtime 资产在永久未签名策略下可以不通过 Apple Developer ID
+  codesign；发布索引、模型包和 handler 包仍必须通过 Ed25519 签名与哈希验证。
+  如果配置了 Apple Developer ID，工作流会额外执行 codesign；详见
+  [`STABILITY.md`](STABILITY.md) 的 macOS unsigned policy。
 - Runtime 缺失、超时、崩溃、包损坏、API 不兼容、模型数据不足或候选误差没有胜过基线时，宿主继续使用确定性回退。
 - Handler trap、超时或非法输出后，runtime 进程仍能返回 health/error 响应。
 
@@ -157,11 +160,15 @@ cargo run -p rill-runtime --bin rill-pack -- inspect-handler \
 
 `.github/workflows/pipeline.yml` 在 `workflow_dispatch`（由 `Auto Release` 在 `vX.Y.Z` 标签上触发）时执行完整的发布流程：
 
-1. `cargo package --dry-run` 验证 crate 可发布；
-2. 为 Linux、Windows 和 Apple Silicon macOS 编译 `rill-runtime` 二进制；
-3. 签名模型包与稳定索引；
-4. 创建单个 GitHub Release，包含所有平台二进制、`.rillpack`、`.rillhandler` 和 `stable-index.json`。
-5. 将 `rill-handler-api`、`rill-runtime-protocol`、`rill-ml`、`rill-runtime` 等发布到 crates.io。
+1. `cargo package --dry-run` 验证 Stable crate 可发布；
+2. 为 Stable 平台矩阵编译 `rill-runtime` 二进制，并额外生成 OHOS ARM64
+   release-only 资产；
+3. 签名模型包、handler 包与稳定索引；
+4. 创建单个 GitHub Release，包含平台二进制、`.rillpack`、`.rillhandler`
+   和 `stable-index.json`；OHOS 资产使用单独的 release-only 索引，不进入
+   Stable Runtime 选择；
+5. 将 `rill-handler-api`、`rill-runtime-protocol`、`rill-ml`、`rill-runtime`
+   等 Stable crate 发布到 crates.io。
 
 工作流允许在部分发布失败后安全重跑：已经发布的 crate 会跳过，已经存在的版本 Release 会复用其不可变资产，并继续修复 `local-ai-stable` 索引指针。已发布的版本标签不得移动或覆盖。
 
@@ -169,7 +176,7 @@ cargo run -p rill-runtime --bin rill-pack -- inspect-handler \
 
 - `RILL_SIGNING_KEY_HEX`：必须对应发布者内置的 Ed25519 公钥；RillML 示例使用 `rillml-examples-2026-001` 密钥对，生产部署应使用独立密钥对；
 - `CARGO_REGISTRY_TOKEN`：crates.io 发布令牌；
-- `APPLE_CERTIFICATE_P12_BASE64`、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_SIGNING_IDENTITY`：macOS Developer ID 代码签名（未配置时 macOS 二进制照常构建，仅跳过 codesign）；
+- `APPLE_CERTIFICATE_P12_BASE64`、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_SIGNING_IDENTITY`：可选的 macOS Developer ID 代码签名（未配置时 macOS 二进制照常构建并以 unsigned、未 notarize 形态发布）；
 - 模型 manifest、workspace 版本与标签版本必须完全一致。
 
 Mira 集成使用独立于示例发布和插件发布的密钥：
@@ -199,8 +206,8 @@ RillML 与 Rill Runtime 的可复现构建依赖以下固定来源的工具链�
 
 | 工具 | 来源 | 版本约束 | 说明 |
 |---|---|---|---|
-| `wasm-pack` | `cargo install --locked --version "^0.13"` | 0.13.x | 见 [pipeline.yml](.github/workflows/pipeline.yml) 的 `wasm` job；不使用 `curl \| sh` 安装 |
-| `wasm-tools` | `cargo install --locked --version "^1.0"` | 1.x | 见 [pipeline.yml](.github/workflows/pipeline.yml) 的 `wasm-handler` job；用于 WASM 组件包装 |
+| `wasm-pack` | `cargo install --locked --version "~0.15.0"` | 0.15.x | 见 [pipeline.yml](.github/workflows/pipeline.yml) 的 `wasm-build` job；不使用 `curl \| sh` 安装 |
+| `wasm-tools` | `cargo install --locked --version "1.254.0"` | 1.254.0 | 见 [pipeline.yml](.github/workflows/pipeline.yml) 的 `wasm-handler` job；用于 WASM 组件包装 |
 | `wasm32-unknown-unknown` target | `dtolnay/rust-toolchain` Action | 跟随 stable | 由 `targets: wasm32-unknown-unknown` 字段安装 |
 
 ### Python 工具链
@@ -229,7 +236,8 @@ RillML 与 Rill Runtime 的可复现构建依赖以下固定来源的工具链�
 - `Cargo.toml` 的 `[workspace.package].version`（唯一真实来源）；
 - 模型 manifest、handler manifest、Python `pyproject.toml`；
 - GitHub Release 标签 `vX.Y.Z`；
-- README 不再硬编码具体版本号，改用 `cargo add rill-ml` 形式。
+- README 的安装示例使用 `cargo add rill-ml`，不硬编码依赖版本；其中的
+  当前 Stable/Preview 状态由版本同步门禁与 `release-plan.toml` 校验。
 
 ### 升级流程
 

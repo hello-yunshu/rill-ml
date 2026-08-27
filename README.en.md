@@ -40,12 +40,12 @@ The Stable `serve` Runtime CLI continues to accept only IPC v1/v2. Preview IPC
 v3 is exposed only through the explicit `preview-serve --state PATH`
 subprocess surface, whose handshake carries machine-readable
 `channel: "preview"`; it does not change `serve` semantics or get enabled
-implicitly. The production `serve` command must explicitly
+implicitly. The production `serve` command must explicitly select a handler
 entrypoint. `serve` requires an explicit signed `--handler` or the deprecated
 `--builtin-handler linear-regression`; omitting both fails closed rather than
 silently falling back.
 
-The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, signed `.rillpack` model packages, and signed `.rillhandler` WASM handler packages. The runtime loads signature-verified WASM handlers in a sandbox; updating a handler no longer requires recompiling the runtime binary. Hosts can compile only the protocol crate and update the runtime, models, and handlers independently from the main application. Official macOS Runtime releases support Apple Silicon (ARM64) only; no Intel build is provided. The macOS aarch64 asset is unsigned — the project does not configure an Apple Developer ID certificate, and this is a permanent decision that does not block any release. macOS users may need to authorize first launch through standard controls such as Finder right-click → Open or System Settings → Privacy & Security; see [`STABILITY.md`](STABILITY.md) § macOS unsigned policy for details. The 1.0 stability matrix, frozen surface, and Stable/Preview split are documented in [`STABILITY.md`](STABILITY.md); see [`RUNTIME.md`](RUNTIME.md) for the runtime product and release boundary.
+The workspace also includes a separately distributable `rill-runtime`, a stable IPC contract, signed `.rillpack` model packages, and signed `.rillhandler` WASM handler packages. The runtime loads signature-verified WASM handlers in a sandbox; updating a handler no longer requires recompiling the runtime binary. Hosts can compile only the protocol crate and update the runtime, models, and handlers independently from the main application. Official macOS Runtime releases support Apple Silicon (ARM64) only; no Intel build is provided. The macOS aarch64 asset is unsigned — the project does not configure an Apple Developer ID certificate, and this is a permanent decision that does not block any release. macOS users may need to authorize first launch through standard controls such as Finder right-click → Open or System Settings → Privacy & Security; see [`STABILITY.md`](STABILITY.md) § macOS unsigned policy for details. The 1.x stability matrix, frozen surface, and Stable/Preview split are documented in [`STABILITY.md`](STABILITY.md); see [`RUNTIME.md`](RUNTIME.md) for the runtime product and release boundary.
 
 > RillML is inspired by the online-learning workflow popularized by [River](https://riverml.xyz/). It is an independent Rust project and is not affiliated with or endorsed by River. It does not currently aim for API or model compatibility.
 
@@ -339,16 +339,19 @@ The complete threat model and safe usage guidance are documented in [`SECURITY.m
 | Platform | Runtime | Core library |
 |---|---|---|
 | Linux x86_64 | Stable | Stable |
+| Linux aarch64 GNU | Stable | Stable |
 | Windows x86_64 | Stable | Stable |
 | Windows ARM64 (aarch64) | Stable | Stable |
 | macOS aarch64 (Apple Silicon) | Stable (unsigned) | Stable |
 | macOS x86_64 (Intel) | Not released | Stable |
 | Linux riscv64 GNU | Stable | Stable |
+| Linux loongarch64 GNU | Stable | Stable |
+| FreeBSD x86_64 | Stable | Stable |
 | Linux musl x86_64/aarch64/riscv64/armv7/i686 | Stable | Stable |
 | Linux armv7/s390x/powerpc64le GNU | Not listed (Core only) | Stable |
-| OpenHarmony / HarmonyOS ARM64 | Release-only (no device evidence; not Stable) | Stable |
+| OpenHarmony / HarmonyOS ARM64 | Release-only (no device evidence; not supported) | Not supported |
 
-Official macOS Runtime assets are Apple Silicon (ARM64) only, under the permanent unsigned policy. Generic Linux/musl support is documented in [`docs/LINUX_MUSL_SUPPORT.md`](docs/LINUX_MUSL_SUPPORT.md); OpenWrt consumer qualification is documented in [`docs/consumers/OPENWRT.md`](docs/consumers/OPENWRT.md).
+Official macOS Runtime assets are Apple Silicon (ARM64) only, under the permanent unsigned policy. Generic Linux/musl support is documented in [`docs/LINUX_MUSL_SUPPORT.md`](docs/LINUX_MUSL_SUPPORT.md); OpenWrt consumer qualification is documented in [`docs/consumers/OPENWRT.md`](docs/consumers/OPENWRT.md). OHOS ARM64 is release-only and is not claimed for Core or Runtime support; see [`PLATFORM_SUPPORT.md`](PLATFORM_SUPPORT.md).
 
 ## 11. Integrations and ecosystem
 
@@ -395,7 +398,7 @@ Stable crate public APIs are recorded in `api-baseline/` and enforced by `cargo-
 
 ## 13. Roadmap
 
-RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for the full plan and [`STABILITY.md`](STABILITY.md) for the 1.0 compatibility commitments.
+RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for the full plan and [`STABILITY.md`](STABILITY.md) for the 1.x compatibility commitments.
 
 - **v0.1** — Basic closed loop: predict, evaluate, learn, save, restore.
 - **v0.2** — Reliability and diagnostics: prediction reports, cold-start, baseline comparison.
@@ -411,6 +414,10 @@ RillML follows a real-need-driven roadmap. See [`ROADMAP.md`](ROADMAP.md) for th
 - **v1.2.0** — Release admission and full-platform post-verification: admission gate, native RISC-V/LoongArch/FreeBSD/Windows verification, index schema v3 with `targetLibc`.
 - **v1.3.0** — Product-surface drift gates, Stable/Preview version convergence, TrustMetadata v1 key lifecycle, offline/released conformance, real fuzz harnesses, CycloneDX/SPDX SBOMs, and FTRL resource diagnostics.
 - **v1.5.0** — Stateful Runtime v3 production qualification boundaries, hard resource limits, structured health/diagnostics, state rollback, and post-push simulated consumer/fault qualification harnesses.
+- **v1.5.1** — Tightened Preview qualification, release checks, and readable GitHub Actions reference policy.
+- **v1.5.2** — Moved the OpenWrt Performance Manager adapter to the consumer repository while retaining only the generic runtime and compatibility-reading boundary here.
+- **v1.5.3** — Converged the Linux musl support matrix, platform claim registry, and Stable release-index boundary.
+- **v1.5.5** — Added OHOS ARM64 release-only build and artifact identity verification; it is not claimed as supported without device evidence.
 
 The current 1.x line does not implement full deep learning; the future direction is "frozen neural encoder + RillML online adaptive head" (e.g., DL embedding → LinearRegression / LogisticRegression / LinUCB / Bandit → online adaptation), with an `inference-provider` abstraction reserved in the architecture. RillML is not intended to become a PyTorch/tinygrad replacement.
 
