@@ -277,6 +277,10 @@ jobs:
           persist-credentials: false
       - name: Set up QEMU / binfmt_misc
         uses: docker/setup-qemu-action@v4 # v4
+        with:
+          # Avoid the shared binfmt cache reservation race with concurrent
+          # workflow runs; the setup cost is small for this single WASM gate.
+          cache-image: false
       - name: Run WASM build + test
         run: ./scripts/docker-wasm-build.sh
 
