@@ -276,7 +276,7 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
         &self,
         event_json: &[u8],
         current_state: &[u8],
-        _deterministic_seed: Option<u64>,
+        deterministic_seed: Option<u64>,
     ) -> Result<StatefulHandlerResultV2, rill_runtime::StatefulHandlerErrorV2> {
         let mut state: serde_json::Value = serde_json::from_slice(current_state).map_err(|_| {
             rill_runtime::StatefulHandlerErrorV2::new(
@@ -292,21 +292,135 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
             .get("method")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("");
-        let key = match method {
+        let counter = match method {
             "observe" => "observations",
             "decide" => "decisions",
             "feedback" => "feedback",
             _ => "inspections",
         };
         let next = state
-            .get(key)
+            .get(counter)
             .and_then(serde_json::Value::as_u64)
             .unwrap_or(0)
-            + 1;
-        state[key] = serde_json::json!(next);
+            .saturating_add(1);
+        state[counter] = serde_json::json!(next);
+
+        // This handler is deliberately generic: consumers provide opaque
+        // `context` and an ordered `actions` array, while the runtime owns the
+        // bounded online reward estimates.  No product or host vocabulary is
+        // interpreted here.  The running mean is a small, deterministic
+        // online learner suitable for the Preview stateful contract and is
+        // persisted in the same Runtime snapshot as the decision ledger.
+        let mut selected_action = None;
+        let mut scores = Vec::new();
+        if method == "decide" {
+            let actions = event
+                .get("context")
+                .and_then(|value| value.get("actions").or_else(|| value.get("arms")))
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+                .unwrap_or_else(|| vec![serde_json::json!({})]);
+            if actions.len() > 128 {
+                return Err(rill_runtime::StatefulHandlerErrorV2::with_detail(
+                    rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                    "actions array is outside the bounded runtime limit",
+                ));
+            }
+            if state
+                .get("actionStats")
+                .and_then(serde_json::Value::as_object)
+                .is_none()
+            {
+                state["actionStats"] = serde_json::json!({});
+            }
+            let stats = state
+                .get_mut("actionStats")
+                .and_then(serde_json::Value::as_object_mut)
+                .expect("actionStats initialized above");
+            let mut best: Option<(f64, usize)> = None;
+            for (index, _) in actions.iter().enumerate() {
+                let key = index.to_string();
+                let row = stats.entry(key).or_insert_with(|| {
+                    serde_json::json!({
+                        "samples": 0u64,
+                        "rewardSum": 0.0f64,
+                        "rewardMean": 0.0f64
+                    })
+                });
+                let samples = row
+                    .get("samples")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                let mean = row
+                    .get("rewardMean")
+                    .and_then(serde_json::Value::as_f64)
+                    .unwrap_or(0.0);
+                scores.push(mean);
+                // Explore each unseen action once; after that choose the
+                // highest observed mean, with a deterministic tie-break.
+                let candidate = if samples == 0 { f64::INFINITY } else { mean };
+                if best.is_none_or(|(score, best_index)| {
+                    candidate > score || (candidate == score && index < best_index)
+                }) {
+                    best = Some((candidate, index));
+                }
+            }
+            selected_action = best.map(|(_, index)| index);
+            state["lastSelectedAction"] = serde_json::json!(selected_action);
+            if let Some(seed) = deterministic_seed {
+                // The seed is recorded for reproducibility without allowing a
+                // consumer to bypass the bounded action set.
+                state["lastDeterministicSeed"] = serde_json::json!(seed);
+            }
+        } else if method == "feedback" {
+            let selected = event
+                .get("selectedArm")
+                .and_then(serde_json::Value::as_u64)
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                    )
+                })?;
+            let reward = event
+                .get("reward")
+                .and_then(serde_json::Value::as_f64)
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                    )
+                })?;
+            let stats = state
+                .get_mut("actionStats")
+                .and_then(serde_json::Value::as_object_mut)
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?;
+            let row = stats.entry(selected.to_string()).or_insert_with(
+                || serde_json::json!({"samples": 0u64, "rewardSum": 0.0f64, "rewardMean": 0.0f64}),
+            );
+            let samples = row
+                .get("samples")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0)
+                .saturating_add(1);
+            let sum = row
+                .get("rewardSum")
+                .and_then(serde_json::Value::as_f64)
+                .unwrap_or(0.0)
+                + reward;
+            row["samples"] = serde_json::json!(samples);
+            row["rewardSum"] = serde_json::json!(sum);
+            row["rewardMean"] = serde_json::json!(sum / samples as f64);
+        }
         let output = serde_json::json!({
             "accepted": true,
             "method": method,
+            "selectedAction": selected_action,
+            "scores": scores,
+            "learner": "bounded-running-mean",
             "stateCounters": state,
         });
         Ok(StatefulHandlerResultV2 {

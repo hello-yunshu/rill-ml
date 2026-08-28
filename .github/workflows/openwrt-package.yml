@@ -1,0 +1,63 @@
+name: OpenWrt Runtime Package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packaging/openwrt/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/rill-runtime/**"
+      - ".github/workflows/openwrt-package.yml"
+  pull_request:
+    paths:
+      - "packaging/openwrt/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/rill-runtime/**"
+      - ".github/workflows/openwrt-package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.openwrt }} ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { openwrt: v24.10.5, pkgtype: ipk, arch: x86_64 }
+          - { openwrt: v25.12.0, pkgtype: apk, arch: x86_64 }
+    container:
+      image: ghcr.io/openwrt/sdk:${{ matrix.arch }}-${{ matrix.openwrt }}
+      options: --user root
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: rill-ml
+      - name: Stage canonical recipe
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /builder
+          ./scripts/feeds update packages
+          cp -r "$GITHUB_WORKSPACE/rill-ml/packaging/openwrt/rill-runtime" package/rill-runtime
+          echo 'CONFIG_PACKAGE_rill-runtime=y' >> .config
+          make defconfig
+      - name: Build and inspect package
+        shell: bash
+        working-directory: /builder
+        run: |
+          set -euo pipefail
+          make package/rill-runtime/compile V=sc
+          files=$(find bin -type f -name "rill-runtime*.${{ matrix.pkgtype }}")
+          test -n "$files"
+          while IFS= read -r file; do
+            case "${file##*.}" in
+              ipk) data_member=$(tar -tf "$file" | sed 's#^\./##' | grep -E '^data\.tar' | head -n1); test -n "$data_member"; tar -xOf "$file" "./$data_member" | tar -tf - | sed 's#^\./##' | grep -Fx 'usr/bin/rill-runtime' >/dev/null ;;
+              apk) test -x staging_dir/host/bin/apk; staging_dir/host/bin/apk --root "$RUNNER_TEMP/apk-root" --network=no --repositories-file /dev/null add --initdb --no-scripts; staging_dir/host/bin/apk --root "$RUNNER_TEMP/apk-root" --allow-untrusted manifest "$file" | awk '{print $NF}' | grep -Fx 'usr/bin/rill-runtime' >/dev/null ;;
+            esac
+          done <<< "$files"
