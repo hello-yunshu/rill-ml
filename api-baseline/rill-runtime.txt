@@ -102,7 +102,7 @@ pub rill_runtime::DecisionLedgerEntryV3::decision_id: alloc::string::String
 pub rill_runtime::DecisionLedgerEntryV3::model_generation: u64
 pub rill_runtime::DecisionLedgerEntryV3::outcome_time_unix_ms: core::option::Option<u64>
 pub rill_runtime::DecisionLedgerEntryV3::reward: core::option::Option<alloc::string::String>
-pub rill_runtime::DecisionLedgerEntryV3::selected_arm: core::option::Option<u32>
+pub rill_runtime::DecisionLedgerEntryV3::selected_action_id: core::option::Option<alloc::string::String>
 pub rill_runtime::DecisionLedgerEntryV3::state_generation: u64
 pub struct rill_runtime::HandlerIdentity
 pub rill_runtime::HandlerIdentity::effective_capabilities: alloc::vec::Vec<alloc::string::String>

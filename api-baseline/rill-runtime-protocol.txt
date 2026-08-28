@@ -84,7 +84,7 @@ pub rill_runtime_protocol::v3::RuntimeRequestV3::Feedback::decision_id: alloc::s
 pub rill_runtime_protocol::v3::RuntimeRequestV3::Feedback::generation: u64
 pub rill_runtime_protocol::v3::RuntimeRequestV3::Feedback::outcome_time_ms: u64
 pub rill_runtime_protocol::v3::RuntimeRequestV3::Feedback::reward: f64
-pub rill_runtime_protocol::v3::RuntimeRequestV3::Feedback::selected_arm: u32
+pub rill_runtime_protocol::v3::RuntimeRequestV3::Feedback::selected_action_id: alloc::string::String
 pub rill_runtime_protocol::v3::RuntimeRequestV3::Handshake
 pub rill_runtime_protocol::v3::RuntimeRequestV3::Health
 pub rill_runtime_protocol::v3::RuntimeRequestV3::Inspect
