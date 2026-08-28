@@ -56,3 +56,12 @@ wasmtime = { workspace = true, optional = true, features = ["cranelift", "all-ar
 
 [dev-dependencies]
 tempfile = "3"
+
+# DecisionLedgerEntryV3 records the opaque action identifier used by the
+# explicit opt-in Preview v3 protocol. Its old numeric selected_arm field was
+# a placeholder, so this reviewed preview evolution is intentionally exempt
+# from Stable ABI semver checks; all non-preview runtime API checks remain
+# fail-closed.
+[package.metadata.cargo-semver-checks.lints]
+constructible_struct_adds_field = "allow"
+struct_pub_field_missing = "allow"
