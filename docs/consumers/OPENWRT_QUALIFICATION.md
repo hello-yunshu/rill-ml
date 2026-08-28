@@ -20,6 +20,18 @@ turning product-specific host control into RillML ownership.
   hash, and whether execution was on a real device, VM/QEMU, or a host
   simulation.
 
+The canonical distribution surface is `packaging/openwrt/rill-runtime/`.
+It produces the normal OpenWrt package `rill-runtime`, installs exactly
+`/usr/bin/rill-runtime`, builds the fixed Stable source archive with the
+OpenWrt Rust target toolchain, keeps the upstream default features enabled,
+and does not install the `rill-pack` development binary. Consumers depend on
+the package name only; they do not download or remove Runtime executables.
+
+The current stateful IPC v3 surface is Preview. It is suitable for explicit
+consumer qualification and generic shadow integration, but it is not a
+Stable API claim until the v3 stateful handler and the OpenWrt package gates
+are promoted through the normal release process.
+
 ## Consumer-owned boundary
 
 RillML owns generic Core, Runtime, protocol, signed model/handler, platform
