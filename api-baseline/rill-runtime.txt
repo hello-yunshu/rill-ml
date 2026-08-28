@@ -102,9 +102,10 @@ pub rill_runtime::DecisionLedgerEntryV3::decision_id: alloc::string::String
 pub rill_runtime::DecisionLedgerEntryV3::model_generation: u64
 pub rill_runtime::DecisionLedgerEntryV3::outcome_time_unix_ms: core::option::Option<u64>
 pub rill_runtime::DecisionLedgerEntryV3::reward: core::option::Option<alloc::string::String>
-pub rill_runtime::DecisionLedgerEntryV3::selected_action_id: core::option::Option<alloc::string::String>
 pub rill_runtime::DecisionLedgerEntryV3::selected_action_features: core::option::Option<alloc::vec::Vec<f64>>
+pub rill_runtime::DecisionLedgerEntryV3::selected_action_id: core::option::Option<alloc::string::String>
 pub rill_runtime::DecisionLedgerEntryV3::state_generation: u64
+impl core::cmp::Eq for rill_runtime::DecisionLedgerEntryV3
 pub struct rill_runtime::HandlerIdentity
 pub rill_runtime::HandlerIdentity::effective_capabilities: alloc::vec::Vec<alloc::string::String>
 pub rill_runtime::HandlerIdentity::handler_api_version: u32
@@ -232,6 +233,7 @@ pub rill_runtime::StatefulRuntimeSnapshotV3::handler_snapshot: rill_runtime::Sta
 pub rill_runtime::StatefulRuntimeSnapshotV3::pending_decisions: alloc::collections::btree::map::BTreeMap<alloc::string::String, rill_runtime::DecisionLedgerEntryV3>
 impl rill_runtime::StatefulRuntimeSnapshotV3
 pub const rill_runtime::StatefulRuntimeSnapshotV3::FORMAT_VERSION: u32
+impl core::cmp::Eq for rill_runtime::StatefulRuntimeSnapshotV3
 pub struct rill_runtime::StatefulStateSnapshotV2
 pub rill_runtime::StatefulStateSnapshotV2::checksum_sha256: alloc::string::String
 pub rill_runtime::StatefulStateSnapshotV2::state: alloc::vec::Vec<u8>
