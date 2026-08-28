@@ -20,6 +20,15 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+
+## [1.5.6] - 2026-08-28
+
+### Changed
+
+- Preview Runtime v3 now retains the exact selected action feature vector in
+  the generic delayed-decision ledger, so feedback remains causally bound to
+  the decision that produced it even when an opaque action id is reused.
+
 ### Changed
 
 - Updated cross-architecture Runtime smoke gates to create, verify, and use a
@@ -1693,6 +1702,7 @@ by River but implemented independently.
   `HashMap<String, f64>`.
 
 [Unreleased]: https://github.com/hello-yunshu/rill-ml/compare/v1.5.5...HEAD
+[1.5.6]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.6
 [1.5.5]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.5
 [1.5.2]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.2
 [1.5.1]: https://github.com/hello-yunshu/rill-ml/releases/tag/v1.5.1

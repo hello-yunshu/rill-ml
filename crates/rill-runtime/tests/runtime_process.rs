@@ -206,6 +206,20 @@ fn preview_v3_uses_opaque_action_ids_and_context_features() {
             deterministic_seed: Some(11),
         },
     );
+    let decide_again = preview_envelope(
+        "contextual-decision-2",
+        Some("org.rill.preview.decide"),
+        1,
+        RuntimeRequestV3::Decide {
+            context: serde_json::json!({
+                "actions": [
+                    {"id": "opaque-a", "features": [0.0, 1.0]},
+                    {"id": "opaque-b", "features": [1.0, 0.0]}
+                ]
+            }),
+            deterministic_seed: Some(12),
+        },
+    );
     let mut process = runtime_command()
         .args(["preview-serve", "--state"])
         .arg(&state_path)
@@ -218,10 +232,12 @@ fn preview_v3_uses_opaque_action_ids_and_context_features() {
         let stdin = process.stdin.as_mut().unwrap();
         serde_json::to_writer(&mut *stdin, &decide).unwrap();
         stdin.write_all(b"\n").unwrap();
+        serde_json::to_writer(&mut *stdin, &decide_again).unwrap();
+        stdin.write_all(b"\n").unwrap();
         let feedback = preview_envelope(
             "contextual-feedback",
             Some("org.rill.preview.feedback"),
-            1,
+            2,
             RuntimeRequestV3::Feedback {
                 decision_id: "contextual-decision".into(),
                 selected_action_id: "opaque-a".into(),
@@ -254,6 +270,11 @@ fn preview_v3_uses_opaque_action_ids_and_context_features() {
         "opaque-a"
     );
     assert_eq!(responses[1]["response"]["kind"], "result");
+    assert_eq!(responses[2]["response"]["kind"], "result");
+    assert_eq!(
+        responses[2]["response"]["output"]["stateCounters"]["weights"],
+        serde_json::json!([0.1, 0.0])
+    );
     let persisted =
         serde_json::from_slice::<serde_json::Value>(&fs::read(&state_path).unwrap()).unwrap();
     let state = &persisted["handlerSnapshot"]["state"];

@@ -518,15 +518,23 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
                 .saturating_add(1);
             row["samples"] = serde_json::json!(samples);
             row["lastReward"] = serde_json::json!(reward);
-            let features = row
-                .get("features")
-                .and_then(serde_json::Value::as_array)
+            let features = event
+                .get("decisionContext")
+                .and_then(|context| context.get("selectedActionFeatures"))
+                .cloned()
+                .or_else(|| row.get("features").cloned())
                 .ok_or_else(|| {
                     rill_runtime::StatefulHandlerErrorV2::new(
                         rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
                     )
                 })?;
             let features: Vec<f64> = features
+                .as_array()
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?
                 .iter()
                 .map(serde_json::Value::as_f64)
                 .collect::<Option<Vec<_>>>()

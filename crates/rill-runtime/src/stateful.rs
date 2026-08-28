@@ -169,7 +169,7 @@ pub struct StatefulStateSnapshotV2 {
 }
 
 /// One decision retained across process restart for delayed feedback.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DecisionLedgerEntryV3 {
     pub decision_id: String,
@@ -178,6 +178,11 @@ pub struct DecisionLedgerEntryV3 {
     pub created_at_unix_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_action_id: Option<String>,
+    /// The exact action feature vector selected by the decision. This generic
+    /// numeric context prevents delayed feedback from training against a
+    /// later observation that reused the same opaque action id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_action_features: Option<Vec<f64>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reward: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -238,7 +243,7 @@ pub struct RuntimeDiagnosticsV1 {
 
 /// Durable v3 runtime envelope. The handler snapshot and decision ledger are
 /// checksummed together so feedback cannot silently cross a restore boundary.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StatefulRuntimeSnapshotV3 {
     pub format_version: u32,
@@ -987,7 +992,25 @@ impl StatefulRuntimeEngineV3 {
             } => *deterministic_seed,
             _ => None,
         };
-        let event_json = match serde_json::to_vec(&request) {
+        let delayed_features = match &request {
+            RuntimeRequestV3::Feedback { decision_id, .. } => state
+                .pending_decisions
+                .get(decision_id)
+                .and_then(|entry| entry.selected_action_features.clone()),
+            _ => None,
+        };
+        let event_json = match serde_json::to_value(&request).and_then(|mut event| {
+            if let Some(features) = delayed_features {
+                event
+                    .as_object_mut()
+                    .expect("runtime request serializes as an object")
+                    .insert(
+                        "decisionContext".into(),
+                        serde_json::json!({"selectedActionFeatures": features}),
+                    );
+            }
+            serde_json::to_vec(&event)
+        }) {
             Ok(bytes) if bytes.len() <= MAX_EVENT_BYTES => bytes,
             Ok(_) => {
                 return self.error_response(
@@ -1092,6 +1115,9 @@ impl StatefulRuntimeEngineV3 {
                 model_generation: self.config.model_generation,
                 state_generation: next_generation,
                 created_at_unix_ms: now_unix_ms,
+                selected_action_features: selected_action_id
+                    .as_deref()
+                    .and_then(|id| selected_action_features(&request, id)),
                 selected_action_id,
                 reward: None,
                 outcome_time_unix_ms: None,
@@ -1368,6 +1394,36 @@ fn validate_capabilities(capabilities: &[String]) -> Result<(), StatefulHandlerE
 
 fn state_checksum(state: &[u8]) -> String {
     hex::encode(Sha256::digest(state))
+}
+
+fn selected_action_features(
+    request: &RuntimeRequestV3,
+    selected_action_id: &str,
+) -> Option<Vec<f64>> {
+    let RuntimeRequestV3::Decide { context, .. } = request else {
+        return None;
+    };
+    let actions = context
+        .get("actions")
+        .or_else(|| context.get("arms"))
+        .and_then(serde_json::Value::as_array)?;
+    let action = actions.iter().find(|action| {
+        action.get("id").and_then(serde_json::Value::as_str) == Some(selected_action_id)
+    })?;
+    let features = action
+        .get("features")
+        .and_then(serde_json::Value::as_array)?;
+    if features.is_empty() || features.len() > 32 {
+        return None;
+    }
+    let values = features
+        .iter()
+        .map(serde_json::Value::as_f64)
+        .collect::<Option<Vec<_>>>()?;
+    values
+        .iter()
+        .all(|value| value.is_finite())
+        .then_some(values)
 }
 
 fn map_handler_error(kind: StatefulHandlerErrorKindV2) -> (RuntimeErrorCodeV3, &'static str) {
