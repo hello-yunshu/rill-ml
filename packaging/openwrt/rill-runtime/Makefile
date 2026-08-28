@@ -5,8 +5,8 @@ PKG_VERSION:=1.5.5
 PKG_RELEASE:=1
 PKG_LICENSE:=MIT
 PKG_MAINTAINER:=Rill contributors
-PKG_SOURCE:=rill-ml-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://github.com/hello-yunshu/rill-ml/archive/refs/tags/v$(PKG_VERSION).tar.gz
+PKG_SOURCE:=v$(PKG_VERSION).tar.gz
+PKG_SOURCE_URL:=https://github.com/hello-yunshu/rill-ml/archive/refs/tags/
 PKG_HASH:=dd35ff605a68f4285c0aa7c09c14f4f29bf17dfbde03c05c4faa21a867992361
 PKG_BUILD_DIR:=$(BUILD_DIR)/rill-ml-$(PKG_VERSION)
 
