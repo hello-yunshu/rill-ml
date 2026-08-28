@@ -915,15 +915,14 @@ impl StatefulRuntimeEngineV3 {
             if let RuntimeRequestV3::Feedback {
                 selected_action_id, ..
             } = &request
+                && entry.selected_action_id.as_deref() != Some(selected_action_id.as_str())
             {
-                if entry.selected_action_id.as_deref() != Some(selected_action_id.as_str()) {
-                    return self.error_response(
-                        request_id,
-                        RuntimeErrorCodeV3::StateMismatch,
-                        "feedback action does not match the recorded decision",
-                        state.snapshot.state_generation,
-                    );
-                }
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::StateMismatch,
+                    "feedback action does not match the recorded decision",
+                    state.snapshot.state_generation,
+                );
             }
             if state.completed_decisions.len()
                 >= self.config.resource_profile.max_completed_decisions as usize
@@ -1082,26 +1081,18 @@ impl StatefulRuntimeEngineV3 {
         let mut next_pending = state.pending_decisions.clone();
         let mut next_completed = state.completed_decisions.clone();
         if matches!(request, RuntimeRequestV3::Decide { .. }) {
-            let Some(selected_action_id) = result
+            let selected_action_id = result
                 .output
                 .get("selectedActionId")
                 .and_then(serde_json::Value::as_str)
                 .filter(|value| !value.is_empty() && value.len() <= 96)
-                .map(str::to_owned)
-            else {
-                return self.error_response(
-                    request_id,
-                    RuntimeErrorCodeV3::HandlerInvalidOutput,
-                    "decide output must contain selectedActionId",
-                    state.snapshot.state_generation,
-                );
-            };
+                .map(str::to_owned);
             let entry = DecisionLedgerEntryV3 {
                 decision_id: request_id.clone(),
                 model_generation: self.config.model_generation,
                 state_generation: next_generation,
                 created_at_unix_ms: now_unix_ms,
-                selected_action_id: Some(selected_action_id),
+                selected_action_id,
                 reward: None,
                 outcome_time_unix_ms: None,
             };
