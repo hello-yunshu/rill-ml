@@ -50,11 +50,10 @@ jobs:
           make defconfig
       - name: Build and inspect package
         shell: bash
-        env:
-          CI: ""
         working-directory: /builder
         run: |
           set -euo pipefail
+          unset CI
           make package/rill-runtime/compile V=sc
           files=$(find bin -type f -name "rill-runtime*.${{ matrix.pkgtype }}")
           test -n "$files"
