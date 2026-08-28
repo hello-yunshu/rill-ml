@@ -44,6 +44,7 @@ jobs:
           set -euo pipefail
           cd /builder
           ./scripts/feeds update packages
+          ./scripts/feeds install rust
           cp -r "$GITHUB_WORKSPACE/rill-ml/packaging/openwrt/rill-runtime" package/rill-runtime
           echo 'CONFIG_PACKAGE_rill-runtime=y' >> .config
           make defconfig
