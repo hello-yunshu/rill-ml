@@ -25,6 +25,12 @@ serde_json.workspace = true
 # Both are accepted as non-breaking for the serde_json wire contract that
 # this crate guarantees; the 1.0 baseline is kept for binary-identical
 # fixtures.
+# The v3 Preview feedback payload intentionally replaces the placeholder
+# numeric arm with an opaque action identifier. V3 is an explicit opt-in
+# preview wire contract, so these two Rust enum-field lints are reviewed as
+# an intentional preview API evolution rather than a Stable ABI guarantee.
 [package.metadata.cargo-semver-checks.lints]
 enum_variant_added = "allow"
 constructible_struct_adds_field = "allow"
+enum_struct_variant_field_added = "allow"
+enum_struct_variant_field_missing = "allow"
