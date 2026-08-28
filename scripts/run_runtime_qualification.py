@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 SCHEMA_VERSION = 1
-HASH = "ab" * 32
+HASH = "99c44934c1bfca8fdffb93122d29418d7fe7eb0d81d80f8b2bf4fbdd153151ab"
 
 
 def envelope(request_id: str, capability: str | None, generation: int, request: dict) -> dict:
@@ -59,7 +59,15 @@ def qualify(runtime: Path, observations: int) -> dict:
                 f"decision-{index}",
                 "org.rill.preview.decide",
                 index,
-                {"method": "decide", "context": {"features": [float(index)]}},
+                {
+                    "method": "decide",
+                    "context": {
+                        "actions": [
+                            {"id": "route-a", "features": [float(index)]},
+                            {"id": "route-b", "features": [float(index) + 1.0]},
+                        ]
+                    },
+                },
             )
             for index in range(observations)
         ]
@@ -80,7 +88,7 @@ def qualify(runtime: Path, observations: int) -> dict:
                     {
                         "method": "feedback",
                         "decisionId": f"decision-{index}",
-                        "selectedArm": 0,
+                        "selectedActionId": "route-a",
                         "reward": 1.0,
                         "outcomeTimeMs": index + 1,
                         "generation": 0,
@@ -102,7 +110,7 @@ def qualify(runtime: Path, observations: int) -> dict:
                     {
                         "method": "feedback",
                         "decisionId": "decision-0",
-                        "selectedArm": 0,
+                        "selectedActionId": "route-a",
                         "reward": 1.0,
                         "outcomeTimeMs": 1,
                         "generation": 0,

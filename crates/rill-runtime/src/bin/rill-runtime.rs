@@ -27,6 +27,9 @@ use rill_runtime_protocol::{
 };
 use thiserror::Error;
 
+const DEFAULT_FEATURE_SCHEMA_HASH: &str =
+    "99c44934c1bfca8fdffb93122d29418d7fe7eb0d81d80f8b2bf4fbdd153151ab";
+
 #[derive(Debug, Parser)]
 #[command(
     name = "rill-runtime",
@@ -74,7 +77,7 @@ enum Command {
         state: PathBuf,
         #[arg(
             long,
-            default_value = "abababababababababababababababababababababababababababababababab"
+            default_value = DEFAULT_FEATURE_SCHEMA_HASH
         )]
         feature_schema_hash: String,
         #[arg(long, default_value_t = 0)]
@@ -261,7 +264,7 @@ impl PreviewBuiltinHandler {
                     "org.rill.preview.snapshot".into(),
                     "org.rill.preview.reset".into(),
                 ],
-                state_schema_version: 1,
+                state_schema_version: 2,
             },
         }
     }
@@ -305,12 +308,21 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
             .saturating_add(1);
         state[counter] = serde_json::json!(next);
 
+        if state
+            .get("handlerStateVersion")
+            .and_then(serde_json::Value::as_u64)
+            != Some(2)
+        {
+            return Err(rill_runtime::StatefulHandlerErrorV2::with_detail(
+                rill_runtime::StatefulHandlerErrorKindV2::IncompatibleVersion,
+                "contextual learner state version is not supported",
+            ));
+        }
+
         // This handler is deliberately generic: consumers provide opaque
-        // `context` and an ordered `actions` array, while the runtime owns the
-        // bounded online reward estimates.  No product or host vocabulary is
-        // interpreted here.  The running mean is a small, deterministic
-        // online learner suitable for the Preview stateful contract and is
-        // persisted in the same Runtime snapshot as the decision ledger.
+        // action IDs and bounded feature vectors. The runtime owns a small,
+        // deterministic online linear model; it never interprets product
+        // vocabulary, action position, or host state.
         let mut selected_action = None;
         let mut scores = Vec::new();
         if method == "decide" {
@@ -319,66 +331,161 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
                 .and_then(|value| value.get("actions").or_else(|| value.get("arms")))
                 .and_then(serde_json::Value::as_array)
                 .cloned()
-                .unwrap_or_else(|| vec![serde_json::json!({})]);
-            if actions.len() > 128 {
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::with_detail(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                        "context.actions is required",
+                    )
+                })?;
+            if actions.is_empty() || actions.len() > 128 {
                 return Err(rill_runtime::StatefulHandlerErrorV2::with_detail(
                     rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
                     "actions array is outside the bounded runtime limit",
                 ));
             }
-            if state
-                .get("actionStats")
-                .and_then(serde_json::Value::as_object)
-                .is_none()
-            {
-                state["actionStats"] = serde_json::json!({});
-            }
-            let stats = state
-                .get_mut("actionStats")
-                .and_then(serde_json::Value::as_object_mut)
-                .expect("actionStats initialized above");
-            let mut best: Option<(f64, usize)> = None;
-            for (index, _) in actions.iter().enumerate() {
-                let key = index.to_string();
-                let row = stats.entry(key).or_insert_with(|| {
-                    serde_json::json!({
-                        "samples": 0u64,
-                        "rewardSum": 0.0f64,
-                        "rewardMean": 0.0f64
-                    })
-                });
-                let samples = row
-                    .get("samples")
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap_or(0);
-                let mean = row
-                    .get("rewardMean")
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0);
-                scores.push(mean);
-                // Explore each unseen action once; after that choose the
-                // highest observed mean, with a deterministic tie-break.
-                let candidate = if samples == 0 { f64::INFINITY } else { mean };
-                if best.is_none_or(|(score, best_index)| {
-                    candidate > score || (candidate == score && index < best_index)
-                }) {
-                    best = Some((candidate, index));
+            let mut action_rows = BTreeMap::new();
+            let mut feature_count = None;
+            for action in &actions {
+                let id = action
+                    .get("id")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|id| !id.is_empty() && id.len() <= 96)
+                    .ok_or_else(|| {
+                        rill_runtime::StatefulHandlerErrorV2::with_detail(
+                            rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                            "every action requires a bounded opaque id",
+                        )
+                    })?;
+                let features = action
+                    .get("features")
+                    .and_then(serde_json::Value::as_array)
+                    .filter(|features| !features.is_empty() && features.len() <= 32)
+                    .ok_or_else(|| {
+                        rill_runtime::StatefulHandlerErrorV2::with_detail(
+                            rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                            "every action requires 1..32 features",
+                        )
+                    })?;
+                if feature_count.is_some_and(|count| count != features.len()) {
+                    return Err(rill_runtime::StatefulHandlerErrorV2::with_detail(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                        "all actions must use the same feature width",
+                    ));
+                }
+                feature_count = Some(features.len());
+                let numbers: Vec<f64> = features
+                    .iter()
+                    .map(serde_json::Value::as_f64)
+                    .collect::<Option<Vec<_>>>()
+                    .filter(|values| values.iter().all(|value| value.is_finite()))
+                    .ok_or_else(|| {
+                        rill_runtime::StatefulHandlerErrorV2::with_detail(
+                            rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                            "features must be finite numbers",
+                        )
+                    })?;
+                if action_rows.insert(id.to_owned(), numbers).is_some() {
+                    return Err(rill_runtime::StatefulHandlerErrorV2::with_detail(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                        "action ids must be unique",
+                    ));
                 }
             }
-            selected_action = best.map(|(_, index)| index);
-            state["lastSelectedAction"] = serde_json::json!(selected_action);
+            let feature_count = feature_count.expect("non-empty actions validated above");
+            let weights = state
+                .get("weights")
+                .and_then(serde_json::Value::as_array)
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?;
+            if !weights.is_empty() && weights.len() != feature_count {
+                return Err(rill_runtime::StatefulHandlerErrorV2::with_detail(
+                    rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                    "feature width does not match the learner model",
+                ));
+            }
+            if weights.is_empty() {
+                state["weights"] = serde_json::json!(vec![0.0f64; feature_count]);
+            }
+            let weights: Vec<f64> = state
+                .get("weights")
+                .and_then(serde_json::Value::as_array)
+                .expect("weights initialized above")
+                .iter()
+                .map(serde_json::Value::as_f64)
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?;
+            let bias = state
+                .get("bias")
+                .and_then(serde_json::Value::as_f64)
+                .unwrap_or(0.0);
+            let stored_actions = state
+                .get_mut("actions")
+                .and_then(serde_json::Value::as_object_mut)
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?;
+            for (id, features) in &action_rows {
+                let row = stored_actions
+                    .entry(id.clone())
+                    .or_insert_with(|| serde_json::json!({"features": features, "samples": 0u64}));
+                row["features"] = serde_json::json!(features);
+            }
+            let stored = state
+                .get("actions")
+                .and_then(serde_json::Value::as_object)
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?;
+            let mut best: Option<(bool, f64, String)> = None;
+            for (id, features) in action_rows {
+                let score = bias
+                    + weights
+                        .iter()
+                        .zip(&features)
+                        .map(|(weight, feature)| weight * feature)
+                        .sum::<f64>();
+                let samples = stored
+                    .get(&id)
+                    .and_then(|row| row.get("samples"))
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                scores.push(serde_json::json!({"id": id, "score": score}));
+                let candidate = (samples == 0, score, id.clone());
+                if best.as_ref().is_none_or(|current| {
+                    candidate.0 > current.0
+                        || (candidate.0 == current.0
+                            && (candidate.1 > current.1
+                                || (candidate.1 == current.1 && candidate.2 < current.2)))
+                }) {
+                    best = Some(candidate);
+                }
+            }
+            selected_action = best.map(|(_, _, id)| id);
+            state["lastSelectedActionId"] = serde_json::json!(selected_action);
+            state["featureCount"] = serde_json::json!(feature_count);
             if let Some(seed) = deterministic_seed {
-                // The seed is recorded for reproducibility without allowing a
-                // consumer to bypass the bounded action set.
                 state["lastDeterministicSeed"] = serde_json::json!(seed);
             }
         } else if method == "feedback" {
             let selected = event
-                .get("selectedArm")
-                .and_then(serde_json::Value::as_u64)
+                .get("selectedActionId")
+                .and_then(serde_json::Value::as_str)
+                .filter(|id| !id.is_empty() && id.len() <= 96)
                 .ok_or_else(|| {
-                    rill_runtime::StatefulHandlerErrorV2::new(
+                    rill_runtime::StatefulHandlerErrorV2::with_detail(
                         rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                        "feedback requires selectedActionId",
                     )
                 })?;
             let reward = event
@@ -390,37 +497,92 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
                         rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
                     )
                 })?;
-            let stats = state
-                .get_mut("actionStats")
+            let actions = state
+                .get_mut("actions")
                 .and_then(serde_json::Value::as_object_mut)
                 .ok_or_else(|| {
                     rill_runtime::StatefulHandlerErrorV2::new(
                         rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
                     )
                 })?;
-            let row = stats.entry(selected.to_string()).or_insert_with(
-                || serde_json::json!({"samples": 0u64, "rewardSum": 0.0f64, "rewardMean": 0.0f64}),
-            );
+            let row = actions.get_mut(selected).ok_or_else(|| {
+                rill_runtime::StatefulHandlerErrorV2::with_detail(
+                    rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+                    "feedback action is not present in the decision ledger",
+                )
+            })?;
             let samples = row
                 .get("samples")
                 .and_then(serde_json::Value::as_u64)
                 .unwrap_or(0)
                 .saturating_add(1);
-            let sum = row
-                .get("rewardSum")
-                .and_then(serde_json::Value::as_f64)
-                .unwrap_or(0.0)
-                + reward;
             row["samples"] = serde_json::json!(samples);
-            row["rewardSum"] = serde_json::json!(sum);
-            row["rewardMean"] = serde_json::json!(sum / samples as f64);
+            row["lastReward"] = serde_json::json!(reward);
+            let features = row
+                .get("features")
+                .and_then(serde_json::Value::as_array)
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?;
+            let features: Vec<f64> = features
+                .iter()
+                .map(serde_json::Value::as_f64)
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?;
+            let old_weights: Vec<f64> = state
+                .get("weights")
+                .and_then(serde_json::Value::as_array)
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?
+                .iter()
+                .map(serde_json::Value::as_f64)
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?;
+            let bias = state
+                .get("bias")
+                .and_then(serde_json::Value::as_f64)
+                .unwrap_or(0.0);
+            let prediction = bias
+                + old_weights
+                    .iter()
+                    .zip(&features)
+                    .map(|(weight, feature)| weight * feature)
+                    .sum::<f64>();
+            let rate = 0.1 / (samples as f64).sqrt();
+            let error = (reward - prediction).clamp(-1000.0, 1000.0);
+            let weights = state
+                .get_mut("weights")
+                .and_then(serde_json::Value::as_array_mut)
+                .ok_or_else(|| {
+                    rill_runtime::StatefulHandlerErrorV2::new(
+                        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+                    )
+                })?;
+            for (slot, (weight, feature)) in weights.iter_mut().zip(features).enumerate() {
+                let next = (old_weights[slot] + rate * error * feature).clamp(-1000.0, 1000.0);
+                *weight = serde_json::json!(next);
+            }
+            state["bias"] = serde_json::json!((bias + rate * error).clamp(-1000.0, 1000.0));
         }
         let output = serde_json::json!({
             "accepted": true,
             "method": method,
-            "selectedAction": selected_action,
+            "selectedActionId": selected_action,
             "scores": scores,
-            "learner": "bounded-running-mean",
+            "learner": "bounded-contextual-linear-v1",
             "stateCounters": state,
         });
         Ok(StatefulHandlerResultV2 {
@@ -449,7 +611,7 @@ fn preview_serve(
         model_generation,
         feature_schema_hash,
         handler.metadata.capabilities.clone(),
-        br#"{"decisions":0,"feedback":0,"observations":0,"inspections":0}"#.to_vec(),
+        br#"{"handlerStateVersion":2,"decisions":0,"feedback":0,"observations":0,"inspections":0,"weights":[],"bias":0.0,"featureCount":0,"actions":{}}"#.to_vec(),
     );
     let engine = StatefulRuntimeEngineV3::new(config, handler)
         .map_err(|error| CliError::Preview(error.to_string()))?;
@@ -688,5 +850,18 @@ mod tests {
         let error =
             parse_trust_store(&["short=00112233445566778899aabbccddeeff".into()]).unwrap_err();
         assert!(error.to_string().contains("must contain 32 bytes"));
+    }
+
+    #[test]
+    fn preview_handler_accepts_contextual_actions() {
+        let handler = PreviewBuiltinHandler::new();
+        let state = br#"{"handlerStateVersion":2,"decisions":0,"feedback":0,"observations":0,"inspections":0,"weights":[],"bias":0.0,"featureCount":0,"actions":{}}"#;
+        let event = br#"{"method":"decide","context":{"actions":[{"id":"opaque-a","features":[1.0,0.0]},{"id":"opaque-b","features":[0.0,1.0]}]}}"#;
+        let result = handler.handle(event, state, Some(11));
+        assert!(
+            result.is_ok(),
+            "handler error: {:?}",
+            result.err().map(|e| e.detail().map(str::to_owned))
+        );
     }
 }

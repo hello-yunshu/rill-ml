@@ -20,12 +20,15 @@ turning product-specific host control into RillML ownership.
   hash, and whether execution was on a real device, VM/QEMU, or a host
   simulation.
 
-The canonical distribution surface is `packaging/openwrt/rill-runtime/`.
-It produces the normal OpenWrt package `rill-runtime`, installs exactly
-`/usr/bin/rill-runtime`, builds the fixed Stable source archive with the
-OpenWrt Rust target toolchain, keeps the upstream default features enabled,
-and does not install the `rill-pack` development binary. Consumers depend on
-the package name only; they do not download or remove Runtime executables.
+OpenWrt distribution packaging is owned by the independent
+[`rill-openwrt-packages`](https://github.com/hello-yunshu/rill-openwrt-packages)
+feed, not by this source repository. Its `rill-runtime` recipe installs
+exactly `/usr/bin/rill-runtime` from an immutable Stable source archive, keeps
+the upstream default features enabled, and does not install the `rill-pack`
+development binary. Consumers must pin the feed to an immutable commit and
+record the feed commit, source archive hash, SDK identity, and package hash in
+their qualification evidence; they do not download or remove Runtime
+executables themselves.
 
 The current stateful IPC v3 surface is Preview. It is suitable for explicit
 consumer qualification and generic shadow integration, but it is not a
@@ -55,7 +58,8 @@ record:
 - 32-bit width and endian fixture results where applicable;
 - rollback and health-check results for every host mutation.
 
-The current RillML repository contains no qualified external OpenWrt consumer
-for the new musl targets. Until a consumer supplies the evidence above, the
+This repository contains no OpenWrt package recipe or OpenWrt package workflow.
+The feed and each consumer remain responsible for their own package and device
+evidence. Until a consumer supplies the evidence above, the
 Consumer-qualified column remains `Not listed` even when Core or Full Runtime
 has independently passed.

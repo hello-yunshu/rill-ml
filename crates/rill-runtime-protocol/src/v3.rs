@@ -220,7 +220,7 @@ pub enum RuntimeRequestV3 {
     },
     Feedback {
         decision_id: String,
-        selected_arm: u32,
+        selected_action_id: String,
         reward: f64,
         outcome_time_ms: u64,
         generation: u64,
@@ -565,7 +565,7 @@ mod tests {
             state_generation: 9,
             payload_limit: crate::MAX_MESSAGE_BYTES as u32,
             request: RuntimeRequestV3::Decide {
-                context: serde_json::json!({"features": [1.0, 2.0]}),
+                context: serde_json::json!({"actions": [{"id": "route-a", "features": [1.0, 2.0]}]}),
                 deterministic_seed: Some(42),
             },
         }
