@@ -189,6 +189,10 @@ pub struct DecisionLedgerEntryV3 {
     pub outcome_time_unix_ms: Option<u64>,
 }
 
+// Feature vectors are validated as finite JSON numbers before entering the
+// ledger, so the existing Eq contract remains valid for persisted entries.
+impl Eq for DecisionLedgerEntryV3 {}
+
 /// Machine-readable health state exposed by the production qualification
 /// surface. A failed-closed runtime never reports `Healthy`.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -252,6 +256,8 @@ pub struct StatefulRuntimeSnapshotV3 {
     pub completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
     pub checksum_sha256: String,
 }
+
+impl Eq for StatefulRuntimeSnapshotV3 {}
 
 impl StatefulRuntimeSnapshotV3 {
     pub const FORMAT_VERSION: u32 = 1;
