@@ -240,11 +240,11 @@ jobs:
       matrix:
         include:
           - target: armv7-unknown-linux-gnueabihf
-            runtime_features: --no-default-features
+            runtime_smoke: 0
           - target: s390x-unknown-linux-gnu
-            runtime_features: --no-default-features
+            runtime_smoke: 0
           - target: powerpc64le-unknown-linux-gnu
-            runtime_features: --no-default-features
+            runtime_smoke: 0
     steps:
       - uses: actions/checkout@v7 # v7
         with:
@@ -258,7 +258,10 @@ jobs:
           key: direct-qemu-${{ matrix.target }}
       - name: Direct QEMU gate on ${{ matrix.target }}
         env:
-          RUNTIME_FEATURES_FLAGS: ${{ matrix.runtime_features }}
+          # These Core-only targets deliberately run the all-features source
+          # tests but do not claim a Full Runtime execute path. In particular,
+          # a no-default-features binary cannot load the WASM handler fixture.
+          RUNTIME_SMOKE: ${{ matrix.runtime_smoke }}
         run: ./scripts/qemu-cross-gate.sh "${{ matrix.target }}"
 
   # ────────────────────────────────────────────────────────────────────────
@@ -338,6 +341,11 @@ jobs:
         uses: vmactions/freebsd-vm@v1 # v1
         with:
           usesh: true
+          # The VM gate is behavioral evidence only. Copying the entire
+          # Actions workspace back over the vmactions transport can fail after
+          # the guest has already printed a passing result and is not required
+          # by this job.
+          copyback: false
           prepare: |
             pkg install -y rust python3 bash
           run: ./scripts/freebsd-ci.sh

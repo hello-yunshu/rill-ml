@@ -92,7 +92,10 @@ def _decision_requests(mode: str, start: int, count: int, state_generation: int)
                 "method": "decide",
                 "context": {
                     "consumer": mode,
-                    "features": [float(index % 17), float(index % 5)],
+                    "actions": [
+                        {"id": "route-a", "features": [float(index % 17), float(index % 5)]},
+                        {"id": "route-b", "features": [float(index % 17) + 1.0, float(index % 5)]},
+                    ],
                 },
             },
         )
@@ -109,7 +112,7 @@ def _feedback_requests(mode: str, start: int, count: int, state_generation: int)
             {
                 "method": "feedback",
                 "decisionId": f"{mode}-decision-{index}",
-                "selectedArm": index % 2,
+                "selectedActionId": "route-a",
                 "reward": 1.0 if index % 3 else 0.0,
                 "outcomeTimeMs": index + 1,
                 "generation": 0,

@@ -75,7 +75,8 @@ fn preview_envelope(
         },
         capability: capability.map(str::to_owned),
         deadline_unix_ms: None,
-        feature_schema_hash: capability.map(|_| "ab".repeat(32)),
+        feature_schema_hash: capability
+            .map(|_| "99c44934c1bfca8fdffb93122d29418d7fe7eb0d81d80f8b2bf4fbdd153151ab".into()),
         model_generation: 0,
         state_generation,
         payload_limit: rill_runtime_protocol::MAX_MESSAGE_BYTES as u32,
@@ -93,7 +94,7 @@ fn preview_v3_real_subprocess_restart_and_feedback_ledger() {
         Some("org.rill.preview.decide"),
         0,
         RuntimeRequestV3::Decide {
-            context: serde_json::json!({"features": [1.0]}),
+            context: serde_json::json!({"actions": [{"id":"route-a","features":[1.0]}]}),
             deterministic_seed: Some(7),
         },
     );
@@ -135,7 +136,7 @@ fn preview_v3_real_subprocess_restart_and_feedback_ledger() {
         1,
         RuntimeRequestV3::Feedback {
             decision_id: "decision-1".into(),
-            selected_arm: 0,
+            selected_action_id: "route-a".into(),
             reward: 1.0,
             outcome_time_ms: 2,
             generation: 0,
@@ -147,7 +148,7 @@ fn preview_v3_real_subprocess_restart_and_feedback_ledger() {
         2,
         RuntimeRequestV3::Feedback {
             decision_id: "decision-1".into(),
-            selected_arm: 0,
+            selected_action_id: "route-a".into(),
             reward: 1.0,
             outcome_time_ms: 2,
             generation: 0,
@@ -185,6 +186,78 @@ fn preview_v3_real_subprocess_restart_and_feedback_ledger() {
         second_lines[1]["response"]["error"]["code"],
         "duplicateFeedback"
     );
+}
+
+#[test]
+fn preview_v3_uses_opaque_action_ids_and_context_features() {
+    let temporary = tempfile::tempdir().unwrap();
+    let state_path = temporary.path().join("contextual-state.json");
+    let decide = preview_envelope(
+        "contextual-decision",
+        Some("org.rill.preview.decide"),
+        0,
+        RuntimeRequestV3::Decide {
+            context: serde_json::json!({
+                "actions": [
+                    {"id": "opaque-a", "features": [1.0, 0.0]},
+                    {"id": "opaque-b", "features": [0.0, 1.0]}
+                ]
+            }),
+            deterministic_seed: Some(11),
+        },
+    );
+    let mut process = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = process.stdin.as_mut().unwrap();
+        serde_json::to_writer(&mut *stdin, &decide).unwrap();
+        stdin.write_all(b"\n").unwrap();
+        let feedback = preview_envelope(
+            "contextual-feedback",
+            Some("org.rill.preview.feedback"),
+            1,
+            RuntimeRequestV3::Feedback {
+                decision_id: "contextual-decision".into(),
+                selected_action_id: "opaque-a".into(),
+                reward: 1.0,
+                outcome_time_ms: 2,
+                generation: 0,
+            },
+        );
+        serde_json::to_writer(&mut *stdin, &feedback).unwrap();
+        stdin.write_all(b"\n").unwrap();
+    }
+    let output = process.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = output
+        .stdout
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        responses[0]["response"]["output"]["selectedActionId"],
+        "opaque-a"
+    );
+    assert_eq!(
+        responses[0]["response"]["output"]["scores"][0]["id"],
+        "opaque-a"
+    );
+    assert_eq!(responses[1]["response"]["kind"], "result");
+    let persisted =
+        serde_json::from_slice::<serde_json::Value>(&fs::read(&state_path).unwrap()).unwrap();
+    let state = &persisted["handlerSnapshot"]["state"];
+    assert!(state.is_array());
 }
 
 #[test]

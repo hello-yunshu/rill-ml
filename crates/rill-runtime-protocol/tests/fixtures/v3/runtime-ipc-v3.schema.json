@@ -20,7 +20,7 @@
       {"type":"object","additionalProperties":false,"required":["method"],"properties":{"method":{"const":"health"}}},
       {"type":"object","additionalProperties":false,"required":["method","event"],"properties":{"method":{"const":"observe"},"event":{}}},
       {"type":"object","additionalProperties":false,"required":["method","context"],"properties":{"method":{"const":"decide"},"context":{},"deterministicSeed":{"type":"integer","minimum":0}}},
-      {"type":"object","additionalProperties":false,"required":["method","decisionId","selectedArm","reward","outcomeTimeMs","generation"],"properties":{"method":{"const":"feedback"},"decisionId":{"type":"string","minLength":1,"maxLength":128},"selectedArm":{"type":"integer","minimum":0},"reward":{"type":"number"},"outcomeTimeMs":{"type":"integer","minimum":0},"generation":{"type":"integer","minimum":0}}},
+      {"type":"object","additionalProperties":false,"required":["method","decisionId","selectedActionId","reward","outcomeTimeMs","generation"],"properties":{"method":{"const":"feedback"},"decisionId":{"type":"string","minLength":1,"maxLength":128},"selectedActionId":{"type":"string","minLength":1,"maxLength":96},"reward":{"type":"number"},"outcomeTimeMs":{"type":"integer","minimum":0},"generation":{"type":"integer","minimum":0}}},
       {"type":"object","additionalProperties":false,"required":["method"],"properties":{"method":{"const":"inspect"}}},
       {"type":"object","additionalProperties":false,"required":["method"],"properties":{"method":{"const":"snapshot"}}},
       {"type":"object","additionalProperties":false,"required":["method","expectedStateGeneration"],"properties":{"method":{"const":"reset"},"expectedStateGeneration":{"type":"integer","minimum":0}}}

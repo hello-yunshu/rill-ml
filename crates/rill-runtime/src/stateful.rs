@@ -177,7 +177,7 @@ pub struct DecisionLedgerEntryV3 {
     pub state_generation: u64,
     pub created_at_unix_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub selected_arm: Option<u32>,
+    pub selected_action_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reward: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1074,7 +1074,7 @@ impl StatefulRuntimeEngineV3 {
                 model_generation: self.config.model_generation,
                 state_generation: next_generation,
                 created_at_unix_ms: now_unix_ms,
-                selected_arm: None,
+                selected_action_id: None,
                 reward: None,
                 outcome_time_unix_ms: None,
             };
@@ -1082,7 +1082,7 @@ impl StatefulRuntimeEngineV3 {
         } else {
             if let RuntimeRequestV3::Feedback {
                 decision_id,
-                selected_arm,
+                selected_action_id,
                 reward,
                 outcome_time_ms,
                 ..
@@ -1094,7 +1094,7 @@ impl StatefulRuntimeEngineV3 {
                         StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal)
                     })
                     .unwrap();
-                entry.selected_arm = Some(*selected_arm);
+                entry.selected_action_id = Some(selected_action_id.clone());
                 entry.reward = Some(reward.to_string());
                 entry.outcome_time_unix_ms = Some(*outcome_time_ms);
                 next_completed.insert(entry.decision_id.clone(), entry);
