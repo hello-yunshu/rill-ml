@@ -463,7 +463,7 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
                 scores.push(serde_json::json!({"id": id, "score": score}));
                 let candidate = (samples == 0, score, id.clone());
                 if best.as_ref().is_none_or(|current| {
-                    candidate.0 > current.0
+                    (candidate.0 && !current.0)
                         || (candidate.0 == current.0
                             && (candidate.1 > current.1
                                 || (candidate.1 == current.1 && candidate.2 < current.2)))
