@@ -234,6 +234,8 @@ pub rill_runtime::StatefulRuntimeSnapshotV3::pending_decisions: alloc::collectio
 impl rill_runtime::StatefulRuntimeSnapshotV3
 pub const rill_runtime::StatefulRuntimeSnapshotV3::FORMAT_VERSION: u32
 impl core::cmp::Eq for rill_runtime::StatefulRuntimeSnapshotV3
+impl serde::Deserialize<'_> for rill_runtime::StatefulRuntimeSnapshotV3
+impl serde::Serialize for rill_runtime::StatefulRuntimeSnapshotV3
 pub struct rill_runtime::StatefulStateSnapshotV2
 pub rill_runtime::StatefulStateSnapshotV2::checksum_sha256: alloc::string::String
 pub rill_runtime::StatefulStateSnapshotV2::state: alloc::vec::Vec<u8>
