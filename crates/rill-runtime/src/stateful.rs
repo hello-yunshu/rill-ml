@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 const MAX_HANDLER_DETAIL_BYTES_V2: usize = 4 * 1024;
+const MAX_PARTITION_KEY_LEN_V3: usize = 96;
 
 /// Metadata declared by a Preview ABI v2 handler.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -248,20 +249,26 @@ pub struct RuntimeDiagnosticsV1 {
 /// Durable state for one opaque consumer partition.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct PartitionRuntimeSnapshotV3 {
+struct PartitionRuntimeSnapshotV3 {
     pub handler_snapshot: StatefulStateSnapshotV2,
     pub pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
     pub completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
 }
 
-/// Durable v3 runtime envelope. Partitions and their ledgers are checksummed
-/// together so feedback cannot silently cross a restore boundary.
+/// Backward-compatible durable snapshot for the default partition.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StatefulRuntimeSnapshotV3 {
     pub format_version: u32,
-    pub partitions: BTreeMap<String, PartitionRuntimeSnapshotV3>,
+    pub handler_snapshot: StatefulStateSnapshotV2,
+    pub pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    pub completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
     pub checksum_sha256: String,
+    /// Internal all-partition payload. This remains private so the frozen
+    /// Stable public API keeps its original field set while the CLI can
+    /// durably round-trip every opaque consumer partition.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    partitions: Option<BTreeMap<String, PartitionRuntimeSnapshotV3>>,
 }
 
 impl Eq for StatefulRuntimeSnapshotV3 {}
@@ -269,16 +276,32 @@ impl Eq for StatefulRuntimeSnapshotV3 {}
 impl StatefulRuntimeSnapshotV3 {
     pub const FORMAT_VERSION: u32 = 1;
 
-    fn checksum_input(partitions: &BTreeMap<String, PartitionRuntimeSnapshotV3>) -> Vec<u8> {
-        serde_json::to_vec(partitions).expect("runtime snapshot fields are serializable")
+    fn checksum_input(
+        handler_snapshot: &StatefulStateSnapshotV2,
+        pending_decisions: &BTreeMap<String, DecisionLedgerEntryV3>,
+        completed_decisions: &BTreeMap<String, DecisionLedgerEntryV3>,
+    ) -> Vec<u8> {
+        serde_json::to_vec(&(handler_snapshot, pending_decisions, completed_decisions))
+            .expect("runtime snapshot fields are serializable")
     }
 
-    fn new(partitions: BTreeMap<String, PartitionRuntimeSnapshotV3>) -> Self {
-        let checksum_sha256 = state_checksum(&Self::checksum_input(&partitions));
+    fn new(
+        handler_snapshot: StatefulStateSnapshotV2,
+        pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+        completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    ) -> Self {
+        let checksum_sha256 = state_checksum(&Self::checksum_input(
+            &handler_snapshot,
+            &pending_decisions,
+            &completed_decisions,
+        ));
         Self {
             format_version: Self::FORMAT_VERSION,
-            partitions,
+            handler_snapshot,
+            pending_decisions,
+            completed_decisions,
             checksum_sha256,
+            partitions: None,
         }
     }
 
@@ -288,34 +311,94 @@ impl StatefulRuntimeSnapshotV3 {
                 StatefulHandlerErrorKindV2::IncompatibleVersion,
             ));
         }
-        if self.partitions.is_empty()
-            || self.partitions.keys().any(|key| {
-                key.is_empty() || key.len() > rill_runtime_protocol::v3::MAX_PARTITION_KEY_LEN_V3
-            })
-            || self.checksum_sha256 != state_checksum(&Self::checksum_input(&self.partitions))
+        let checksum_valid = if let Some(partitions) = &self.partitions {
+            self.checksum_sha256 == state_checksum(&serde_json::to_vec(partitions).unwrap())
+        } else {
+            self.checksum_sha256
+                == state_checksum(&Self::checksum_input(
+                    &self.handler_snapshot,
+                    &self.pending_decisions,
+                    &self.completed_decisions,
+                ))
+        };
+        if self
+            .handler_snapshot
+            .validate(expected_schema_version)
+            .is_err()
+            || !checksum_valid
         {
             return Err(StatefulHandlerErrorV2::new(
                 StatefulHandlerErrorKindV2::InvalidState,
             ));
         }
-        for partition in self.partitions.values() {
-            partition
-                .handler_snapshot
-                .validate(expected_schema_version)?;
-            for (key, entry) in partition
-                .pending_decisions
-                .iter()
-                .chain(partition.completed_decisions.iter())
-            {
-                if key != &entry.decision_id || entry.decision_id.is_empty() {
-                    return Err(StatefulHandlerErrorV2::new(
-                        StatefulHandlerErrorKindV2::InvalidState,
-                    ));
-                }
+        for (key, entry) in self
+            .pending_decisions
+            .iter()
+            .chain(self.completed_decisions.iter())
+        {
+            if key != &entry.decision_id || entry.decision_id.is_empty() {
+                return Err(StatefulHandlerErrorV2::new(
+                    StatefulHandlerErrorKindV2::InvalidState,
+                ));
             }
+        }
+        if let Some(partitions) = &self.partitions {
+            validate_partitions(partitions, expected_schema_version)?;
         }
         Ok(())
     }
+
+    fn new_partitioned(
+        partitions: BTreeMap<String, PartitionRuntimeSnapshotV3>,
+    ) -> Result<Self, StatefulHandlerErrorV2> {
+        let default = partitions
+            .get(DEFAULT_PARTITION_KEY_V3)
+            .ok_or_else(|| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::InvalidState))?;
+        let mut snapshot = Self::new(
+            default.handler_snapshot.clone(),
+            default.pending_decisions.clone(),
+            default.completed_decisions.clone(),
+        );
+        snapshot.partitions = Some(partitions);
+        snapshot.checksum_sha256 = state_checksum(
+            &serde_json::to_vec(snapshot.partitions.as_ref().unwrap())
+                .expect("runtime snapshot fields are serializable"),
+        );
+        Ok(snapshot)
+    }
+}
+
+fn validate_partitions(
+    partitions: &BTreeMap<String, PartitionRuntimeSnapshotV3>,
+    expected_schema_version: u32,
+) -> Result<(), StatefulHandlerErrorV2> {
+    if partitions.is_empty()
+        || partitions.len() > MAX_PARTITIONS_V3
+        || partitions
+            .keys()
+            .any(|key| key.is_empty() || key.len() > MAX_PARTITION_KEY_LEN_V3)
+    {
+        return Err(StatefulHandlerErrorV2::new(
+            StatefulHandlerErrorKindV2::InvalidState,
+        ));
+    }
+    for partition in partitions.values() {
+        partition
+            .handler_snapshot
+            .validate(expected_schema_version)?;
+        for (key, entry) in partition
+            .pending_decisions
+            .iter()
+            .chain(partition.completed_decisions.iter())
+        {
+            if key != &entry.decision_id || entry.decision_id.is_empty() {
+                return Err(StatefulHandlerErrorV2::new(
+                    StatefulHandlerErrorKindV2::InvalidState,
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Host-provided migration hook. Migrations return a new state and never
@@ -409,6 +492,7 @@ struct PartitionStateV3 {
 }
 
 const DEFAULT_PARTITION_KEY_V3: &str = "default";
+const MAX_PARTITIONS_V3: usize = 64;
 
 /// Preview Runtime V3 engine for Stateful Handler ABI v2.
 #[derive(Debug)]
@@ -452,7 +536,7 @@ impl StatefulRuntimeEngineV3 {
             config.initial_state_generation,
             config.initial_state.clone(),
         );
-        if snapshot.state.len() > config.resource_profile.max_partition_state_bytes as usize {
+        if snapshot.state.len() > config.resource_profile.max_model_state_bytes as usize {
             return Err(StatefulHandlerErrorV2::new(
                 StatefulHandlerErrorKindV2::InvalidState,
             ));
@@ -484,7 +568,7 @@ impl StatefulRuntimeEngineV3 {
         snapshot: StatefulStateSnapshotV2,
     ) -> Result<(), StatefulHandlerErrorV2> {
         snapshot.validate(self.metadata.state_schema_version)?;
-        if snapshot.state.len() > self.config.resource_profile.max_partition_state_bytes as usize {
+        if snapshot.state.len() > self.config.resource_profile.max_model_state_bytes as usize {
             return Err(StatefulHandlerErrorV2::new(
                 StatefulHandlerErrorKindV2::InvalidState,
             ));
@@ -527,26 +611,23 @@ impl StatefulRuntimeEngineV3 {
                 )
             })
             .collect();
-        let snapshot = StatefulRuntimeSnapshotV3::new(partitions);
+        let snapshot = StatefulRuntimeSnapshotV3::new_partitioned(partitions)?;
         self.validate_runtime_snapshot_size(&snapshot)?;
         Ok(snapshot)
     }
 
-    /// Restore handler state and delayed feedback atomically.
+    /// Restore the backward-compatible default-partition snapshot.
     pub fn restore_runtime_snapshot(
         &self,
         snapshot: StatefulRuntimeSnapshotV3,
     ) -> Result<(), StatefulHandlerErrorV2> {
         snapshot.validate(self.metadata.state_schema_version)?;
-        if snapshot.partitions.len() > self.config.resource_profile.max_partitions as usize
-            || snapshot.partitions.values().any(|partition| {
-                partition.handler_snapshot.state.len()
-                    > self.config.resource_profile.max_partition_state_bytes as usize
-                    || partition.pending_decisions.len()
-                        > self.config.resource_profile.max_pending_decisions as usize
-                    || partition.completed_decisions.len()
-                        > self.config.resource_profile.max_completed_decisions as usize
-            })
+        if snapshot.handler_snapshot.state.len()
+            > self.config.resource_profile.max_model_state_bytes as usize
+            || snapshot.pending_decisions.len()
+                > self.config.resource_profile.max_pending_decisions as usize
+            || snapshot.completed_decisions.len()
+                > self.config.resource_profile.max_completed_decisions as usize
         {
             return Err(StatefulHandlerErrorV2::new(
                 StatefulHandlerErrorKindV2::InvalidState,
@@ -557,23 +638,29 @@ impl StatefulRuntimeEngineV3 {
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        let partitions = snapshot
-            .partitions
-            .into_iter()
-            .map(|(key, partition)| {
-                (
-                    key,
-                    PartitionStateV3 {
-                        snapshot: partition.handler_snapshot,
-                        previous_good: None,
-                        candidate: None,
-                        pending_decisions: partition.pending_decisions,
-                        completed_decisions: partition.completed_decisions,
-                    },
-                )
-            })
-            .collect();
-        state.partitions = partitions;
+        if let Some(partitions) = snapshot.partitions {
+            state.partitions = partitions
+                .into_iter()
+                .map(|(key, partition)| {
+                    (
+                        key,
+                        PartitionStateV3 {
+                            snapshot: partition.handler_snapshot,
+                            previous_good: None,
+                            candidate: None,
+                            pending_decisions: partition.pending_decisions,
+                            completed_decisions: partition.completed_decisions,
+                        },
+                    )
+                })
+                .collect();
+        } else {
+            let partition = state.partitions.get_mut(DEFAULT_PARTITION_KEY_V3).unwrap();
+            partition.previous_good = Some(partition.snapshot.clone());
+            partition.snapshot = snapshot.handler_snapshot;
+            partition.pending_decisions = snapshot.pending_decisions;
+            partition.completed_decisions = snapshot.completed_decisions;
+        }
         state.restart_count = state.restart_count.saturating_add(1);
         Ok(())
     }
@@ -584,7 +671,7 @@ impl StatefulRuntimeEngineV3 {
         snapshot: StatefulStateSnapshotV2,
     ) -> Result<(), StatefulHandlerErrorV2> {
         snapshot.validate(self.metadata.state_schema_version)?;
-        if snapshot.state.len() > self.config.resource_profile.max_partition_state_bytes as usize {
+        if snapshot.state.len() > self.config.resource_profile.max_model_state_bytes as usize {
             return Err(StatefulHandlerErrorV2::new(
                 StatefulHandlerErrorKindV2::InvalidState,
             ));
@@ -846,10 +933,13 @@ impl StatefulRuntimeEngineV3 {
         request: RuntimeRequestV3,
         now_unix_ms: u64,
     ) -> RuntimeResponseV3 {
-        let partition_key = envelope
-            .partition_key
-            .clone()
-            .unwrap_or_else(|| DEFAULT_PARTITION_KEY_V3.into());
+        // The existing bounded client identity is the wire-level opaque
+        // partition identity, preserving the frozen EnvelopeV3 public shape.
+        let partition_key = if envelope.client_identity.name == "host" {
+            DEFAULT_PARTITION_KEY_V3.to_owned()
+        } else {
+            envelope.client_identity.name.clone()
+        };
         let request_id = envelope.request_id;
         let capability = envelope.capability.unwrap_or_default();
         if !self
@@ -907,7 +997,7 @@ impl StatefulRuntimeEngineV3 {
         let restart_count = state.restart_count;
         let last_error = state.last_error.clone();
         if !state.partitions.contains_key(&partition_key) {
-            if state.partitions.len() >= self.config.resource_profile.max_partitions as usize {
+            if state.partitions.len() >= MAX_PARTITIONS_V3 {
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::Internal,
@@ -1157,8 +1247,7 @@ impl StatefulRuntimeEngineV3 {
                 partition.snapshot.state_generation,
             );
         }
-        if result.next_state.len() > self.config.resource_profile.max_partition_state_bytes as usize
-        {
+        if result.next_state.len() > self.config.resource_profile.max_model_state_bytes as usize {
             return self.error_response(
                 request_id,
                 RuntimeErrorCodeV3::Internal,
@@ -1243,7 +1332,17 @@ impl StatefulRuntimeEngineV3 {
                 completed_decisions: next_completed.clone(),
             },
         );
-        let prospective = StatefulRuntimeSnapshotV3::new(prospective_partitions);
+        let prospective = match StatefulRuntimeSnapshotV3::new_partitioned(prospective_partitions) {
+            Ok(snapshot) => snapshot,
+            Err(_) => {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::Internal,
+                    "snapshot partition state is invalid",
+                    partition.snapshot.state_generation,
+                );
+            }
+        };
         if self.validate_runtime_snapshot_size(&prospective).is_err() {
             return self.error_response(
                 request_id,
@@ -1348,7 +1447,7 @@ impl StatefulRuntimeEngineV3 {
                 )
             })
             .collect();
-        let snapshot = StatefulRuntimeSnapshotV3::new(partitions);
+        let snapshot = StatefulRuntimeSnapshotV3::new_partitioned(partitions)?;
         let snapshot_bytes = serde_json::to_vec(&snapshot)
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?
             .len();
@@ -1404,7 +1503,7 @@ impl StatefulRuntimeEngineV3 {
         }
         let profile = &self.config.resource_profile;
         if state.partitions.values().any(|partition| {
-            partition.snapshot.state.len() * 10 >= profile.max_partition_state_bytes as usize * 9
+            partition.snapshot.state.len() * 10 >= profile.max_model_state_bytes as usize * 9
                 || partition.pending_decisions.len() * 10
                     >= profile.max_pending_decisions as usize * 9
                 || partition.completed_decisions.len() * 10
@@ -1422,10 +1521,15 @@ impl StatefulRuntimeEngineV3 {
     ) -> Result<(), StatefulHandlerErrorV2> {
         let total_state_bytes: usize = snapshot
             .partitions
-            .values()
-            .map(|partition| partition.handler_snapshot.state.len())
-            .sum();
-        if total_state_bytes > self.config.resource_profile.max_total_state_bytes as usize {
+            .as_ref()
+            .map(|partitions| {
+                partitions
+                    .values()
+                    .map(|partition| partition.handler_snapshot.state.len())
+                    .sum()
+            })
+            .unwrap_or(snapshot.handler_snapshot.state.len());
+        if total_state_bytes > self.config.resource_profile.max_snapshot_bytes as usize {
             return Err(StatefulHandlerErrorV2::with_detail(
                 StatefulHandlerErrorKindV2::InvalidState,
                 "total partition state exceeds resource limit",
@@ -1718,9 +1822,8 @@ mod tests {
                 name: "host".into(),
                 version: "1".into(),
             },
-            partition_key: Some("default".into()),
             capability: Some("org.example.decide".into()),
-            deadline_unix_ms: Some(200),
+            deadline_unix_ms: Some(100),
             feature_schema_hash: Some("ab".repeat(32)),
             model_generation: 7,
             state_generation,
@@ -1737,10 +1840,9 @@ mod tests {
             request_id: format!("{partition_key}-feedback"),
             api_version: RUNTIME_API_VERSION_V3,
             client_identity: IdentityV3 {
-                name: "host".into(),
+                name: partition_key.into(),
                 version: "1".into(),
             },
-            partition_key: Some(partition_key.into()),
             capability: Some("org.example.decide".into()),
             deadline_unix_ms: Some(200),
             feature_schema_hash: Some("ab".repeat(32)),
@@ -1762,10 +1864,10 @@ mod tests {
         let engine = engine(StatefulHandlerErrorKindV2::Internal);
         let mut first = decide(0);
         first.request_id = "a-decision".into();
-        first.partition_key = Some("consumer-a".into());
+        first.client_identity.name = "consumer-a".into();
         let mut second = decide(0);
         second.request_id = "b-decision".into();
-        second.partition_key = Some("consumer-b".into());
+        second.client_identity.name = "consumer-b".into();
         assert!(matches!(
             engine.handle_at(first, 100).response,
             RuntimeResponseBodyV3::Result { .. }
@@ -1786,14 +1888,15 @@ mod tests {
             RuntimeResponseBodyV3::Result { .. }
         ));
         let snapshot = engine.runtime_snapshot().unwrap();
-        assert_eq!(snapshot.partitions.len(), 3);
+        let partitions = snapshot.partitions.as_ref().unwrap();
+        assert_eq!(partitions.len(), 3);
         assert!(
-            snapshot.partitions["consumer-a"]
+            partitions["consumer-a"]
                 .completed_decisions
                 .contains_key("a-decision")
         );
         assert!(
-            snapshot.partitions["consumer-b"]
+            partitions["consumer-b"]
                 .completed_decisions
                 .contains_key("b-decision")
         );
