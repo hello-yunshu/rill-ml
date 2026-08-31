@@ -20,6 +20,8 @@ pub const MAX_IDENTITY_VERSION_LEN_V3: usize = 48;
 pub const MAX_CAPABILITY_LEN_V3: usize = 96;
 /// Maximum decision id length.
 pub const MAX_DECISION_ID_LEN_V3: usize = 128;
+/// Maximum opaque consumer partition key length.
+pub const MAX_PARTITION_KEY_LEN_V3: usize = 96;
 /// Maximum feature-schema hash length (lower-case SHA-256 hex).
 pub const FEATURE_SCHEMA_HASH_LEN_V3: usize = 64;
 /// Maximum number of capabilities carried in a response.
@@ -34,6 +36,9 @@ pub const PREVIEW_CHANNEL_V3: &str = "preview";
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResourceProfileV1 {
+    pub max_partitions: u32,
+    pub max_partition_state_bytes: u32,
+    pub max_total_state_bytes: u32,
     pub max_ipc_frame_bytes: u32,
     pub max_model_state_bytes: u32,
     pub max_snapshot_bytes: u32,
@@ -52,6 +57,9 @@ pub struct ResourceProfileV1 {
 impl Default for ResourceProfileV1 {
     fn default() -> Self {
         Self {
+            max_partitions: 64,
+            max_partition_state_bytes: 256 * 1024,
+            max_total_state_bytes: 16 * 1024 * 1024,
             max_ipc_frame_bytes: crate::MAX_MESSAGE_BYTES as u32,
             max_model_state_bytes: 256 * 1024,
             max_snapshot_bytes: 512 * 1024,
@@ -71,7 +79,10 @@ impl Default for ResourceProfileV1 {
 
 impl ResourceProfileV1 {
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.max_ipc_frame_bytes == 0
+        if self.max_partitions == 0
+            || self.max_partition_state_bytes == 0
+            || self.max_total_state_bytes == 0
+            || self.max_ipc_frame_bytes == 0
             || self.max_ipc_frame_bytes as usize > crate::MAX_MESSAGE_BYTES
             || self.max_model_state_bytes == 0
             || self.max_snapshot_bytes == 0
@@ -123,6 +134,10 @@ pub struct EnvelopeV3 {
     pub request_id: String,
     pub api_version: u32,
     pub client_identity: IdentityV3,
+    /// Opaque consumer-owned partition. Stateful requests must carry it;
+    /// control requests may omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub partition_key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capability: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -159,6 +174,13 @@ impl EnvelopeV3 {
                 return Err(ProtocolV3Error::UnexpectedCapability);
             }
         } else {
+            let partition_key = self
+                .partition_key
+                .as_deref()
+                .ok_or(ProtocolV3Error::InvalidPartitionKey)?;
+            if partition_key.is_empty() || partition_key.len() > MAX_PARTITION_KEY_LEN_V3 {
+                return Err(ProtocolV3Error::InvalidPartitionKey);
+            }
             let capability = self
                 .capability
                 .as_deref()
@@ -475,6 +497,7 @@ impl RuntimeErrorCodeV3 {
 pub enum ProtocolV3Error {
     InvalidJson,
     InvalidRequestId,
+    InvalidPartitionKey,
     InvalidClientIdentity,
     IncompatibleApiVersion,
     InvalidPayloadLimit,
@@ -499,6 +522,7 @@ impl std::fmt::Display for ProtocolV3Error {
             match self {
                 Self::InvalidJson => "invalid JSON",
                 Self::InvalidRequestId => "invalid request id",
+                Self::InvalidPartitionKey => "invalid partition key",
                 Self::InvalidClientIdentity => "invalid client identity",
                 Self::IncompatibleApiVersion => "incompatible API version",
                 Self::InvalidPayloadLimit => "invalid payload limit",
@@ -558,6 +582,7 @@ mod tests {
                 name: "example-host".into(),
                 version: "1.0.0".into(),
             },
+            partition_key: Some("default".into()),
             capability: Some("org.example.route.decide".into()),
             deadline_unix_ms: Some(10_000),
             feature_schema_hash: Some("ab".repeat(32)),

@@ -57,6 +57,7 @@ fn request(state_generation: u64) -> EnvelopeV3 {
             name: "test-host".into(),
             version: "1".into(),
         },
+        partition_key: Some("default".into()),
         capability: Some("org.example.decide".into()),
         deadline_unix_ms: Some(100),
         feature_schema_hash: Some("ab".repeat(32)),
