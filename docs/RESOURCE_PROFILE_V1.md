@@ -23,6 +23,8 @@ declaring a value in a profile is not evidence that the runtime enforces it.
 
 | Field | Enforcement point | Admission/failure | Test/evidence | Status |
 | --- | --- | --- | --- | --- |
+| `max_partitions` | namespace admission and snapshot restore | before insertion / `capacityExceeded` | exact partition-cap regression | enforced |
+| `max_total_state_bytes` | prospective snapshot validation | before commit / `capacityExceeded` | total-state boundary regression | enforced |
 | `max_ipc_frame_bytes` | v3 JSON entrypoint | before decode / `payloadTooLarge` | malformed and oversized IPC tests | enforced |
 | `max_model_state_bytes` | engine initial/restore/next-state validation | before commit / capacity mapping | atomic state-limit test | enforced |
 | `max_snapshot_bytes` | prospective runtime snapshot validation | before commit / `capacityExceeded` | snapshot-limit regression | enforced |

@@ -9,9 +9,13 @@ candidate → validate → snapshot → activate → observe health → promote
                                       └────── rollback previous-good
 ```
 
-`StatefulRuntimeSnapshotV3` is written atomically by `preview-serve`. A
-truncated file, checksum mismatch, unsupported schema, oversized state, or
-ledger capacity violation rejects startup; the previous file is not replaced.
+`StatefulRuntimeSnapshotV3` contains a sorted list of every
+`(clientIdentityName, partitionKey)` namespace, including its active state,
+candidate, previous-good state, and pending/completed ledger. The checksum
+covers that complete payload; no process-global cache or side table is used.
+It is written atomically by `preview-serve`. A truncated file, checksum
+mismatch, duplicate namespace, unsupported schema, oversized state, or ledger
+capacity violation rejects startup; the previous file is not replaced.
 The ledger records pending decisions and completed outcomes, so feedback after
 restart is either applied exactly once or rejected with a stable v3 error.
 
@@ -30,5 +34,11 @@ snapshot. It reports health (`healthy`, `resource_pressure`, or
 `failed_closed`), reason codes, state/snapshot/ledger usage, generation and
 rollback availability. IPC frames, snapshots, state and completed decision
 history are hard bounded; saturation rejects the operation and preserves the
-prior state. Reset, candidate promotion and rollback clear delayed decisions
-whose generation belongs to the replaced state.
+prior state. Reset, candidate promotion and rollback are scoped APIs and clear
+delayed decisions whose generation belongs to the replaced state.
+
+Every v3 request carries `partitionKey`. The namespace is exactly
+`(clientIdentity.name, partitionKey)`; `clientIdentity.version` is descriptive
+metadata and never selects a second learner state. Resource limits include
+`maxPartitions`, `maxTotalStateBytes`, per-partition state bytes, and
+per-partition pending/completed decision capacities.

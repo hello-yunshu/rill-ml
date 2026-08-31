@@ -628,7 +628,7 @@ fn preview_serve(
         let snapshot: StatefulRuntimeSnapshotV3 = serde_json::from_slice(&bytes)
             .map_err(|error| CliError::Preview(format!("invalid state snapshot: {error}")))?;
         engine
-            .restore_runtime_snapshot(snapshot)
+            .restore_runtime(snapshot)
             .map_err(|error| CliError::Preview(format!("state recovery rejected: {error}")))?;
     }
 
@@ -655,18 +655,18 @@ fn preview_serve(
             return Err(CliError::MessageTooLarge);
         }
         let before = engine
-            .snapshot()
+            .snapshot_runtime()
             .map_err(|error| CliError::Preview(error.to_string()))?;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|error| CliError::Preview(error.to_string()))?
             .as_millis() as u64;
         let response = engine.handle_preview_json_at(&line, now);
-        if response.state_generation != before.state_generation {
-            let snapshot = engine
-                .runtime_snapshot()
-                .map_err(|error| CliError::Preview(error.to_string()))?;
-            write_atomic_snapshot(&state_path, &snapshot)?;
+        let after = engine
+            .snapshot_runtime()
+            .map_err(|error| CliError::Preview(error.to_string()))?;
+        if after.checksum_sha256 != before.checksum_sha256 {
+            write_atomic_snapshot(&state_path, &after)?;
         }
         serde_json::to_writer(&mut output, &response)?;
         output.write_all(b"\n")?;

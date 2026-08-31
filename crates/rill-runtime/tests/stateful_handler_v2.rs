@@ -5,7 +5,7 @@
 use std::{fs, path::PathBuf, sync::Arc};
 
 use rill_runtime::{
-    StatefulHandlerErrorKindV2, StatefulHandlerMetadataV2, StatefulHandlerV2,
+    PartitionScopeV3, StatefulHandlerErrorKindV2, StatefulHandlerMetadataV2, StatefulHandlerV2,
     StatefulRuntimeConfigV3, StatefulRuntimeEngineV3, WasmStatefulHandlerV2,
 };
 use rill_runtime_protocol::v3::{
@@ -57,6 +57,7 @@ fn request(state_generation: u64) -> EnvelopeV3 {
             name: "test-host".into(),
             version: "1".into(),
         },
+        partition_key: "default".into(),
         capability: Some("org.example.decide".into()),
         deadline_unix_ms: Some(100),
         feature_schema_hash: Some("ab".repeat(32)),
@@ -148,14 +149,22 @@ fn stateful_v2_invalid_and_oversized_state_are_fail_closed() {
             Some(engine) => engine,
             None => return,
         };
-        let before = engine.snapshot().unwrap();
+        let before = engine
+            .snapshot(&PartitionScopeV3::new("test-host", "default"))
+            .unwrap();
         let response = engine.handle_at(request(0), 100);
         assert!(matches!(
             response.response,
             RuntimeResponseBodyV3::Error { error }
                 if error.code == RuntimeErrorCodeV3::InvalidState
         ));
-        assert_eq!(engine.snapshot().unwrap(), before, "mode={mode}");
+        assert_eq!(
+            engine
+                .snapshot(&PartitionScopeV3::new("test-host", "default"))
+                .unwrap(),
+            before,
+            "mode={mode}"
+        );
     }
 }
 
@@ -174,12 +183,20 @@ fn stateful_v2_real_trap_timeout_and_output_limit_are_fail_closed() {
             Some(engine) => engine,
             None => return,
         };
-        let before = engine.snapshot().unwrap();
+        let before = engine
+            .snapshot(&PartitionScopeV3::new("test-host", "default"))
+            .unwrap();
         let response = engine.handle_at(request(0), 100);
         assert!(matches!(
             response.response,
             RuntimeResponseBodyV3::Error { error } if error.code == expected
         ));
-        assert_eq!(engine.snapshot().unwrap(), before, "mode={mode}");
+        assert_eq!(
+            engine
+                .snapshot(&PartitionScopeV3::new("test-host", "default"))
+                .unwrap(),
+            before,
+            "mode={mode}"
+        );
     }
 }
