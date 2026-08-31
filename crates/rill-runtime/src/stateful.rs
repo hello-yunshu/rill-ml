@@ -770,7 +770,6 @@ impl StatefulRuntimeEngineV3 {
     }
 
     /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
-    #[deprecated(note = "use restore_partition_snapshot with an explicit PartitionScopeV3")]
     pub fn restore_snapshot(
         &self,
         snapshot: StatefulStateSnapshotV2,
@@ -779,19 +778,16 @@ impl StatefulRuntimeEngineV3 {
     }
 
     /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
-    #[deprecated(note = "use snapshot_for_scope with an explicit PartitionScopeV3")]
     pub fn snapshot(&self) -> Result<StatefulStateSnapshotV2, StatefulHandlerErrorV2> {
         self.snapshot_for_scope(&Self::legacy_compatibility_scope())
     }
 
     /// Compatibility alias for the pre-v1.5.6 runtime snapshot API.
-    #[deprecated(note = "use snapshot_runtime")]
     pub fn runtime_snapshot(&self) -> Result<StatefulRuntimeSnapshotV3, StatefulHandlerErrorV2> {
         self.snapshot_runtime()
     }
 
     /// Compatibility alias for the pre-v1.5.6 runtime snapshot API.
-    #[deprecated(note = "use restore_runtime")]
     pub fn restore_runtime_snapshot(
         &self,
         snapshot: StatefulRuntimeSnapshotV3,
@@ -800,7 +796,6 @@ impl StatefulRuntimeEngineV3 {
     }
 
     /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
-    #[deprecated(note = "use stage_candidate_for_scope with an explicit PartitionScopeV3")]
     pub fn stage_candidate(
         &self,
         snapshot: StatefulStateSnapshotV2,
@@ -809,21 +804,16 @@ impl StatefulRuntimeEngineV3 {
     }
 
     /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
-    #[deprecated(note = "use promote_candidate_for_scope with an explicit PartitionScopeV3")]
     pub fn promote_candidate(&self) -> Result<u64, StatefulHandlerErrorV2> {
         self.promote_candidate_for_scope(&Self::legacy_compatibility_scope())
     }
 
     /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
-    #[deprecated(note = "use rollback_previous_good_for_scope with an explicit PartitionScopeV3")]
     pub fn rollback_previous_good(&self) -> Result<u64, StatefulHandlerErrorV2> {
         self.rollback_previous_good_for_scope(&Self::legacy_compatibility_scope())
     }
 
     /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
-    #[deprecated(
-        note = "use restore_snapshot_with_migration_for_scope with an explicit PartitionScopeV3"
-    )]
     pub fn restore_snapshot_with_migration(
         &self,
         snapshot: StatefulStateSnapshotV2,
