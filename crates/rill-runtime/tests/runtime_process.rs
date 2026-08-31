@@ -66,13 +66,32 @@ fn preview_envelope(
     state_generation: u64,
     request: RuntimeRequestV3,
 ) -> EnvelopeV3 {
+    preview_envelope_in(
+        request_id,
+        "process-test-host",
+        "default",
+        capability,
+        state_generation,
+        request,
+    )
+}
+
+fn preview_envelope_in(
+    request_id: &str,
+    client_name: &str,
+    partition_key: &str,
+    capability: Option<&str>,
+    state_generation: u64,
+    request: RuntimeRequestV3,
+) -> EnvelopeV3 {
     EnvelopeV3 {
         request_id: request_id.into(),
         api_version: RUNTIME_API_VERSION_V3,
         client_identity: IdentityV3 {
-            name: "process-test-host".into(),
+            name: client_name.into(),
             version: "1".into(),
         },
+        partition_key: partition_key.into(),
         capability: capability.map(str::to_owned),
         deadline_unix_ms: None,
         feature_schema_hash: capability
@@ -82,6 +101,104 @@ fn preview_envelope(
         payload_limit: rill_runtime_protocol::MAX_MESSAGE_BYTES as u32,
         request,
     }
+}
+
+#[test]
+fn preview_v3_cold_process_restores_two_clients_and_two_partitions_each() {
+    let temporary = tempfile::tempdir().unwrap();
+    let state_path = temporary.path().join("multi-partition-state.json");
+    let namespaces = [
+        ("client-a", "partition-1"),
+        ("client-a", "partition-2"),
+        ("client-b", "partition-1"),
+        ("client-b", "partition-2"),
+    ];
+    let mut first = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = first.stdin.as_mut().unwrap();
+        for (index, (client, partition)) in namespaces.iter().enumerate() {
+            let request = preview_envelope_in(
+                &format!("decision-{index}"),
+                client,
+                partition,
+                Some("org.rill.preview.decide"),
+                0,
+                RuntimeRequestV3::Decide {
+                    context: serde_json::json!({
+                        "actions": [{"id": "route-a", "features": [1.0] }, {"id": "route-b", "features": [0.0] }]
+                    }),
+                    deterministic_seed: Some(index as u64),
+                },
+            );
+            serde_json::to_writer(&mut *stdin, &request).unwrap();
+            stdin.write_all(b"\n").unwrap();
+        }
+    }
+    let first_output = first.wait_with_output().unwrap();
+    assert!(
+        first_output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first_output.stderr)
+    );
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&fs::read(&state_path).unwrap())
+            .unwrap()["partitions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        namespaces.len()
+    );
+
+    let mut second = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = second.stdin.as_mut().unwrap();
+        for (index, (client, partition)) in namespaces.iter().enumerate() {
+            let request = preview_envelope_in(
+                &format!("follow-up-{index}"),
+                client,
+                partition,
+                Some("org.rill.preview.observe"),
+                1,
+                RuntimeRequestV3::Observe {
+                    event: serde_json::json!({"source": "cold-restart"}),
+                },
+            );
+            serde_json::to_writer(&mut *stdin, &request).unwrap();
+            stdin.write_all(b"\n").unwrap();
+        }
+    }
+    let second_output = second.wait_with_output().unwrap();
+    assert!(
+        second_output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second_output.stderr)
+    );
+    let responses = second_output
+        .stdout
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(responses.len(), namespaces.len());
+    assert!(responses.iter().all(|response| {
+        response["response"]["kind"] == "result"
+            && response["response"]["output"]["accepted"] == true
+            && response["stateGeneration"] == 2
+    }));
 }
 
 #[test]
@@ -277,7 +394,7 @@ fn preview_v3_uses_opaque_action_ids_and_context_features() {
     );
     let persisted =
         serde_json::from_slice::<serde_json::Value>(&fs::read(&state_path).unwrap()).unwrap();
-    let state = &persisted["handlerSnapshot"]["state"];
+    let state = &persisted["partitions"][0]["handlerSnapshot"]["state"];
     assert!(state.is_array());
 }
 

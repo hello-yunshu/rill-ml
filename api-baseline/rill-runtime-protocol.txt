@@ -45,6 +45,7 @@ pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidErrorMessage
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidFeatureSchemaHash
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidJson
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidPayloadLimit
+pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidPartitionKey
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidRequestId
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidRetryability
 pub rill_runtime_protocol::v3::ProtocolV3Error::MissingCapability
@@ -163,8 +164,10 @@ pub rill_runtime_protocol::v3::ResourceProfileV1::max_handler_package_bytes: u32
 pub rill_runtime_protocol::v3::ResourceProfileV1::max_ipc_frame_bytes: u32
 pub rill_runtime_protocol::v3::ResourceProfileV1::max_model_pack_bytes: u32
 pub rill_runtime_protocol::v3::ResourceProfileV1::max_model_state_bytes: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_partitions: u32
 pub rill_runtime_protocol::v3::ResourceProfileV1::max_pending_decisions: u32
 pub rill_runtime_protocol::v3::ResourceProfileV1::max_snapshot_bytes: u32
+pub rill_runtime_protocol::v3::ResourceProfileV1::max_total_state_bytes: u32
 pub rill_runtime_protocol::v3::ResourceProfileV1::request_deadline_ms: u64
 pub rill_runtime_protocol::v3::ResourceProfileV1::restart_backoff_ms: u64
 pub rill_runtime_protocol::v3::ResourceProfileV1::shutdown_deadline_ms: u64
@@ -207,6 +210,7 @@ pub const rill_runtime_protocol::v3::MAX_DECISION_ID_LEN_V3: usize
 pub const rill_runtime_protocol::v3::MAX_ERROR_MESSAGE_LEN_V3: usize
 pub const rill_runtime_protocol::v3::MAX_IDENTITY_NAME_LEN_V3: usize
 pub const rill_runtime_protocol::v3::MAX_IDENTITY_VERSION_LEN_V3: usize
+pub const rill_runtime_protocol::v3::MAX_PARTITION_KEY_LEN_V3: usize
 pub const rill_runtime_protocol::v3::MAX_REQUEST_ID_LEN_V3: usize
 pub const rill_runtime_protocol::v3::PREVIEW_CHANNEL_V3: &str
 pub const rill_runtime_protocol::v3::RUNTIME_API_VERSION_V3: u32
