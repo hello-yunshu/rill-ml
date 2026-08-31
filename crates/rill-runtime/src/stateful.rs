@@ -5,7 +5,7 @@
 
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 use rill_handler_api::v2::{
@@ -17,7 +17,8 @@ use rill_runtime_protocol::v3::{
     RuntimeResponseBodyV3, RuntimeResponseBodyV3Preview, RuntimeResponseV3,
     RuntimeResponseV3Preview,
 };
-use serde::{Deserialize, Serialize};
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
 const MAX_HANDLER_DETAIL_BYTES_V2: usize = 4 * 1024;
@@ -256,22 +257,92 @@ struct PartitionRuntimeSnapshotV3 {
 }
 
 /// Backward-compatible durable snapshot for the default partition.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StatefulRuntimeSnapshotV3 {
     pub format_version: u32,
     pub handler_snapshot: StatefulStateSnapshotV2,
     pub pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
     pub completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
     pub checksum_sha256: String,
-    /// Internal all-partition payload. This remains private so the frozen
-    /// Stable public API keeps its original field set while the CLI can
-    /// durably round-trip every opaque consumer partition.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    partitions: Option<BTreeMap<String, PartitionRuntimeSnapshotV3>>,
 }
 
 impl Eq for StatefulRuntimeSnapshotV3 {}
+
+type PartitionedSnapshotPayload = BTreeMap<String, PartitionRuntimeSnapshotV3>;
+
+static PARTITIONED_SNAPSHOT_PAYLOADS: OnceLock<
+    Mutex<BTreeMap<String, PartitionedSnapshotPayload>>,
+> = OnceLock::new();
+
+fn partitioned_payloads() -> &'static Mutex<BTreeMap<String, PartitionedSnapshotPayload>> {
+    PARTITIONED_SNAPSHOT_PAYLOADS.get_or_init(|| Mutex::new(BTreeMap::new()))
+}
+
+fn remember_partitioned_payload(checksum_sha256: &str, partitions: PartitionedSnapshotPayload) {
+    if let Ok(mut payloads) = partitioned_payloads().lock() {
+        payloads.insert(checksum_sha256.to_owned(), partitions);
+    }
+}
+
+fn partitioned_payload(checksum_sha256: &str) -> Option<PartitionedSnapshotPayload> {
+    partitioned_payloads()
+        .lock()
+        .ok()
+        .and_then(|payloads| payloads.get(checksum_sha256).cloned())
+}
+
+impl Serialize for StatefulRuntimeSnapshotV3 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let partitions = partitioned_payload(&self.checksum_sha256);
+        let mut fields = serializer.serialize_struct(
+            "StatefulRuntimeSnapshotV3",
+            if partitions.is_some() { 6 } else { 5 },
+        )?;
+        fields.serialize_field("formatVersion", &self.format_version)?;
+        fields.serialize_field("handlerSnapshot", &self.handler_snapshot)?;
+        fields.serialize_field("pendingDecisions", &self.pending_decisions)?;
+        fields.serialize_field("completedDecisions", &self.completed_decisions)?;
+        fields.serialize_field("checksumSha256", &self.checksum_sha256)?;
+        if let Some(partitions) = partitions {
+            fields.serialize_field("partitions", &partitions)?;
+        }
+        fields.end()
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StatefulRuntimeSnapshotWire {
+    format_version: u32,
+    handler_snapshot: StatefulStateSnapshotV2,
+    pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    checksum_sha256: String,
+    #[serde(default)]
+    partitions: Option<PartitionedSnapshotPayload>,
+}
+
+impl<'de> Deserialize<'de> for StatefulRuntimeSnapshotV3 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = StatefulRuntimeSnapshotWire::deserialize(deserializer)?;
+        if let Some(partitions) = wire.partitions {
+            remember_partitioned_payload(&wire.checksum_sha256, partitions);
+        }
+        Ok(Self {
+            format_version: wire.format_version,
+            handler_snapshot: wire.handler_snapshot,
+            pending_decisions: wire.pending_decisions,
+            completed_decisions: wire.completed_decisions,
+            checksum_sha256: wire.checksum_sha256,
+        })
+    }
+}
 
 impl StatefulRuntimeSnapshotV3 {
     pub const FORMAT_VERSION: u32 = 1;
@@ -301,7 +372,6 @@ impl StatefulRuntimeSnapshotV3 {
             pending_decisions,
             completed_decisions,
             checksum_sha256,
-            partitions: None,
         }
     }
 
@@ -311,8 +381,8 @@ impl StatefulRuntimeSnapshotV3 {
                 StatefulHandlerErrorKindV2::IncompatibleVersion,
             ));
         }
-        let checksum_valid = if let Some(partitions) = &self.partitions {
-            self.checksum_sha256 == state_checksum(&serde_json::to_vec(partitions).unwrap())
+        let checksum_valid = if let Some(partitions) = partitioned_payload(&self.checksum_sha256) {
+            self.checksum_sha256 == state_checksum(&serde_json::to_vec(&partitions).unwrap())
         } else {
             self.checksum_sha256
                 == state_checksum(&Self::checksum_input(
@@ -342,8 +412,8 @@ impl StatefulRuntimeSnapshotV3 {
                 ));
             }
         }
-        if let Some(partitions) = &self.partitions {
-            validate_partitions(partitions, expected_schema_version)?;
+        if let Some(partitions) = partitioned_payload(&self.checksum_sha256) {
+            validate_partitions(&partitions, expected_schema_version)?;
         }
         Ok(())
     }
@@ -359,11 +429,10 @@ impl StatefulRuntimeSnapshotV3 {
             default.pending_decisions.clone(),
             default.completed_decisions.clone(),
         );
-        snapshot.partitions = Some(partitions);
         snapshot.checksum_sha256 = state_checksum(
-            &serde_json::to_vec(snapshot.partitions.as_ref().unwrap())
-                .expect("runtime snapshot fields are serializable"),
+            &serde_json::to_vec(&partitions).expect("runtime snapshot fields are serializable"),
         );
+        remember_partitioned_payload(&snapshot.checksum_sha256, partitions);
         Ok(snapshot)
     }
 }
@@ -621,6 +690,7 @@ impl StatefulRuntimeEngineV3 {
         &self,
         snapshot: StatefulRuntimeSnapshotV3,
     ) -> Result<(), StatefulHandlerErrorV2> {
+        let partitioned = partitioned_payload(&snapshot.checksum_sha256);
         snapshot.validate(self.metadata.state_schema_version)?;
         if snapshot.handler_snapshot.state.len()
             > self.config.resource_profile.max_model_state_bytes as usize
@@ -638,7 +708,7 @@ impl StatefulRuntimeEngineV3 {
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        if let Some(partitions) = snapshot.partitions {
+        if let Some(partitions) = partitioned {
             state.partitions = partitions
                 .into_iter()
                 .map(|(key, partition)| {
@@ -1519,9 +1589,7 @@ impl StatefulRuntimeEngineV3 {
         &self,
         snapshot: &StatefulRuntimeSnapshotV3,
     ) -> Result<(), StatefulHandlerErrorV2> {
-        let total_state_bytes: usize = snapshot
-            .partitions
-            .as_ref()
+        let total_state_bytes: usize = partitioned_payload(&snapshot.checksum_sha256)
             .map(|partitions| {
                 partitions
                     .values()
@@ -1888,7 +1956,7 @@ mod tests {
             RuntimeResponseBodyV3::Result { .. }
         ));
         let snapshot = engine.runtime_snapshot().unwrap();
-        let partitions = snapshot.partitions.as_ref().unwrap();
+        let partitions = partitioned_payload(&snapshot.checksum_sha256).unwrap();
         assert_eq!(partitions.len(), 3);
         assert!(
             partitions["consumer-a"]
