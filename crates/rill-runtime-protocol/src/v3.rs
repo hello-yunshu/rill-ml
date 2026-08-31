@@ -488,7 +488,6 @@ pub enum ProtocolV3Error {
     InvalidJson,
     InvalidRequestId,
     InvalidClientIdentity,
-    InvalidPartitionKey,
     IncompatibleApiVersion,
     InvalidPayloadLimit,
     PayloadTooLarge,
@@ -502,6 +501,7 @@ pub enum ProtocolV3Error {
     InvalidCapabilities,
     InvalidErrorMessage,
     InvalidRetryability,
+    InvalidPartitionKey,
 }
 
 impl std::fmt::Display for ProtocolV3Error {

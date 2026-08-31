@@ -585,11 +585,9 @@ impl StatefulRuntimeEngineV3 {
                     .partitions
                     .get(scope)
                     .map(|partition| partition.snapshot.clone())
-                    .ok_or_else(|| {
-                        StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::InvalidState)
-                    })
+                    .unwrap_or_else(|| self.initial_partition().snapshot)
             })
-            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))
     }
 
     /// Return every namespace, including lifecycle and decision state.
