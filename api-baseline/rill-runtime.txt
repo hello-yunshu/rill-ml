@@ -231,14 +231,22 @@ pub fn rill_runtime::StatefulRuntimeEngineV3::handle_json_at(&self, &[u8], u64) 
 pub fn rill_runtime::StatefulRuntimeEngineV3::handle_preview_at(&self, rill_runtime_protocol::v3::EnvelopeV3, u64) -> rill_runtime_protocol::v3::RuntimeResponseV3Preview
 pub fn rill_runtime::StatefulRuntimeEngineV3::handle_preview_json_at(&self, &[u8], u64) -> rill_runtime_protocol::v3::RuntimeResponseV3Preview
 pub fn rill_runtime::StatefulRuntimeEngineV3::new(rill_runtime::StatefulRuntimeConfigV3, alloc::sync::Arc<dyn rill_runtime::StatefulHandlerV2>) -> core::result::Result<Self, rill_runtime::StatefulHandlerErrorV2>
-pub fn rill_runtime::StatefulRuntimeEngineV3::promote_candidate(&self, &rill_runtime::PartitionScopeV3) -> core::result::Result<u64, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::promote_candidate(&self) -> core::result::Result<u64, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::promote_candidate_for_scope(&self, &rill_runtime::PartitionScopeV3) -> core::result::Result<u64, rill_runtime::StatefulHandlerErrorV2>
 pub fn rill_runtime::StatefulRuntimeEngineV3::restore_partition_snapshot(&self, &rill_runtime::PartitionScopeV3, rill_runtime::StatefulStateSnapshotV2) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
 pub fn rill_runtime::StatefulRuntimeEngineV3::restore_runtime(&self, rill_runtime::StatefulRuntimeSnapshotV3) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
-pub fn rill_runtime::StatefulRuntimeEngineV3::restore_snapshot_with_migration(&self, &rill_runtime::PartitionScopeV3, rill_runtime::StatefulStateSnapshotV2, &dyn rill_runtime::StatefulStateMigratorV1) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
-pub fn rill_runtime::StatefulRuntimeEngineV3::rollback_previous_good(&self, &rill_runtime::PartitionScopeV3) -> core::result::Result<u64, rill_runtime::StatefulHandlerErrorV2>
-pub fn rill_runtime::StatefulRuntimeEngineV3::snapshot(&self, &rill_runtime::PartitionScopeV3) -> core::result::Result<rill_runtime::StatefulStateSnapshotV2, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::restore_runtime_snapshot(&self, rill_runtime::StatefulRuntimeSnapshotV3) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::restore_snapshot(&self, rill_runtime::StatefulStateSnapshotV2) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::restore_snapshot_with_migration(&self, rill_runtime::StatefulStateSnapshotV2, &dyn rill_runtime::StatefulStateMigratorV1) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::restore_snapshot_with_migration_for_scope(&self, &rill_runtime::PartitionScopeV3, rill_runtime::StatefulStateSnapshotV2, &dyn rill_runtime::StatefulStateMigratorV1) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::rollback_previous_good(&self) -> core::result::Result<u64, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::rollback_previous_good_for_scope(&self, &rill_runtime::PartitionScopeV3) -> core::result::Result<u64, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::runtime_snapshot(&self) -> core::result::Result<rill_runtime::StatefulRuntimeSnapshotV3, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::snapshot(&self) -> core::result::Result<rill_runtime::StatefulStateSnapshotV2, rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::snapshot_for_scope(&self, &rill_runtime::PartitionScopeV3) -> core::result::Result<rill_runtime::StatefulStateSnapshotV2, rill_runtime::StatefulHandlerErrorV2>
 pub fn rill_runtime::StatefulRuntimeEngineV3::snapshot_runtime(&self) -> core::result::Result<rill_runtime::StatefulRuntimeSnapshotV3, rill_runtime::StatefulHandlerErrorV2>
-pub fn rill_runtime::StatefulRuntimeEngineV3::stage_candidate(&self, &rill_runtime::PartitionScopeV3, rill_runtime::StatefulStateSnapshotV2) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::stage_candidate(&self, rill_runtime::StatefulStateSnapshotV2) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
+pub fn rill_runtime::StatefulRuntimeEngineV3::stage_candidate_for_scope(&self, &rill_runtime::PartitionScopeV3, rill_runtime::StatefulStateSnapshotV2) -> core::result::Result<(), rill_runtime::StatefulHandlerErrorV2>
 pub struct rill_runtime::StatefulRuntimeSnapshotV3
 pub rill_runtime::StatefulRuntimeSnapshotV3::checksum_sha256: alloc::string::String
 pub rill_runtime::StatefulRuntimeSnapshotV3::format_version: u32
