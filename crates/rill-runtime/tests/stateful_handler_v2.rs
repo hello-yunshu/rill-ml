@@ -150,7 +150,7 @@ fn stateful_v2_invalid_and_oversized_state_are_fail_closed() {
             None => return,
         };
         let before = engine
-            .snapshot(&PartitionScopeV3::new("test-host", "default"))
+            .snapshot_for_scope(&PartitionScopeV3::new("test-host", "default"))
             .unwrap();
         let response = engine.handle_at(request(0), 100);
         assert!(matches!(
@@ -160,7 +160,7 @@ fn stateful_v2_invalid_and_oversized_state_are_fail_closed() {
         ));
         assert_eq!(
             engine
-                .snapshot(&PartitionScopeV3::new("test-host", "default"))
+                .snapshot_for_scope(&PartitionScopeV3::new("test-host", "default"))
                 .unwrap(),
             before,
             "mode={mode}"
@@ -184,7 +184,7 @@ fn stateful_v2_real_trap_timeout_and_output_limit_are_fail_closed() {
             None => return,
         };
         let before = engine
-            .snapshot(&PartitionScopeV3::new("test-host", "default"))
+            .snapshot_for_scope(&PartitionScopeV3::new("test-host", "default"))
             .unwrap();
         let response = engine.handle_at(request(0), 100);
         assert!(matches!(
@@ -193,7 +193,7 @@ fn stateful_v2_real_trap_timeout_and_output_limit_are_fail_closed() {
         ));
         assert_eq!(
             engine
-                .snapshot(&PartitionScopeV3::new("test-host", "default"))
+                .snapshot_for_scope(&PartitionScopeV3::new("test-host", "default"))
                 .unwrap(),
             before,
             "mode={mode}"

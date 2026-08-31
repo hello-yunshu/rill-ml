@@ -144,6 +144,7 @@ pub rill_runtime_protocol::v3::EnvelopeV3::client_identity: rill_runtime_protoco
 pub rill_runtime_protocol::v3::EnvelopeV3::deadline_unix_ms: core::option::Option<u64>
 pub rill_runtime_protocol::v3::EnvelopeV3::feature_schema_hash: core::option::Option<alloc::string::String>
 pub rill_runtime_protocol::v3::EnvelopeV3::model_generation: u64
+pub rill_runtime_protocol::v3::EnvelopeV3::partition_key: alloc::string::String
 pub rill_runtime_protocol::v3::EnvelopeV3::payload_limit: u32
 pub rill_runtime_protocol::v3::EnvelopeV3::request: rill_runtime_protocol::v3::RuntimeRequestV3
 pub rill_runtime_protocol::v3::EnvelopeV3::request_id: alloc::string::String
