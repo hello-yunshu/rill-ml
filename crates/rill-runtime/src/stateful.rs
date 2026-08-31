@@ -1026,8 +1026,10 @@ impl StatefulRuntimeEngineV3 {
                         .map_or(0, |partition| partition.snapshot.state_generation),
                 );
             }
-            if !matches!(request, RuntimeRequestV3::Decide { .. })
-                || envelope.state_generation != self.config.initial_state_generation
+            if !matches!(
+                request,
+                RuntimeRequestV3::Decide { .. } | RuntimeRequestV3::Observe { .. }
+            ) || envelope.state_generation != self.config.initial_state_generation
             {
                 return self.error_response(
                     request_id,
