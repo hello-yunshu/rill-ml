@@ -73,7 +73,6 @@ fn preview_envelope(
             name: "process-test-host".into(),
             version: "1".into(),
         },
-        partition_key: capability.map(|_| "default".into()),
         capability: capability.map(str::to_owned),
         deadline_unix_ms: None,
         feature_schema_hash: capability
