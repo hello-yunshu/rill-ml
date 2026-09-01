@@ -97,12 +97,20 @@ def verify() -> int:
                 f"  run `python3 scripts/generate_api_baseline.py --generate` "
                 f"to review the diff and update the baseline if intentional.\n"
             )
-            sys.stderr.writelines(difflib.unified_diff(
+            diff = list(difflib.unified_diff(
                 expected.splitlines(keepends=True),
                 actual.splitlines(keepends=True),
                 fromfile=str(path.relative_to(ROOT)),
                 tofile=f"generated/{crate}.txt",
             ))
+            sys.stderr.write(
+                f"  baselineBytes={len(expected.encode())} generatedBytes={len(actual.encode())} "
+                f"diffLines={len(diff)}\n"
+            )
+            sys.stderr.writelines(diff)
+            if not diff:
+                sys.stderr.write(f"  baselineTail={expected[-96:]!r}\n")
+                sys.stderr.write(f"  generatedTail={actual[-96:]!r}\n")
             failures += 1
         else:
             print(f"  ok: {crate} matches baseline")
