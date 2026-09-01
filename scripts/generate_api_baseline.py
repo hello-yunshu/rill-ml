@@ -30,6 +30,7 @@ import argparse
 import pathlib
 import subprocess
 import sys
+import difflib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE_DIR = ROOT / "api-baseline"
@@ -96,6 +97,12 @@ def verify() -> int:
                 f"  run `python3 scripts/generate_api_baseline.py --generate` "
                 f"to review the diff and update the baseline if intentional.\n"
             )
+            sys.stderr.writelines(difflib.unified_diff(
+                expected.splitlines(keepends=True),
+                actual.splitlines(keepends=True),
+                fromfile=str(path.relative_to(ROOT)),
+                tofile=f"generated/{crate}.txt",
+            ))
             failures += 1
         else:
             print(f"  ok: {crate} matches baseline")
