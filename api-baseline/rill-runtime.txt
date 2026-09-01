@@ -253,11 +253,6 @@ pub rill_runtime::StatefulRuntimeSnapshotV3::format_version: u32
 pub rill_runtime::StatefulRuntimeSnapshotV3::partitions: alloc::vec::Vec<rill_runtime::PartitionRuntimeSnapshotV3>
 impl rill_runtime::StatefulRuntimeSnapshotV3
 pub const rill_runtime::StatefulRuntimeSnapshotV3::FORMAT_VERSION: u32
-impl core::cmp::Eq for rill_runtime::StatefulRuntimeSnapshotV3
-impl serde_core::ser::Serialize for rill_runtime::StatefulRuntimeSnapshotV3
-pub fn rill_runtime::StatefulRuntimeSnapshotV3::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
-impl<'de> serde_core::de::Deserialize<'de> for rill_runtime::StatefulRuntimeSnapshotV3
-pub fn rill_runtime::StatefulRuntimeSnapshotV3::deserialize<D>(D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>
 pub struct rill_runtime::StatefulStateSnapshotV2
 pub rill_runtime::StatefulStateSnapshotV2::checksum_sha256: alloc::string::String
 pub rill_runtime::StatefulStateSnapshotV2::state: alloc::vec::Vec<u8>
