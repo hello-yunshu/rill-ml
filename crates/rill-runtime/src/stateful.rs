@@ -12,10 +12,10 @@ use rill_handler_api::v2::{
     HANDLER_API_VERSION, MAX_EVENT_BYTES, MAX_OUTPUT_BYTES, MAX_STATE_BYTES,
 };
 use rill_runtime_protocol::v3::{
-    EnvelopeV3, IdentityV3, PREVIEW_CHANNEL_V3, PreviewErrorCodeV3, RUNTIME_API_VERSION_V3,
-    ResourceProfileV1, RuntimeErrorCodeV3, RuntimeErrorV3, RuntimeErrorV3Preview, RuntimeRequestV3,
-    RuntimeResponseBodyV3, RuntimeResponseBodyV3Preview, RuntimeResponseV3,
-    RuntimeResponseV3Preview,
+    EnvelopeV3, IdentityV3, MAX_IDENTITY_NAME_LEN_V3, MAX_PARTITION_KEY_LEN_V3, PREVIEW_CHANNEL_V3,
+    PreviewErrorCodeV3, RUNTIME_API_VERSION_V3, ResourceProfileV1, RuntimeErrorCodeV3,
+    RuntimeErrorV3, RuntimeErrorV3Preview, RuntimeRequestV3, RuntimeResponseBodyV3,
+    RuntimeResponseBodyV3Preview, RuntimeResponseV3, RuntimeResponseV3Preview,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -245,47 +245,81 @@ pub struct RuntimeDiagnosticsV1 {
     pub last_error: Option<String>,
 }
 
-/// Durable v3 runtime envelope. The handler snapshot and decision ledger are
-/// checksummed together so feedback cannot silently cross a restore boundary.
+/// The stable V3 namespace selected by a consumer. Runtime state is keyed by
+/// both fields; client software version is deliberately not part of it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PartitionScopeV3 {
+    pub client_identity_name: String,
+    pub partition_key: String,
+}
+
+impl PartitionScopeV3 {
+    pub fn new(client_identity_name: impl Into<String>, partition_key: impl Into<String>) -> Self {
+        Self {
+            client_identity_name: client_identity_name.into(),
+            partition_key: partition_key.into(),
+        }
+    }
+
+    fn validate(&self) -> Result<(), StatefulHandlerErrorV2> {
+        if self.client_identity_name.is_empty()
+            || self.client_identity_name.len() > MAX_IDENTITY_NAME_LEN_V3
+            || self.partition_key.is_empty()
+            || self.partition_key.len() > MAX_PARTITION_KEY_LEN_V3
+        {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Durable state for one namespaced consumer partition.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PartitionRuntimeSnapshotV3 {
+    pub client_identity_name: String,
+    pub partition_key: String,
+    pub handler_snapshot: StatefulStateSnapshotV2,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_good: Option<StatefulStateSnapshotV2>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidate: Option<StatefulStateSnapshotV2>,
+    pub pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    pub completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+}
+
+impl Eq for PartitionRuntimeSnapshotV3 {}
+
+/// Self-contained durable snapshot for every Runtime namespace.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StatefulRuntimeSnapshotV3 {
     pub format_version: u32,
-    pub handler_snapshot: StatefulStateSnapshotV2,
-    pub pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
-    pub completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
+    pub partitions: Vec<PartitionRuntimeSnapshotV3>,
     pub checksum_sha256: String,
 }
-
-impl Eq for StatefulRuntimeSnapshotV3 {}
 
 impl StatefulRuntimeSnapshotV3 {
     pub const FORMAT_VERSION: u32 = 1;
 
-    fn checksum_input(
-        handler_snapshot: &StatefulStateSnapshotV2,
-        pending_decisions: &BTreeMap<String, DecisionLedgerEntryV3>,
-        completed_decisions: &BTreeMap<String, DecisionLedgerEntryV3>,
-    ) -> Vec<u8> {
-        serde_json::to_vec(&(handler_snapshot, pending_decisions, completed_decisions))
+    fn checksum_input(format_version: u32, partitions: &[PartitionRuntimeSnapshotV3]) -> Vec<u8> {
+        serde_json::to_vec(&(format_version, partitions))
             .expect("runtime snapshot fields are serializable")
     }
 
-    fn new(
-        handler_snapshot: StatefulStateSnapshotV2,
-        pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
-        completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
-    ) -> Self {
-        let checksum_sha256 = state_checksum(&Self::checksum_input(
-            &handler_snapshot,
-            &pending_decisions,
-            &completed_decisions,
-        ));
+    fn new(mut partitions: Vec<PartitionRuntimeSnapshotV3>) -> Self {
+        partitions.sort_by(|left, right| {
+            (&left.client_identity_name, &left.partition_key)
+                .cmp(&(&right.client_identity_name, &right.partition_key))
+        });
+        let checksum_sha256 =
+            state_checksum(&Self::checksum_input(Self::FORMAT_VERSION, &partitions));
         Self {
             format_version: Self::FORMAT_VERSION,
-            handler_snapshot,
-            pending_decisions,
-            completed_decisions,
+            partitions,
             checksum_sha256,
         }
     }
@@ -296,27 +330,44 @@ impl StatefulRuntimeSnapshotV3 {
                 StatefulHandlerErrorKindV2::IncompatibleVersion,
             ));
         }
-        self.handler_snapshot.validate(expected_schema_version)?;
-        if self.checksum_sha256
-            != state_checksum(&Self::checksum_input(
-                &self.handler_snapshot,
-                &self.pending_decisions,
-                &self.completed_decisions,
-            ))
-        {
+        let checksum_valid = self.checksum_sha256
+            == state_checksum(&Self::checksum_input(self.format_version, &self.partitions));
+        if self.partitions.is_empty() || !checksum_valid {
             return Err(StatefulHandlerErrorV2::new(
                 StatefulHandlerErrorKindV2::InvalidState,
             ));
         }
-        for (key, entry) in self
-            .pending_decisions
-            .iter()
-            .chain(self.completed_decisions.iter())
-        {
-            if key != &entry.decision_id || entry.decision_id.is_empty() {
+        let mut scopes = std::collections::BTreeSet::new();
+        for partition in &self.partitions {
+            let scope = PartitionScopeV3::new(
+                partition.client_identity_name.clone(),
+                partition.partition_key.clone(),
+            );
+            scope.validate()?;
+            if !scopes.insert(scope) {
                 return Err(StatefulHandlerErrorV2::new(
                     StatefulHandlerErrorKindV2::InvalidState,
                 ));
+            }
+            partition
+                .handler_snapshot
+                .validate(expected_schema_version)?;
+            if let Some(snapshot) = &partition.previous_good {
+                snapshot.validate(expected_schema_version)?;
+            }
+            if let Some(snapshot) = &partition.candidate {
+                snapshot.validate(expected_schema_version)?;
+            }
+            for (key, entry) in partition
+                .pending_decisions
+                .iter()
+                .chain(partition.completed_decisions.iter())
+            {
+                if key != &entry.decision_id || entry.decision_id.is_empty() {
+                    return Err(StatefulHandlerErrorV2::new(
+                        StatefulHandlerErrorKindV2::InvalidState,
+                    ));
+                }
             }
         }
         Ok(())
@@ -399,13 +450,18 @@ impl StatefulRuntimeConfigV3 {
 
 #[derive(Debug, Clone)]
 struct RuntimeStateV3 {
+    partitions: BTreeMap<PartitionScopeV3, PartitionStateV3>,
+    restart_count: u64,
+    last_error: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct PartitionStateV3 {
     snapshot: StatefulStateSnapshotV2,
     previous_good: Option<StatefulStateSnapshotV2>,
     candidate: Option<StatefulStateSnapshotV2>,
     pending_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
     completed_decisions: BTreeMap<String, DecisionLedgerEntryV3>,
-    restart_count: u64,
-    last_error: Option<String>,
 }
 
 /// Preview Runtime V3 engine for Stateful Handler ABI v2.
@@ -445,12 +501,12 @@ impl StatefulRuntimeEngineV3 {
             metadata.state_schema_version,
             metadata.state_schema_version,
         )?;
-        let snapshot = StatefulStateSnapshotV2::new(
-            metadata.state_schema_version,
-            config.initial_state_generation,
-            config.initial_state.clone(),
-        );
-        if snapshot.state.len() > config.resource_profile.max_model_state_bytes as usize {
+        if config.initial_state.len() > config.resource_profile.max_model_state_bytes as usize {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
+        if config.initial_state.len() > config.resource_profile.max_total_state_bytes as usize {
             return Err(StatefulHandlerErrorV2::new(
                 StatefulHandlerErrorKindV2::InvalidState,
             ));
@@ -460,22 +516,34 @@ impl StatefulRuntimeEngineV3 {
             metadata,
             handler,
             state: Mutex::new(RuntimeStateV3 {
-                snapshot,
-                previous_good: None,
-                candidate: None,
-                pending_decisions: BTreeMap::new(),
-                completed_decisions: BTreeMap::new(),
+                partitions: BTreeMap::new(),
                 restart_count: 0,
                 last_error: None,
             }),
         })
     }
 
-    /// Restore a previously validated Runtime-owned state atomically.
-    pub fn restore_snapshot(
+    fn initial_partition(&self) -> PartitionStateV3 {
+        PartitionStateV3 {
+            snapshot: StatefulStateSnapshotV2::new(
+                self.metadata.state_schema_version,
+                self.config.initial_state_generation,
+                self.config.initial_state.clone(),
+            ),
+            previous_good: None,
+            candidate: None,
+            pending_decisions: BTreeMap::new(),
+            completed_decisions: BTreeMap::new(),
+        }
+    }
+
+    /// Restore one partition snapshot atomically.
+    pub fn restore_partition_snapshot(
         &self,
+        scope: &PartitionScopeV3,
         snapshot: StatefulStateSnapshotV2,
     ) -> Result<(), StatefulHandlerErrorV2> {
+        scope.validate()?;
         snapshot.validate(self.metadata.state_schema_version)?;
         if snapshot.state.len() > self.config.resource_profile.max_model_state_bytes as usize {
             return Err(StatefulHandlerErrorV2::new(
@@ -486,69 +554,110 @@ impl StatefulRuntimeEngineV3 {
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        state.previous_good = Some(state.snapshot.clone());
-        state.snapshot = snapshot;
-        state.restart_count = state.restart_count.saturating_add(1);
-        Ok(())
-    }
-
-    pub fn snapshot(&self) -> Result<StatefulStateSnapshotV2, StatefulHandlerErrorV2> {
-        self.state
-            .lock()
-            .map(|state| state.snapshot.clone())
-            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))
-    }
-
-    /// Return the handler state plus the durable decision ledger.
-    pub fn runtime_snapshot(&self) -> Result<StatefulRuntimeSnapshotV3, StatefulHandlerErrorV2> {
-        let state = self
-            .state
-            .lock()
-            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        let snapshot = StatefulRuntimeSnapshotV3::new(
-            state.snapshot.clone(),
-            state.pending_decisions.clone(),
-            state.completed_decisions.clone(),
-        );
-        self.validate_runtime_snapshot_size(&snapshot)?;
-        Ok(snapshot)
-    }
-
-    /// Restore handler state and delayed feedback atomically.
-    pub fn restore_runtime_snapshot(
-        &self,
-        snapshot: StatefulRuntimeSnapshotV3,
-    ) -> Result<(), StatefulHandlerErrorV2> {
-        snapshot.validate(self.metadata.state_schema_version)?;
-        if snapshot.handler_snapshot.state.len()
-            > self.config.resource_profile.max_model_state_bytes as usize
-            || snapshot.pending_decisions.len()
-                > self.config.resource_profile.max_pending_decisions as usize
-            || snapshot.completed_decisions.len()
-                > self.config.resource_profile.max_completed_decisions as usize
+        if !state.partitions.contains_key(scope)
+            && state.partitions.len() >= self.config.resource_profile.max_partitions as usize
         {
             return Err(StatefulHandlerErrorV2::new(
                 StatefulHandlerErrorKindV2::InvalidState,
             ));
         }
+        let mut prospective = state.partitions.clone();
+        let partition = prospective
+            .entry(scope.clone())
+            .or_insert_with(|| self.initial_partition());
+        let previous = partition.snapshot.clone();
+        partition.previous_good = Some(previous);
+        partition.snapshot = snapshot;
+        self.validate_partition_map(&prospective)?;
+        state.partitions = prospective;
+        state.restart_count = state.restart_count.saturating_add(1);
+        Ok(())
+    }
+
+    pub fn snapshot_for_scope(
+        &self,
+        scope: &PartitionScopeV3,
+    ) -> Result<StatefulStateSnapshotV2, StatefulHandlerErrorV2> {
+        self.state
+            .lock()
+            .map(|state| {
+                state
+                    .partitions
+                    .get(scope)
+                    .map(|partition| partition.snapshot.clone())
+                    .unwrap_or_else(|| self.initial_partition().snapshot)
+            })
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))
+    }
+
+    /// Return every namespace, including lifecycle and decision state.
+    pub fn snapshot_runtime(&self) -> Result<StatefulRuntimeSnapshotV3, StatefulHandlerErrorV2> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
+        let snapshot = self.snapshot_for_partitions(&state.partitions);
         self.validate_runtime_snapshot_size(&snapshot)?;
+        Ok(snapshot)
+    }
+
+    fn partition_snapshot(
+        &self,
+        scope: &PartitionScopeV3,
+        partition: &PartitionStateV3,
+    ) -> PartitionRuntimeSnapshotV3 {
+        PartitionRuntimeSnapshotV3 {
+            client_identity_name: scope.client_identity_name.clone(),
+            partition_key: scope.partition_key.clone(),
+            handler_snapshot: partition.snapshot.clone(),
+            previous_good: partition.previous_good.clone(),
+            candidate: partition.candidate.clone(),
+            pending_decisions: partition.pending_decisions.clone(),
+            completed_decisions: partition.completed_decisions.clone(),
+        }
+    }
+
+    /// Restore all namespaces atomically from a self-contained snapshot.
+    pub fn restore_runtime(
+        &self,
+        snapshot: StatefulRuntimeSnapshotV3,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        snapshot.validate(self.metadata.state_schema_version)?;
+        self.validate_runtime_snapshot_size(&snapshot)?;
+        let mut restored = BTreeMap::new();
+        for partition in &snapshot.partitions {
+            let scope = PartitionScopeV3::new(
+                partition.client_identity_name.clone(),
+                partition.partition_key.clone(),
+            );
+            self.validate_partition_resources(partition)?;
+            restored.insert(
+                scope,
+                PartitionStateV3 {
+                    snapshot: partition.handler_snapshot.clone(),
+                    previous_good: partition.previous_good.clone(),
+                    candidate: partition.candidate.clone(),
+                    pending_decisions: partition.pending_decisions.clone(),
+                    completed_decisions: partition.completed_decisions.clone(),
+                },
+            );
+        }
         let mut state = self
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        state.previous_good = Some(state.snapshot.clone());
-        state.snapshot = snapshot.handler_snapshot;
-        state.pending_decisions = snapshot.pending_decisions;
-        state.completed_decisions = snapshot.completed_decisions;
+        state.partitions = restored;
         state.restart_count = state.restart_count.saturating_add(1);
         Ok(())
     }
 
     /// Validate and retain a candidate without activating it.
-    pub fn stage_candidate(
+    pub fn stage_candidate_for_scope(
         &self,
+        scope: &PartitionScopeV3,
         snapshot: StatefulStateSnapshotV2,
     ) -> Result<(), StatefulHandlerErrorV2> {
+        scope.validate()?;
         snapshot.validate(self.metadata.state_schema_version)?;
         if snapshot.state.len() > self.config.resource_profile.max_model_state_bytes as usize {
             return Err(StatefulHandlerErrorV2::new(
@@ -559,53 +668,89 @@ impl StatefulRuntimeEngineV3 {
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        state.candidate = Some(snapshot);
+        if !state.partitions.contains_key(scope)
+            && state.partitions.len() >= self.config.resource_profile.max_partitions as usize
+        {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
+        let mut prospective = state.partitions.clone();
+        prospective
+            .entry(scope.clone())
+            .or_insert_with(|| self.initial_partition())
+            .candidate = Some(snapshot);
+        self.validate_partition_map(&prospective)?;
+        state.partitions = prospective;
         Ok(())
     }
 
     /// Atomically activate a previously staged candidate.
-    pub fn promote_candidate(&self) -> Result<u64, StatefulHandlerErrorV2> {
+    pub fn promote_candidate_for_scope(
+        &self,
+        scope: &PartitionScopeV3,
+    ) -> Result<u64, StatefulHandlerErrorV2> {
+        scope.validate()?;
         let mut state = self
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        let candidate = state
+        let mut prospective = state.partitions.clone();
+        let partition = prospective
+            .get_mut(scope)
+            .ok_or_else(|| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::InvalidState))?;
+        let candidate = partition
             .candidate
             .take()
             .ok_or_else(|| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::InvalidState))?;
-        state.previous_good = Some(state.snapshot.clone());
-        state.snapshot = candidate;
-        state.pending_decisions.clear();
-        state.completed_decisions.clear();
-        Ok(state.snapshot.state_generation)
+        partition.previous_good = Some(partition.snapshot.clone());
+        partition.snapshot = candidate;
+        partition.pending_decisions.clear();
+        partition.completed_decisions.clear();
+        let generation = partition.snapshot.state_generation;
+        self.validate_partition_map(&prospective)?;
+        state.partitions = prospective;
+        Ok(generation)
     }
 
     /// Restore the most recent previous-good state after a failed activation.
-    pub fn rollback_previous_good(&self) -> Result<u64, StatefulHandlerErrorV2> {
+    pub fn rollback_previous_good_for_scope(
+        &self,
+        scope: &PartitionScopeV3,
+    ) -> Result<u64, StatefulHandlerErrorV2> {
+        scope.validate()?;
         let mut state = self
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        let previous = state
+        let mut prospective = state.partitions.clone();
+        let partition = prospective
+            .get_mut(scope)
+            .ok_or_else(|| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::InvalidState))?;
+        let previous = partition
             .previous_good
             .take()
             .ok_or_else(|| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::InvalidState))?;
-        let failed = std::mem::replace(&mut state.snapshot, previous);
-        state.previous_good = Some(failed);
-        state.candidate = None;
-        state.pending_decisions.clear();
-        state.completed_decisions.clear();
-        Ok(state.snapshot.state_generation)
+        let failed = std::mem::replace(&mut partition.snapshot, previous);
+        partition.previous_good = Some(failed);
+        partition.candidate = None;
+        partition.pending_decisions.clear();
+        partition.completed_decisions.clear();
+        let generation = partition.snapshot.state_generation;
+        self.validate_partition_map(&prospective)?;
+        state.partitions = prospective;
+        Ok(generation)
     }
 
     /// Migrate a snapshot without destructive in-place mutation.
-    pub fn restore_snapshot_with_migration(
+    pub fn restore_snapshot_with_migration_for_scope(
         &self,
+        scope: &PartitionScopeV3,
         snapshot: StatefulStateSnapshotV2,
         migrator: &dyn StatefulStateMigratorV1,
     ) -> Result<(), StatefulHandlerErrorV2> {
         if snapshot.state_schema_version == self.metadata.state_schema_version {
-            return self.restore_snapshot(snapshot);
+            return self.restore_partition_snapshot(scope, snapshot);
         }
         let (schema_version, state) =
             migrator.migrate(snapshot.state_schema_version, &snapshot.state)?;
@@ -614,11 +759,71 @@ impl StatefulRuntimeEngineV3 {
                 StatefulHandlerErrorKindV2::IncompatibleVersion,
             ));
         }
-        self.restore_snapshot(StatefulStateSnapshotV2::new(
-            schema_version,
-            snapshot.state_generation,
-            state,
-        ))
+        self.restore_partition_snapshot(
+            scope,
+            StatefulStateSnapshotV2::new(schema_version, snapshot.state_generation, state),
+        )
+    }
+
+    fn legacy_compatibility_scope() -> PartitionScopeV3 {
+        PartitionScopeV3::new("legacy-compatibility", "default")
+    }
+
+    /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
+    pub fn restore_snapshot(
+        &self,
+        snapshot: StatefulStateSnapshotV2,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        self.restore_partition_snapshot(&Self::legacy_compatibility_scope(), snapshot)
+    }
+
+    /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
+    pub fn snapshot(&self) -> Result<StatefulStateSnapshotV2, StatefulHandlerErrorV2> {
+        self.snapshot_for_scope(&Self::legacy_compatibility_scope())
+    }
+
+    /// Compatibility alias for the pre-v1.5.6 runtime snapshot API.
+    pub fn runtime_snapshot(&self) -> Result<StatefulRuntimeSnapshotV3, StatefulHandlerErrorV2> {
+        self.snapshot_runtime()
+    }
+
+    /// Compatibility alias for the pre-v1.5.6 runtime snapshot API.
+    pub fn restore_runtime_snapshot(
+        &self,
+        snapshot: StatefulRuntimeSnapshotV3,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        self.restore_runtime(snapshot)
+    }
+
+    /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
+    pub fn stage_candidate(
+        &self,
+        snapshot: StatefulStateSnapshotV2,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        self.stage_candidate_for_scope(&Self::legacy_compatibility_scope(), snapshot)
+    }
+
+    /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
+    pub fn promote_candidate(&self) -> Result<u64, StatefulHandlerErrorV2> {
+        self.promote_candidate_for_scope(&Self::legacy_compatibility_scope())
+    }
+
+    /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
+    pub fn rollback_previous_good(&self) -> Result<u64, StatefulHandlerErrorV2> {
+        self.rollback_previous_good_for_scope(&Self::legacy_compatibility_scope())
+    }
+
+    /// Compatibility alias for the pre-v1.5.6 unscoped lifecycle API.
+    pub fn restore_snapshot_with_migration(
+        &self,
+        snapshot: StatefulStateSnapshotV2,
+        migrator: &dyn StatefulStateMigratorV1,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        self.restore_snapshot_with_migration_for_scope(
+            &Self::legacy_compatibility_scope(),
+            snapshot,
+            migrator,
+        )
     }
 
     /// Handle one request at a caller-supplied clock value. No system clock is
@@ -806,6 +1011,10 @@ impl StatefulRuntimeEngineV3 {
         request: RuntimeRequestV3,
         now_unix_ms: u64,
     ) -> RuntimeResponseV3 {
+        let scope = PartitionScopeV3::new(
+            envelope.client_identity.name.clone(),
+            envelope.partition_key.clone(),
+        );
         let request_id = envelope.request_id;
         let capability = envelope.capability.unwrap_or_default();
         if !self
@@ -860,36 +1069,74 @@ impl StatefulRuntimeEngineV3 {
                 );
             }
         };
-        if envelope.state_generation != state.snapshot.state_generation {
+        let restart_count = state.restart_count;
+        let last_error = state.last_error.clone();
+        let created_partition = !state.partitions.contains_key(&scope);
+        if created_partition {
+            if state.partitions.len() >= self.config.resource_profile.max_partitions as usize {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::Internal,
+                    "partition capacity is exhausted",
+                    state
+                        .partitions
+                        .values()
+                        .next()
+                        .map_or(0, |partition| partition.snapshot.state_generation),
+                );
+            }
+            if !matches!(
+                request,
+                RuntimeRequestV3::Decide { .. } | RuntimeRequestV3::Observe { .. }
+            ) || envelope.state_generation != self.config.initial_state_generation
+            {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::StateMismatch,
+                    "namespace does not exist",
+                    state
+                        .partitions
+                        .values()
+                        .next()
+                        .map_or(0, |partition| partition.snapshot.state_generation),
+                );
+            }
+            state
+                .partitions
+                .insert(scope.clone(), self.initial_partition());
+        }
+        let existing_partitions = state.partitions.clone();
+        let partition = state.partitions.get_mut(&scope).unwrap();
+        if envelope.state_generation != partition.snapshot.state_generation {
             return self.error_response(
                 request_id,
                 RuntimeErrorCodeV3::StateMismatch,
                 "state generation does not match",
-                state.snapshot.state_generation,
+                partition.snapshot.state_generation,
             );
         }
 
         if let RuntimeRequestV3::Decide { .. } = &request {
-            if state.pending_decisions.contains_key(&request_id)
-                || state.completed_decisions.contains_key(&request_id)
+            if partition.pending_decisions.contains_key(&request_id)
+                || partition.completed_decisions.contains_key(&request_id)
             {
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::Internal,
                     "decision id was already used",
-                    state.snapshot.state_generation,
+                    partition.snapshot.state_generation,
                 );
             }
-            if state.pending_decisions.len()
+            if partition.pending_decisions.len()
                 >= self.config.resource_profile.max_pending_decisions as usize
-                || state.completed_decisions.len()
+                || partition.completed_decisions.len()
                     >= self.config.resource_profile.max_completed_decisions as usize
             {
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::Internal,
                     "pending decision capacity is exhausted",
-                    state.snapshot.state_generation,
+                    partition.snapshot.state_generation,
                 );
             }
         }
@@ -899,20 +1146,20 @@ impl StatefulRuntimeEngineV3 {
             ..
         } = &request
         {
-            if state.completed_decisions.contains_key(decision_id) {
+            if partition.completed_decisions.contains_key(decision_id) {
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::DuplicateFeedback,
                     "feedback was already applied",
-                    state.snapshot.state_generation,
+                    partition.snapshot.state_generation,
                 );
             }
-            let Some(entry) = state.pending_decisions.get(decision_id) else {
+            let Some(entry) = partition.pending_decisions.get(decision_id) else {
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::Internal,
                     "decision id is not pending",
-                    state.snapshot.state_generation,
+                    partition.snapshot.state_generation,
                 );
             };
             if entry.model_generation != *generation {
@@ -920,7 +1167,7 @@ impl StatefulRuntimeEngineV3 {
                     request_id,
                     RuntimeErrorCodeV3::IncompatibleGeneration,
                     "feedback generation is stale",
-                    state.snapshot.state_generation,
+                    partition.snapshot.state_generation,
                 );
             }
             if let RuntimeRequestV3::Feedback {
@@ -932,17 +1179,17 @@ impl StatefulRuntimeEngineV3 {
                     request_id,
                     RuntimeErrorCodeV3::StateMismatch,
                     "feedback action does not match the recorded decision",
-                    state.snapshot.state_generation,
+                    partition.snapshot.state_generation,
                 );
             }
-            if state.completed_decisions.len()
+            if partition.completed_decisions.len()
                 >= self.config.resource_profile.max_completed_decisions as usize
             {
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::Internal,
                     "completed decision capacity is exhausted",
-                    state.snapshot.state_generation,
+                    partition.snapshot.state_generation,
                 );
             }
         }
@@ -950,11 +1197,11 @@ impl StatefulRuntimeEngineV3 {
         if let RuntimeRequestV3::Snapshot {} = request {
             return self.response(
                 request_id,
-                state.snapshot.state_generation,
+                partition.snapshot.state_generation,
                 RuntimeResponseBodyV3::Snapshot {
-                    state_schema_version: state.snapshot.state_schema_version,
-                    state_checksum: state.snapshot.checksum_sha256.clone(),
-                    state: hex::encode(&state.snapshot.state),
+                    state_schema_version: partition.snapshot.state_schema_version,
+                    state_checksum: partition.snapshot.checksum_sha256.clone(),
+                    state: hex::encode(&partition.snapshot.state),
                 },
             );
         }
@@ -962,29 +1209,41 @@ impl StatefulRuntimeEngineV3 {
             expected_state_generation,
         } = request
         {
-            if expected_state_generation != state.snapshot.state_generation {
+            if expected_state_generation != partition.snapshot.state_generation {
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::StateMismatch,
                     "reset generation does not match",
-                    state.snapshot.state_generation,
+                    partition.snapshot.state_generation,
                 );
             }
-            let Some(next_generation) = state.snapshot.state_generation.checked_add(1) else {
+            let Some(next_generation) = partition.snapshot.state_generation.checked_add(1) else {
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::InvalidState,
                     "state generation overflow",
-                    state.snapshot.state_generation,
+                    partition.snapshot.state_generation,
                 );
             };
-            state.snapshot = StatefulStateSnapshotV2::new(
+            let original_partition = partition.clone();
+            partition.snapshot = StatefulStateSnapshotV2::new(
                 self.metadata.state_schema_version,
                 next_generation,
                 self.config.initial_state.clone(),
             );
-            state.pending_decisions.clear();
-            state.completed_decisions.clear();
+            partition.pending_decisions.clear();
+            partition.completed_decisions.clear();
+            let mut prospective = existing_partitions.clone();
+            prospective.insert(scope.clone(), partition.clone());
+            if self.validate_partition_map(&prospective).is_err() {
+                *partition = original_partition;
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::Internal,
+                    "reset would exceed snapshot resource limits",
+                    partition.snapshot.state_generation,
+                );
+            }
             return self.response(
                 request_id,
                 next_generation,
@@ -999,7 +1258,7 @@ impl StatefulRuntimeEngineV3 {
             _ => None,
         };
         let delayed_features = match &request {
-            RuntimeRequestV3::Feedback { decision_id, .. } => state
+            RuntimeRequestV3::Feedback { decision_id, .. } => partition
                 .pending_decisions
                 .get(decision_id)
                 .and_then(|entry| entry.selected_action_features.clone()),
@@ -1019,19 +1278,27 @@ impl StatefulRuntimeEngineV3 {
         }) {
             Ok(bytes) if bytes.len() <= MAX_EVENT_BYTES => bytes,
             Ok(_) => {
+                let generation = partition.snapshot.state_generation;
+                if created_partition {
+                    state.partitions.remove(&scope);
+                }
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::PayloadTooLarge,
                     "event exceeds handler limit",
-                    state.snapshot.state_generation,
+                    generation,
                 );
             }
             Err(_) => {
+                let generation = partition.snapshot.state_generation;
+                if created_partition {
+                    state.partitions.remove(&scope);
+                }
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::InvalidJson,
                     "event could not be encoded",
-                    state.snapshot.state_generation,
+                    generation,
                 );
             }
         };
@@ -1039,37 +1306,44 @@ impl StatefulRuntimeEngineV3 {
         let result =
             match self
                 .handler
-                .handle(&event_json, &state.snapshot.state, deterministic_seed)
+                .handle(&event_json, &partition.snapshot.state, deterministic_seed)
             {
                 Ok(result) => result,
                 Err(error) => {
                     let (code, message) = map_handler_error(error.kind());
+                    let state_generation = partition.snapshot.state_generation;
+                    if created_partition {
+                        state.partitions.remove(&scope);
+                    }
                     state.last_error = Some(message.into());
-                    return self.error_response(
-                        request_id,
-                        code,
-                        message,
-                        state.snapshot.state_generation,
-                    );
+                    return self.error_response(request_id, code, message, state_generation);
                 }
             };
         let output_bytes = match serde_json::to_vec(&result.output) {
             Ok(bytes) => bytes,
             Err(_) => {
+                let generation = partition.snapshot.state_generation;
+                if created_partition {
+                    state.partitions.remove(&scope);
+                }
                 return self.error_response(
                     request_id,
                     RuntimeErrorCodeV3::HandlerInvalidOutput,
                     "handler output was not valid JSON",
-                    state.snapshot.state_generation,
+                    generation,
                 );
             }
         };
         if output_bytes.len() > MAX_OUTPUT_BYTES {
+            let generation = partition.snapshot.state_generation;
+            if created_partition {
+                state.partitions.remove(&scope);
+            }
             return self.error_response(
                 request_id,
                 RuntimeErrorCodeV3::HandlerOutputTooLarge,
                 "handler output exceeded the size limit",
-                state.snapshot.state_generation,
+                generation,
             );
         }
         if validate_state_bytes(
@@ -1079,27 +1353,39 @@ impl StatefulRuntimeEngineV3 {
         )
         .is_err()
         {
+            let generation = partition.snapshot.state_generation;
+            if created_partition {
+                state.partitions.remove(&scope);
+            }
             return self.error_response(
                 request_id,
                 RuntimeErrorCodeV3::InvalidState,
                 "handler returned invalid next state",
-                state.snapshot.state_generation,
+                generation,
             );
         }
         if result.next_state.len() > self.config.resource_profile.max_model_state_bytes as usize {
+            let generation = partition.snapshot.state_generation;
+            if created_partition {
+                state.partitions.remove(&scope);
+            }
             return self.error_response(
                 request_id,
                 RuntimeErrorCodeV3::Internal,
                 "model state resource limit exceeded",
-                state.snapshot.state_generation,
+                generation,
             );
         }
-        let Some(next_generation) = state.snapshot.state_generation.checked_add(1) else {
+        let Some(next_generation) = partition.snapshot.state_generation.checked_add(1) else {
+            let generation = partition.snapshot.state_generation;
+            if created_partition {
+                state.partitions.remove(&scope);
+            }
             return self.error_response(
                 request_id,
                 RuntimeErrorCodeV3::InvalidState,
                 "state generation overflow",
-                state.snapshot.state_generation,
+                generation,
             );
         };
         let next_snapshot = StatefulStateSnapshotV2::new(
@@ -1107,8 +1393,8 @@ impl StatefulRuntimeEngineV3 {
             next_generation,
             result.next_state,
         );
-        let mut next_pending = state.pending_decisions.clone();
-        let mut next_completed = state.completed_decisions.clone();
+        let mut next_pending = partition.pending_decisions.clone();
+        let mut next_completed = partition.completed_decisions.clone();
         if matches!(request, RuntimeRequestV3::Decide { .. }) {
             let selected_action_id = result
                 .output
@@ -1150,30 +1436,61 @@ impl StatefulRuntimeEngineV3 {
                 next_completed.insert(entry.decision_id.clone(), entry);
             }
         }
+        let mut prospective_partitions = existing_partitions
+            .into_iter()
+            .map(|(scope, partition)| (scope.clone(), self.partition_snapshot(&scope, &partition)))
+            .collect::<Vec<_>>();
+        prospective_partitions.retain(|(existing_scope, _)| existing_scope != &scope);
+        prospective_partitions.insert(
+            0,
+            (
+                scope.clone(),
+                PartitionRuntimeSnapshotV3 {
+                    client_identity_name: scope.client_identity_name.clone(),
+                    partition_key: scope.partition_key.clone(),
+                    handler_snapshot: next_snapshot.clone(),
+                    previous_good: Some(partition.snapshot.clone()),
+                    candidate: partition.candidate.clone(),
+                    pending_decisions: next_pending.clone(),
+                    completed_decisions: next_completed.clone(),
+                },
+            ),
+        );
         let prospective = StatefulRuntimeSnapshotV3::new(
-            next_snapshot.clone(),
-            next_pending.clone(),
-            next_completed.clone(),
+            prospective_partitions
+                .into_iter()
+                .map(|(_, snapshot)| snapshot)
+                .collect(),
         );
         if self.validate_runtime_snapshot_size(&prospective).is_err() {
+            let generation = partition.snapshot.state_generation;
+            if created_partition {
+                state.partitions.remove(&scope);
+            }
             return self.error_response(
                 request_id,
                 RuntimeErrorCodeV3::Internal,
                 "snapshot resource limit exceeded",
-                state.snapshot.state_generation,
+                generation,
             );
         }
-        let previous_snapshot = state.snapshot.clone();
-        state.snapshot = next_snapshot;
-        state.previous_good = Some(previous_snapshot);
-        state.pending_decisions = next_pending;
-        state.completed_decisions = next_completed;
+        let previous_snapshot = partition.snapshot.clone();
+        partition.snapshot = next_snapshot;
+        partition.previous_good = Some(previous_snapshot);
+        partition.pending_decisions = next_pending;
+        partition.completed_decisions = next_completed;
         self.response(
             request_id,
             next_generation,
             match request {
                 RuntimeRequestV3::Inspect {} => RuntimeResponseBodyV3::Inspection {
-                    summary: self.inspection_summary(&state, result.output),
+                    summary: self.inspection_summary(
+                        &scope.partition_key,
+                        partition,
+                        restart_count,
+                        last_error,
+                        result.output,
+                    ),
                 },
                 _ => RuntimeResponseBodyV3::Result {
                     output: result.output,
@@ -1198,30 +1515,34 @@ impl StatefulRuntimeEngineV3 {
 
     fn inspection_summary(
         &self,
-        state: &RuntimeStateV3,
+        partition_key: &str,
+        partition: &PartitionStateV3,
+        restart_count: u64,
+        last_error: Option<String>,
         handler_summary: serde_json::Value,
     ) -> serde_json::Value {
         serde_json::json!({
             "runtimeVersion": self.config.runtime_identity.version,
             "protocolVersion": RUNTIME_API_VERSION_V3,
             "channel": PREVIEW_CHANNEL_V3,
+            "partitionKey": partition_key,
             "modelGeneration": self.config.model_generation,
-            "stateGeneration": state.snapshot.state_generation,
-            "stateSchemaVersion": state.snapshot.state_schema_version,
-            "stateChecksum": state.snapshot.checksum_sha256,
-            "pendingDecisions": state.pending_decisions.len(),
-            "completedDecisions": state.completed_decisions.len(),
+            "stateGeneration": partition.snapshot.state_generation,
+            "stateSchemaVersion": partition.snapshot.state_schema_version,
+            "stateChecksum": partition.snapshot.checksum_sha256,
+            "pendingDecisions": partition.pending_decisions.len(),
+            "completedDecisions": partition.completed_decisions.len(),
             "resourceProfile": self.config.resource_profile,
             "resourceUtilization": {
-                "stateBytes": state.snapshot.state.len(),
-                "pendingDecisions": state.pending_decisions.len(),
-                "completedDecisions": state.completed_decisions.len(),
+                "stateBytes": partition.snapshot.state.len(),
+                "pendingDecisions": partition.pending_decisions.len(),
+                "completedDecisions": partition.completed_decisions.len(),
             },
-            "rollbackAvailable": state.previous_good.is_some(),
-            "candidateAvailable": state.candidate.is_some(),
-            "restartCount": state.restart_count,
-            "health": self.health_status_for_state(state),
-            "lastError": state.last_error,
+            "rollbackAvailable": partition.previous_good.is_some(),
+            "candidateAvailable": partition.candidate.is_some(),
+            "restartCount": restart_count,
+            "health": RuntimeHealthStatusV1::Healthy,
+            "lastError": last_error,
             "handler": handler_summary,
         })
     }
@@ -1235,19 +1556,32 @@ impl StatefulRuntimeEngineV3 {
             .state
             .lock()
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
-        let snapshot = StatefulRuntimeSnapshotV3::new(
-            state.snapshot.clone(),
-            state.pending_decisions.clone(),
-            state.completed_decisions.clone(),
-        );
+        let partitions = state
+            .partitions
+            .iter()
+            .map(|(scope, partition)| self.partition_snapshot(scope, partition))
+            .collect();
+        let snapshot = StatefulRuntimeSnapshotV3::new(partitions);
         let snapshot_bytes = serde_json::to_vec(&snapshot)
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?
             .len();
         let usage = RuntimeResourceUsageV1 {
-            state_bytes: state.snapshot.state.len(),
+            state_bytes: state
+                .partitions
+                .values()
+                .map(|partition| partition.snapshot.state.len())
+                .sum(),
             snapshot_bytes,
-            pending_decisions: state.pending_decisions.len(),
-            completed_decisions: state.completed_decisions.len(),
+            pending_decisions: state
+                .partitions
+                .values()
+                .map(|partition| partition.pending_decisions.len())
+                .sum(),
+            completed_decisions: state
+                .partitions
+                .values()
+                .map(|partition| partition.completed_decisions.len())
+                .sum(),
         };
         let health = self.health_status_for_state(&state);
         let reason_codes = state
@@ -1260,14 +1594,20 @@ impl StatefulRuntimeEngineV3 {
             protocol_version: RUNTIME_API_VERSION_V3,
             channel: PREVIEW_CHANNEL_V3.into(),
             model_generation: self.config.model_generation,
-            state_generation: state.snapshot.state_generation,
-            state_schema_version: state.snapshot.state_schema_version,
+            state_generation: state
+                .partitions
+                .values()
+                .next()
+                .map_or(self.config.initial_state_generation, |partition| {
+                    partition.snapshot.state_generation
+                }),
+            state_schema_version: self.metadata.state_schema_version,
             observed_at_unix_ms,
             health,
             reason_codes,
             resource_usage: usage,
-            rollback_available: state.previous_good.is_some(),
-            candidate_available: state.candidate.is_some(),
+            rollback_available: state.partitions.values().any(|p| p.previous_good.is_some()),
+            candidate_available: state.partitions.values().any(|p| p.candidate.is_some()),
             restart_count: state.restart_count,
             last_error: state.last_error.clone(),
         })
@@ -1278,10 +1618,13 @@ impl StatefulRuntimeEngineV3 {
             return RuntimeHealthStatusV1::FailedClosed;
         }
         let profile = &self.config.resource_profile;
-        if state.snapshot.state.len() * 10 >= profile.max_model_state_bytes as usize * 9
-            || state.pending_decisions.len() * 10 >= profile.max_pending_decisions as usize * 9
-            || state.completed_decisions.len() * 10 >= profile.max_completed_decisions as usize * 9
-        {
+        if state.partitions.values().any(|partition| {
+            partition.snapshot.state.len() * 10 >= profile.max_model_state_bytes as usize * 9
+                || partition.pending_decisions.len() * 10
+                    >= profile.max_pending_decisions as usize * 9
+                || partition.completed_decisions.len() * 10
+                    >= profile.max_completed_decisions as usize * 9
+        }) {
             RuntimeHealthStatusV1::ResourcePressure
         } else {
             RuntimeHealthStatusV1::Healthy
@@ -1292,6 +1635,35 @@ impl StatefulRuntimeEngineV3 {
         &self,
         snapshot: &StatefulRuntimeSnapshotV3,
     ) -> Result<(), StatefulHandlerErrorV2> {
+        if snapshot.partitions.len() > self.config.resource_profile.max_partitions as usize {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
+        let total_state_bytes: usize = snapshot
+            .partitions
+            .iter()
+            .map(|partition| {
+                partition.handler_snapshot.state.len()
+                    + partition
+                        .previous_good
+                        .as_ref()
+                        .map_or(0, |item| item.state.len())
+                    + partition
+                        .candidate
+                        .as_ref()
+                        .map_or(0, |item| item.state.len())
+            })
+            .sum();
+        if total_state_bytes > self.config.resource_profile.max_total_state_bytes as usize {
+            return Err(StatefulHandlerErrorV2::with_detail(
+                StatefulHandlerErrorKindV2::InvalidState,
+                "total partition state exceeds resource limit",
+            ));
+        }
+        for partition in &snapshot.partitions {
+            self.validate_partition_resources(partition)?;
+        }
         let bytes = serde_json::to_vec(snapshot)
             .map_err(|_| StatefulHandlerErrorV2::new(StatefulHandlerErrorKindV2::Internal))?;
         if bytes.len() > self.config.resource_profile.max_snapshot_bytes as usize {
@@ -1303,10 +1675,60 @@ impl StatefulRuntimeEngineV3 {
         Ok(())
     }
 
+    fn snapshot_for_partitions(
+        &self,
+        partitions: &BTreeMap<PartitionScopeV3, PartitionStateV3>,
+    ) -> StatefulRuntimeSnapshotV3 {
+        StatefulRuntimeSnapshotV3::new(
+            partitions
+                .iter()
+                .map(|(scope, partition)| self.partition_snapshot(scope, partition))
+                .collect(),
+        )
+    }
+
+    fn validate_partition_map(
+        &self,
+        partitions: &BTreeMap<PartitionScopeV3, PartitionStateV3>,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        let snapshot = self.snapshot_for_partitions(partitions);
+        self.validate_runtime_snapshot_size(&snapshot)
+    }
+
+    fn validate_partition_resources(
+        &self,
+        partition: &PartitionRuntimeSnapshotV3,
+    ) -> Result<(), StatefulHandlerErrorV2> {
+        if partition.handler_snapshot.state.len()
+            > self.config.resource_profile.max_model_state_bytes as usize
+            || partition.previous_good.as_ref().is_some_and(|snapshot| {
+                snapshot.state.len() > self.config.resource_profile.max_model_state_bytes as usize
+            })
+            || partition.candidate.as_ref().is_some_and(|snapshot| {
+                snapshot.state.len() > self.config.resource_profile.max_model_state_bytes as usize
+            })
+            || partition.pending_decisions.len()
+                > self.config.resource_profile.max_pending_decisions as usize
+            || partition.completed_decisions.len()
+                > self.config.resource_profile.max_completed_decisions as usize
+        {
+            return Err(StatefulHandlerErrorV2::new(
+                StatefulHandlerErrorKindV2::InvalidState,
+            ));
+        }
+        Ok(())
+    }
+
     fn current_generation(&self) -> u64 {
         self.state
             .lock()
-            .map(|state| state.snapshot.state_generation)
+            .map(|state| {
+                state
+                    .partitions
+                    .values()
+                    .next()
+                    .map_or(0, |partition| partition.snapshot.state_generation)
+            })
             .unwrap_or(0)
     }
 
@@ -1527,6 +1949,7 @@ mod tests {
                     let mut value: serde_json::Value =
                         serde_json::from_slice(current_state).unwrap();
                     value["count"] = serde_json::json!(value["count"].as_u64().unwrap_or(0) + 1);
+                    value["selectedActionId"] = serde_json::json!("safe-a");
                     Ok(StatefulHandlerResultV2 {
                         output: value.clone(),
                         next_state: serde_json::to_vec(&value).unwrap(),
@@ -1571,9 +1994,10 @@ mod tests {
             request_id: "d1".into(),
             api_version: RUNTIME_API_VERSION_V3,
             client_identity: IdentityV3 {
-                name: "host".into(),
+                name: "consumer-a".into(),
                 version: "1".into(),
             },
+            partition_key: "default".into(),
             capability: Some("org.example.decide".into()),
             deadline_unix_ms: Some(100),
             feature_schema_hash: Some("ab".repeat(32)),
@@ -1587,6 +2011,69 @@ mod tests {
         }
     }
 
+    fn feedback(partition_key: &str, decision_id: &str) -> EnvelopeV3 {
+        EnvelopeV3 {
+            request_id: format!("{partition_key}-feedback"),
+            api_version: RUNTIME_API_VERSION_V3,
+            client_identity: IdentityV3 {
+                name: "consumer-a".into(),
+                version: "1".into(),
+            },
+            partition_key: partition_key.into(),
+            capability: Some("org.example.decide".into()),
+            deadline_unix_ms: Some(200),
+            feature_schema_hash: Some("ab".repeat(32)),
+            model_generation: 7,
+            state_generation: 1,
+            payload_limit: rill_runtime_protocol::MAX_MESSAGE_BYTES as u32,
+            request: RuntimeRequestV3::Feedback {
+                decision_id: decision_id.into(),
+                selected_action_id: "safe-a".into(),
+                reward: 0.5,
+                outcome_time_ms: 101,
+                generation: 7,
+            },
+        }
+    }
+
+    #[test]
+    fn partitions_isolate_state_and_delayed_feedback() {
+        let engine = engine(StatefulHandlerErrorKindV2::Internal);
+        let mut first = decide(0);
+        first.request_id = "a-decision".into();
+        first.partition_key = "p1".into();
+        let mut second = decide(0);
+        second.request_id = "b-decision".into();
+        second.partition_key = "p2".into();
+        assert!(matches!(
+            engine.handle_at(first, 100).response,
+            RuntimeResponseBodyV3::Result { .. }
+        ));
+        assert!(matches!(
+            engine.handle_at(second, 100).response,
+            RuntimeResponseBodyV3::Result { .. }
+        ));
+        let feedback_a = engine.handle_at(feedback("p1", "a-decision"), 101);
+        assert!(
+            matches!(feedback_a.response, RuntimeResponseBodyV3::Result { .. }),
+            "feedback A: {feedback_a:?}"
+        );
+        assert!(matches!(
+            engine.handle_at(feedback("p2", "b-decision"), 101).response,
+            RuntimeResponseBodyV3::Result { .. }
+        ));
+        let snapshot = engine.snapshot_runtime().unwrap();
+        assert_eq!(snapshot.partitions.len(), 2);
+        assert!(snapshot.partitions.iter().any(|partition| {
+            partition.partition_key == "p1"
+                && partition.completed_decisions.contains_key("a-decision")
+        }));
+        assert!(snapshot.partitions.iter().any(|partition| {
+            partition.partition_key == "p2"
+                && partition.completed_decisions.contains_key("b-decision")
+        }));
+    }
+
     #[test]
     fn state_update_is_atomic_and_increments_generation() {
         let engine = engine(StatefulHandlerErrorKindV2::Internal);
@@ -1596,20 +2083,26 @@ mod tests {
             RuntimeResponseBodyV3::Result { .. }
         ));
         assert_eq!(response.state_generation, 1);
-        assert_eq!(engine.snapshot().unwrap().state, br#"{"count":1}"#);
+        assert_eq!(
+            engine
+                .snapshot_for_scope(&PartitionScopeV3::new("consumer-a", "default"))
+                .unwrap()
+                .state,
+            br#"{"count":1,"selectedActionId":"safe-a"}"#
+        );
     }
 
     #[test]
     fn invalid_next_state_is_fail_closed() {
         let engine = engine(StatefulHandlerErrorKindV2::InvalidState);
-        let before = engine.snapshot().unwrap();
+        let before = engine.snapshot_runtime().unwrap();
         let response = engine.handle_at(decide(0), 100);
         assert!(matches!(
             response.response,
             RuntimeResponseBodyV3::Error { error }
                 if error.code == RuntimeErrorCodeV3::InvalidState
         ));
-        assert_eq!(engine.snapshot().unwrap(), before);
+        assert_eq!(engine.snapshot_runtime().unwrap(), before);
     }
 
     #[test]
@@ -1620,13 +2113,13 @@ mod tests {
             StatefulHandlerErrorKindV2::OutputTooLarge,
         ] {
             let engine = engine(mode);
-            let before = engine.snapshot().unwrap();
+            let before = engine.snapshot_runtime().unwrap();
             let response = engine.handle_at(decide(0), 100);
             assert!(matches!(
                 response.response,
                 RuntimeResponseBodyV3::Error { .. }
             ));
-            assert_eq!(engine.snapshot().unwrap(), before, "mode={mode:?}");
+            assert_eq!(engine.snapshot_runtime().unwrap(), before, "mode={mode:?}");
         }
     }
 
@@ -1650,18 +2143,180 @@ mod tests {
     #[test]
     fn corrupt_snapshot_checksum_is_rejected_without_mutation() {
         let engine = engine(StatefulHandlerErrorKindV2::Internal);
-        let before = engine.snapshot().unwrap();
+        let _ = engine.handle_at(decide(0), 100);
+        let before = engine
+            .snapshot_for_scope(&PartitionScopeV3::new("consumer-a", "default"))
+            .unwrap();
         let mut corrupt = before.clone();
         corrupt.checksum_sha256 = "00".repeat(32);
-        assert!(engine.restore_snapshot(corrupt).is_err());
-        assert_eq!(engine.snapshot().unwrap(), before);
+        assert!(
+            engine
+                .restore_partition_snapshot(
+                    &PartitionScopeV3::new("consumer-a", "default"),
+                    corrupt
+                )
+                .is_err()
+        );
+        assert_eq!(
+            engine
+                .snapshot_for_scope(&PartitionScopeV3::new("consumer-a", "default"))
+                .unwrap(),
+            before
+        );
+    }
+
+    #[test]
+    fn client_identity_and_partition_key_are_both_part_of_the_namespace() {
+        let engine = engine(StatefulHandlerErrorKindV2::Internal);
+        let mut client_b = decide(0);
+        client_b.request_id = "client-b-decision".into();
+        client_b.client_identity.name = "consumer-b".into();
+        assert!(matches!(
+            engine.handle_at(decide(0), 100).response,
+            RuntimeResponseBodyV3::Result { .. }
+        ));
+        assert!(matches!(
+            engine.handle_at(client_b, 100).response,
+            RuntimeResponseBodyV3::Result { .. }
+        ));
+        let snapshot = engine.snapshot_runtime().unwrap();
+        assert_eq!(snapshot.partitions.len(), 2);
+        assert!(
+            snapshot
+                .partitions
+                .iter()
+                .all(|partition| partition.partition_key == "default")
+        );
+        assert!(
+            snapshot
+                .partitions
+                .iter()
+                .any(|partition| partition.client_identity_name == "consumer-a")
+        );
+        assert!(
+            snapshot
+                .partitions
+                .iter()
+                .any(|partition| partition.client_identity_name == "consumer-b")
+        );
+    }
+
+    #[test]
+    fn rejected_feedback_does_not_mutate_or_cross_namespaces() {
+        let engine = engine(StatefulHandlerErrorKindV2::Internal);
+        let decision = engine.handle_at(decide(0), 100);
+        assert!(matches!(
+            decision.response,
+            RuntimeResponseBodyV3::Result { .. }
+        ));
+        let before = engine.snapshot_runtime().unwrap();
+
+        let wrong_partition = engine.handle_at(feedback("other", "d1"), 101);
+        assert!(
+            matches!(wrong_partition.response, RuntimeResponseBodyV3::Error { error } if error.code == RuntimeErrorCodeV3::StateMismatch)
+        );
+        let mut wrong_client = feedback("default", "d1");
+        wrong_client.client_identity.name = "consumer-b".into();
+        let wrong_client = engine.handle_at(wrong_client, 101);
+        assert!(
+            matches!(wrong_client.response, RuntimeResponseBodyV3::Error { error } if error.code == RuntimeErrorCodeV3::StateMismatch)
+        );
+
+        let mut stale = feedback("default", "d1");
+        stale.request = RuntimeRequestV3::Feedback {
+            decision_id: "d1".into(),
+            selected_action_id: "safe-a".into(),
+            reward: 0.5,
+            outcome_time_ms: 101,
+            generation: 6,
+        };
+        let stale = engine.handle_at(stale, 101);
+        assert!(
+            matches!(stale.response, RuntimeResponseBodyV3::Error { error } if error.code == RuntimeErrorCodeV3::IncompatibleGeneration)
+        );
+
+        let mut mismatched_action = feedback("default", "d1");
+        mismatched_action.request = RuntimeRequestV3::Feedback {
+            decision_id: "d1".into(),
+            selected_action_id: "wrong".into(),
+            reward: 0.5,
+            outcome_time_ms: 101,
+            generation: 7,
+        };
+        let mismatched_action = engine.handle_at(mismatched_action, 101);
+        assert!(
+            matches!(mismatched_action.response, RuntimeResponseBodyV3::Error { error } if error.code == RuntimeErrorCodeV3::StateMismatch)
+        );
+        assert_eq!(engine.snapshot_runtime().unwrap(), before);
+
+        assert!(matches!(
+            engine.handle_at(feedback("default", "d1"), 101).response,
+            RuntimeResponseBodyV3::Result { .. }
+        ));
+        let mut duplicate_request = feedback("default", "d1");
+        duplicate_request.state_generation = 2;
+        let duplicate = engine.handle_at(duplicate_request, 102);
+        assert!(
+            matches!(duplicate.response, RuntimeResponseBodyV3::Error { error } if error.code == RuntimeErrorCodeV3::DuplicateFeedback)
+        );
+    }
+
+    #[test]
+    fn resource_partition_limit_is_exact_and_fail_closed() {
+        let profile = ResourceProfileV1 {
+            max_partitions: 2,
+            ..ResourceProfileV1::default()
+        };
+        let metadata = StatefulHandlerMetadataV2 {
+            id: "org.example.stateful".into(),
+            version: "2.0.0".into(),
+            api_version: HANDLER_API_VERSION,
+            capabilities: vec!["org.example.decide".into()],
+            state_schema_version: 1,
+        };
+        let config = StatefulRuntimeConfigV3::new(
+            IdentityV3 {
+                name: "rill-runtime".into(),
+                version: "1.0.0".into(),
+            },
+            7,
+            "ab".repeat(32),
+            metadata.capabilities.clone(),
+            br#"{"count":0}"#.to_vec(),
+        )
+        .with_resource_profile(profile);
+        let engine = StatefulRuntimeEngineV3::new(
+            config,
+            Arc::new(TestHandler {
+                metadata,
+                mode: StatefulHandlerErrorKindV2::Internal,
+            }),
+        )
+        .unwrap();
+        for (client, id) in [("a", "a"), ("b", "b")] {
+            let mut request = decide(0);
+            request.client_identity.name = client.into();
+            request.request_id = id.into();
+            assert!(matches!(
+                engine.handle_at(request, 100).response,
+                RuntimeResponseBodyV3::Result { .. }
+            ));
+        }
+        let before = engine.snapshot_runtime().unwrap();
+        let mut third = decide(0);
+        third.client_identity.name = "c".into();
+        third.request_id = "c".into();
+        let response = engine.handle_at(third, 100);
+        assert!(matches!(
+            response.response,
+            RuntimeResponseBodyV3::Error { .. }
+        ));
+        assert_eq!(engine.snapshot_runtime().unwrap(), before);
     }
 
     #[test]
     fn json_entrypoint_rejects_malformed_and_oversized_messages() {
         let engine = engine(StatefulHandlerErrorKindV2::Internal);
-        let before = engine.snapshot().unwrap();
-
         let malformed = engine.handle_json_at(b"{", 100);
         assert!(matches!(
             malformed.response,
@@ -1676,13 +2331,15 @@ mod tests {
             RuntimeResponseBodyV3::Error { error }
                 if error.code == RuntimeErrorCodeV3::PayloadTooLarge
         ));
-        assert_eq!(engine.snapshot().unwrap(), before);
+        assert!(engine.snapshot_runtime().unwrap().partitions.is_empty());
     }
 
     #[test]
     fn inspect_and_diagnostics_do_not_reenter_the_state_lock() {
         let engine = engine(StatefulHandlerErrorKindV2::Internal);
+        let _ = engine.handle_at(decide(0), 100);
         let mut request = decide(0);
+        request.state_generation = 1;
         request.request = RuntimeRequestV3::Inspect {};
         let response = engine.handle_preview_at(request, 100);
         assert!(matches!(
@@ -1692,7 +2349,7 @@ mod tests {
         let diagnostics = engine.diagnostics_at(123).unwrap();
         assert_eq!(diagnostics.observed_at_unix_ms, 123);
         assert_eq!(diagnostics.health, RuntimeHealthStatusV1::Healthy);
-        assert_eq!(diagnostics.state_generation, 1);
+        assert_eq!(diagnostics.state_generation, 2);
         assert!(diagnostics.resource_usage.snapshot_bytes > diagnostics.resource_usage.state_bytes);
     }
 
@@ -1729,7 +2386,6 @@ mod tests {
             }),
         )
         .unwrap();
-        let before = engine.snapshot().unwrap();
         let oversized = vec![b' '; 129];
         let response = engine.handle_preview_json_at(&oversized, 100);
         assert!(matches!(
@@ -1737,7 +2393,7 @@ mod tests {
             RuntimeResponseBodyV3Preview::Error { error }
                 if error.code == PreviewErrorCodeV3::PayloadTooLarge
         ));
-        assert_eq!(engine.snapshot().unwrap(), before);
-        assert!(engine.runtime_snapshot().is_err());
+        assert!(engine.snapshot_runtime().unwrap().partitions.is_empty());
+        assert!(engine.snapshot_runtime().unwrap().partitions.is_empty());
     }
 }
