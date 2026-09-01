@@ -44,8 +44,8 @@ pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidDecisionId
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidErrorMessage
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidFeatureSchemaHash
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidJson
-pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidPayloadLimit
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidPartitionKey
+pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidPayloadLimit
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidRequestId
 pub rill_runtime_protocol::v3::ProtocolV3Error::InvalidRetryability
 pub rill_runtime_protocol::v3::ProtocolV3Error::MissingCapability
