@@ -18,7 +18,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from run_runtime_qualification import envelope, run_process
+from run_runtime_qualification import current_unix_ms, envelope, run_process
 
 
 SCHEMA_VERSION = 2
@@ -114,7 +114,7 @@ def _feedback_requests(mode: str, start: int, count: int, state_generation: int)
                 "decisionId": f"{mode}-decision-{index}",
                 "selectedActionId": "route-a",
                 "reward": 1.0 if index % 3 else 0.0,
-                "outcomeTimeMs": index + 1,
+                "outcomeTimeMs": current_unix_ms(),
                 "generation": 0,
             },
         )

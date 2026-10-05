@@ -11,6 +11,17 @@ import run_runtime_final_qualification as qualification  # noqa: E402
 
 
 class RuntimeQualificationRegistryTests(unittest.TestCase):
+    def test_envelope_includes_required_default_partition_key(self):
+        request = qualification.envelope("handshake", None, 0, {"method": "handshake"})
+        self.assertEqual(request["partitionKey"], "default")
+
+    def test_feedback_timestamp_uses_current_unix_milliseconds(self):
+        before = qualification.current_unix_ms()
+        timestamp = qualification.current_unix_ms()
+        after = qualification.current_unix_ms()
+        self.assertGreaterEqual(timestamp, before)
+        self.assertLessEqual(timestamp, after)
+
     def test_fault_registry_is_unique_and_deterministic(self):
         registry = json.loads((ROOT / "schemas/runtime-fault-scenarios-v1.json").read_text())
         scenarios = registry["scenarios"]

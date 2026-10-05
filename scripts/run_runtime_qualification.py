@@ -11,6 +11,7 @@ import argparse
 import json
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -23,6 +24,7 @@ def envelope(request_id: str, capability: str | None, generation: int, request: 
         "requestId": request_id,
         "apiVersion": 3,
         "clientIdentity": {"name": "rill-qualification", "version": "1"},
+        "partitionKey": "default",
         "modelGeneration": 0,
         "stateGeneration": generation,
         "payloadLimit": 1024 * 1024,
@@ -32,6 +34,10 @@ def envelope(request_id: str, capability: str | None, generation: int, request: 
         value["capability"] = capability
         value["featureSchemaHash"] = HASH
     return value
+
+
+def current_unix_ms() -> int:
+    return time.time_ns() // 1_000_000
 
 
 def run_process(runtime: Path, state: Path, requests: list[dict]) -> list[dict]:
@@ -90,7 +96,7 @@ def qualify(runtime: Path, observations: int) -> dict:
                         "decisionId": f"decision-{index}",
                         "selectedActionId": "route-a",
                         "reward": 1.0,
-                        "outcomeTimeMs": index + 1,
+                        "outcomeTimeMs": current_unix_ms(),
                         "generation": 0,
                     },
                 )
@@ -112,7 +118,7 @@ def qualify(runtime: Path, observations: int) -> dict:
                         "decisionId": "decision-0",
                         "selectedActionId": "route-a",
                         "reward": 1.0,
-                        "outcomeTimeMs": 1,
+                        "outcomeTimeMs": current_unix_ms(),
                         "generation": 0,
                     },
                 )

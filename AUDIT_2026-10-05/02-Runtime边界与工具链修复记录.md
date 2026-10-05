@@ -17,11 +17,19 @@
 - `cargo test -p rill-runtime -p rill-runtime-protocol -p rill-ml-ffi --no-default-features --locked --quiet`：通过。
 - `cargo test -p rill-ml --features serde --locked`：通过（759 unit、全部 integration suites、42 doctests）。
 - `cargo check --workspace --locked`（`PYO3_PYTHON` 指向随 Codex 提供的 Python）：通过。
-- `python -m unittest discover -s scripts/tests`：129 项中 128 项通过；唯一错误为 `test_runtime_qualification` 导入 `run_runtime_final_qualification.py` 时 Windows 没有 Linux 专用 `resource` 模块。模块受阻，未将其标为通过。
+- Windows `python -m unittest discover -s scripts/tests`：129 项中 128 项通过；唯一未通过项是 Windows 没有 Linux 专用 `resource` 模块。该模块之后已在 WSL 定向运行。
 - `rustfmt --check --config skip_children=true` 对本次触及的 Rust 文件通过。`cargo fmt --all -- --check` 报告多个未修改仓库文件存在预存换行风格错误；没有格式化全仓。
 
-修复前基线复现和平台限制另见审计原件 `00-审计报告与执行顺序.md` 及 `evidence/`。未执行 Linux `resource` 专用资格测试、真实 OpenWrt/代理/DAC/PID1 安装矩阵；Windows 环境不具备对应平台。未 push、部署、发布或合并。
+修复前基线复现和平台限制另见审计原件 `00-审计报告与执行顺序.md` 及 `evidence/`。未执行真实 OpenWrt/代理/DAC/PID1 安装矩阵；未 push、部署、发布或合并。
 
 ### WSL 补充验证
 
-按后续指示检查了 WSL：当前仅注册 `docker-desktop` 内部发行版。它提供 Linux shell，但没有 Python、Cargo/Rust 工具链，且项目目录未挂载；本机 Docker CLI 也无法连接 Docker Desktop Linux Engine。因此无法在该环境补跑 `test_runtime_qualification` 或 Linux 脚本套件。没有安装发行版或额外工具。上述 Linux 资格测试仍明确标记为未执行。
+按后续授权安装了 Ubuntu 24.04 WSL、Python 3.12.3、Rust/Cargo 1.94.0 和本机构建依赖；仓库在 WSL Linux 文件系统中的独立检出与 Windows 修复分支同为提交 `e4f299d`。
+
+- `cargo test -p rill-runtime --locked`：Linux 通过（85 library、9 binary、13 process、5 Stateful Handler、17 WASM、6 WIT fixture tests）。
+- `python3 -m unittest discover -s scripts/tests -p test_runtime_qualification.py -v`：11 项通过，包括 Linux `resource` 导入、资格结果断言、required partition key 和 Unix 毫秒时钟回归。
+- `python3 scripts/run_runtime_qualification.py --runtime target/debug/rill-runtime --observations 2 --json`：PASS；真实 Linux 子进程完成 Preview handshake、2 条决策、重启恢复、反馈和重复反馈拒绝。
+- 上述实际 smoke 首次暴露两个旧脚本夹具问题：envelope 漏 `partitionKey`；feedback 继续使用小整数时间戳，违反 RML-02。现已在两个资格脚本统一加入 `partitionKey=default` 和当前 Unix 毫秒时间，并加入回归断言；修复后的 smoke 与 11 项定向 Python 测试通过。
+- 完整 `scripts/tests` 套件在首个 SBOM 集成用例执行真实 `cargo metadata` 时启动了工作区索引扫描，超过 10 分钟仍未完成，已停止；因此 Linux 全套仍标记为未执行。`run_runtime_final_qualification.py` 含 1,025 条容量探测和最长 4,096 次同状态饱和循环，文档列为 push 后压力资格；本任务没有 push，故未执行该重负载阶段。
+
+没有启用 Docker Desktop Linux Engine，也未执行真实 OpenWrt/代理/DAC/PID1 安装矩阵。未 push、部署、发布或合并。
