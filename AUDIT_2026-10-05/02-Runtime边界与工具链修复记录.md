@@ -21,3 +21,7 @@
 - `rustfmt --check --config skip_children=true` 对本次触及的 Rust 文件通过。`cargo fmt --all -- --check` 报告多个未修改仓库文件存在预存换行风格错误；没有格式化全仓。
 
 修复前基线复现和平台限制另见审计原件 `00-审计报告与执行顺序.md` 及 `evidence/`。未执行 Linux `resource` 专用资格测试、真实 OpenWrt/代理/DAC/PID1 安装矩阵；Windows 环境不具备对应平台。未 push、部署、发布或合并。
+
+### WSL 补充验证
+
+按后续指示检查了 WSL：当前仅注册 `docker-desktop` 内部发行版。它提供 Linux shell，但没有 Python、Cargo/Rust 工具链，且项目目录未挂载；本机 Docker CLI 也无法连接 Docker Desktop Linux Engine。因此无法在该环境补跑 `test_runtime_qualification` 或 Linux 脚本套件。没有安装发行版或额外工具。上述 Linux 资格测试仍明确标记为未执行。
