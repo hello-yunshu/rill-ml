@@ -2,10 +2,14 @@ use std::{
     fs,
     io::Write,
     process::{Command, Stdio},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use ed25519_dalek::SigningKey;
-use rill_runtime::{LINEAR_REGRESSION_CAPABILITY, build_signed_model_pack};
+use rill_runtime::{
+    LINEAR_REGRESSION_CAPABILITY, StatefulRuntimeSnapshotV3, StatefulStateSnapshotV2,
+    build_signed_model_pack,
+};
 use rill_runtime_protocol::v3::{EnvelopeV3, IdentityV3, RUNTIME_API_VERSION_V3, RuntimeRequestV3};
 use rill_runtime_protocol::{
     MODEL_PACK_FORMAT_VERSION, ModelPackManifest, RUNTIME_API_VERSION, RuntimeRequest,
@@ -19,7 +23,6 @@ use rill_runtime::build_signed_handler_pack;
 use rill_runtime_protocol::{
     HANDLER_API_VERSION, HANDLER_PACKAGE_FORMAT_VERSION, HandlerPackManifest,
 };
-#[cfg(feature = "wasm")]
 use sha2::{Digest, Sha256};
 #[cfg(feature = "wasm")]
 use std::path::PathBuf;
@@ -101,6 +104,403 @@ fn preview_envelope_in(
         payload_limit: rill_runtime_protocol::MAX_MESSAGE_BYTES as u32,
         request,
     }
+}
+
+#[test]
+fn preview_cli_rejects_oversized_state_file_without_replacing_it() {
+    let temporary = tempfile::tempdir().unwrap();
+    let state_path = temporary.path().join("oversized-state.json");
+    let mut state = fs::File::create(&state_path).unwrap();
+    state.write_all(b"{original-state}").unwrap();
+    state
+        .set_len(2 * 1024 * 1024 + 1)
+        .expect("create sparse oversized state file");
+    drop(state);
+
+    let output = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("disk JSON limit"),
+        "expected an explicit size error, got: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::metadata(&state_path).unwrap().len(),
+        2 * 1024 * 1024 + 1
+    );
+    assert!(
+        fs::read(&state_path)
+            .unwrap()
+            .starts_with(b"{original-state}")
+    );
+}
+
+#[test]
+fn preview_cli_restores_valid_snapshot_at_disk_budget_edges() {
+    let temporary = tempfile::tempdir().unwrap();
+    let state_path = temporary.path().join("budget-edge-state.json");
+    let request = preview_envelope(
+        "budget-edge-decision",
+        Some("org.rill.preview.decide"),
+        0,
+        RuntimeRequestV3::Decide {
+            context: serde_json::json!({"actions":[{"id":"route-a","features":[1.0]}]}),
+            deterministic_seed: None,
+        },
+    );
+    let mut seed_process = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = seed_process.stdin.as_mut().unwrap();
+        serde_json::to_writer(&mut *stdin, &request).unwrap();
+        stdin.write_all(b"\n").unwrap();
+    }
+    let seeded = seed_process.wait_with_output().unwrap();
+    assert!(
+        seeded.status.success(),
+        "{}",
+        String::from_utf8_lossy(&seeded.stderr)
+    );
+    let compact = fs::read(&state_path).unwrap();
+    let limit = 2 * 1024 * 1024usize;
+    assert!(compact.len() < limit - 1);
+
+    for target_len in [limit - 1, limit] {
+        let mut expanded = compact.clone();
+        expanded.resize(target_len, b' ');
+        fs::write(&state_path, expanded).unwrap();
+        let output = runtime_command()
+            .args(["preview-serve", "--state"])
+            .arg(&state_path)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}-byte valid snapshot was rejected: {}",
+            target_len,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn preview_cli_rejects_nested_oversized_history_without_replacing_snapshot() {
+    let temporary = tempfile::tempdir().unwrap();
+    let state_path = temporary.path().join("nested-oversized-state.json");
+    let request = preview_envelope(
+        "nested-state-decision",
+        Some("org.rill.preview.decide"),
+        0,
+        RuntimeRequestV3::Decide {
+            context: serde_json::json!({"actions":[{"id":"route-a","features":[1.0]}]}),
+            deterministic_seed: None,
+        },
+    );
+    let mut seed_process = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = seed_process.stdin.as_mut().unwrap();
+        serde_json::to_writer(&mut *stdin, &request).unwrap();
+        stdin.write_all(b"\n").unwrap();
+    }
+    let seeded = seed_process.wait_with_output().unwrap();
+    assert!(seeded.status.success());
+
+    let mut snapshot: StatefulRuntimeSnapshotV3 =
+        serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    let oversized_state = serde_json::to_vec(&serde_json::json!({
+        "handlerStateVersion": 2,
+        "decisions": 0,
+        "feedback": 0,
+        "observations": 0,
+        "inspections": 0,
+        "weights": [0.0],
+        "bias": 0.0,
+        "featureCount": 1,
+        "actions": {}
+    }))
+    .unwrap()
+    .into_iter()
+    .chain(std::iter::repeat(b' ').take(256 * 1024 + 1))
+    .collect::<Vec<_>>();
+    snapshot.partitions[0].previous_good =
+        Some(StatefulStateSnapshotV2::new(2, 0, oversized_state));
+    let checksum_input =
+        serde_json::to_vec(&(snapshot.format_version, &snapshot.partitions)).unwrap();
+    snapshot.checksum_sha256 = hex::encode(Sha256::digest(checksum_input));
+    fs::write(&state_path, serde_json::to_vec(&snapshot).unwrap()).unwrap();
+    let before_recovery = fs::read(&state_path).unwrap();
+
+    let output = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("state recovery rejected"));
+    assert_eq!(fs::read(&state_path).unwrap(), before_recovery);
+}
+
+#[test]
+fn preview_cli_rejects_overflowing_score_without_accepting_or_advancing_state() {
+    let temporary = tempfile::tempdir().unwrap();
+    let state_path = temporary.path().join("finite-overflow-state.json");
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    let decide = preview_envelope(
+        "large-decision",
+        Some("org.rill.preview.decide"),
+        0,
+        RuntimeRequestV3::Decide {
+            context: serde_json::json!({"actions":[{"id":"large","features":[1e308,1e308]}]}),
+            deterministic_seed: None,
+        },
+    );
+    let feedback = preview_envelope(
+        "large-feedback",
+        Some("org.rill.preview.feedback"),
+        1,
+        RuntimeRequestV3::Feedback {
+            decision_id: "large-decision".into(),
+            selected_action_id: "large".into(),
+            reward: 1.0,
+            outcome_time_ms: now_ms + 10_000,
+            generation: 0,
+        },
+    );
+    let mut first = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = first.stdin.as_mut().unwrap();
+        for request in [&decide, &feedback] {
+            serde_json::to_writer(&mut *stdin, request).unwrap();
+            stdin.write_all(b"\n").unwrap();
+        }
+    }
+    let first_output = first.wait_with_output().unwrap();
+    assert!(
+        first_output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first_output.stderr)
+    );
+    let first_responses = first_output
+        .stdout
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(first_responses.len(), 2);
+    assert_eq!(first_responses[0]["response"]["output"]["accepted"], true);
+    assert_eq!(first_responses[1]["response"]["output"]["accepted"], true);
+    let before_failed_decision = fs::read(&state_path).unwrap();
+
+    let overflowing_decide = preview_envelope(
+        "overflowing-decision",
+        Some("org.rill.preview.decide"),
+        2,
+        RuntimeRequestV3::Decide {
+            context: serde_json::json!({"actions":[{"id":"large","features":[1e308,1e308]}]}),
+            deterministic_seed: None,
+        },
+    );
+    let mut second = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = second.stdin.as_mut().unwrap();
+        serde_json::to_writer(&mut *stdin, &overflowing_decide).unwrap();
+        stdin.write_all(b"\n").unwrap();
+    }
+    let second_output = second.wait_with_output().unwrap();
+    assert!(
+        second_output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second_output.stderr)
+    );
+    let rejected: serde_json::Value = serde_json::from_slice(
+        second_output
+            .stdout
+            .split(|byte| *byte == b'\n')
+            .find(|line| !line.is_empty())
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(rejected["response"]["kind"], "error");
+    assert_eq!(rejected["stateGeneration"], 2);
+    assert!(rejected["response"].get("output").is_none());
+    assert_eq!(fs::read(&state_path).unwrap(), before_failed_decision);
+}
+
+#[test]
+fn preview_cli_rejects_bad_feedback_time_then_applies_valid_retry_once() {
+    let temporary = tempfile::tempdir().unwrap();
+    let state_path = temporary.path().join("feedback-time-state.json");
+    let decide = preview_envelope(
+        "decision-time-test",
+        Some("org.rill.preview.decide"),
+        0,
+        RuntimeRequestV3::Decide {
+            context: serde_json::json!({"actions":[{"id":"route-a","features":[1.0]}]}),
+            deterministic_seed: None,
+        },
+    );
+    let mut first = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = first.stdin.as_mut().unwrap();
+        serde_json::to_writer(&mut *stdin, &decide).unwrap();
+        stdin.write_all(b"\n").unwrap();
+    }
+    let decision_output = first.wait_with_output().unwrap();
+    assert!(decision_output.status.success());
+    let decision_response: serde_json::Value = serde_json::from_slice(
+        decision_output
+            .stdout
+            .split(|byte| *byte == b'\n')
+            .find(|line| !line.is_empty())
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(decision_response["stateGeneration"], 1);
+    let before_invalid_feedback = fs::read(&state_path).unwrap();
+
+    let invalid = preview_envelope(
+        "feedback-before-decision",
+        Some("org.rill.preview.feedback"),
+        1,
+        RuntimeRequestV3::Feedback {
+            decision_id: "decision-time-test".into(),
+            selected_action_id: "route-a".into(),
+            reward: 1.0,
+            outcome_time_ms: 0,
+            generation: 0,
+        },
+    );
+    let mut second = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = second.stdin.as_mut().unwrap();
+        serde_json::to_writer(&mut *stdin, &invalid).unwrap();
+        stdin.write_all(b"\n").unwrap();
+    }
+    let invalid_output = second.wait_with_output().unwrap();
+    assert!(invalid_output.status.success());
+    let invalid_response: serde_json::Value = serde_json::from_slice(
+        invalid_output
+            .stdout
+            .split(|byte| *byte == b'\n')
+            .find(|line| !line.is_empty())
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(invalid_response["response"]["kind"], "error");
+    assert_eq!(invalid_response["stateGeneration"], 1);
+    assert_eq!(fs::read(&state_path).unwrap(), before_invalid_feedback);
+
+    let valid = preview_envelope(
+        "feedback-valid-retry",
+        Some("org.rill.preview.feedback"),
+        1,
+        RuntimeRequestV3::Feedback {
+            decision_id: "decision-time-test".into(),
+            selected_action_id: "route-a".into(),
+            reward: 1.0,
+            outcome_time_ms: now_ms() + 10_000,
+            generation: 0,
+        },
+    );
+    let mut third = runtime_command()
+        .args(["preview-serve", "--state"])
+        .arg(&state_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let stdin = third.stdin.as_mut().unwrap();
+        serde_json::to_writer(&mut *stdin, &valid).unwrap();
+        stdin.write_all(b"\n").unwrap();
+    }
+    let valid_output = third.wait_with_output().unwrap();
+    assert!(valid_output.status.success());
+    let valid_response: serde_json::Value = serde_json::from_slice(
+        valid_output
+            .stdout
+            .split(|byte| *byte == b'\n')
+            .find(|line| !line.is_empty())
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(valid_response["response"]["output"]["accepted"], true);
+    assert_eq!(valid_response["stateGeneration"], 2);
+    let saved: serde_json::Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    assert_eq!(
+        saved["partitions"][0]["pendingDecisions"]
+            .as_object()
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(
+        saved["partitions"][0]["completedDecisions"]
+            .as_object()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
 
 #[test]
@@ -255,7 +655,7 @@ fn preview_v3_real_subprocess_restart_and_feedback_ledger() {
             decision_id: "decision-1".into(),
             selected_action_id: "route-a".into(),
             reward: 1.0,
-            outcome_time_ms: 2,
+            outcome_time_ms: now_ms() + 10_000,
             generation: 0,
         },
     );
@@ -267,7 +667,7 @@ fn preview_v3_real_subprocess_restart_and_feedback_ledger() {
             decision_id: "decision-1".into(),
             selected_action_id: "route-a".into(),
             reward: 1.0,
-            outcome_time_ms: 2,
+            outcome_time_ms: now_ms() + 10_000,
             generation: 0,
         },
     );
@@ -359,7 +759,7 @@ fn preview_v3_uses_opaque_action_ids_and_context_features() {
                 decision_id: "contextual-decision".into(),
                 selected_action_id: "opaque-a".into(),
                 reward: 1.0,
-                outcome_time_ms: 2,
+                outcome_time_ms: now_ms() + 10_000,
                 generation: 0,
             },
         );

@@ -9,6 +9,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
@@ -17,15 +18,39 @@ from urllib.parse import quote
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class CargoMetadataError(RuntimeError):
+    """Cargo metadata failed before an SBOM inventory could be built."""
+
+
 def cargo_inventory() -> tuple[list[dict[str, object]], dict[str, list[str]]]:
-    completed = subprocess.run(
-        ["cargo", "metadata", "--format-version", "1", "--locked"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    document = json.loads(completed.stdout)
+    try:
+        completed = subprocess.run(
+            ["cargo", "metadata", "--format-version", "1", "--locked"],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+        )
+    except OSError as error:
+        raise CargoMetadataError(f"could not run cargo metadata: {error}") from error
+    try:
+        stderr = completed.stderr.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as error:
+        raise CargoMetadataError("cargo metadata wrote invalid UTF-8 to stderr") from error
+    if completed.returncode != 0:
+        detail = stderr.strip() or "no diagnostic output"
+        raise CargoMetadataError(
+            f"cargo metadata failed with exit code {completed.returncode}: {detail}"
+        )
+    try:
+        stdout = completed.stdout.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as error:
+        raise CargoMetadataError("cargo metadata wrote invalid UTF-8 to stdout") from error
+    try:
+        document = json.loads(stdout)
+    except json.JSONDecodeError as error:
+        raise CargoMetadataError(
+            f"cargo metadata returned invalid JSON at line {error.lineno} column {error.colno}"
+        ) from error
     packages = document["packages"]
     package_ids = {item["id"] for item in packages}
     inventory: list[dict[str, object]] = []
@@ -86,10 +111,12 @@ def release_timestamp(commit: str) -> str:
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="strict",
             )
             instant = datetime.fromisoformat(completed.stdout.strip().replace("Z", "+00:00"))
             instant = instant.astimezone(timezone.utc)
-        except (OSError, ValueError, subprocess.CalledProcessError):
+        except (OSError, ValueError, UnicodeError, subprocess.CalledProcessError):
             # Synthetic commits are used by offline tests. Keep their output
             # deterministic while release commits use their commit timestamp.
             instant = datetime.fromtimestamp(0, tz=timezone.utc)
@@ -133,7 +160,11 @@ def main() -> int:
     parser.add_argument("--artifact", action="append", default=[])
     args = parser.parse_args()
 
-    components, dependency_ids = cargo_inventory()
+    try:
+        components, dependency_ids = cargo_inventory()
+    except CargoMetadataError as error:
+        print(f"generate_sbom: {error}", file=sys.stderr)
+        return 1
     artifacts = artifact_evidence(args.artifact)
     timestamp = release_timestamp(args.commit)
     identity = {

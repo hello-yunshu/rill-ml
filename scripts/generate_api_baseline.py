@@ -60,6 +60,8 @@ def run_cargo_public_api(crate: str) -> str:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="strict",
     )
     if result.returncode != 0:
         sys.stderr.write(

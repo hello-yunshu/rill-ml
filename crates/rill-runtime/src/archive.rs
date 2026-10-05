@@ -50,6 +50,8 @@ pub enum ArchiveError {
     Forbidden(String),
     #[error("duplicate package file {0}")]
     Duplicate(String),
+    #[error("package member size differs from ZIP metadata for {0}")]
+    SizeMismatch(String),
     #[error("package exceeded {0} limit")]
     Limit(&'static str),
     #[error("missing package file {0}")]
@@ -330,6 +332,9 @@ pub(crate) fn read_archive<R: Read + Seek>(
         if !allowed.iter().any(|allowed| *allowed == name) {
             return Err(ArchiveError::Forbidden(name));
         }
+        if files.contains_key(&name) {
+            return Err(ArchiveError::Duplicate(name));
+        }
         if entry.size() > limits.max_file_bytes {
             return Err(ArchiveError::Limit("file size"));
         }
@@ -349,10 +354,11 @@ pub(crate) fn read_archive<R: Read + Seek>(
                 return Err(ArchiveError::Limit("compression ratio"));
             }
         }
-        total = total
-            .checked_add(entry.size())
+        let total_remaining = limits
+            .max_total_bytes
+            .checked_sub(total)
             .ok_or(ArchiveError::Limit("total size"))?;
-        if total > limits.max_total_bytes {
+        if entry.size() > total_remaining {
             return Err(ArchiveError::Limit("total size"));
         }
         compressed_total = compressed_total
@@ -361,11 +367,36 @@ pub(crate) fn read_archive<R: Read + Seek>(
         if compressed_total > limits.max_compressed_total_bytes {
             return Err(ArchiveError::Limit("compressed total size"));
         }
-        let mut bytes = Vec::with_capacity(entry.size() as usize);
-        entry.read_to_end(&mut bytes)?;
-        if files.insert(name.clone(), bytes).is_some() {
-            return Err(ArchiveError::Duplicate(name));
+        let ratio_budget = compressed
+            .checked_mul(limits.max_compression_ratio)
+            .ok_or(ArchiveError::Limit("compression ratio"))?;
+        let read_budget = limits.max_file_bytes.min(total_remaining).min(ratio_budget);
+        let read_limit = read_budget
+            .checked_add(1)
+            .ok_or(ArchiveError::Limit("file size"))?;
+        let mut bytes = Vec::new();
+        entry.by_ref().take(read_limit).read_to_end(&mut bytes)?;
+        let actual_size =
+            u64::try_from(bytes.len()).map_err(|_| ArchiveError::Limit("file size"))?;
+        if actual_size > read_budget {
+            if actual_size > limits.max_file_bytes {
+                return Err(ArchiveError::Limit("file size"));
+            }
+            if actual_size > total_remaining {
+                return Err(ArchiveError::Limit("total size"));
+            }
+            if actual_size > ratio_budget {
+                return Err(ArchiveError::Limit("compression ratio"));
+            }
+            return Err(ArchiveError::Limit("actual file size"));
         }
+        if actual_size != entry.size() {
+            return Err(ArchiveError::SizeMismatch(name));
+        }
+        total = total
+            .checked_add(actual_size)
+            .ok_or(ArchiveError::Limit("total size"))?;
+        files.insert(name, bytes);
     }
     Ok(files)
 }
@@ -580,6 +611,165 @@ mod tests {
         }
     }
 
+    fn build_deflated_zip_with_declared_size(
+        name: &str,
+        data: &[u8],
+        declared_size: u32,
+    ) -> Vec<u8> {
+        build_deflated_zip_with_declared_sizes(&[(name, data, declared_size)])
+    }
+
+    fn build_deflated_zip_with_declared_sizes(entries: &[(&str, &[u8], u32)]) -> Vec<u8> {
+        let mut output = Cursor::new(Vec::new());
+        {
+            let mut archive = ZipWriter::new(&mut output);
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            for (name, data, _) in entries {
+                archive.start_file(*name, options).unwrap();
+                archive.write_all(data).unwrap();
+            }
+            archive.finish().unwrap();
+        }
+        let mut bytes = output.into_inner();
+        let mut local_offset = 0;
+        for (_, _, declared_size) in entries {
+            assert_eq!(
+                &bytes[local_offset..local_offset + 4],
+                &[0x50, 0x4b, 0x03, 0x04]
+            );
+            let compressed_size = u32::from_le_bytes(
+                bytes[local_offset + 18..local_offset + 22]
+                    .try_into()
+                    .unwrap(),
+            ) as usize;
+            let name_len = u16::from_le_bytes(
+                bytes[local_offset + 26..local_offset + 28]
+                    .try_into()
+                    .unwrap(),
+            ) as usize;
+            let extra_len = u16::from_le_bytes(
+                bytes[local_offset + 28..local_offset + 30]
+                    .try_into()
+                    .unwrap(),
+            ) as usize;
+            bytes[local_offset + 22..local_offset + 26]
+                .copy_from_slice(&declared_size.to_le_bytes());
+            local_offset += 30 + name_len + extra_len + compressed_size;
+        }
+        let mut central_offset = local_offset;
+        for (_, _, declared_size) in entries {
+            assert_eq!(
+                &bytes[central_offset..central_offset + 4],
+                &[0x50, 0x4b, 0x01, 0x02]
+            );
+            let name_len = u16::from_le_bytes(
+                bytes[central_offset + 28..central_offset + 30]
+                    .try_into()
+                    .unwrap(),
+            ) as usize;
+            let extra_len = u16::from_le_bytes(
+                bytes[central_offset + 30..central_offset + 32]
+                    .try_into()
+                    .unwrap(),
+            ) as usize;
+            let comment_len = u16::from_le_bytes(
+                bytes[central_offset + 32..central_offset + 34]
+                    .try_into()
+                    .unwrap(),
+            ) as usize;
+            bytes[central_offset + 24..central_offset + 28]
+                .copy_from_slice(&declared_size.to_le_bytes());
+            central_offset += 46 + name_len + extra_len + comment_len;
+        }
+        bytes
+    }
+
+    #[test]
+    fn rejects_deflate_stream_that_exceeds_declared_size_before_accepting_contents() {
+        let payload = vec![b'X'; 1024 * 1024];
+        let zip = build_deflated_zip_with_declared_size("payload.bin", &payload, 1);
+        let mut limits = limits_with_ratio(1024);
+        limits.max_file_bytes = 1024;
+        limits.max_total_bytes = 1024;
+
+        let result = read_archive(std::io::Cursor::new(zip), &["payload.bin"], limits);
+        assert!(
+            matches!(result, Err(ArchiveError::Limit("file size"))),
+            "under-declared DEFLATE stream must be rejected by its actual bytes"
+        );
+    }
+
+    #[test]
+    fn rejects_actual_cumulative_total_and_size_mismatch() {
+        let first = [b'A'; 10];
+        let second = [b'B'; 10];
+        let zip = build_deflated_zip_with_declared_sizes(&[
+            ("first.bin", &first, 10),
+            ("second.bin", &second, 1),
+        ]);
+        let mut limits = limits_with_ratio(1000);
+        limits.max_file_bytes = 10;
+        limits.max_total_bytes = 15;
+        let result = read_archive(Cursor::new(zip), &["first.bin", "second.bin"], limits);
+        assert!(
+            matches!(result, Err(ArchiveError::Limit("total size"))),
+            "expected actual total rejection, got: {:?}",
+            result.as_ref().err()
+        );
+
+        let zip = build_deflated_zip_with_declared_size("payload.bin", &first, 9);
+        let mut limits = limits_with_ratio(1000);
+        limits.max_file_bytes = 10;
+        limits.max_total_bytes = 10;
+        let result = read_archive(Cursor::new(zip), &["payload.bin"], limits);
+        assert!(matches!(result, Err(ArchiveError::SizeMismatch(_))));
+    }
+
+    #[test]
+    fn enforces_exact_file_limit_and_rejects_bad_crc_and_compression_method() {
+        let data = b"0123456789";
+        let zip = build_zip_with_sizes("payload.bin", data, data.len() as u32, data.len() as u32);
+        let mut limits = limits_with_ratio(1);
+        limits.max_file_bytes = data.len() as u64;
+        limits.max_total_bytes = data.len() as u64;
+        assert!(read_archive(Cursor::new(&zip), &["payload.bin"], limits).is_ok());
+
+        let too_large = build_zip_with_sizes("payload.bin", data, 11, 10);
+        assert!(matches!(
+            read_archive(Cursor::new(&too_large), &["payload.bin"], limits),
+            Err(ArchiveError::Limit("file size"))
+        ));
+
+        let mut bad_crc = zip.clone();
+        let crc = crc32(data) ^ 1;
+        bad_crc[14..18].copy_from_slice(&crc.to_le_bytes());
+        let central_offset = bad_crc
+            .windows(4)
+            .rposition(|window| window == [0x50, 0x4b, 0x01, 0x02])
+            .unwrap();
+        bad_crc[central_offset + 16..central_offset + 20].copy_from_slice(&crc.to_le_bytes());
+        let bad_crc_result = read_archive(Cursor::new(&bad_crc), &["payload.bin"], limits);
+        assert!(
+            matches!(&bad_crc_result, Err(ArchiveError::Io(error)) if error.kind() == std::io::ErrorKind::InvalidData),
+            "bad CRC must propagate from ZIP stream verification; got: {:?}",
+            bad_crc_result.as_ref().err()
+        );
+
+        let mut unsupported_method = zip;
+        unsupported_method[8..10].copy_from_slice(&99u16.to_le_bytes());
+        let central_offset = unsupported_method
+            .windows(4)
+            .rposition(|window| window == [0x50, 0x4b, 0x01, 0x02])
+            .unwrap();
+        unsupported_method[central_offset + 10..central_offset + 12]
+            .copy_from_slice(&99u16.to_le_bytes());
+        assert!(matches!(
+            read_archive(Cursor::new(&unsupported_method), &["payload.bin"], limits),
+            Err(ArchiveError::Zip(_))
+        ));
+    }
+
     #[test]
     fn compression_ratio_accepts_exact_boundary() {
         // size = compressed * ratio exactly. The previous integer-division
@@ -591,12 +781,12 @@ mod tests {
         // `compressed_size` bytes from the local header, so the data buffer
         // must be exactly that long. `uncompressed_size` is reported
         // independently by `entry.size()` and is what the ratio check uses.
-        let data = b"0123456789"; // 10 bytes
-        let zip = build_zip_with_sizes("payload.bin", data, 1000, 10);
+        let data = b"0123456789"; // 10 bytes, stored ZIP member (ratio 1)
+        let zip = build_zip_with_sizes("payload.bin", data, 10, 10);
         let files = read_archive(
             std::io::Cursor::new(&zip),
             &["payload.bin"],
-            limits_with_ratio(100),
+            limits_with_ratio(1),
         )
         .expect("exact boundary must be accepted");
         assert_eq!(files.get("payload.bin").map(Vec::as_slice), Some(&data[..]));

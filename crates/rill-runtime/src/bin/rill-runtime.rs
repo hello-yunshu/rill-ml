@@ -30,6 +30,12 @@ use thiserror::Error;
 const DEFAULT_FEATURE_SCHEMA_HASH: &str =
     "99c44934c1bfca8fdffb93122d29418d7fe7eb0d81d80f8b2bf4fbdd153151ab";
 
+/// Maximum serialized JSON accepted on disk for preview snapshots. The
+/// runtime's internal snapshot budget remains 512 KiB; this larger envelope
+/// permits JSON number-array expansion and historical whitespace while still
+/// bounding disk reads before parsing.
+const MAX_STATE_FILE_JSON_BYTES: u64 = 2 * 1024 * 1024;
+
 #[derive(Debug, Parser)]
 #[command(
     name = "rill-runtime",
@@ -121,6 +127,8 @@ enum CliError {
     UnknownBuiltinHandler(String),
     #[error("preview runtime error: {0}")]
     Preview(String),
+    #[error("state snapshot exceeds the {MAX_STATE_FILE_JSON_BYTES}-byte disk JSON limit")]
+    StateSnapshotTooLarge,
     #[error(
         "no --handler or --builtin-handler specified; \
          pass --handler PATH to load a signed .rillhandler, \
@@ -270,6 +278,145 @@ impl PreviewBuiltinHandler {
     }
 }
 
+fn builtin_state_error(detail: &'static str) -> rill_runtime::StatefulHandlerErrorV2 {
+    rill_runtime::StatefulHandlerErrorV2::with_detail(
+        rill_runtime::StatefulHandlerErrorKindV2::InvalidState,
+        detail,
+    )
+}
+
+fn builtin_event_error(detail: &'static str) -> rill_runtime::StatefulHandlerErrorV2 {
+    rill_runtime::StatefulHandlerErrorV2::with_detail(
+        rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
+        detail,
+    )
+}
+
+fn validate_builtin_state(
+    state: &serde_json::Value,
+) -> Result<(), rill_runtime::StatefulHandlerErrorV2> {
+    if state
+        .get("handlerStateVersion")
+        .and_then(serde_json::Value::as_u64)
+        != Some(2)
+    {
+        return Err(rill_runtime::StatefulHandlerErrorV2::with_detail(
+            rill_runtime::StatefulHandlerErrorKindV2::IncompatibleVersion,
+            "contextual learner state version is not supported",
+        ));
+    }
+    for counter in ["decisions", "feedback", "observations", "inspections"] {
+        if state
+            .get(counter)
+            .and_then(serde_json::Value::as_u64)
+            .is_none()
+        {
+            return Err(builtin_state_error("learner counter is invalid"));
+        }
+    }
+    let feature_count = state
+        .get("featureCount")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|count| usize::try_from(count).ok())
+        .filter(|count| *count <= 32)
+        .ok_or_else(|| builtin_state_error("learner feature count is invalid"))?;
+    let weights = state
+        .get("weights")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| builtin_state_error("learner weights are invalid"))?;
+    let bias = state
+        .get("bias")
+        .and_then(serde_json::Value::as_f64)
+        .filter(|value| value.is_finite())
+        .ok_or_else(|| builtin_state_error("learner bias must be finite"))?;
+    if bias.abs() > 1000.0 {
+        return Err(builtin_state_error(
+            "learner bias exceeds its persisted range",
+        ));
+    }
+    if weights.len() != feature_count {
+        return Err(builtin_state_error("learner weight width is inconsistent"));
+    }
+    if weights.iter().any(|value| {
+        value
+            .as_f64()
+            .is_none_or(|number| !number.is_finite() || number.abs() > 1000.0)
+    }) {
+        return Err(builtin_state_error(
+            "learner weights must be finite and within range",
+        ));
+    }
+    let actions = state
+        .get("actions")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| builtin_state_error("learner actions are invalid"))?;
+    if feature_count == 0 && !actions.is_empty() {
+        return Err(builtin_state_error(
+            "actions exist before a feature width is set",
+        ));
+    }
+    for (id, row) in actions {
+        if id.is_empty() || id.len() > 96 {
+            return Err(builtin_state_error("stored action id is invalid"));
+        }
+        let features: Vec<f64> = row
+            .get("features")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| builtin_state_error("stored action features are invalid"))?
+            .iter()
+            .map(serde_json::Value::as_f64)
+            .collect::<Option<Vec<_>>>()
+            .filter(|values| values.iter().all(|value| value.is_finite()))
+            .ok_or_else(|| builtin_state_error("stored action features must be finite"))?;
+        if features.len() != feature_count
+            || row
+                .get("samples")
+                .and_then(serde_json::Value::as_u64)
+                .is_none()
+            || row
+                .get("lastReward")
+                .is_some_and(|value| value.as_f64().is_none_or(|number| !number.is_finite()))
+        {
+            return Err(builtin_state_error("stored action state is inconsistent"));
+        }
+    }
+    if state
+        .get("lastSelectedActionId")
+        .is_some_and(|value| !value.is_null() && value.as_str().is_none())
+    {
+        return Err(builtin_state_error("last selected action id is invalid"));
+    }
+    if state
+        .get("lastDeterministicSeed")
+        .is_some_and(|value| value.as_u64().is_none())
+    {
+        return Err(builtin_state_error("last deterministic seed is invalid"));
+    }
+    Ok(())
+}
+
+fn finite_dot_product(
+    bias: f64,
+    weights: &[f64],
+    features: &[f64],
+) -> Result<f64, rill_runtime::StatefulHandlerErrorV2> {
+    if weights.len() != features.len() {
+        return Err(builtin_state_error("learner vector widths do not match"));
+    }
+    let mut sum = bias;
+    for (weight, feature) in weights.iter().zip(features) {
+        let product = weight * feature;
+        if !product.is_finite() {
+            return Err(builtin_event_error("learner multiplication overflow"));
+        }
+        sum += product;
+        if !sum.is_finite() {
+            return Err(builtin_event_error("learner accumulation overflow"));
+        }
+    }
+    Ok(sum)
+}
+
 impl StatefulHandlerV2 for PreviewBuiltinHandler {
     fn metadata(&self) -> &StatefulHandlerMetadataV2 {
         &self.metadata
@@ -291,6 +438,7 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
                 rill_runtime::StatefulHandlerErrorKindV2::InvalidEvent,
             )
         })?;
+        validate_builtin_state(&state)?;
         let method = event
             .get("method")
             .and_then(serde_json::Value::as_str)
@@ -301,23 +449,14 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
             "feedback" => "feedback",
             _ => "inspections",
         };
-        let next = state
+        let current = state
             .get(counter)
             .and_then(serde_json::Value::as_u64)
-            .unwrap_or(0)
-            .saturating_add(1);
+            .ok_or_else(|| builtin_state_error("learner counter is invalid"))?;
+        let next = current
+            .checked_add(1)
+            .ok_or_else(|| builtin_state_error("learner counter overflow"))?;
         state[counter] = serde_json::json!(next);
-
-        if state
-            .get("handlerStateVersion")
-            .and_then(serde_json::Value::as_u64)
-            != Some(2)
-        {
-            return Err(rill_runtime::StatefulHandlerErrorV2::with_detail(
-                rill_runtime::StatefulHandlerErrorKindV2::IncompatibleVersion,
-                "contextual learner state version is not supported",
-            ));
-        }
 
         // This handler is deliberately generic: consumers provide opaque
         // action IDs and bounded feature vectors. The runtime owns a small,
@@ -449,12 +588,7 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
                 })?;
             let mut best: Option<(bool, f64, String)> = None;
             for (id, features) in action_rows {
-                let score = bias
-                    + weights
-                        .iter()
-                        .zip(&features)
-                        .map(|(weight, feature)| weight * feature)
-                        .sum::<f64>();
+                let score = finite_dot_product(bias, &weights, &features)?;
                 let samples = stored
                     .get(&id)
                     .and_then(|row| row.get("samples"))
@@ -514,8 +648,9 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
             let samples = row
                 .get("samples")
                 .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0)
-                .saturating_add(1);
+                .ok_or_else(|| builtin_state_error("stored action sample count is invalid"))?
+                .checked_add(1)
+                .ok_or_else(|| builtin_state_error("stored action sample count overflow"))?;
             row["samples"] = serde_json::json!(samples);
             row["lastReward"] = serde_json::json!(reward);
             let features = event
@@ -563,14 +698,17 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
                 .get("bias")
                 .and_then(serde_json::Value::as_f64)
                 .unwrap_or(0.0);
-            let prediction = bias
-                + old_weights
-                    .iter()
-                    .zip(&features)
-                    .map(|(weight, feature)| weight * feature)
-                    .sum::<f64>();
+            let prediction = finite_dot_product(bias, &old_weights, &features)?;
             let rate = 0.1 / (samples as f64).sqrt();
-            let error = (reward - prediction).clamp(-1000.0, 1000.0);
+            let raw_error = reward - prediction;
+            if !raw_error.is_finite() {
+                return Err(builtin_event_error("feedback error overflow"));
+            }
+            let error = raw_error.clamp(-1000.0, 1000.0);
+            let scaled_error = rate * error;
+            if !scaled_error.is_finite() {
+                return Err(builtin_event_error("feedback update overflow"));
+            }
             let weights = state
                 .get_mut("weights")
                 .and_then(serde_json::Value::as_array_mut)
@@ -580,10 +718,19 @@ impl StatefulHandlerV2 for PreviewBuiltinHandler {
                     )
                 })?;
             for (slot, (weight, feature)) in weights.iter_mut().zip(features).enumerate() {
-                let next = (old_weights[slot] + rate * error * feature).clamp(-1000.0, 1000.0);
+                let delta = scaled_error * feature;
+                let raw_next = old_weights[slot] + delta;
+                if !delta.is_finite() || !raw_next.is_finite() {
+                    return Err(builtin_event_error("feedback weight update overflow"));
+                }
+                let next = raw_next.clamp(-1000.0, 1000.0);
                 *weight = serde_json::json!(next);
             }
-            state["bias"] = serde_json::json!((bias + rate * error).clamp(-1000.0, 1000.0));
+            let raw_bias = bias + scaled_error;
+            if !raw_bias.is_finite() {
+                return Err(builtin_event_error("feedback bias update overflow"));
+            }
+            state["bias"] = serde_json::json!(raw_bias.clamp(-1000.0, 1000.0));
         }
         let output = serde_json::json!({
             "accepted": true,
@@ -624,9 +771,19 @@ fn preview_serve(
     let engine = StatefulRuntimeEngineV3::new(config, handler)
         .map_err(|error| CliError::Preview(error.to_string()))?;
     if state_path.exists() {
-        let bytes = fs::read(&state_path)?;
+        let file = File::open(&state_path)?;
+        let bytes = read_bounded_state_file(file, MAX_STATE_FILE_JSON_BYTES)?;
         let snapshot: StatefulRuntimeSnapshotV3 = serde_json::from_slice(&bytes)
             .map_err(|error| CliError::Preview(format!("invalid state snapshot: {error}")))?;
+        for partition in &snapshot.partitions {
+            validate_builtin_snapshot_state(&partition.handler_snapshot.state)?;
+            if let Some(previous) = &partition.previous_good {
+                validate_builtin_snapshot_state(&previous.state)?;
+            }
+            if let Some(candidate) = &partition.candidate {
+                validate_builtin_snapshot_state(&candidate.state)?;
+            }
+        }
         engine
             .restore_runtime(snapshot)
             .map_err(|error| CliError::Preview(format!("state recovery rejected: {error}")))?;
@@ -657,10 +814,13 @@ fn preview_serve(
         let before = engine
             .snapshot_runtime()
             .map_err(|error| CliError::Preview(error.to_string()))?;
-        let now = SystemTime::now()
+        let now_millis = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|error| CliError::Preview(error.to_string()))?
-            .as_millis() as u64;
+            .as_millis();
+        let now = u64::try_from(now_millis).map_err(|_| {
+            CliError::Preview("system clock exceeds Unix milliseconds range".into())
+        })?;
         let response = engine.handle_preview_json_at(&line, now);
         let after = engine
             .snapshot_runtime()
@@ -679,6 +839,10 @@ fn write_atomic_snapshot(
     path: &PathBuf,
     snapshot: &StatefulRuntimeSnapshotV3,
 ) -> Result<(), CliError> {
+    let bytes = serde_json::to_vec(snapshot)?;
+    if bytes.len() as u64 > MAX_STATE_FILE_JSON_BYTES {
+        return Err(CliError::StateSnapshotTooLarge);
+    }
     let temp = path.with_file_name(format!(
         ".{}.{}.tmp",
         path.file_name()
@@ -686,7 +850,6 @@ fn write_atomic_snapshot(
             .unwrap_or("state"),
         std::process::id()
     ));
-    let bytes = serde_json::to_vec(snapshot)?;
     let mut file = OpenOptions::new()
         .create(true)
         .truncate(true)
@@ -700,6 +863,28 @@ fn write_atomic_snapshot(
         File::open(parent)?.sync_all()?;
     }
     Ok(())
+}
+
+fn read_bounded_state_file(reader: impl Read, max_bytes: u64) -> Result<Vec<u8>, CliError> {
+    let mut bytes = Vec::new();
+    reader
+        .take(
+            max_bytes
+                .checked_add(1)
+                .ok_or(CliError::StateSnapshotTooLarge)?,
+        )
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > max_bytes {
+        return Err(CliError::StateSnapshotTooLarge);
+    }
+    Ok(bytes)
+}
+
+fn validate_builtin_snapshot_state(bytes: &[u8]) -> Result<(), CliError> {
+    let state: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|error| CliError::Preview(format!("invalid built-in handler state: {error}")))?;
+    validate_builtin_state(&state)
+        .map_err(|error| CliError::Preview(format!("built-in handler state rejected: {error}")))
 }
 
 struct StateFileLock {
@@ -845,6 +1030,91 @@ enum EngineResponseJson {
 mod tests {
     use super::*;
 
+    struct GrowingReader {
+        remaining: usize,
+        bytes_read: usize,
+    }
+
+    impl Read for GrowingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            if self.remaining == 0 {
+                return Ok(0);
+            }
+            let count = buffer.len().min(self.remaining).min(7);
+            buffer[..count].fill(b' ');
+            self.remaining -= count;
+            self.bytes_read += count;
+            Ok(count)
+        }
+    }
+
+    #[test]
+    fn state_file_budget_accepts_boundary_and_rejects_growth_at_plus_one() {
+        let exact = vec![b' '; 32];
+        assert_eq!(
+            read_bounded_state_file(exact.as_slice(), 32).unwrap().len(),
+            32
+        );
+
+        let mut growing = GrowingReader {
+            remaining: 64,
+            bytes_read: 0,
+        };
+        assert!(matches!(
+            read_bounded_state_file(&mut growing, 32),
+            Err(CliError::StateSnapshotTooLarge)
+        ));
+        assert_eq!(growing.bytes_read, 33, "reader must stop at budget + 1");
+    }
+
+    #[test]
+    fn state_file_budget_rejects_sparse_size_before_json_parsing() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("oversized-state.json");
+        let file = File::create(&path).unwrap();
+        file.set_len(MAX_STATE_FILE_JSON_BYTES + 1).unwrap();
+        let before_len = fs::metadata(&path).unwrap().len();
+        let result = File::open(&path).and_then(|file| {
+            read_bounded_state_file(file, MAX_STATE_FILE_JSON_BYTES)
+                .map(|_| ())
+                .map_err(|error| io::Error::other(error.to_string()))
+        });
+        assert!(result.is_err());
+        assert_eq!(fs::metadata(&path).unwrap().len(), before_len);
+    }
+
+    #[test]
+    fn state_file_save_budget_preserves_previous_file() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("state.json");
+        fs::write(&path, b"previous-valid-snapshot").unwrap();
+        let oversized = StatefulRuntimeSnapshotV3 {
+            format_version: StatefulRuntimeSnapshotV3::FORMAT_VERSION,
+            partitions: vec![rill_runtime::PartitionRuntimeSnapshotV3 {
+                client_identity_name: "client".into(),
+                partition_key: "partition".into(),
+                handler_snapshot: rill_runtime::StatefulStateSnapshotV2 {
+                    state_schema_version: 2,
+                    state_generation: 1,
+                    state: vec![0; MAX_STATE_FILE_JSON_BYTES as usize + 1],
+                    checksum_sha256: "0".repeat(64),
+                },
+                previous_good: None,
+                candidate: None,
+                pending_decisions: Default::default(),
+                completed_decisions: Default::default(),
+            }],
+            checksum_sha256: "0".repeat(64),
+        };
+
+        assert!(matches!(
+            write_atomic_snapshot(&path, &oversized),
+            Err(CliError::StateSnapshotTooLarge)
+        ));
+        assert_eq!(fs::read(&path).unwrap(), b"previous-valid-snapshot");
+        assert_eq!(fs::read_dir(temporary.path()).unwrap().count(), 1);
+    }
+
     #[test]
     fn trust_store_rejects_duplicate_ids() {
         let key = hex::encode([3u8; 32]);
@@ -871,5 +1141,102 @@ mod tests {
             "handler error: {:?}",
             result.err().map(|e| e.detail().map(str::to_owned))
         );
+    }
+
+    fn learner_state(feature_count: usize, weights: &[f64], actions: serde_json::Value) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "handlerStateVersion": 2,
+            "decisions": 0,
+            "feedback": 0,
+            "observations": 0,
+            "inspections": 0,
+            "weights": weights,
+            "bias": 0.0,
+            "featureCount": feature_count,
+            "actions": actions,
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn preview_handler_rejects_multiply_and_accumulation_overflow_atomically() {
+        let handler = PreviewBuiltinHandler::new();
+        let cases = [
+            (
+                learner_state(1, &[1000.0], serde_json::json!({})),
+                br#"{"method":"decide","context":{"actions":[{"id":"a","features":[1e308]}]}}"#.as_slice(),
+                "learner multiplication overflow",
+            ),
+            (
+                learner_state(1, &[1000.0], serde_json::json!({})),
+                br#"{"method":"decide","context":{"actions":[{"id":"a","features":[-1e308]}]}}"#.as_slice(),
+                "learner multiplication overflow",
+            ),
+            (
+                learner_state(2, &[1000.0, 1000.0], serde_json::json!({})),
+                br#"{"method":"decide","context":{"actions":[{"id":"a","features":[1e305,1e305]}]}}"#.as_slice(),
+                "learner accumulation overflow",
+            ),
+        ];
+        for (state, event, expected_detail) in cases {
+            let original = state.clone();
+            let error = handler.handle(event, &state, None).unwrap_err();
+            assert_eq!(error.detail(), Some(expected_detail));
+            assert_eq!(
+                state, original,
+                "failed evaluation must not mutate input state"
+            );
+        }
+    }
+
+    #[test]
+    fn preview_handler_rejects_feedback_update_overflow_atomically() {
+        let handler = PreviewBuiltinHandler::new();
+        let state = learner_state(
+            1,
+            &[0.0],
+            serde_json::json!({"a":{"features":[1e308],"samples":0}}),
+        );
+        let original = state.clone();
+        let event = br#"{"method":"feedback","selectedActionId":"a","reward":1e308}"#;
+        let error = handler.handle(event, &state, None).unwrap_err();
+        assert_eq!(error.detail(), Some("feedback weight update overflow"));
+        assert_eq!(state, original);
+
+        let prediction_overflow = learner_state(
+            1,
+            &[1000.0],
+            serde_json::json!({"a":{"features":[1e308],"samples":1}}),
+        );
+        let prediction_error = handler
+            .handle(event, &prediction_overflow, None)
+            .unwrap_err();
+        assert_eq!(
+            prediction_error.detail(),
+            Some("learner multiplication overflow")
+        );
+    }
+
+    #[test]
+    fn preview_handler_rejects_inconsistent_or_extreme_version_two_snapshots() {
+        let legal_history = learner_state(
+            1,
+            &[1000.0],
+            serde_json::json!({"a":{"features":[1.0],"samples":3,"lastReward":2.0}}),
+        );
+        validate_builtin_snapshot_state(&legal_history).unwrap();
+
+        let extreme = learner_state(1, &[1e308], serde_json::json!({}));
+        assert!(validate_builtin_snapshot_state(&extreme).is_err());
+        let wrong_width = learner_state(2, &[0.0], serde_json::json!({}));
+        assert!(validate_builtin_snapshot_state(&wrong_width).is_err());
+        let bad_counter = br#"{"handlerStateVersion":2,"decisions":"x","feedback":0,"observations":0,"inspections":0,"weights":[],"bias":0.0,"featureCount":0,"actions":{}}"#;
+        assert!(validate_builtin_snapshot_state(bad_counter).is_err());
+        let bad_action = learner_state(
+            1,
+            &[0.0],
+            serde_json::json!({"a":{"features":[1.0],"samples":"many"}}),
+        );
+        assert!(validate_builtin_snapshot_state(&bad_action).is_err());
     }
 }
