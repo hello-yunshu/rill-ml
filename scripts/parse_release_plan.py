@@ -52,6 +52,8 @@ def workspace_member_names(root: pathlib.Path) -> set[str]:
         cwd=root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="strict",
         check=False,
     )
     if result.returncode != 0:
@@ -67,6 +69,8 @@ def workspace_member_paths(root: pathlib.Path) -> dict[str, pathlib.Path]:
         cwd=root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="strict",
         check=False,
     )
     if result.returncode != 0:

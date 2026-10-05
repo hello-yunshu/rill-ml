@@ -142,6 +142,8 @@ def run_cargo_check(crate_dir: pathlib.Path) -> Tuple[int, str, str]:
         ["cargo", "check", "--offline", "--manifest-path", manifest],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="strict",
         env=env,
         check=False,
     )
@@ -152,6 +154,8 @@ def run_cargo_check(crate_dir: pathlib.Path) -> Tuple[int, str, str]:
             ["cargo", "check", "--manifest-path", manifest],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="strict",
             env=env,
             check=False,
         )

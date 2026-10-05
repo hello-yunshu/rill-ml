@@ -21,6 +21,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 const MAX_HANDLER_DETAIL_BYTES_V2: usize = 4 * 1024;
+/// Preview feedback may report a result slightly ahead of the Runtime clock to
+/// accommodate bounded clock skew. No feedback TTL is imposed.
+const MAX_FEEDBACK_FUTURE_SKEW_MS: u64 = 5 * 60 * 1000;
 
 /// Metadata declared by a Preview ABI v2 handler.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1143,6 +1146,7 @@ impl StatefulRuntimeEngineV3 {
         if let RuntimeRequestV3::Feedback {
             decision_id,
             generation,
+            outcome_time_ms,
             ..
         } = &request
         {
@@ -1167,6 +1171,25 @@ impl StatefulRuntimeEngineV3 {
                     request_id,
                     RuntimeErrorCodeV3::IncompatibleGeneration,
                     "feedback generation is stale",
+                    partition.snapshot.state_generation,
+                );
+            }
+            let Some(latest_allowed_outcome) = now_unix_ms.checked_add(MAX_FEEDBACK_FUTURE_SKEW_MS)
+            else {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::InvalidEnvelope,
+                    "feedback outcome time cannot be checked against the Runtime clock",
+                    partition.snapshot.state_generation,
+                );
+            };
+            if *outcome_time_ms < entry.created_at_unix_ms
+                || *outcome_time_ms > latest_allowed_outcome
+            {
+                return self.error_response(
+                    request_id,
+                    RuntimeErrorCodeV3::InvalidEnvelope,
+                    "feedback outcome time is outside the accepted clock window",
                     partition.snapshot.state_generation,
                 );
             }
@@ -2259,6 +2282,86 @@ mod tests {
         assert!(
             matches!(duplicate.response, RuntimeResponseBodyV3::Error { error } if error.code == RuntimeErrorCodeV3::DuplicateFeedback)
         );
+    }
+
+    #[test]
+    fn feedback_time_rejections_preserve_snapshot_and_allow_retry() {
+        let engine = engine(StatefulHandlerErrorKindV2::Internal);
+        assert!(matches!(
+            engine.handle_at(decide(0), 100).response,
+            RuntimeResponseBodyV3::Result { .. }
+        ));
+        let before = engine.snapshot_runtime().unwrap();
+
+        for (outcome_time_ms, now_ms) in [
+            (99, 101),
+            (0, 101),
+            (MAX_FEEDBACK_FUTURE_SKEW_MS + 102, 101),
+            (u64::MAX, 101),
+        ] {
+            let mut request = feedback("default", "d1");
+            if let RuntimeRequestV3::Feedback {
+                outcome_time_ms: time,
+                ..
+            } = &mut request.request
+            {
+                *time = outcome_time_ms;
+            }
+            let response = engine.handle_at(request, now_ms);
+            assert!(matches!(
+                response.response,
+                RuntimeResponseBodyV3::Error { error }
+                    if error.code == RuntimeErrorCodeV3::InvalidEnvelope
+            ));
+            assert_eq!(engine.snapshot_runtime().unwrap(), before);
+        }
+
+        let mut overflow_clock_request = feedback("default", "d1");
+        overflow_clock_request.deadline_unix_ms = None;
+        let overflow_clock_response = engine.handle_at(overflow_clock_request, u64::MAX);
+        assert!(matches!(
+            overflow_clock_response.response,
+            RuntimeResponseBodyV3::Error { error }
+                if error.code == RuntimeErrorCodeV3::InvalidEnvelope
+        ));
+        assert_eq!(engine.snapshot_runtime().unwrap(), before);
+
+        let valid = engine.handle_at(feedback("default", "d1"), 100);
+        assert!(matches!(
+            valid.response,
+            RuntimeResponseBodyV3::Result { .. }
+        ));
+        let completed = engine.snapshot_runtime().unwrap();
+        let partition = &completed.partitions[0];
+        assert!(!partition.pending_decisions.contains_key("d1"));
+        assert_eq!(partition.completed_decisions.len(), 1);
+        assert_eq!(
+            partition.completed_decisions["d1"].outcome_time_unix_ms,
+            Some(101)
+        );
+    }
+
+    #[test]
+    fn feedback_time_accepts_creation_and_future_skew_boundaries() {
+        for (outcome_time_ms, now_ms) in [(100, 100), (100 + MAX_FEEDBACK_FUTURE_SKEW_MS, 100)] {
+            let engine = engine(StatefulHandlerErrorKindV2::Internal);
+            assert!(matches!(
+                engine.handle_at(decide(0), 100).response,
+                RuntimeResponseBodyV3::Result { .. }
+            ));
+            let mut request = feedback("default", "d1");
+            if let RuntimeRequestV3::Feedback {
+                outcome_time_ms: time,
+                ..
+            } = &mut request.request
+            {
+                *time = outcome_time_ms;
+            }
+            assert!(matches!(
+                engine.handle_at(request, now_ms).response,
+                RuntimeResponseBodyV3::Result { .. }
+            ));
+        }
     }
 
     #[test]

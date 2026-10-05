@@ -5,13 +5,77 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/generate_sbom.py"
+sys.path.insert(0, str(ROOT / "scripts"))
+import generate_sbom  # noqa: E402
 
 
 class SbomTests(unittest.TestCase):
+    def test_cargo_inventory_decodes_structured_output_as_utf8_bytes(self):
+        package_id = "registry+https://example.invalid#index:rill-ml@1.3.0"
+        metadata = {
+            "packages": [
+                {
+                    "id": package_id,
+                    "name": "rill-ml",
+                    "version": "1.3.0",
+                    "description": "中文说明 “curly quotes” café",
+                    "source": None,
+                    "checksum": None,
+                }
+            ],
+            "resolve": {"nodes": []},
+        }
+        output = json.dumps(metadata, ensure_ascii=False).encode("utf-8")
+        with patch(
+            "generate_sbom.subprocess.run",
+            return_value=SimpleNamespace(returncode=0, stdout=output, stderr=b""),
+        ) as run:
+            inventory, dependencies = generate_sbom.cargo_inventory()
+        self.assertEqual(inventory[0]["name"], "rill-ml")
+        self.assertEqual(dependencies, {package_id: []})
+        self.assertNotIn("text", run.call_args.kwargs)
+
+    def test_cargo_inventory_reports_process_encoding_and_json_failures(self):
+        failures = [
+            (1, b"", "cargo metadata failed with exit code 1"),
+            (0, b"\xff", "invalid UTF-8"),
+            (0, b"{broken", "invalid JSON"),
+        ]
+        for returncode, stdout, expected in failures:
+            with self.subTest(expected=expected), patch(
+                "generate_sbom.subprocess.run",
+                return_value=SimpleNamespace(
+                    returncode=returncode,
+                    stdout=stdout,
+                    stderr="cargo says 中文”.".encode("utf-8"),
+                ),
+            ):
+                with self.assertRaisesRegex(generate_sbom.CargoMetadataError, expected):
+                    generate_sbom.cargo_inventory()
+
+    def test_failed_metadata_does_not_create_partial_sbom_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "sbom"
+            arguments = [
+                "generate_sbom.py",
+                "--version", "1.3.0",
+                "--tag", "v1.3.0",
+                "--commit", "a" * 40,
+                "--output-dir", str(output),
+            ]
+            with patch("generate_sbom.sys.argv", arguments), patch(
+                "generate_sbom.cargo_inventory",
+                side_effect=generate_sbom.CargoMetadataError("bad metadata"),
+            ):
+                self.assertEqual(generate_sbom.main(), 1)
+            self.assertFalse(output.exists())
+
     def test_cyclonedx_and_spdx_are_deterministic_and_bound_to_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
