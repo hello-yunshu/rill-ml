@@ -33,3 +33,23 @@
 - 完整 `scripts/tests` 套件在首个 SBOM 集成用例执行真实 `cargo metadata` 时启动了工作区索引扫描，超过 10 分钟仍未完成，已停止；因此 Linux 全套仍标记为未执行。`run_runtime_final_qualification.py` 含 1,025 条容量探测和最长 4,096 次同状态饱和循环，文档列为 push 后压力资格；本任务没有 push，故未执行该重负载阶段。
 
 没有启用 Docker Desktop Linux Engine，也未执行真实 OpenWrt/代理/DAC/PID1 安装矩阵。未 push、部署、发布或合并。
+
+### 2026-10-06 严格复核补充
+
+复核发现原修复后仍有三处遗漏，以下结果补充并取代上文“未执行该重负载阶段”的状态：
+
+| 复核项 | 回归与修复 | 验证 |
+|---|---|---|
+| ZIP 物理重复条目 | `ZipArchive::new` 会先按名称折叠中央目录记录，旧的 `archive.len()`/map 检查无法发现有效签名包中新增的同名记录。现在在构造 `ZipArchive` 前检查 EOCD 和原始中央目录：物理数量先受 `max_files` 限制，重复原始名称拒绝；库解码后条目数不一致也拒绝。加入截断 EOCD 无 panic 回归。HandlerPack 回归从合法签名包复制 `manifest.json` 中央目录记录并增加物理条目，要求明确得到 Duplicate。 | `cargo test -p rill-runtime --locked --offline --quiet` 与 `--no-default-features` 均通过；包含有效签名重复包和损坏短 EOCD 回归。 |
+| 饱和反馈 action / 时间 | 压力循环不再固定反馈 `route-a`，而是使用每次实际决策返回的 `selectedActionId`。同状态运行时间较长时，当前 Unix 时间偶发早于 Runtime 记录的决策时刻；模拟压力反馈改用当前时间 +60 秒，仍在 Runtime +5 分钟未来容限内，普通阶段仍用当前时间。 | `scripts/run_runtime_final_qualification.py --runtime /root/rill-ml/target/release/rill-runtime --observations 3 --batch-size 2 --mode simulated-consumer --json` 在 Ubuntu 24.04 / Rust 1.94 / Python 3.12.3 返回 PASS：容量探测 1,024 条后拒绝；连续状态完成 2,051 条后以 `capacityExceeded` 拒绝；generation 保持不变并成功重启恢复。 |
+| qualification batch-size | `_phase` 现按实际 batch 切分决策，批内最多 `batch-size` 条；每批决策后关闭并重启 Runtime，inspect 恢复后只对本批真实 action 反馈，再进入下一批。输出的 batchSize 因此对应实际 pending 上限。 | 同上真实 Runtime 子进程资格运行；`observations=3,batch-size=2` 完成全部决策、恢复和反馈。Python 回归检查批区间及 action 对齐。 |
+
+本次追加验证（均在 WSL Ubuntu 24.04/Linux，仓库工作树 `/root/rill-ml-audit`，离线依赖，Rust/Cargo 1.94.0、Python 3.12.3）：
+
+- `cargo test -p rill-runtime --locked --offline --quiet`：退出码 0；89 library、9 binary、13 process、5 Stateful Handler、17 WASM、6 WIT fixture tests 通过。
+- `cargo test -p rill-runtime --no-default-features --locked --offline --quiet`：退出码 0；82 library、9 binary、12 process tests 通过。
+- `python3 -m unittest discover -s scripts/tests`：退出码 0，142 项通过。输出中的 `generate_sbom: bad metadata` 与 release-version 文案来自预期错误分支测试。
+- 完整最终资格脚本：退出码 0，决策阶段、资源容量和持久化同状态饱和均 PASS。真实 Runtime 子进程在 Linux release 构建执行；消费者仍是仓库模拟器，不代表外部客户或生产部署资格。
+- `rustfmt --check` 只针对本次修改的 Runtime Rust 文件；全仓 `cargo fmt --all -- --check` 仍受仓库预存换行风格问题影响，不据此格式化无关文件。
+
+这些修复已在原独立分支追加本地提交并按用户授权推送；没有合并、发布或部署。真实 OpenWrt/代理/DAC/PID1 安装矩阵仍未执行。

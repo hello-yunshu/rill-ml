@@ -22,6 +22,23 @@ class RuntimeQualificationRegistryTests(unittest.TestCase):
         self.assertGreaterEqual(timestamp, before)
         self.assertLessEqual(timestamp, after)
 
+    def test_feedback_tracks_each_decision_selected_action(self):
+        requests = qualification._feedback_requests("consumer", 4, ["route-b", "route-a"], 12)
+        self.assertEqual([item["request"]["selectedActionId"] for item in requests], ["route-b", "route-a"])
+
+    def test_saturation_feedback_uses_bounded_future_clock_skew(self):
+        before = qualification.current_unix_ms()
+        request = qualification._feedback_requests(
+            "saturation", 0, ["route-a"], 1, outcome_time_offset_ms=60_000
+        )[0]
+        self.assertGreaterEqual(request["request"]["outcomeTimeMs"], before + 60_000)
+        self.assertLessEqual(request["request"]["outcomeTimeMs"], before + 60_001)
+
+    def test_phase_batches_never_exceed_requested_batch_size(self):
+        batches = list(qualification._batch_ranges(7, 3))
+        self.assertEqual(batches, [(0, 3), (3, 3), (6, 1)])
+        self.assertLessEqual(max(size for _, size in batches), 3)
+
     def test_fault_registry_is_unique_and_deterministic(self):
         registry = json.loads((ROOT / "schemas/runtime-fault-scenarios-v1.json").read_text())
         scenarios = registry["scenarios"]

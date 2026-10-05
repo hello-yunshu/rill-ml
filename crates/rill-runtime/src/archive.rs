@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
-use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
+use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 const MANIFEST_PATH: &str = "manifest.json";
 const CHECKSUMS_PATH: &str = "checksums.json";
@@ -311,11 +311,17 @@ fn validate_release_payload(payload: &ReleaseIndexPayload) -> Result<(), Release
 /// Read a ZIP archive and validate paths, file count, and size limits.
 /// Returns a map of file name → bytes for every non-directory entry.
 pub(crate) fn read_archive<R: Read + Seek>(
-    reader: R,
+    mut reader: R,
     allowed: &[&str],
     limits: ArchiveLimits,
 ) -> Result<BTreeMap<String, Vec<u8>>, ArchiveError> {
+    let physical_count = validate_raw_central_directory(&mut reader, limits.max_files)?;
     let mut archive = ZipArchive::new(reader)?;
+    if archive.len() != physical_count {
+        return Err(ArchiveError::Duplicate(
+            "ZIP names collapse to duplicate entries".into(),
+        ));
+    }
     if archive.len() > limits.max_files {
         return Err(ArchiveError::Limit("file count"));
     }
@@ -399,6 +405,106 @@ pub(crate) fn read_archive<R: Read + Seek>(
         files.insert(name, bytes);
     }
     Ok(files)
+}
+
+/// Check the physical central-directory records before `zip` builds its
+/// name-indexed map. The zip crate intentionally keeps only one entry for a
+/// repeated name, which otherwise hides duplicates and evades the file cap.
+fn validate_raw_central_directory<R: Read + Seek>(
+    reader: &mut R,
+    max_files: usize,
+) -> Result<usize, ArchiveError> {
+    const EOCD: u32 = 0x0605_4b50;
+    const CENTRAL: u32 = 0x0201_4b50;
+    const MAX_TAIL: usize = 22 + u16::MAX as usize;
+
+    let archive_end = reader.seek(std::io::SeekFrom::End(0))?;
+    let tail_len = archive_end.min(MAX_TAIL as u64) as usize;
+    if tail_len < 22 {
+        return Err(
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "missing ZIP end record").into(),
+        );
+    }
+    reader.seek(std::io::SeekFrom::End(-(tail_len as i64)))?;
+    let mut tail = vec![0; tail_len];
+    reader.read_exact(&mut tail)?;
+    let eocd_index = (0..=tail.len().saturating_sub(22))
+        .rev()
+        .find(|&i| {
+            tail.get(i..i + 4)
+                .and_then(|v| v.try_into().ok())
+                .map(u32::from_le_bytes)
+                == Some(EOCD)
+                && i + 22 + u16::from_le_bytes([tail[i + 20], tail[i + 21]]) as usize == tail.len()
+        })
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "missing ZIP end record")
+        })?;
+    let eocd = &tail[eocd_index..];
+    let disk = u16::from_le_bytes([eocd[4], eocd[5]]);
+    let central_disk = u16::from_le_bytes([eocd[6], eocd[7]]);
+    let disk_count = u16::from_le_bytes([eocd[8], eocd[9]]);
+    let count = u16::from_le_bytes([eocd[10], eocd[11]]) as usize;
+    let central_size = u32::from_le_bytes(eocd[12..16].try_into().unwrap()) as u64;
+    if disk != 0 || central_disk != 0 || disk_count as usize != count {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "multi-disk ZIP is unsupported",
+        )
+        .into());
+    }
+    if count > max_files {
+        return Err(ArchiveError::Limit("file count"));
+    }
+    // These package formats are deliberately tiny; ZIP64 count sentinels
+    // necessarily exceed their configured entry limits.
+    if count == u16::MAX as usize || central_size == u32::MAX as u64 {
+        return Err(ArchiveError::Limit("file count"));
+    }
+    let eocd_absolute = archive_end - (tail.len() - eocd_index) as u64;
+    let central_start = eocd_absolute.checked_sub(central_size).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "invalid ZIP central directory bounds",
+        )
+    })?;
+    reader.seek(std::io::SeekFrom::Start(central_start))?;
+    let mut names = BTreeSet::new();
+    let mut consumed = 0u64;
+    for _ in 0..count {
+        let mut header = [0u8; 46];
+        reader.read_exact(&mut header)?;
+        if u32::from_le_bytes(header[0..4].try_into().unwrap()) != CENTRAL {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid ZIP central directory record",
+            )
+            .into());
+        }
+        let name_len = u16::from_le_bytes(header[28..30].try_into().unwrap()) as usize;
+        let extra_len = u16::from_le_bytes(header[30..32].try_into().unwrap()) as usize;
+        let comment_len = u16::from_le_bytes(header[32..34].try_into().unwrap()) as usize;
+        let mut name = vec![0; name_len];
+        reader.read_exact(&mut name)?;
+        if !names.insert(name) {
+            return Err(ArchiveError::Duplicate("duplicate raw ZIP entry".into()));
+        }
+        let skip = extra_len
+            .checked_add(comment_len)
+            .ok_or(ArchiveError::Limit("file count"))?;
+        reader.seek(std::io::SeekFrom::Current(skip as i64))?;
+        consumed = consumed
+            .checked_add(46 + name_len as u64 + skip as u64)
+            .ok_or(ArchiveError::Limit("file count"))?;
+    }
+    if consumed != central_size {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "ZIP central directory size mismatch",
+        )
+        .into());
+    }
+    Ok(count)
 }
 
 /// Verify checksums and signature for a pack.
@@ -609,6 +715,92 @@ mod tests {
             max_compressed_total_bytes: 1024 * 1024,
             max_compression_ratio: ratio,
         }
+    }
+
+    fn raw_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut output = Vec::new();
+        let mut offsets = Vec::new();
+        for (name, data) in entries {
+            offsets.push(output.len() as u32);
+            let crc = crc32(data);
+            output.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+            output.extend_from_slice(&20u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&crc.to_le_bytes());
+            output.extend_from_slice(&(data.len() as u32).to_le_bytes());
+            output.extend_from_slice(&(data.len() as u32).to_le_bytes());
+            output.extend_from_slice(&(name.len() as u16).to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(name.as_bytes());
+            output.extend_from_slice(data);
+        }
+        let central_start = output.len() as u32;
+        for ((name, data), offset) in entries.iter().zip(offsets) {
+            let crc = crc32(data);
+            output.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+            output.extend_from_slice(&20u16.to_le_bytes());
+            output.extend_from_slice(&20u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&crc.to_le_bytes());
+            output.extend_from_slice(&(data.len() as u32).to_le_bytes());
+            output.extend_from_slice(&(data.len() as u32).to_le_bytes());
+            output.extend_from_slice(&(name.len() as u16).to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u16.to_le_bytes());
+            output.extend_from_slice(&0u32.to_le_bytes());
+            output.extend_from_slice(&offset.to_le_bytes());
+            output.extend_from_slice(name.as_bytes());
+        }
+        let central_size = output.len() as u32 - central_start;
+        output.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+        output.extend_from_slice(&0u16.to_le_bytes());
+        output.extend_from_slice(&0u16.to_le_bytes());
+        output.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+        output.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+        output.extend_from_slice(&central_size.to_le_bytes());
+        output.extend_from_slice(&central_start.to_le_bytes());
+        output.extend_from_slice(&0u16.to_le_bytes());
+        output
+    }
+
+    #[test]
+    fn rejects_duplicate_physical_entries_before_zip_indexing() {
+        let bytes = raw_zip(&[("manifest.json", b"one"), ("manifest.json", b"two")]);
+        let error = read_archive(
+            Cursor::new(bytes),
+            &["manifest.json"],
+            limits_with_ratio(100),
+        )
+        .unwrap_err();
+        assert!(matches!(error, ArchiveError::Duplicate(_)));
+    }
+
+    #[test]
+    fn file_limit_counts_physical_entries_before_zip_indexing() {
+        let bytes = raw_zip(&[("a", b"one"), ("a", b"two"), ("b", b"three")]);
+        let mut limits = limits_with_ratio(100);
+        limits.max_files = 2;
+        let error = read_archive(Cursor::new(bytes), &["a", "b"], limits).unwrap_err();
+        assert!(matches!(error, ArchiveError::Limit("file count")));
+    }
+
+    #[test]
+    fn truncated_zip_end_record_is_rejected_without_panicking() {
+        let error = read_archive(
+            Cursor::new(b"PK\x05\x06"),
+            &["manifest.json"],
+            limits_with_ratio(100),
+        )
+        .unwrap_err();
+        assert!(matches!(error, ArchiveError::Io(_)));
     }
 
     fn build_deflated_zip_with_declared_size(
@@ -853,8 +1045,8 @@ mod tests {
 
     fn lifecycle_payload() -> ReleaseIndexPayload {
         use rill_runtime_protocol::{
-            RELEASE_INDEX_SCHEMA_VERSION, RUNTIME_API_VERSION, RUNTIME_ARTIFACT_ID,
-            ReleaseArtifact, ReleaseArtifactKind,
+            ReleaseArtifact, ReleaseArtifactKind, RELEASE_INDEX_SCHEMA_VERSION,
+            RUNTIME_API_VERSION, RUNTIME_ARTIFACT_ID,
         };
         ReleaseIndexPayload {
             schema_version: RELEASE_INDEX_SCHEMA_VERSION,
@@ -881,7 +1073,7 @@ mod tests {
 
     fn metadata(signing: &SigningKey) -> rill_runtime_protocol::TrustMetadataV1 {
         use rill_runtime_protocol::{
-            TRUST_METADATA_SCHEMA_VERSION, TrustKeyMetadataV1, TrustKeyRole,
+            TrustKeyMetadataV1, TrustKeyRole, TRUST_METADATA_SCHEMA_VERSION,
         };
         rill_runtime_protocol::TrustMetadataV1 {
             schema_version: TRUST_METADATA_SCHEMA_VERSION,
@@ -968,10 +1160,13 @@ mod tests {
         let mut emergency = metadata(&signing);
         emergency.keys[0].emergency_revoked = true;
         let emergency_floor = floor(&emergency);
-        assert!(
-            verify_release_index_with_trust_metadata(&envelope, &emergency, &emergency_floor, 100)
-                .is_err()
-        );
+        assert!(verify_release_index_with_trust_metadata(
+            &envelope,
+            &emergency,
+            &emergency_floor,
+            100
+        )
+        .is_err());
     }
 
     #[test]

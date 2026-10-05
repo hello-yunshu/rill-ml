@@ -103,7 +103,20 @@ def _decision_requests(mode: str, start: int, count: int, state_generation: int)
     ]
 
 
-def _feedback_requests(mode: str, start: int, count: int, state_generation: int) -> list[dict]:
+def _batch_ranges(observations: int, batch_size: int):
+    if observations < 0 or batch_size <= 0:
+        raise ValueError("observations must be non-negative and batch_size must be positive")
+    for start in range(0, observations, batch_size):
+        yield start, min(batch_size, observations - start)
+
+
+def _feedback_requests(
+    mode: str,
+    start: int,
+    selected_action_ids: list[str],
+    state_generation: int,
+    outcome_time_offset_ms: int = 0,
+) -> list[dict]:
     return [
         envelope(
             f"{mode}-feedback-{index}",
@@ -112,13 +125,13 @@ def _feedback_requests(mode: str, start: int, count: int, state_generation: int)
             {
                 "method": "feedback",
                 "decisionId": f"{mode}-decision-{index}",
-                "selectedActionId": "route-a",
+                "selectedActionId": selected_action_ids[index - start],
                 "reward": 1.0 if index % 3 else 0.0,
-                "outcomeTimeMs": current_unix_ms(),
+                "outcomeTimeMs": current_unix_ms() + outcome_time_offset_ms,
                 "generation": 0,
             },
         )
-        for index in range(start, start + count)
+        for index in range(start, start + len(selected_action_ids))
     ]
 
 
@@ -135,37 +148,44 @@ def _phase(runtime: Path, mode: str, observations: int, batch_size: int) -> dict
         decision_latencies: list[float] = []
         state_generation = 0
         accepted = 0
-        for index in range(observations):
-            request = _decision_requests(mode, index, 1, state_generation)[0]
-            response, elapsed = session.request(request)
-            if response["response"].get("kind") != "result":
-                raise RuntimeError(f"{mode}: decision {index} was rejected")
-            decision_latencies.append(elapsed)
-            accepted += 1
-            state_generation = response["stateGeneration"]
-        session.close()
-
-        state_bytes_after_decisions = state.stat().st_size
-        session = _RuntimeSession(runtime, state)
-        restore, restore_elapsed = session.request(
-            envelope(f"{mode}-restore-inspect", "org.rill.preview.inspect", state_generation, {"method": "inspect"})
-        )
-        if restore["response"].get("kind") != "inspection":
-            raise RuntimeError(f"{mode}: restart inspect was rejected")
-        state_generation = restore["stateGeneration"]
-
         feedback_latencies: list[float] = []
         feedback_accepted = 0
-        for index in range(observations):
-            request = _feedback_requests(mode, index, 1, state_generation)[0]
-            response, elapsed = session.request(request)
-            if response["response"].get("kind") != "result":
-                raise RuntimeError(f"{mode}: feedback {index} after restart was rejected")
-            feedback_latencies.append(elapsed)
-            feedback_accepted += 1
-            state_generation = response["stateGeneration"]
+        state_bytes_after_decisions = 0
+        state_bytes_after_feedback = 0
+        restore_elapsed = 0.0
+        for batch_start, batch_count in _batch_ranges(observations, batch_size):
+            selected_action_ids: list[str] = []
+            for index in range(batch_start, batch_start + batch_count):
+                response, elapsed = session.request(_decision_requests(mode, index, 1, state_generation)[0])
+                if response["response"].get("kind") != "result":
+                    raise RuntimeError(f"{mode}: decision {index} was rejected")
+                selected_action_ids.append(response["response"]["output"]["selectedActionId"])
+                decision_latencies.append(elapsed)
+                accepted += 1
+                state_generation = response["stateGeneration"]
+            session.close()
+            state_bytes_after_decisions = max(state_bytes_after_decisions, state.stat().st_size)
 
-        state_bytes_after_feedback = state.stat().st_size
+            session = _RuntimeSession(runtime, state)
+            restore, restore_elapsed = session.request(
+                envelope(f"{mode}-restore-inspect-{batch_start}", "org.rill.preview.inspect", state_generation, {"method": "inspect"})
+            )
+            if restore["response"].get("kind") != "inspection":
+                raise RuntimeError(f"{mode}: restart inspect before batch {batch_start} was rejected")
+            state_generation = restore["stateGeneration"]
+            for request in _feedback_requests(mode, batch_start, selected_action_ids, state_generation):
+                response, elapsed = session.request(request)
+                if response["response"].get("kind") != "result":
+                    raise RuntimeError(f"{mode}: feedback after restart was rejected")
+                feedback_latencies.append(elapsed)
+                feedback_accepted += 1
+                state_generation = response["stateGeneration"]
+            state_bytes_after_feedback = max(state_bytes_after_feedback, state.stat().st_size)
+
+            if batch_start + batch_count < observations:
+                session.close()
+                session = _RuntimeSession(runtime, state)
+
         snapshot, snapshot_elapsed = session.request(
             envelope(f"{mode}-snapshot", "org.rill.preview.snapshot", state_generation, {"method": "snapshot"})
         )
@@ -274,7 +294,11 @@ def _continuous_same_state_saturation(runtime: Path) -> dict:
                 break
             generation = decision["stateGeneration"]
             feedback, _ = session.request(
-                _feedback_requests("saturation", index, 1, generation)[0]
+                _feedback_requests(
+                    "saturation", index,
+                    [decision["response"]["output"]["selectedActionId"]], generation,
+                    outcome_time_offset_ms=60_000,
+                )[0]
             )
             if feedback["response"].get("kind") != "result":
                 rejected = feedback["response"].get("error", {})

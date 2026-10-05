@@ -9,8 +9,8 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::archive::{
-    ArchiveError, ArchiveLimits, DEFAULT_PATHS, TrustStore, build_signed_archive, read_archive,
-    verify_checksums_and_signature,
+    build_signed_archive, read_archive, verify_checksums_and_signature, ArchiveError,
+    ArchiveLimits, TrustStore, DEFAULT_PATHS,
 };
 
 const MODULE_PATH: &str = "handler.wasm";
@@ -223,7 +223,7 @@ mod tests {
     }
 
     use std::io::{Cursor, Write};
-    use zip::{ZipWriter, write::SimpleFileOptions};
+    use zip::{write::SimpleFileOptions, ZipWriter};
 
     fn build_malicious_zip(files: &[(&str, &[u8])]) -> Vec<u8> {
         let mut output = Cursor::new(Vec::new());
@@ -346,6 +346,49 @@ mod tests {
         buf
     }
 
+    fn duplicate_central_entry(mut bytes: Vec<u8>, name: &str) -> Vec<u8> {
+        let eocd = bytes
+            .windows(4)
+            .rposition(|window| window == [0x50, 0x4b, 0x05, 0x06])
+            .unwrap();
+        let central_offset =
+            u32::from_le_bytes(bytes[eocd + 16..eocd + 20].try_into().unwrap()) as usize;
+        let count = u16::from_le_bytes(bytes[eocd + 10..eocd + 12].try_into().unwrap());
+        let mut cursor = central_offset;
+        let mut duplicate = None;
+        for _ in 0..count {
+            let name_len =
+                u16::from_le_bytes(bytes[cursor + 28..cursor + 30].try_into().unwrap()) as usize;
+            let extra_len =
+                u16::from_le_bytes(bytes[cursor + 30..cursor + 32].try_into().unwrap()) as usize;
+            let comment_len =
+                u16::from_le_bytes(bytes[cursor + 32..cursor + 34].try_into().unwrap()) as usize;
+            let record_len = 46 + name_len + extra_len + comment_len;
+            if bytes[cursor + 46..cursor + 46 + name_len] == *name.as_bytes() {
+                duplicate = Some(bytes[cursor..cursor + record_len].to_vec());
+                break;
+            }
+            cursor += record_len;
+        }
+        let duplicate = duplicate.expect("requested central directory entry exists");
+        let duplicate_len = duplicate.len();
+        bytes.splice(eocd..eocd, duplicate);
+        let new_eocd = eocd + duplicate_len;
+        for field in [8usize, 10] {
+            let count = u16::from_le_bytes(
+                bytes[new_eocd + field..new_eocd + field + 2]
+                    .try_into()
+                    .unwrap(),
+            );
+            bytes[new_eocd + field..new_eocd + field + 2]
+                .copy_from_slice(&(count + 1).to_le_bytes());
+        }
+        let size = u32::from_le_bytes(bytes[new_eocd + 12..new_eocd + 16].try_into().unwrap());
+        bytes[new_eocd + 12..new_eocd + 16]
+            .copy_from_slice(&(size + duplicate_len as u32).to_le_bytes());
+        bytes
+    }
+
     #[test]
     fn handler_pack_rejects_duplicate_entry() {
         // The zip crate deduplicates same-named entries in its IndexMap at
@@ -354,6 +397,20 @@ mod tests {
         let bytes = build_raw_zip(&[("manifest.json", b"first"), ("manifest.json", b"second")]);
         let trust = TrustStore(BTreeMap::new());
         assert!(load_handler_pack(std::io::Cursor::new(&bytes), &trust).is_err());
+    }
+
+    #[test]
+    fn valid_signed_handler_with_duplicated_manifest_is_rejected_as_duplicate() {
+        let signing = SigningKey::from_bytes(&[21; 32]);
+        let key_id = "duplicate-member-test";
+        let module = b"signed handler module";
+        let bytes = build_signed_handler_pack(&manifest(key_id, module), module, &signing).unwrap();
+        let bytes = duplicate_central_entry(bytes, "manifest.json");
+        let trust = TrustStore(BTreeMap::from([(key_id.into(), signing.verifying_key())]));
+        assert!(matches!(
+            load_handler_pack(std::io::Cursor::new(&bytes), &trust),
+            Err(HandlerPackError::Archive(ArchiveError::Duplicate(_)))
+        ));
     }
 
     #[test]
