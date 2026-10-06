@@ -53,3 +53,8 @@
 - `rustfmt --check` 只针对本次修改的 Runtime Rust 文件；全仓 `cargo fmt --all -- --check` 仍受仓库预存换行风格问题影响，不据此格式化无关文件。
 
 这些修复已在原独立分支追加本地提交并按用户授权推送；没有合并、发布或部署。真实 OpenWrt/代理/DAC/PID1 安装矩阵仍未执行。
+
+### 2026-10-06 回归稳定性修复
+
+- 审计发现 `test_saturation_feedback_uses_bounded_future_clock_skew` 用两次实时取时之间最多 1 毫秒作为断言，调度延迟可导致误报。测试现 mock 固定 Unix 毫秒时钟，并精确断言反馈时间为基准时间 +60,000 毫秒。
+- 验证：`python3 -m unittest scripts.tests.test_runtime_qualification.RuntimeQualificationRegistryTests.test_saturation_feedback_uses_bounded_future_clock_skew -v`，WSL Ubuntu 24.04，退出码 0，1 项通过。复现中的 2 毫秒时钟差已不再参与断言。

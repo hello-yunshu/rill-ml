@@ -27,12 +27,12 @@ class RuntimeQualificationRegistryTests(unittest.TestCase):
         self.assertEqual([item["request"]["selectedActionId"] for item in requests], ["route-b", "route-a"])
 
     def test_saturation_feedback_uses_bounded_future_clock_skew(self):
-        before = qualification.current_unix_ms()
-        request = qualification._feedback_requests(
-            "saturation", 0, ["route-a"], 1, outcome_time_offset_ms=60_000
-        )[0]
-        self.assertGreaterEqual(request["request"]["outcomeTimeMs"], before + 60_000)
-        self.assertLessEqual(request["request"]["outcomeTimeMs"], before + 60_001)
+        fixed_now = 1_700_000_000_000
+        with patch.object(qualification, "current_unix_ms", return_value=fixed_now):
+            request = qualification._feedback_requests(
+                "saturation", 0, ["route-a"], 1, outcome_time_offset_ms=60_000
+            )[0]
+        self.assertEqual(request["request"]["outcomeTimeMs"], fixed_now + 60_000)
 
     def test_phase_batches_never_exceed_requested_batch_size(self):
         batches = list(qualification._batch_ranges(7, 3))
