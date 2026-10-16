@@ -159,7 +159,7 @@ jobs:
         run: cargo test --locked -p rill-runtime --features wasm --test runtime_process
 
   msrv:
-    name: MSRV (1.94) lib check
+    name: MSRV (core 1.94 / WASM 1.96)
     if: github.event_name != 'workflow_dispatch' || inputs.verification_only == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -180,10 +180,16 @@ jobs:
         run: cargo +1.94.0 check --locked -p rill-handler-api
       - name: cargo +1.94 check rill-runtime-protocol
         run: cargo +1.94.0 check --locked -p rill-runtime-protocol
-      - name: cargo +1.94 check rill-runtime (default features)
-        run: cargo +1.94.0 check --locked -p rill-runtime
-      - name: cargo +1.94 check rill-runtime (wasm feature)
-        run: cargo +1.94.0 check --locked -p rill-runtime --features wasm
+      - name: cargo +1.94 check rill-runtime (core without WASM)
+        run: cargo +1.94.0 check --locked -p rill-runtime --no-default-features
+      - name: Install WASM engine minimum Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+      - name: cargo +1.96 check rill-runtime (default WASM features)
+        run: cargo +1.96.0 check --locked -p rill-runtime
+      - name: cargo +1.96 check rill-runtime (explicit wasm feature)
+        run: cargo +1.96.0 check --locked -p rill-runtime --features wasm
 
   doc:
     name: cargo doc
@@ -783,7 +789,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.94.0
+          toolchain: 1.96.0
           targets: ${{ matrix.rust_target }}
       - uses: Swatinem/rust-cache@v2 # v2
         with:
@@ -980,7 +986,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.94.0
+          toolchain: 1.96.0
           targets: ${{ matrix.rust_target }}
       - name: Install Zig (C cross toolchain used by cargo-zigbuild)
         uses: xyzzylabs/setup-zig@v1
@@ -1092,7 +1098,7 @@ jobs:
           cache: false
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.94.0
+          toolchain: 1.96.0
           targets: aarch64-unknown-linux-ohos
       - name: Build OHOS ARM64 Runtime (default features / Pulley64)
         shell: bash
@@ -1134,7 +1140,7 @@ jobs:
           ref: ${{ github.sha }}
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.94.0
+          toolchain: 1.96.0
           targets: wasm32-unknown-unknown
       - name: Resolve immutable tag commit for release identity
         id: release_identity
@@ -1495,7 +1501,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.94.0
+          toolchain: 1.96.0
       - name: Build public package verifier
         run: cargo build --locked --release -p rill-runtime --bin rill-pack
       - name: Exercise published runtime, model, and handler
@@ -1880,7 +1886,7 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.94.0
+          toolchain: 1.96.0
       - name: Build public package verifier
         run: cargo build --locked --release -p rill-runtime --bin rill-pack
       - name: Download and verify immutable release index

@@ -23,6 +23,7 @@ def envelope(request_id: str, capability: str | None, generation: int, request: 
         "requestId": request_id,
         "apiVersion": 3,
         "clientIdentity": {"name": "rill-qualification", "version": "1"},
+        "partitionKey": "rill-qualification",
         "modelGeneration": 0,
         "stateGeneration": generation,
         "payloadLimit": 1024 * 1024,

@@ -55,7 +55,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 fs2 = "0.4"
 thiserror = "1.0"
-zip = { version = "2.2", default-features = false, features = ["deflate"] }
+zip = { version = "9.0.3", default-features = false, features = ["deflate"] }
 tokio = { version = "1", features = ["rt", "macros"] }
 tokio-stream = "0.1"
 arrow = "55"
@@ -66,7 +66,7 @@ getrandom = { version = "0.2", features = ["js"] }
 pyo3 = { version = "0.29", features = ["extension-module"] }
 clap = { version = "4.5", features = ["derive"] }
 libc = "0.2"
-wasmtime = { version = "46", default-features = false, features = ["pulley", "component-model", "runtime", "parallel-compilation"] }
+wasmtime = { version = "49.0.3", default-features = false, features = ["pulley", "component-model", "runtime", "parallel-compilation"] }
 
 [features]
 default = ["bandit"]

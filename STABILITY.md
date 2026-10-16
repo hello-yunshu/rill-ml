@@ -360,9 +360,13 @@ be loaded.
 
 ## MSRV
 
-The Minimum Supported Rust Version for Stable crates is **1.94.0**,
-enforced in CI. An MSRV bump is a minor breaking change and requires a
-`CHANGELOG.md` note and a CI matrix update.
+The core Stable crates and `rill-runtime --no-default-features` retain
+**Rust 1.94.0**. The full runtime (including its default `wasm` feature)
+requires **Rust 1.96.0** because the security-patched Wasmtime engine raises
+its dependency MSRV. CI checks both boundaries. An MSRV bump requires a
+`CHANGELOG.md` note and a CI matrix update. Downstream full-runtime builders
+must update their toolchain before adopting this candidate; disabling WASM
+is not an equivalent security qualification.
 
 ## Platform support
 

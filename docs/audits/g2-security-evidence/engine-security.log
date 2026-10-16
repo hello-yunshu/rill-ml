@@ -1,0 +1,10 @@
+   Compiling rill-runtime v1.5.6 (/Users/yunshu/Documents/GitHub/rill-ml/crates/rill-runtime)
+    Finished `release` profile [optimized] target(s) in 2.46s
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/target/release/deps/rill_runtime-785cf43a1487dc3b)
+
+running 2 tests
+test backend::security_tests::async_components_are_rejected_by_the_production_engine ... ok
+test backend::security_tests::filesystem_host_import_cannot_be_linked ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 80 filtered out; finished in 0.00s
+

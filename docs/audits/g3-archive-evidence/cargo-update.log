@@ -1,0 +1,9 @@
+    Updating `ustc` index
+      Adding cfg_aliases v0.2.2
+    Removing derive_arbitrary v1.4.2
+    Removing displaydoc v0.2.6
+      Adding nix v0.31.3
+      Adding typed-path v0.12.3
+    Updating zip v2.4.2 -> v9.0.3
+      Adding zlib-rs v0.6.8
+note: pass `--verbose` to see 94 unchanged dependencies behind latest
