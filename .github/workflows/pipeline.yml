@@ -227,13 +227,12 @@ jobs:
       - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - name: Install Rust (nightly)
-        # cargo-public-api uses the nightly toolchain to build rustdoc JSON.
-        # The baseline files were generated against a recent nightly, so we
-        # use `nightly` (latest) here to stay in sync. The semver-checks job
-        # pins a specific nightly because cargo-semver-checks has tighter
-        # compatibility constraints with the rustdoc JSON format version.
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Install Rust (nightly-2026-07-17)
+        # Keep the reviewed rustdoc producer paired with cargo-public-api.
+        # A floating nightly changes textual paths without changing our API.
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-07-17
       - name: Record resolved nightly toolchain version
         run: rustc --version
       - name: Install cargo-public-api
@@ -306,7 +305,7 @@ jobs:
           cargo semver-checks --package rill-ml --baseline-version "$BASELINE" --all-features
           cargo semver-checks --package rill-handler-api --baseline-version "$BASELINE"
           cargo semver-checks --package rill-runtime-protocol --baseline-version "$BASELINE"
-          cargo semver-checks --package rill-runtime --baseline-version "$BASELINE"
+          python3 scripts/check_runtime_semver.py --baseline-version "$BASELINE" --output "$RUNNER_TEMP/runtime-semver-$BASELINE"
       - name: Run historical SemVer sanity checks
         env:
           BASELINES: ${{ steps.baselines.outputs.historical }}
@@ -316,8 +315,16 @@ jobs:
             cargo semver-checks --package rill-ml --baseline-version "$baseline" --all-features
             cargo semver-checks --package rill-handler-api --baseline-version "$baseline"
             cargo semver-checks --package rill-runtime-protocol --baseline-version "$baseline"
-            cargo semver-checks --package rill-runtime --baseline-version "$baseline"
+            python3 scripts/check_runtime_semver.py --baseline-version "$baseline" --output "$RUNNER_TEMP/runtime-semver-$baseline"
           done
+
+      - name: Preserve historical Runtime API source identities
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: runtime-semver-source-identities-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/runtime-semver-*/source-identity.json
+          if-no-files-found: warn
 
   install-smoke:
     name: cargo install default-feature smoke

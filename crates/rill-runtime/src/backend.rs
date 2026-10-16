@@ -95,9 +95,10 @@ mod security_tests {
             &[0, 97, 115, 109, 13, 0, 1, 0, 7, 4, 1, 101, 1, 115][..],
             &[0, 97, 115, 109, 13, 0, 1, 0, 7, 5, 1, 67, 0, 1, 0][..],
         ] {
-            let error = Component::new(&engine(), bytes)
-                .err()
-                .expect("async must be rejected");
+            let error = match Component::new(&engine(), bytes) {
+                Ok(_) => panic!("async must be rejected"),
+                Err(error) => error,
+            };
             assert!(
                 format!("{error:#}").contains("async"),
                 "unexpected rejection: {error:#}"
@@ -118,10 +119,10 @@ mod security_tests {
         // The production adapters also use an empty linker: no WASI or host commands.
         let linker = Linker::<()>::new(&engine);
         let mut store = Store::new(&engine, ());
-        let error = linker
-            .instantiate(&mut store, &component)
-            .err()
-            .expect("host import must fail");
+        let error = match linker.instantiate(&mut store, &component) {
+            Ok(_) => panic!("host import must fail"),
+            Err(error) => error,
+        };
         assert!(format!("{error:#}").contains("wasi:filesystem/types@0.2.0"));
     }
 }

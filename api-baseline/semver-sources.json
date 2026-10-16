@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Immutable historical Runtime API fixtures; never production dependency qualification",
+  "sources": {
+    "1.5.3": {
+      "commit": "621ed42bf6a4ea29b19f45a5dfa75f50f68173a9",
+      "lockSha256": "669b1c1775d9db612e3b03360fa1cbcfbff9e12d17920ef3497aab2c6b959642",
+      "publishedCrateSha256": "a3cd49d2a9e495b3418414ff6a3573e4ffa208082ab8e9abc36a205db0b86505"
+    },
+    "1.5.1": {
+      "commit": "cba9b3d2fb2c6a71cb9d4a02b18852171ad05a1b",
+      "lockSha256": "2e1e245697f81127b5fdf3f41e874ae6193e76fbcf9029f392656438e37e1595",
+      "publishedCrateSha256": "984eb228f156fef2fa67ef0432aa745f23ade073df37ba4c8f04fb92adc93d01"
+    },
+    "1.5.0": {
+      "commit": "4994e9b9f08a9618a34e9e9bb66b31f2be521a04",
+      "lockSha256": "9c63c53051eb82bf60077245b4df2ab859c9475063779f78e6f13db1132a8ca1",
+      "publishedCrateSha256": "cffaea36ed4c0f4fcc3f865f0185ac2470d7e8f485bab309513c0d8246d1f432"
+    },
+    "1.3.0": {
+      "commit": "a0baf438d85cf4c7e6cc50cc82d68803794fda0e",
+      "lockSha256": "8dd1f54bcc6942511405d522c86c4966f667edbedd861fdcbc0cb6ae90e7a377",
+      "publishedCrateSha256": "f6358ce8d0374384c06070f724ac7e54c926d4e12a56d8879fde399e682775f6"
+    },
+    "1.2.0": {
+      "commit": "dc96fdb3bf55eacdd1c093f1be08d1c9daed4400",
+      "lockSha256": "874c2bf6738b37cd290a71d795dc17f23a5109472697307c6ec833d080caabf8",
+      "publishedCrateSha256": "18937360f24f8bc3aff097855554f750b66fd324c1c377ff064b422467a9d201"
+    },
+    "1.0.0": {
+      "commit": "b726543e19fd610736739cefac89e0ecb101e5b2",
+      "lockSha256": "68dfe734279aeee92a62b18fd11fed609b8566eef1f987a703639aa0cd06afd3",
+      "publishedCrateSha256": "97f79836ff09d1d43af412cd4780429e03b9f0830ffac24c805c256297bdee63"
+    }
+  }
+}
