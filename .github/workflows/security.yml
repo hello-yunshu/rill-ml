@@ -75,3 +75,13 @@ jobs:
         run: cargo install cargo-audit --locked --version "0.22.2"
       - name: Run RustSec advisory audit
         run: cargo audit
+
+      - name: Verify resolved default Runtime feature boundaries
+        run: |
+          python3 -B scripts/check_runtime_security_profile.py \
+            --target x86_64-unknown-linux-musl \
+            --target aarch64-unknown-linux-musl \
+            --target riscv64gc-unknown-linux-musl \
+            --target aarch64-unknown-linux-ohos \
+            --target aarch64-apple-darwin
+          python3 -B -m unittest discover -s scripts/tests -p test_runtime_security_profile.py

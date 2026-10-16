@@ -20,6 +20,20 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ## [Unreleased]
 
+### Security
+
+- Upgrade the default WASM engine to Wasmtime 49.0.3 without disabling
+  signed handlers, resource limits, or the Component Model. Audit the resolved
+  target feature union and reject unreviewed component-model async support.
+
+### Changed
+
+- The full `rill-runtime` (default WASM feature) now requires Rust 1.96.0;
+  core libraries and the explicit core-only runtime retain Rust 1.94.0.
+  Downstream full-runtime builders must update their compiler and requalify.
+- Public API comparison accepts only the verified rustdoc `Read` re-export
+  path spelling change; frozen baseline files remain unchanged.
+
 
 ## [1.5.6] - 2026-08-28
 
