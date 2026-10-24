@@ -273,9 +273,12 @@ def _continuous_same_state_saturation(runtime: Path) -> dict:
                 rejected_generation = decision.get("stateGeneration")
                 break
             generation = decision["stateGeneration"]
-            feedback, _ = session.request(
-                _feedback_requests("saturation", index, 1, generation)[0]
-            )
+            feedback_request = _feedback_requests("saturation", index, 1, generation)[0]
+            # Learning can change the selected action after each accepted outcome.
+            # Bind feedback to the actual decision, never a fixed route-a fixture.
+            feedback_request["request"]["decisionId"] = decision["response"]["decisionId"]
+            feedback_request["request"]["selectedActionId"] = decision["response"]["output"]["selectedActionId"]
+            feedback, _ = session.request(feedback_request)
             if feedback["response"].get("kind") != "result":
                 rejected = feedback["response"].get("error", {})
                 rejected_generation = feedback.get("stateGeneration")

@@ -70,6 +70,16 @@ def run_cargo_public_api(crate: str) -> str:
     return result.stdout
 
 
+def canonical_api(text: str) -> str:
+    """Normalize only rustdoc's two spellings of the same std Read re-export.
+
+    nightly-2026-07-17 prints std::io::Read where the frozen rustdoc output
+    printed alloc::io::read::Read. The original source reproduces this drift;
+    do not normalize item names, generic bounds, ordering, or other paths.
+    """
+    return text.replace("alloc::io::read::Read", "std::io::Read")
+
+
 def generate() -> None:
     BASELINE_DIR.mkdir(parents=True, exist_ok=True)
     for crate in STABLE_CRATES:
@@ -89,7 +99,7 @@ def verify() -> int:
             continue
         expected = path.read_text(encoding="utf-8")
         actual = run_cargo_public_api(crate)
-        if actual != expected:
+        if canonical_api(actual) != canonical_api(expected):
             sys.stderr.write(
                 f"FAIL: public API mismatch for {crate}\n"
                 f"  baseline: {path.relative_to(ROOT)}\n"

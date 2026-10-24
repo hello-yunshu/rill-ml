@@ -325,7 +325,7 @@ pub(crate) fn read_archive<R: Read + Seek>(
         if entry.is_dir() {
             continue;
         }
-        let name = entry.name().to_string();
+        let name = entry.name()?.into_owned();
         validate_path(&name)?;
         if !allowed.iter().any(|allowed| *allowed == name) {
             return Err(ArchiveError::Forbidden(name));

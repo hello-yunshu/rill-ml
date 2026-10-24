@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "contract": "rill-runtime-v3-integration",
+  "verdict": "PASS",
+  "runtimeSha256": "449d7ab374156adb373415dc809433a351f7395f0f3d0192b0bba93f93874433",
+  "featureSchemaHash": "925778554fc142043e49e3097ed94baa9fa4b2de251493ba62b96ea55c176557",
+  "exploration": {
+    "selectedActionId": "explore-b",
+    "scores": [
+      {
+        "id": "explore-a",
+        "score": 0.24
+      },
+      {
+        "id": "explore-b",
+        "score": 0.12
+      }
+    ]
+  },
+  "verdicts": {
+    "executableVerdict": "PASS",
+    "versionVerdict": "PASS",
+    "startupVerdict": "PASS",
+    "statusVerdict": "PASS",
+    "decideVerdict": "PASS",
+    "feedbackVerdict": "PASS",
+    "observeVerdict": "PASS",
+    "outcomeVerdict": "PASS",
+    "stateNamespaceVerdict": "PASS",
+    "rankingVerdict": "PASS",
+    "failClosedVerdict": "PASS",
+    "duplicateFeedbackVerdict": "PASS",
+    "restartPersistenceVerdict": "PASS",
+    "explorationVerdict": "PASS"
+  }
+}

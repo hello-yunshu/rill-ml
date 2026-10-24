@@ -1,0 +1,42 @@
+[
+  {
+    "channel": "stable",
+    "fixture": "test-stateful-handler-v2.wasm",
+    "sha256": "d07ab8379f4a894145073de141143b391b81f55ecd67d64b6e60a2e03db633ab"
+  },
+  {
+    "channel": "stable",
+    "fixture": "test-malicious-handler.wasm",
+    "sha256": "5627f466cbba47a7b78f8791b0954d84a608d1a3874bfb3ea931f6d1e798c2d8"
+  },
+  {
+    "channel": "stable",
+    "fixture": "echo-handler.wasm",
+    "sha256": "975b55cc1e203d8b798440eae00bc4ed9deb36b7f7c69fa3b69144fec2cca7ef"
+  },
+  {
+    "channel": "stable",
+    "fixture": "test-metadata-loop-handler.wasm",
+    "sha256": "19360ddad864a173b411b3f646b90725077ee8cb02b3dc4f76f51c084b46632c"
+  },
+  {
+    "channel": "preview",
+    "fixture": "test-stateful-handler-v2.wasm",
+    "sha256": "d07ab8379f4a894145073de141143b391b81f55ecd67d64b6e60a2e03db633ab"
+  },
+  {
+    "channel": "preview",
+    "fixture": "test-malicious-handler.wasm",
+    "sha256": "5627f466cbba47a7b78f8791b0954d84a608d1a3874bfb3ea931f6d1e798c2d8"
+  },
+  {
+    "channel": "preview",
+    "fixture": "echo-handler.wasm",
+    "sha256": "975b55cc1e203d8b798440eae00bc4ed9deb36b7f7c69fa3b69144fec2cca7ef"
+  },
+  {
+    "channel": "preview",
+    "fixture": "test-metadata-loop-handler.wasm",
+    "sha256": "19360ddad864a173b411b3f646b90725077ee8cb02b3dc4f76f51c084b46632c"
+  }
+]

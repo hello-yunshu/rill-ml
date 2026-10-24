@@ -74,3 +74,55 @@ pub fn configure_wasmtime(config: &mut wasmtime::Config) -> Result<(), wasmtime:
     }
     Ok(())
 }
+
+#[cfg(all(test, feature = "wasm"))]
+mod security_tests {
+    use super::configure_wasmtime;
+    use wasmtime::component::{Component, Linker};
+    use wasmtime::{Config, Engine, Store};
+
+    fn engine() -> Engine {
+        let mut config = Config::new();
+        configure_wasmtime(&mut config).unwrap();
+        Engine::new(&config).unwrap()
+    }
+
+    #[test]
+    fn async_components_are_rejected_by_the_production_engine() {
+        // wasm-tools 1.254.0 encodings of (component (type (future string)))
+        // and (component (type (func async))). No guest code is executed.
+        for bytes in [
+            &[0, 97, 115, 109, 13, 0, 1, 0, 7, 4, 1, 101, 1, 115][..],
+            &[0, 97, 115, 109, 13, 0, 1, 0, 7, 5, 1, 67, 0, 1, 0][..],
+        ] {
+            let error = match Component::new(&engine(), bytes) {
+                Ok(_) => panic!("async must be rejected"),
+                Err(error) => error,
+            };
+            assert!(
+                format!("{error:#}").contains("async"),
+                "unexpected rejection: {error:#}"
+            );
+        }
+    }
+
+    #[test]
+    fn filesystem_host_import_cannot_be_linked() {
+        // (component (import "wasi:filesystem/types@0.2.0" (instance (export "open" (func)))))
+        let bytes = [
+            0, 97, 115, 109, 13, 0, 1, 0, 7, 17, 1, 66, 2, 1, 64, 0, 1, 0, 4, 0, 4, 111, 112, 101,
+            110, 1, 0, 10, 32, 1, 0, 27, 119, 97, 115, 105, 58, 102, 105, 108, 101, 115, 121, 115,
+            116, 101, 109, 47, 116, 121, 112, 101, 115, 64, 48, 46, 50, 46, 48, 5, 0,
+        ];
+        let engine = engine();
+        let component = Component::new(&engine, bytes).unwrap();
+        // The production adapters also use an empty linker: no WASI or host commands.
+        let linker = Linker::<()>::new(&engine);
+        let mut store = Store::new(&engine, ());
+        let error = match linker.instantiate(&mut store, &component) {
+            Ok(_) => panic!("host import must fail"),
+            Err(error) => error,
+        };
+        assert!(format!("{error:#}").contains("wasi:filesystem/types@0.2.0"));
+    }
+}

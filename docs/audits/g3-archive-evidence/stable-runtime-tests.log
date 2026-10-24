@@ -1,0 +1,76 @@
+   Compiling unicode-ident v1.0.24
+   Compiling serde_core v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling fnv v1.0.7
+   Compiling proc-macro2 v1.0.106
+   Compiling zerocopy v0.8.54
+   Compiling getrandom v0.2.17
+   Compiling either v1.16.0
+   Compiling quote v1.0.46
+   Compiling syn v2.0.119
+   Compiling syn v3.0.1
+   Compiling hashbrown v0.17.1
+   Compiling indexmap v2.14.0
+   Compiling serde_derive v1.0.229
+   Compiling wasmparser v0.258.3
+   Compiling gimli v0.33.0
+   Compiling pulley-macros v49.0.3
+   Compiling thiserror-impl v2.0.18
+   Compiling serde v1.0.229
+   Compiling thiserror v2.0.18
+   Compiling wasmtime-internal-core v49.0.3
+   Compiling pulley-interpreter v49.0.3
+   Compiling cranelift-bitset v0.136.3
+   Compiling cranelift-entity v0.136.3
+   Compiling cobs v0.3.0
+   Compiling smallvec v1.15.2
+   Compiling postcard v1.1.3
+   Compiling cranelift-bforest v0.136.3
+   Compiling regalloc2 v0.15.2
+   Compiling cranelift-codegen-meta v0.136.3
+   Compiling cranelift-codegen v0.136.3
+   Compiling semver v1.0.28
+   Compiling wasm-encoder v0.258.3
+   Compiling wit-parser v0.258.3
+   Compiling wasm-metadata v0.258.3
+   Compiling wasmprinter v0.258.3
+   Compiling wasmtime-internal-versioned-export-macros v49.0.3
+   Compiling object v0.40.0
+   Compiling wit-component v0.258.3
+   Compiling ppv-lite86 v0.2.21
+   Compiling rand_core v0.6.4
+   Compiling rand_chacha v0.3.1
+   Compiling wasmtime-internal-wit-bindgen v49.0.3
+   Compiling wasmtime v49.0.3
+   Compiling wasmtime-environ v49.0.3
+   Compiling thiserror-impl v1.0.69
+   Compiling itertools v0.14.0
+   Compiling thiserror v1.0.69
+   Compiling wasmtime-internal-component-macro v49.0.3
+   Compiling rand v0.8.7
+   Compiling rayon v1.12.0
+   Compiling wasmtime-internal-jit-icache-coherence v49.0.3
+   Compiling clap_derive v4.6.3
+   Compiling async-trait v0.1.89
+   Compiling zip v9.0.3
+   Compiling clap v4.6.3
+   Compiling cranelift-native v0.136.3
+   Compiling cranelift-frontend v0.136.3
+   Compiling rill-ml v1.5.6 (/tmp/cfip-g3/zip-refresh/stable-source)
+   Compiling wasmtime-internal-unwinder v49.0.3
+   Compiling wasmtime-internal-cranelift v49.0.3
+   Compiling rill-runtime-protocol v1.5.6 (/tmp/cfip-g3/zip-refresh/stable-source/crates/rill-runtime-protocol)
+   Compiling rill-runtime v1.5.6 (/tmp/cfip-g3/zip-refresh/stable-source/crates/rill-runtime)
+error[E0599]: the method `to_string` exists for enum `std::result::Result<Cow<'_, str>, ZipError>`, but its trait bounds were not satisfied
+   --> crates/rill-runtime/src/handler_package.rs:427:36
+    |
+427 |             let name = file.name().to_string();
+    |                                    ^^^^^^^^^ method cannot be called on `std::result::Result<Cow<'_, str>, ZipError>` due to unsatisfied trait bounds
+    |
+    = note: the following trait bounds were not satisfied:
+            `std::result::Result<Cow<'_, str>, ZipError>: std::fmt::Display`
+            which is required by `std::result::Result<Cow<'_, str>, ZipError>: ToString`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `rill-runtime` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
