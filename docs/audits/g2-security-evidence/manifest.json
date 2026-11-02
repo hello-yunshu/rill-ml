@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "qualification": "G2 local security and compatibility",
+  "candidateBaseCommit": "da8389fec7f879b826d8d17cbc6bb98c03ef8462",
+  "dirtyCandidate": true,
+  "stableBackportBaseCommit": "b990cd7043d313b0ff29c9693f091a94a5bdaf47",
+  "sourceSha256": {
+    ".github/workflows/pipeline.yml": "cae23e8a377f48737d137bee790eca97bed83963c91d5b174531bef3ec5fdbc9",
+    ".github/workflows/security.yml": "0a28e7af4cee1b2843f3c3241696e63602fabe6ba74ed19df2381266cecfea2f",
+    "CHANGELOG.md": "ce66787ec0e5039d90b7a3333380c9a25b102e04eb2d7efc726281266e88f2db",
+    "Cargo.lock": "9d0f0e86fd4258a18d2f7588e6d895bc30fba215b60f2dd5835c44a23e288082",
+    "Cargo.toml": "0efa22f2fb87ed54afc353578b2e86924972d04e09226157ece9b5a24775dece",
+    "RUNTIME.md": "7b57b54f4f237db6e48e2fc11c0de0046d1df708d7f8ba6c5602d1d3f944c539",
+    "STABILITY.md": "7a308886c8302a2e72e89ff5dde044a69bd6f0383b96abdd5e4a22a822808481",
+    "crates/rill-runtime/src/backend.rs": "daca75b0b791eeab418d2a52c4226f7adbae82090b5e2ccec3aeeb6d6d7e7a6b",
+    "scripts/check_runtime_security_profile.py": "64f0fe462825f62c3344bb5b8947ae990c6e15c383babdbbb2e0e9ad35fc11b4",
+    "scripts/generate_api_baseline.py": "f7452f55b3657fd25aad39721bc10ca8a3593a30d89daf2462db5854b85228f6",
+    "scripts/run_runtime_final_qualification.py": "f7c806d2c87f5439552d53c7265c09831227ef04b9b74e640cd479e9b00a8afd",
+    "scripts/run_runtime_qualification.py": "989b03d8be454d82dc7ac750ba054d86bbc7046c436b55193fe5c6178be138ea",
+    "scripts/tests/test_api_baseline.py": "c8df3fea49e333992b7d4a44409e3c4f4ee6b04374f0735a2e3d8b0bb1ed6328",
+    "scripts/tests/test_runtime_security_profile.py": "9f5f244e3d72f80584524f344a1714bc3d9e79ddf4f6689c3a7341d7311c6516"
+  },
+  "evidenceSha256": {
+    "actionlint-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "x86-signed-smoke.log": "d9edf931acf2126fbbaea47609e4daa4a4b4b90130af59f2b9c96414d3b1bd35",
+    "base-api-isolated.log": "0b2a597f910064ea4344a5182be15a3d230f7f52ffef880e72cdae16443c8cb5",
+    "api-baseline-after.log": "bc4776925452184a63d30f587e68f79c9d9a32f013d585e0984181eb409127a0",
+    "engine-security.log": "968a410a6d8657d22f91b4d1e97acbe35606b8605fcf3c4c2e6b8a6dd9cfe75b",
+    "stable-dependency.patch": "747512de30dc2a927bbe8950e8c6fc05f8ba5559462dfd88c8780af9433e7fe9",
+    "security-profiles-final.json": "18cd35ced290022e04196941f74fd11f41b621efc0f77229a4976c8e54b3a559",
+    "pm-stable-isolated.log": "9b14ce4ae958c908da1fe31f93716caf7cfb2eea0265ef85616de1ba7e629c40",
+    "native-signed-before.log": "11b0eae9ce52b1ff36ef06f4556266a0442cfd9ae28006bf319cf0c7deb07b82",
+    "preview-final-tests.log": "9140702a567f649e89e69b8be69f9fba4f9c6285c4ed941e978da8d1c28d66ef",
+    "arm64-signed-smoke.log": "d9edf931acf2126fbbaea47609e4daa4a4b4b90130af59f2b9c96414d3b1bd35",
+    "sbom-verify.log": "b3401bc39e02522c415bb23048bd0ba415c88168ecd45e8ef7912a66562eb19b",
+    "stable-isolated-build.log": "c0b35512e18c2624bc236da1d55e9b662257de545127bbe61c1ef4e28ccd27b2",
+    "core-msrv.log": "82364910da20b5586597f51dedc4a1ae7788be113dcbbfb158b1f8afbd628012",
+    "wasm-tools-source.json": "d7d019e5743e9b5d9762dbc9edb43b71bd7fd9112e5d04746eb3676461062910",
+    "aarch64-musl-final.log": "82edcec58e54bbd80e4037242d99927030346f9b4db7ecd0eeb36682b6f379c3",
+    "preview-bounded-qualification-verified.json": "b2cf354b44a9d8c06e90b6aa9f7e36bde42cf74b72ce19dc72dbff1fe9f50837",
+    "python-tests-final.log": "768ee15970c5be2ea009fb29a8dd8c4f85d83980dfb3164fe527cedb30006260",
+    "msrv196-final.log": "ca3dcd344b8fb796ec8b6bc75c8b1867ba94f5d09f0040f593048d16aaac7859",
+    "audit-final.json": "2026ccca824452d7b01d19a4408023970ddb56f9569277d4ef611f3305ab8f2c",
+    "pm-stable-isolated.json": "46df1fd01c8a3de9767e3b54d809a917ee64875246ed9b185f92c443e579f974",
+    "x86-musl.log": "d747b84261fb28a91f0195b9056f6b8c3994f9ce375036de6128263d8e9d5caa",
+    "cf-lifecycle-final.log": "dc13d05113b55a4111d22776655b73f00581f20a6ed11503da9719ea61b613fb",
+    "rill-ml-1.5.6-g2-local.spdx.json": "9f211fca8dcae012a495111054dda47e92f1dba8b4e65eff2f0d457d58daf706",
+    "test-summary.json": "ada69423045cd75d89f140efc5b25b25906f3f46f87dd70e9314fede0f31bbbb",
+    "runtime-api.txt": "fe42e3e170a45787c8ef84a5988ba725c94b2065413777bf055dd6309faa61f0",
+    "audit-before.json": "beaf7e27cf1bead33bff3b0eae340b34e0296882a4bee00d35c0c46649cdf917",
+    "fmt-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cf-linux-musl-integration.log": "3c04dba787501dfff9c3d7507ebf72ba8f7a8c5597158a7bb73dbb3758e8402a",
+    "base-api-isolated.txt": "fe42e3e170a45787c8ef84a5988ba725c94b2065413777bf055dd6309faa61f0",
+    "target-install-final.log": "831ad8906cd548d1be0b512110752469e0a5b4f23e8ea459eb4bf438761bef31",
+    "native-signed-after.log": "366fce3c3665fbbb95dbc14e1e5e2a61e9f3551a73e5d6f9648237b25f51ddb5",
+    "pm-original-preview.log": "4f6812a8ae8a0f1ed54a6dccfc5d346db33ebc5953b52613991548a90e649e47",
+    "stable-final-tests.log": "2123282a5eb84ba077e5c99c5aec5bb703d6bc4dd3a63fdbd6cc7e6948d60c89",
+    "riscv-musl.log": "3aaf7b0ea94feb8ce38686163dc46ffceee306390eb43a3288cf7eb5af26b7cf",
+    "pm-partition-probe.json": "9f0bc17159244cb7634bbabb8c8d0ad8d4a5052c7a10e81695c88f2c3b6b9733",
+    "rill-ml-1.5.6-g2-local.cdx.json": "6ad34678e40087347f0a832a512e3094aa88c364de51d77ed964db8a4a0db641",
+    "before-default-build.log": "2043981a7fee03be1bb364d4f805f48243bdc4d5b21cf8b0a48e7111d31b1290",
+    "cf-feedback-final.log": "6ab92f16a4e484fde64c64ac69c78bc3ba7f1f97a96d7969385e5598cd801bbc",
+    "msrv196-explicit.log": "8950be1e8f4499f41b8e38ef15f09a0e2671be53a43aa5dec4d794320908881d",
+    "preview-bounded-qualification-final.json": "2b5f0de0e1d4256538fb3bc0450f314ea5104a6fcbf2c0d673376fc9b55bb3bc",
+    "preview-bounded-qualification.json": "5649cf7304443144c1070f59d6e60bf9c27911319f98effc3e1a5c827fc49bf3",
+    "pm-partition-probe.log": "9b14ce4ae958c908da1fe31f93716caf7cfb2eea0265ef85616de1ba7e629c40",
+    "runtime-faults.json": "e16c2a44a187378f5537aa9ea617a75bbcfd81a443e3c1508baf1cda1274ca5a"
+  },
+  "temporaryBuildRoot": "/tmp/cfip-g2.9hpU2U",
+  "binaries": {
+    "base-target/release/rill-runtime": {
+      "sha256": "ffc045d321793092b2aa879f78bb7ce3cda80cd091673b80bf8a14fd69801227",
+      "bytes": 15787824
+    },
+    "binaries/rill-runtime-preview-macos": {
+      "sha256": "a71b1c354eb839d7f7b6f37fb748fb04d9a452adc59ea96318485a3bc5abe084",
+      "bytes": 15977664
+    },
+    "binaries/rill-runtime-stable-macos": {
+      "sha256": "0ba6dc62eeb0dd101b59231164af03e1bd34f7cbf0bb1d9ee377e76ddfbe035f",
+      "bytes": 15911296
+    },
+    "musl-target/x86_64-unknown-linux-musl/release/rill-runtime": {
+      "sha256": "3cfd37b2a00ccd87a8b2542a4d747ca221c5a90be50660581a266a059bd5ca03",
+      "bytes": 14857032
+    },
+    "musl-target/aarch64-unknown-linux-musl/release/rill-runtime": {
+      "sha256": "501000336372fcfea18c510c084f3a1563d705b5ced03eb9bdf632d1ea6a99f3",
+      "bytes": 11279200
+    },
+    "musl-target/riscv64gc-unknown-linux-musl/release/rill-runtime": {
+      "sha256": "2e9fb29d65512c16d65f3fb326c649efb55a379c33c773440dc2b7cde1212592",
+      "bytes": 11536016
+    }
+  },
+  "fixtures": {
+    "fixtures/test-stateful-handler-v2.wasm": "d07ab8379f4a894145073de141143b391b81f55ecd67d64b6e60a2e03db633ab",
+    "fixtures/test-malicious-handler.wasm": "5627f466cbba47a7b78f8791b0954d84a608d1a3874bfb3ea931f6d1e798c2d8",
+    "fixtures/echo-handler.wasm": "975b55cc1e203d8b798440eae00bc4ed9deb36b7f7c69fa3b69144fec2cca7ef",
+    "fixtures/test-metadata-loop-handler.wasm": "19360ddad864a173b411b3f646b90725077ee8cb02b3dc4f76f51c084b46632c",
+    "crates/rill-runtime/tests/fixtures/handler-v1-component.wasm": "6cfb4bf2eac5d0d5a4644c56f58b2fd679fc989893bc381a8ae31b410852011b"
+  },
+  "g1SnapshotFilesVerifiedUnchanged": 31,
+  "packageRepositoryUnchanged": true,
+  "performanceManagerRepositoryUnchanged": true,
+  "releaseGate": "OPEN; no hosted CI/publication/device claim"
+}

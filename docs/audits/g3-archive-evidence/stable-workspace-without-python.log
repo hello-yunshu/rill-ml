@@ -1,0 +1,1524 @@
+   Compiling rill-runtime v1.5.6 (/tmp/cfip-g3/zip-refresh/stable-source/crates/rill-runtime)
+   Compiling rill-runtime-protocol v1.5.6 (/tmp/cfip-g3/zip-refresh/stable-source/crates/rill-runtime-protocol)
+   Compiling rill-ml v1.5.6 (/tmp/cfip-g3/zip-refresh/stable-source)
+   Compiling rillml-inspect v0.15.0 (/tmp/cfip-g3/zip-refresh/stable-source/crates/rillml-inspect)
+   Compiling rill-ml-ffi v0.15.0 (/tmp/cfip-g3/zip-refresh/stable-source/crates/rill-ml-ffi)
+   Compiling rill-handler-api v1.5.6 (/tmp/cfip-g3/zip-refresh/stable-source/crates/rill-handler-api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.41s
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_handler_api-d5203d9e621b4d0c)
+
+running 2 tests
+test tests::constants_are_stable ... ok
+test tests::preview_v2_constants_are_independent ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_ml-cc81212878544921)
+
+running 759 tests
+test bandit::epsilon_greedy::tests::rejects_invalid_decay ... ok
+test bandit::epsilon_greedy::tests::arm_stats_rejects_invalid_arm ... ok
+test bandit::epsilon_greedy::tests::epsilon_decay_reduces_exploration ... ok
+test bandit::epsilon_greedy::tests::epsilon_decay_respects_min_epsilon ... ok
+test bandit::epsilon_greedy::tests::arm_stats_after_updates ... ok
+test bandit::epsilon_greedy::tests::initial_state ... ok
+test bandit::epsilon_greedy::tests::best_arm_tie_breaks_by_lowest_index ... ok
+test bandit::epsilon_greedy::tests::exploitation_picks_best_arm ... ok
+test bandit::epsilon_greedy::tests::rejects_invalid_epsilon ... ok
+test bandit::epsilon_greedy::tests::rejects_invalid_min_epsilon ... ok
+test bandit::epsilon_greedy::tests::rejects_zero_arm_count ... ok
+test bandit::epsilon_greedy::tests::reset_clears_state ... ok
+test bandit::epsilon_greedy::tests::exploration_with_epsilon_one ... ok
+test bandit::epsilon_greedy::tests::select_with_no_data_returns_valid_arm ... ok
+test bandit::epsilon_greedy::tests::finds_best_arm_in_simulation ... ok
+test bandit::epsilon_greedy::tests::update_increments_samples_seen ... ok
+test bandit::epsilon_greedy::tests::update_rejects_invalid_arm ... ok
+test bandit::epsilon_greedy::tests::update_rejects_non_finite_reward ... ok
+test bandit::epsilon_greedy::tests::update_rejects_overflow_without_mutating_state ... ok
+test bandit::linucb::tests::b_vector_rejects_invalid_arm ... ok
+test bandit::linucb::tests::a_matrix_rejects_invalid_arm ... ok
+test bandit::linucb::tests::dot_product_correct ... ok
+test bandit::linucb::tests::cholesky_scores_match_explicit_inverse_reference ... ok
+test bandit::linucb::tests::contextual_selection_prefers_aligned_arm ... ok
+test bandit::epsilon_greedy::tests::serde_rejects_malformed_state ... ok
+test bandit::linucb::tests::deterministic_selection_uses_lowest_index_for_exact_ties ... ok
+test bandit::linucb::tests::fast_update_failure_is_atomic ... ok
+test bandit::linucb::tests::fast_conversion_matches_stable_state ... ok
+test bandit::epsilon_greedy::tests::serde_roundtrip ... ok
+test bandit::linucb::tests::identity_matrix_inverse_is_identity ... ok
+test bandit::linucb::tests::initial_a_is_identity ... ok
+test bandit::linucb::tests::initial_b_is_zero ... ok
+test bandit::linucb::tests::initial_state ... ok
+test bandit::linucb::tests::known_2x2_matrix_inverse ... ok
+test bandit::linucb::tests::matrix_vector_mul_correct ... ok
+test bandit::linucb::tests::quadratic_form_correct ... ok
+test bandit::linucb::tests::rejects_invalid_alpha ... ok
+test bandit::linucb::tests::rejects_zero_arm_count ... ok
+test bandit::linucb::tests::rejects_zero_feature_count ... ok
+test bandit::linucb::tests::learns_to_prefer_high_reward_arm ... ok
+test bandit::linucb::tests::reset_clears_state ... ok
+test bandit::linucb::tests::score_arm_validates_arm_context_and_dimension ... ok
+test bandit::linucb::tests::score_breakdown_is_finite_and_sums_to_total ... ok
+test bandit::linucb::tests::scoring_is_side_effect_free ... ok
+test bandit::linucb::tests::fast_serde_roundtrip_preserves_future_continuity ... ok
+test bandit::linucb::tests::select_rejects_non_finite_context ... ok
+test bandit::linucb::tests::select_rejects_wrong_context_length ... ok
+test bandit::linucb::tests::select_returns_valid_arm ... ok
+test bandit::linucb::tests::serde_rejects_malformed_state ... ok
+test bandit::linucb::tests::serde_roundtrip ... ok
+test bandit::linucb::tests::single_arm_scoring_and_selection ... ok
+test bandit::linucb::tests::initial_ties_are_randomized ... ok
+test bandit::linucb::tests::singular_matrix_inverse_returns_error ... ok
+test bandit::linucb::tests::update_does_not_affect_other_arms ... ok
+test bandit::linucb::tests::update_modifies_a_and_b ... ok
+test bandit::linucb::tests::update_rejects_arithmetic_overflow_without_mutating_state ... ok
+test bandit::linucb::tests::update_rejects_invalid_arm ... ok
+test bandit::linucb::tests::update_rejects_non_finite_reward ... ok
+test bandit::linucb::tests::update_rejects_numerically_degenerate_matrix_without_mutating_state ... ok
+test bandit::linucb::tests::update_rejects_wrong_context_length ... ok
+test bandit::stats::tests::default_is_empty ... ok
+test bandit::stats::tests::mean_reward_for_various_pulls ... ok
+test bandit::stats::tests::empty_stats ... ok
+test bandit::stats::tests::new_rejects_non_finite ... ok
+test bandit::stats::tests::new_with_pulls ... ok
+test bandit::stats::tests::new_with_zero_pulls ... ok
+test bandit::stats::tests::serde_roundtrip ... ok
+test bandit::thompson::tests::arm_stats_rejects_invalid_arm ... ok
+test bandit::thompson::tests::arm_stats_after_updates ... ok
+test bandit::thompson::tests::initial_state ... ok
+test bandit::thompson::tests::rejects_invalid_priors ... ok
+test bandit::thompson::tests::rejects_zero_arm_count ... ok
+test bandit::thompson::tests::reset_clears_state ... ok
+test bandit::linucb::tests::condition_diagnostics_are_finite ... ok
+test bandit::thompson::tests::sample_gamma_returns_positive_value ... ok
+test bandit::thompson::tests::sample_beta_returns_value_in_unit_interval ... ok
+test bandit::thompson::tests::select_returns_valid_arm ... ok
+test bandit::thompson::tests::serde_rejects_malformed_state ... ok
+test bandit::thompson::tests::serde_roundtrip ... ok
+test bandit::thompson::tests::update_rejects_invalid_arm ... ok
+test bandit::thompson::tests::update_rejects_reward_out_of_range ... ok
+test bandit::thompson::tests::update_with_continuous_reward ... ok
+test bandit::thompson::tests::update_with_failure_increases_beta ... ok
+test bandit::thompson::tests::update_with_success_increases_alpha ... ok
+test bandit::ucb1::tests::all_arms_explored_uses_ucb_formula ... ok
+test bandit::ucb1::tests::arm_stats_rejects_invalid_arm ... ok
+test bandit::linucb::tests::select_with_scores_matches_select_including_random_ties ... ok
+test bandit::ucb1::tests::initial_state ... ok
+test bandit::ucb1::tests::rejects_invalid_exploration_constant ... ok
+test bandit::ucb1::tests::finds_best_arm_in_simulation ... ok
+test bandit::ucb1::tests::rejects_zero_arm_count ... ok
+test bandit::ucb1::tests::reset_clears_state ... ok
+test bandit::ucb1::tests::serde_rejects_malformed_state ... ok
+test bandit::ucb1::tests::serde_roundtrip ... ok
+test bandit::ucb1::tests::ucb_value_decreases_with_more_pulls ... ok
+test bandit::ucb1::tests::ucb_value_for_unpulled_arm_is_infinity ... ok
+test bandit::ucb1::tests::unexplored_arms_prioritized ... ok
+test bandit::ucb1::tests::unpulled_arms_selected_first ... ok
+test bandit::ucb1::tests::update_rejects_invalid_arm ... ok
+test bandit::ucb1::tests::update_rejects_reward_outside_unit_interval ... ok
+test decision::tests::caller_validator_can_enforce_domain_specific_context_rules ... ok
+test decision::tests::capacity_never_evicts_live_or_completed_state ... ok
+test decision::tests::contextual_helper_updates_model_and_ledger_together ... ok
+test decision::tests::completed_replay_and_explicit_tombstone_cleanup ... ok
+test decision::tests::every_feedback_fact_is_checked_without_mutation ... ok
+test decision::tests::expiry_boundary_is_inclusive_and_cleanup_is_explicit ... ok
+test decision::tests::feedback_checks_are_atomic_and_tombstoned ... ok
+test decision::tests::registration_is_idempotent_but_conflicts_fail ... ok
+test decision::tests::per_decision_context_and_action_memory_is_bounded ... ok
+test decision::tests::serde_roundtrip_and_corruption_validation ... ok
+test descriptor::tests::descriptor_rejects_schema_mismatch ... ok
+test descriptor::tests::feature_order_and_version_change_hash ... ok
+test descriptor::tests::golden_schema_fixture_has_stable_hash ... ok
+test descriptor::tests::serde_roundtrip_preserves_identity ... ok
+test descriptor::tests::metadata_insertion_and_json_map_order_do_not_change_hash ... ok
+test diagnostics::baseline_comparator::tests::best_name_maps_index ... ok
+test diagnostics::baseline_comparator::tests::duplicate_names_rejected ... ok
+test diagnostics::baseline_comparator::tests::empty_names_rejected ... ok
+test diagnostics::baseline_comparator::tests::entry_out_of_bounds ... ok
+test diagnostics::baseline_comparator::tests::insufficient_data_when_all_empty ... ok
+test diagnostics::baseline_comparator::tests::record_out_of_bounds_rejected ... ok
+test diagnostics::baseline_comparator::tests::record_updates_entry ... ok
+test diagnostics::baseline_comparator::tests::reset_clears_all ... ok
+test diagnostics::baseline_comparator::tests::serde_roundtrip ... ok
+test diagnostics::baseline_comparator::tests::switch_count_increments ... ok
+test diagnostics::baseline_comparator::tests::three_way_comparison ... ok
+test diagnostics::baseline_comparator::tests::tie_records_tie_reason ... ok
+test diagnostics::baseline_comparator::tests::update_best_returns_new_index_on_switch ... ok
+test diagnostics::baseline_comparator::tests::update_best_returns_none_on_no_change ... ok
+test diagnostics::baseline_comparator::tests::update_best_selects_lowest_error ... ok
+test diagnostics::baseline_comparator::tests::zero_window_rejected ... ok
+test diagnostics::model_health::tests::detects_infinity ... ok
+test diagnostics::model_health::tests::detects_nan ... ok
+test diagnostics::model_health::tests::detects_neg_infinity ... ok
+test diagnostics::model_health::tests::healthy_model ... ok
+test diagnostics::model_health::tests::empty_weights ... ok
+test diagnostics::model_health::tests::multiple_weights_with_intercept ... ok
+test diagnostics::model_health::tests::serde_roundtrip ... ok
+test diagnostics::model_health::tests::single_weight ... ok
+test diagnostics::model_health::tests::state_size_calculation ... ok
+test diagnostics::model_health::tests::weight_range_correct ... ok
+test diagnostics::model_selector::tests::best_model_selected ... ok
+test diagnostics::model_selector::tests::current_best_name ... ok
+test diagnostics::model_selector::tests::cooling_period_prevents_switch ... ok
+test diagnostics::model_selector::tests::empty_names_rejected ... ok
+test diagnostics::model_selector::tests::entry_metrics_access ... ok
+test diagnostics::model_selector::tests::min_samples_required ... ok
+test bandit::thompson::tests::finds_best_arm_in_simulation ... ok
+test diagnostics::model_selector::tests::record_out_of_bounds_rejected ... ok
+test diagnostics::model_selector::tests::reset_clears_all ... ok
+test diagnostics::model_selector::tests::select_after_min_samples ... ok
+test diagnostics::model_selector::tests::select_returns_none_initially ... ok
+test diagnostics::model_selector::tests::switch_count_tracked ... ok
+test diagnostics::model_selector::tests::three_models_selection ... ok
+test diagnostics::model_selector::tests::serde_roundtrip ... ok
+test diagnostics::model_selector::tests::two_models_alternating ... ok
+test diagnostics::model_selector::tests::zero_window_rejected ... ok
+test diagnostics::prediction_interval::tests::alpha_affects_memory ... ok
+test diagnostics::prediction_interval::tests::contains_checks_bounds ... ok
+test diagnostics::prediction_interval::tests::custom_k_widens_interval ... ok
+test diagnostics::prediction_interval::tests::interval_constructs_correctly ... ok
+test diagnostics::prediction_interval::tests::interval_contains_subsequent_observation ... ok
+test diagnostics::prediction_interval::tests::interval_without_observations_errors ... ok
+test diagnostics::prediction_interval::tests::invalid_alpha_rejected ... ok
+test diagnostics::prediction_interval::tests::invalid_k_rejected ... ok
+test diagnostics::prediction_interval::tests::non_finite_prediction_rejected ... ok
+test diagnostics::prediction_interval::tests::non_finite_truth_rejected ... ok
+test diagnostics::prediction_interval::tests::observe_then_interval ... ok
+test diagnostics::prediction_interval::tests::recent_error_none_initially ... ok
+test diagnostics::prediction_interval::tests::reset_clears_state ... ok
+test diagnostics::prediction_interval::tests::serde_roundtrip ... ok
+test diagnostics::prediction_report::tests::confidence_as_str ... ok
+test diagnostics::prediction_report::tests::confidence_progression ... ok
+test diagnostics::prediction_report::tests::default_reporter_no_data ... ok
+test diagnostics::prediction_report::tests::degraded_state ... ok
+test diagnostics::prediction_report::tests::observe_then_report ... ok
+test diagnostics::prediction_report::tests::observe_with_non_finite_rejected ... ok
+test diagnostics::prediction_report::tests::report_with_non_finite_prediction_errors ... ok
+test diagnostics::prediction_report::tests::reset_clears_all ... ok
+test diagnostics::prediction_report::tests::samples_seen_tracked ... ok
+test diagnostics::prediction_report::tests::serde_roundtrip ... ok
+test diagnostics::prediction_report::tests::set_baseline_enables_comparison ... ok
+test diagnostics::training_summary::tests::beats_baseline_comparison ... ok
+test diagnostics::training_summary::tests::beats_baseline_none_without_errors ... ok
+test diagnostics::training_summary::tests::counts_tracked_correctly ... ok
+test bandit::thompson::tests::sample_gamma_mean_converges ... ok
+test diagnostics::training_summary::tests::custom_alpha_changes_memory ... ok
+test diagnostics::training_summary::tests::default_summary_has_no_data ... ok
+test diagnostics::training_summary::tests::invalid_alpha_rejected ... ok
+test diagnostics::training_summary::tests::negative_error_uses_absolute_value ... ok
+test diagnostics::training_summary::tests::non_finite_baseline_rejected ... ok
+test diagnostics::training_summary::tests::non_finite_error_rejected ... ok
+test diagnostics::training_summary::tests::record_error_updates_recent_and_best ... ok
+test diagnostics::training_summary::tests::reset_clears_all ... ok
+test diagnostics::training_summary::tests::serde_roundtrip ... ok
+test diagnostics::warmup::tests::degraded_takes_precedence_over_stable ... ok
+test diagnostics::warmup::tests::degraded_when_error_exceeds_ratio ... ok
+test diagnostics::warmup::tests::invalid_config_rejected ... ok
+test diagnostics::warmup::tests::no_baseline_means_usable ... ok
+test diagnostics::warmup::tests::no_data_initially ... ok
+test diagnostics::warmup::tests::non_finite_error_rejected ... ok
+test diagnostics::warmup::tests::observe_sample_with_error ... ok
+test diagnostics::warmup::tests::observe_sample_without_error ... ok
+test diagnostics::warmup::tests::reset_clears_state ... ok
+test diagnostics::warmup::tests::serde_roundtrip ... ok
+test diagnostics::warmup::tests::set_baseline_stores_absolute ... ok
+test diagnostics::warmup::tests::stable_when_meets_threshold_and_beats_baseline ... ok
+test diagnostics::warmup::tests::state_as_str ... ok
+test diagnostics::warmup::tests::state_is_ready ... ok
+test diagnostics::warmup::tests::usable_after_warming_up ... ok
+test diagnostics::warmup::tests::warming_up_below_threshold ... ok
+test drift::action::tests::action_as_str ... ok
+test drift::action::tests::action_default_is_notify_only ... ok
+test drift::action::tests::action_is_destructive ... ok
+test drift::action::tests::action_serde_roundtrip ... ok
+test drift::action::tests::drift_event_construction ... ok
+test drift::action::tests::drift_event_serde_roundtrip ... ok
+test drift::adwin::tests::default_config_is_valid ... ok
+test drift::adwin::tests::detects_gradual_drift ... ok
+test drift::adwin::tests::hoeffding_bound_decreases_with_more_data ... ok
+test drift::adwin::tests::max_window_enforced ... ok
+test drift::adwin::tests::min_samples_gates_detection ... ok
+test drift::adwin::tests::detects_sudden_mean_shift ... ok
+test drift::adwin::tests::portable_state_rejects_mismatch_and_corruption ... ok
+test drift::adwin::tests::rejects_invalid_config ... ok
+test drift::adwin::tests::rejects_non_finite_input ... ok
+test drift::adwin::tests::reset_clears_state ... ok
+test drift::adwin::tests::serde_roundtrip ... ok
+test drift::adwin::tests::window_mean_correct ... ok
+test drift::adwin::tests::portable_state_restore_preserves_future_results ... ok
+test drift::aware_model::tests::default_strategy_does_not_reset_model ... ok
+test drift::adwin::tests::window_trims_after_drift ... ok
+test drift::aware_model::tests::detects_drift_and_records_event ... ok
+test drift::aware_model::tests::events_bounded_by_max_events ... ok
+test drift::aware_model::tests::increase_adaptation_rate_action_recorded ... ok
+test drift::aware_model::tests::last_action_updated_after_learn ... ok
+test drift::aware_model::tests::learn_feeds_error_to_detector ... ok
+test drift::aware_model::tests::model_detector_strategy_accessors ... ok
+test drift::aware_model::tests::predict_delegates_to_model ... ok
+test drift::aware_model::tests::rejects_zero_max_events ... ok
+test drift::aware_model::tests::replace_with_baseline_action_recorded ... ok
+test drift::aware_model::tests::reset_clears_all_state ... ok
+test decision::tests::arbitrary_invalid_feedback_never_removes_pending ... ok
+test drift::aware_model::tests::reset_model_action_calls_model_reset ... ok
+test drift::aware_model::tests::samples_seen_tracks_learn_calls ... ok
+test drift::aware_model::tests::serde_roundtrip ... ok
+test drift::consensus::tests::cooldown_and_merge_horizon_merge_repeated_events ... ok
+test drift::consensus::tests::duplicate_votes_and_capacity_are_rejected_atomically ... ok
+test drift::consensus::tests::counter_overflow_and_corrupt_event_state_are_failure_atomic ... ok
+test drift::consensus::tests::generation_change_resets_confirmation_context ... ok
+test drift::consensus::tests::interrupted_confirmation_and_incomplete_data_do_not_trigger_or_clear ... ok
+test drift::consensus::tests::one_two_and_three_of_three_votes_are_explainable ... ok
+test drift::consensus::tests::warning_escalates_to_drift_and_clear_uses_hysteresis ... ok
+test drift::consensus::tests::serde_restore_preserves_continuity_and_validation_rejects_corruption ... ok
+test drift::decay::tests::fwb_empty_buffer_mean_none ... ok
+test drift::decay::tests::fwb_iter_returns_in_order ... ok
+test drift::decay::tests::fwb_mean_correct ... ok
+test drift::decay::tests::fwb_push_below_capacity ... ok
+test drift::decay::tests::fwb_push_overwrites_oldest ... ok
+test drift::decay::tests::fwb_rejects_non_finite ... ok
+test drift::decay::tests::fwb_rejects_zero_capacity ... ok
+test drift::decay::tests::fwb_reset_clears ... ok
+test drift::decay::tests::fwb_wrap_around_multiple_times ... ok
+test drift::decay::tests::fwb_serde_roundtrip ... ok
+test drift::decay::tests::lrs_default_lr ... ok
+test drift::decay::tests::lrs_drift_increases_more ... ok
+test drift::decay::tests::lrs_rejects_invalid_config ... ok
+test drift::decay::tests::lrs_reset_to_base ... ok
+test drift::decay::tests::lrs_serde_roundtrip ... ok
+test drift::decay::tests::lrs_warning_increases_lr ... ok
+test drift::decay::tests::tdm_decay_weights_old_samples ... ok
+test drift::decay::tests::tdm_equal_time_no_decay ... ok
+test drift::decay::tests::tdm_first_sample_seeds_mean ... ok
+test drift::decay::tests::tdm_rejects_invalid_decay ... ok
+test drift::decay::tests::tdm_rejects_negative_dt ... ok
+test drift::decay::tests::tdm_rejects_non_finite ... ok
+test drift::decay::tests::tdm_reset_clears_state ... ok
+test drift::decay::tests::tdm_serde_roundtrip ... ok
+test drift::decay::tests::tdm_value_correct ... ok
+test drift::detector::tests::drift_level_as_str ... ok
+test drift::detector::tests::drift_level_default_is_none ... ok
+test drift::detector::tests::drift_level_is_change ... ok
+test drift::kswin::tests::config_serde_roundtrip ... ok
+test drift::kswin::tests::default_config_is_valid ... ok
+test drift::kswin::tests::detects_distribution_shape_change ... ok
+test drift::kswin::tests::detects_variance_change ... ok
+test drift::kswin::tests::ks_pvalue_decreases_with_larger_d ... ok
+test drift::kswin::tests::detects_mean_shift ... ok
+test drift::kswin::tests::ks_statistic_disjoint_distributions ... ok
+test drift::kswin::tests::ks_pvalue_is_in_unit_interval ... ok
+test drift::kswin::tests::ks_statistic_identical_distributions ... ok
+test drift::kswin::tests::ks_statistic_symmetric ... ok
+test drift::kswin::tests::ks_survival_known_values ... ok
+test drift::kswin::tests::last_value_returns_last_pvalue ... ok
+test drift::kswin::tests::min_samples_gates_detection ... ok
+test drift::kswin::tests::no_false_positive_on_stable_stream ... ok
+test drift::kswin::tests::portable_state_rejects_mismatch_and_corruption ... ok
+test drift::kswin::tests::portable_state_restore_preserves_future_results ... ok
+test drift::kswin::tests::rejects_invalid_config ... ok
+test drift::kswin::tests::rejects_non_finite_input ... ok
+test drift::kswin::tests::reset_clears_state ... ok
+test bandit::linucb::tests::fast_linucb_matches_stable_scores_and_selection ... ok
+test drift::kswin::tests::window_rotation_after_drift ... ok
+test drift::page_hinkley::tests::config_serde_roundtrip ... ok
+test drift::kswin::tests::serde_roundtrip ... ok
+test drift::page_hinkley::tests::default_config_is_valid ... ok
+test drift::page_hinkley::tests::detects_sudden_mean_shift ... ok
+test drift::page_hinkley::tests::forgetting_factor_detects_drift ... ok
+test drift::page_hinkley::tests::mean_tracks_stream_average ... ok
+test drift::page_hinkley::tests::min_samples_gates_detection ... ok
+test drift::page_hinkley::tests::no_false_positive_on_stable_stream ... ok
+test drift::page_hinkley::tests::ph_statistic_is_non_negative ... ok
+test drift::page_hinkley::tests::portable_state_rejects_mismatch_and_corruption ... ok
+test drift::page_hinkley::tests::portable_state_restore_preserves_future_results ... ok
+test drift::page_hinkley::tests::rejects_invalid_config ... ok
+test drift::page_hinkley::tests::rejects_non_finite_input ... ok
+test drift::page_hinkley::tests::reset_clears_state ... ok
+test drift::page_hinkley::tests::serde_roundtrip ... ok
+test drift::page_hinkley::tests::warning_before_drift ... ok
+test drift::page_hinkley::tests::works_on_prediction_error_stream ... ok
+test drift::strategy::tests::custom_strategy ... ok
+test drift::strategy::tests::default_strategy_is_notify_only ... ok
+test drift::strategy::tests::samples_seen_does_not_affect_static_strategy ... ok
+test drift::strategy::tests::serde_roundtrip ... ok
+test error::tests::dimension_mismatch_display ... ok
+test error::tests::ensure_finite_passes_for_normal_values ... ok
+test error::tests::ensure_finite_rejects_nan_and_infinity ... ok
+test error::tests::invalid_arm_count_display ... ok
+test error::tests::invalid_arm_display ... ok
+test error::tests::invalid_epsilon_display ... ok
+test error::tests::invalid_feature_count_display ... ok
+test error::tests::invalid_reward_display ... ok
+test error::tests::validate_features_checks_dimension ... ok
+test error::tests::validate_features_rejects_empty ... ok
+test error::tests::validate_features_rejects_non_finite ... ok
+test evaluate::progressive::tests::progressive_evaluates_before_learning ... ok
+test feature_hasher::tests::collision_overflow_is_rejected ... ok
+test feature_hasher::tests::different_seeds_produce_different_output ... ok
+test feature_hasher::tests::different_strings_different_ids ... ok
+test feature_hasher::tests::dimension_one_all_same_bucket ... ok
+test feature_hasher::tests::empty_features_returns_zeros ... ok
+test feature_hasher::tests::hash_strings_creates_sorted_features ... ok
+test feature_hasher::tests::invalid_dimension_rejected ... ok
+test feature_hasher::tests::reproducible_output ... ok
+test feature_hasher::tests::serde_rejects_zero_dimension ... ok
+test feature_hasher::tests::serde_roundtrip ... ok
+test feature_hasher::tests::signed_hashing_produces_negatives ... ok
+test feature_hasher::tests::string_hash_reproducible ... ok
+test feature_hasher::tests::unsigned_hashing_all_positive ... ok
+test loss::huber::tests::invalid_delta_rejected ... ok
+test loss::huber::tests::linear_region_clipped ... ok
+test loss::huber::tests::quadratic_region_matches_squared ... ok
+test loss::log_loss::tests::gradient_wrt_logit_matches_probability_minus_target ... ok
+test loss::log_loss::tests::invalid_epsilon_rejected ... ok
+test loss::log_loss::tests::log_loss_clips_extreme_probabilities ... ok
+test loss::log_loss::tests::log_loss_correct_target ... ok
+test loss::log_loss::tests::sigmoid_bounds ... ok
+test loss::squared::tests::gradient_sign ... ok
+test loss::squared::tests::loss_at_zero_residual_is_zero ... ok
+test loss::squared::tests::loss_value ... ok
+test metrics::classification::tests::accuracy_basic ... ok
+test metrics::classification::tests::empty_metrics_return_none ... ok
+test metrics::classification::tests::f1_basic ... ok
+test metrics::classification::tests::f1_perfect_is_one ... ok
+test metrics::classification::tests::f1_serde_rejects_inconsistent_samples_seen ... ok
+test metrics::classification::tests::f1_serde_rejects_missing_samples_seen ... ok
+test metrics::classification::tests::f1_serde_rejects_tp_fp_fn_overflow ... ok
+test metrics::classification::tests::f1_serde_rejects_tp_fp_overflow ... ok
+test metrics::classification::tests::log_loss_basic ... ok
+test metrics::classification::tests::log_loss_rejects_invalid_probability ... ok
+test metrics::classification::tests::metric_serde_accepts_max_boundary ... ok
+test metrics::classification::tests::metric_serde_roundtrip_preserves_samples_seen ... ok
+test metrics::classification::tests::precision_basic ... ok
+test metrics::classification::tests::precision_no_predictions_returns_none ... ok
+test metrics::classification::tests::precision_serde_rejects_inconsistent_samples_seen ... ok
+test metrics::classification::tests::precision_serde_rejects_missing_samples_seen ... ok
+test metrics::classification::tests::precision_serde_rejects_tp_fp_overflow ... ok
+test metrics::classification::tests::recall_basic ... ok
+test metrics::classification::tests::recall_serde_rejects_inconsistent_samples_seen ... ok
+test metrics::classification::tests::recall_serde_rejects_missing_samples_seen ... ok
+test metrics::classification::tests::recall_serde_rejects_tp_fn_overflow ... ok
+test metrics::classification::tests::reset_clears_samples_seen ... ok
+test metrics::classification::tests::samples_seen_counts_all_observations ... ok
+test metrics::classification::tests::samples_seen_overflow_is_atomic ... ok
+test metrics::regression::tests::empty_metric_returns_none ... ok
+test metrics::regression::tests::mae_basic ... ok
+test metrics::regression::tests::metrics_reject_overflow_without_mutating_state ... ok
+test metrics::regression::tests::mse_basic ... ok
+test metrics::regression::tests::non_finite_rejected ... ok
+test metrics::regression::tests::r2_constant_truth_returns_none ... ok
+test metrics::regression::tests::r2_insufficient_data_returns_none ... ok
+test metrics::regression::tests::r2_mean_prediction_is_zero ... ok
+test metrics::regression::tests::r2_partial_update_is_atomic ... ok
+test metrics::regression::tests::r2_perfect_prediction_is_one ... ok
+test metrics::regression::tests::r2_serde_accepts_count_one_with_nonzero_ss_res ... ok
+test metrics::regression::tests::r2_serde_rejects_count_one_with_nonzero_m2 ... ok
+test metrics::regression::tests::r2_serde_rejects_count_zero_with_nonzero_m2 ... ok
+test metrics::regression::tests::r2_serde_rejects_count_zero_with_nonzero_mean ... ok
+test metrics::regression::tests::r2_serde_rejects_count_zero_with_nonzero_ss_res ... ok
+test metrics::regression::tests::r2_serde_rejects_negative_m2 ... ok
+test metrics::regression::tests::r2_serde_rejects_negative_ss_res ... ok
+test metrics::regression::tests::r2_serde_roundtrip_preserves_state ... ok
+test metrics::regression::tests::r2_welford_large_offset_small_variance ... ok
+test metrics::regression::tests::rmse_basic ... ok
+test metrics::rolling::tests::rolling_accuracy_evicts_correctly ... ok
+test metrics::rolling::tests::rolling_empty_returns_none ... ok
+test metrics::rolling::tests::rolling_mae_evicts_correctly ... ok
+test metrics::rolling::tests::rolling_metrics_reject_overflow_without_mutating_state ... ok
+test metrics::rolling::tests::rolling_mse_evicts_correctly ... ok
+test metrics::rolling::tests::rolling_zero_capacity_rejected ... ok
+test models::baseline::tests::ew_mean_regressor_cold_start ... ok
+test models::baseline::tests::ew_mean_regressor_weights_recent ... ok
+test models::baseline::tests::initial_prediction_custom ... ok
+test models::baseline::tests::last_value_regressor_cold_start ... ok
+test models::baseline::tests::last_value_regressor_tracks_last ... ok
+test models::baseline::tests::mean_regressor_cold_start ... ok
+test models::baseline::tests::mean_regressor_predicts_running_mean ... ok
+test models::baseline::tests::non_finite_target_rejected ... ok
+test models::ftrl::tests::classifier_dynamic_features ... ok
+test models::ftrl::tests::classifier_empty_features_rejected ... ok
+test models::ftrl::tests::classifier_gradient_squared_underflow_is_atomic ... ok
+test models::ftrl::tests::classifier_ignore_skips_overflowing_new_feature ... ok
+test models::ftrl::tests::classifier_invalid_config_rejected ... ok
+test models::ftrl::tests::classifier_boundary_config_predict_proba_after_learn_always_finite ... ok
+test models::ftrl::tests::classifier_max_features_multi_new_prejudge ... ok
+test models::ftrl::tests::classifier_max_features_reject_at_limit ... ok
+test models::ftrl::tests::classifier_non_finite_value_rejected ... ok
+test models::ftrl::tests::classifier_overflow_does_not_mutate_state ... ok
+test models::ftrl::tests::classifier_max_features_ignore_skips_new ... ok
+test models::ftrl::tests::classifier_partial_update_is_atomic ... ok
+test models::ftrl::tests::classifier_predict_does_not_update_state ... ok
+test models::ftrl::tests::classifier_reset_clears_state ... ok
+test models::ftrl::tests::classifier_l1_produces_sparse_weights ... ok
+test models::ftrl::tests::classifier_samples_seen_overflow_is_atomic ... ok
+test models::ftrl::tests::classifier_serde_accepts_missing_optional_fields ... ok
+test models::ftrl::tests::classifier_serde_accepts_params_equal_to_max_features ... ok
+test models::ftrl::tests::classifier_serde_allows_unbounded_params_when_max_features_none ... ok
+test models::ftrl::tests::classifier_serde_rejects_config_dependent_zero_denominator ... ok
+test models::ftrl::tests::classifier_serde_rejects_intercept_zero_denominator ... ok
+test models::ftrl::tests::classifier_serde_rejects_invalid_config ... ok
+test models::ftrl::tests::classifier_serde_rejects_n_zero_z_nonzero ... ok
+test models::ftrl::tests::classifier_serde_rejects_negative_n ... ok
+test models::ftrl::tests::classifier_serde_rejects_params_above_max_features ... ok
+test models::ftrl::tests::classifier_serde_roundtrip ... ok
+test models::ftrl::tests::classifier_valid_boundary_state_roundtrips ... ok
+test models::ftrl::tests::classifier_weights_returns_nonzero_only ... ok
+test models::ftrl::tests::cold_start_returns_0_5 ... ok
+test models::ftrl::tests::cold_start_returns_zero ... ok
+test models::ftrl::tests::empty_features_rejected ... ok
+test models::ftrl::tests::dynamic_features ... ok
+test bandit::thompson::tests::sample_beta_mean_converges ... ok
+test models::ftrl::tests::invalid_config_rejected ... ok
+test models::ftrl::tests::intercept_learned ... ok
+test models::ftrl::tests::l1_produces_sparse_weights ... ok
+test models::ftrl::tests::learn_linear_data_converges ... ok
+test models::ftrl::tests::classifier_multiple_features ... ok
+test models::ftrl::tests::learn_improves_accuracy ... ok
+test models::ftrl::tests::multiple_features ... ok
+test models::ftrl::tests::non_finite_target_rejected ... ok
+test models::ftrl::tests::non_finite_value_rejected ... ok
+test models::ftrl::tests::learn_separable_data ... ok
+test models::ftrl::tests::predict_does_not_update_state ... ok
+test models::ftrl::tests::log_loss_converges ... ok
+test models::ftrl::tests::regressor_gradient_squared_underflow_is_atomic ... ok
+test models::ftrl::tests::regressor_ignore_skips_overflowing_new_feature ... ok
+test models::ftrl::tests::regressor_max_features_ignore_skips_new ... ok
+test models::ftrl::tests::regressor_max_features_multi_new_prejudge ... ok
+test models::ftrl::tests::regressor_max_features_reject_at_limit ... ok
+test models::ftrl::tests::predict_proba_in_range ... ok
+test models::ftrl::tests::regressor_boundary_config_predict_after_learn_always_finite ... ok
+test models::ftrl::tests::regressor_overflow_does_not_mutate_state ... ok
+test models::ftrl::tests::regressor_partial_update_is_atomic ... ok
+test models::ftrl::tests::regressor_predict_dot_plus_intercept_overflow ... ok
+test models::ftrl::tests::regressor_samples_seen_overflow_is_atomic ... ok
+test models::ftrl::tests::regressor_serde_accepts_missing_optional_fields ... ok
+test models::ftrl::tests::regressor_serde_accepts_params_equal_to_max_features ... ok
+test models::ftrl::tests::regressor_serde_allows_unbounded_params_when_max_features_none ... ok
+test models::ftrl::tests::regressor_serde_rejects_intercept_zero_denominator ... ok
+test models::ftrl::tests::regressor_serde_rejects_config_dependent_zero_denominator ... ok
+test models::ftrl::tests::regressor_serde_rejects_invalid_config ... ok
+test models::ftrl::tests::regressor_serde_rejects_n_zero_z_nonzero ... ok
+test models::ftrl::tests::regressor_serde_rejects_params_above_max_features ... ok
+test models::ftrl::tests::regressor_serde_rejects_negative_n ... ok
+test models::ftrl::tests::reset_clears_state ... ok
+test models::ftrl::tests::regressor_valid_boundary_state_roundtrips ... ok
+test models::ftrl::tests::serde_roundtrip ... ok
+test models::ftrl::tests::weights_returns_nonzero_only ... ok
+test models::linear_regression::tests::dimension_mismatch_rejected ... ok
+test models::linear_regression::tests::huber_loss_works ... ok
+test models::linear_regression::tests::non_finite_target_rejected ... ok
+test models::linear_regression::tests::optimizer_feature_count_mismatch_rejected ... ok
+test models::linear_regression::tests::adagrad_works ... ok
+test models::linear_regression::tests::predict_cold_start_returns_intercept ... ok
+test models::linear_regression::tests::predict_does_not_update_state ... ok
+test models::linear_regression::tests::reset_clears_state ... ok
+test models::linear_regression::tests::weighted_learning_scales_gradient_and_zero_is_noop ... ok
+test models::logistic_regression::tests::dimension_mismatch_rejected ... ok
+test models::logistic_regression::tests::predict_does_not_update_state ... ok
+test models::logistic_regression::tests::predict_proba_in_range ... ok
+test models::logistic_regression::tests::reset_clears_state ... ok
+test models::logistic_regression::tests::weighted_learning_zero_is_noop_and_positive_updates ... ok
+test models::naive_bayes::tests::approx_equal_non_negative_tolerances ... ok
+test models::naive_bayes::tests::bernoulli_cold_start_returns_0_5 ... ok
+test models::naive_bayes::tests::bernoulli_dimension_mismatch_rejected ... ok
+test models::naive_bayes::tests::bernoulli_invalid_alpha_rejected ... ok
+test models::naive_bayes::tests::bernoulli_learn_failure_leaves_state_unchanged ... ok
+test models::linear_regression::tests::learn_reduces_loss_on_linear_data ... ok
+test models::naive_bayes::tests::bernoulli_non_finite_rejected ... ok
+test models::logistic_regression::tests::learn_separable_data ... ok
+test models::naive_bayes::tests::bernoulli_predict_does_not_update_state ... ok
+test models::naive_bayes::tests::bernoulli_predict_proba_in_range ... ok
+test models::naive_bayes::tests::bernoulli_predict_proba_rejects_extreme_features_causing_nan_log_odds ... ok
+test models::naive_bayes::tests::bernoulli_learn_separable_data ... ok
+test models::naive_bayes::tests::bernoulli_rejects_negative_values ... ok
+test models::naive_bayes::tests::bernoulli_reset_clears_state ... ok
+test models::naive_bayes::tests::bernoulli_serde_rejects_feature_count_above_class_count ... ok
+test models::naive_bayes::tests::bernoulli_serde_rejects_class_count_overflow ... ok
+test models::naive_bayes::tests::bernoulli_serde_rejects_feature_vector_length_mismatch ... ok
+test models::naive_bayes::tests::bernoulli_serde_rejects_invalid_alpha ... ok
+test models::naive_bayes::tests::bernoulli_serde_rejects_samples_seen_mismatch ... ok
+test models::naive_bayes::tests::bernoulli_single_class_predict_proba_returns_0_or_1 ... ok
+test models::naive_bayes::tests::bernoulli_serde_roundtrip ... ok
+test models::naive_bayes::tests::bernoulli_zero_features_rejected ... ok
+test models::naive_bayes::tests::gaussian_cold_start_returns_0_5 ... ok
+test models::naive_bayes::tests::gaussian_dimension_mismatch_rejected ... ok
+test models::naive_bayes::tests::gaussian_invalid_alpha_rejected ... ok
+test models::naive_bayes::tests::gaussian_learn_failure_leaves_state_unchanged ... ok
+test models::naive_bayes::tests::gaussian_learn_failure_on_samples_seen_overflow_leaves_state_unchanged ... ok
+test models::naive_bayes::tests::gaussian_learn_succeeds_after_failed_attempt ... ok
+test models::naive_bayes::tests::gaussian_non_finite_rejected ... ok
+test models::naive_bayes::tests::gaussian_predict_does_not_update_state ... ok
+test models::naive_bayes::tests::gaussian_predict_proba_does_not_modify_state_on_error ... ok
+test models::naive_bayes::tests::gaussian_predict_proba_in_range ... ok
+test models::naive_bayes::tests::gaussian_predict_proba_rejects_extreme_features_causing_nan_log_odds ... ok
+test models::naive_bayes::tests::gaussian_reset_clears_state ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_class_count_overflow ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_count_one_with_nonzero_m2 ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_count_zero_with_nonzero_state ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_feature_count_not_equal_class_count ... ok
+test models::naive_bayes::tests::gaussian_learn_separable_data ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_feature_vector_length_mismatch ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_invalid_alpha ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_malicious_state_without_panic ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_negative_m2 ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_non_finite_state ... ok
+test models::naive_bayes::tests::gaussian_serde_rejects_samples_seen_mismatch ... ok
+test models::naive_bayes::tests::gaussian_single_class_predict_proba_returns_0_or_1 ... ok
+test models::naive_bayes::tests::gaussian_single_class_predicts_that_class ... ok
+test models::naive_bayes::tests::gaussian_serde_roundtrip ... ok
+test models::naive_bayes::tests::gaussian_zero_features_rejected ... ok
+test models::naive_bayes::tests::multinomial_cold_start_returns_0_5 ... ok
+test models::naive_bayes::tests::multinomial_dimension_mismatch_rejected ... ok
+test models::naive_bayes::tests::multinomial_handles_all_zero_features ... ok
+test models::naive_bayes::tests::multinomial_invalid_alpha_rejected ... ok
+test models::naive_bayes::tests::multinomial_learn_failure_leaves_state_unchanged ... ok
+test models::naive_bayes::tests::multinomial_learn_failure_on_class_count_overflow_leaves_state_unchanged ... ok
+test models::naive_bayes::tests::multinomial_learn_succeeds_after_failed_attempt ... ok
+test models::naive_bayes::tests::multinomial_non_finite_rejected ... ok
+test models::naive_bayes::tests::multinomial_predict_does_not_update_state ... ok
+test models::naive_bayes::tests::multinomial_predict_proba_in_range ... ok
+test models::naive_bayes::tests::multinomial_predict_proba_rejects_extreme_features_causing_nan_log_odds ... ok
+test models::naive_bayes::tests::multinomial_rejects_negative_values ... ok
+test models::naive_bayes::tests::multinomial_reset_clears_state ... ok
+test models::naive_bayes::tests::multinomial_serde_accepts_tiny_total_roundoff ... ok
+test models::naive_bayes::tests::multinomial_serde_rejects_class_count_overflow ... ok
+test models::naive_bayes::tests::multinomial_serde_rejects_feature_vector_length_mismatch ... ok
+test models::naive_bayes::tests::multinomial_serde_rejects_negative_feature_sum ... ok
+test models::naive_bayes::tests::multinomial_serde_rejects_samples_seen_mismatch ... ok
+test models::naive_bayes::tests::multinomial_serde_rejects_total_mismatch ... ok
+test models::naive_bayes::tests::multinomial_serde_roundtrip ... ok
+test models::naive_bayes::tests::multinomial_single_class_predict_proba_returns_0_or_1 ... ok
+test models::naive_bayes::tests::gaussian_learns_gaussian_distribution ... ok
+test models::naive_bayes::tests::multinomial_zero_features_rejected ... ok
+test models::naive_bayes::tests::multinomial_learn_separable_data ... ok
+test optim::adagrad::tests::adagrad_decreases_weights ... ok
+test optim::adagrad::tests::adagrad_learning_rate_decreases ... ok
+test optim::adagrad::tests::failed_step_is_atomic ... ok
+test models::naive_bayes::tests::naive_bayes_valid_roundtrip_preserves_prediction ... ok
+test optim::adagrad::tests::invalid_config_rejected ... ok
+test optim::sgd::tests::failed_step_is_atomic ... ok
+test optim::sgd::tests::invalid_l2_rejected ... ok
+test optim::sgd::tests::invalid_learning_rate_rejected ... ok
+test optim::sgd::tests::sgd_l2_regularization ... ok
+test optim::sgd::tests::sgd_updates_weights ... ok
+test persistence::tests::application_validation_runs_before_activation ... ok
+test persistence::tests::incompatible_version_rejected ... ok
+test persistence::tests::snapshot_roundtrip ... ok
+test pipeline::tests::failed_pipeline_learn_does_not_mutate_either_stage ... ok
+test pipeline::tests::pipeline_dimension_mismatch_rejected ... ok
+test pipeline::tests::pipeline_predict_does_not_update_transformer ... ok
+test pipeline::tests::weighted_pipeline_is_atomic_and_zero_weight_is_noop ... ok
+test preprocessing::clipper::tests::clipper_clamps_values ... ok
+test preprocessing::clipper::tests::clipper_is_stateless ... ok
+test preprocessing::clipper::tests::invalid_bounds_rejected ... ok
+test preprocessing::constant_imputer::tests::custom_fill_value ... ok
+test preprocessing::constant_imputer::tests::dimension_mismatch_rejected ... ok
+test preprocessing::constant_imputer::tests::nan_replaced_with_fill_value ... ok
+test preprocessing::constant_imputer::tests::non_nan_passed_through ... ok
+test preprocessing::constant_imputer::tests::reset_clears_state ... ok
+test preprocessing::constant_imputer::tests::serde_roundtrip ... ok
+test preprocessing::forward_fill::tests::dimension_mismatch_rejected ... ok
+test preprocessing::forward_fill::tests::last_value_updates_correctly ... ok
+test preprocessing::forward_fill::tests::nan_replaced_with_last_value ... ok
+test preprocessing::forward_fill::tests::nan_replaced_with_zero_when_no_data ... ok
+test preprocessing::forward_fill::tests::nan_skipped_in_update ... ok
+test preprocessing::forward_fill::tests::non_nan_passed_through ... ok
+test preprocessing::forward_fill::tests::reset_clears_state ... ok
+test preprocessing::forward_fill::tests::serde_roundtrip ... ok
+test preprocessing::frequency::tests::frequency_calculation ... ok
+test preprocessing::frequency::tests::multiple_features_return_one_frequency_each ... ok
+test preprocessing::frequency::tests::multiple_updates_accumulate ... ok
+test preprocessing::frequency::tests::reset_clears_state ... ok
+test preprocessing::frequency::tests::serde_roundtrip ... ok
+test preprocessing::frequency::tests::total_tracks_observations ... ok
+test preprocessing::frequency::tests::unknown_category_returns_zero ... ok
+test preprocessing::mean_imputer::tests::dimension_mismatch_rejected ... ok
+test preprocessing::mean_imputer::tests::mean_updates_correctly ... ok
+test preprocessing::mean_imputer::tests::nan_replaced_with_mean_after_update ... ok
+test preprocessing::mean_imputer::tests::nan_replaced_with_zero_when_no_data ... ok
+test preprocessing::mean_imputer::tests::nan_skipped_in_update ... ok
+test preprocessing::mean_imputer::tests::non_nan_passed_through ... ok
+test preprocessing::mean_imputer::tests::reset_clears_state ... ok
+test preprocessing::mean_imputer::tests::serde_roundtrip ... ok
+test preprocessing::min_max_scaler::tests::constant_feature_returns_midpoint ... ok
+test preprocessing::min_max_scaler::tests::custom_range ... ok
+test preprocessing::min_max_scaler::tests::invalid_range_rejected ... ok
+test preprocessing::min_max_scaler::tests::minmax_scales_to_zero_one ... ok
+test preprocessing::min_max_scaler::tests::unobserved_feature_returns_original ... ok
+test preprocessing::missing_indicator::tests::all_missing_values ... ok
+test preprocessing::missing_indicator::tests::dimension_mismatch_rejected ... ok
+test preprocessing::missing_indicator::tests::mixed_missing_and_present ... ok
+test preprocessing::missing_indicator::tests::no_missing_values ... ok
+test preprocessing::missing_indicator::tests::reset_clears_state ... ok
+test preprocessing::missing_indicator::tests::serde_roundtrip ... ok
+test preprocessing::one_hot::tests::empty_categories_returns_empty_vec ... ok
+test preprocessing::one_hot::tests::empty_input_rejected ... ok
+test preprocessing::one_hot::tests::known_categories_encode_correctly ... ok
+test preprocessing::one_hot::tests::multiple_features_produce_concatenated_vectors ... ok
+test preprocessing::one_hot::tests::new_category_added_on_update ... ok
+test preprocessing::one_hot::tests::reset_clears_state ... ok
+test pipeline::tests::pipeline_learns_linear_relation ... ok
+test preprocessing::one_hot::tests::samples_seen_tracks_updates ... ok
+test preprocessing::one_hot::tests::unknown_category_rejected ... ok
+test preprocessing::one_hot::tests::serde_roundtrip ... ok
+test preprocessing::ordinal::tests::empty_input_rejected ... ok
+test preprocessing::ordinal::tests::known_category_returns_correct_index ... ok
+test preprocessing::ordinal::tests::multiple_features_return_one_index_each ... ok
+test preprocessing::ordinal::tests::new_category_added_on_update ... ok
+test preprocessing::ordinal::tests::reset_clears_state ... ok
+test preprocessing::ordinal::tests::unknown_category_rejected ... ok
+test preprocessing::ordinal::tests::serde_roundtrip ... ok
+test preprocessing::standard_scaler::tests::constant_feature_uses_scale_one ... ok
+test preprocessing::standard_scaler::tests::dimension_mismatch_rejected ... ok
+test preprocessing::standard_scaler::tests::non_finite_rejected ... ok
+test preprocessing::standard_scaler::tests::reset_clears_state ... ok
+test preprocessing::standard_scaler::tests::scaler_serde_accepts_one_count_finite_mean ... ok
+test preprocessing::standard_scaler::tests::scaler_serde_rejects_one_count_nonzero_m2 ... ok
+test preprocessing::standard_scaler::tests::scaler_serde_rejects_zero_count_nonzero_m2 ... ok
+test preprocessing::standard_scaler::tests::scaler_serde_rejects_zero_count_nonzero_mean ... ok
+test preprocessing::standard_scaler::tests::scaler_serde_roundtrip_preserves_state ... ok
+test preprocessing::standard_scaler::tests::scaler_standardizes_after_updates ... ok
+test preprocessing::standard_scaler::tests::scaler_zero_state_returns_original ... ok
+test preprocessing::standard_scaler::tests::serde_rejects_malformed_state ... ok
+test preprocessing::standard_scaler::tests::serde_rejects_negative_m2 ... ok
+test preprocessing::standard_scaler::tests::transform_does_not_update_state ... ok
+test preprocessing::standard_scaler::tests::transform_hot_path_does_not_scan_invariants ... ok
+test preprocessing::standard_scaler::tests::transform_into_matches_transform_output ... ok
+test preprocessing::standard_scaler::tests::transform_into_rejects_dimension_mismatch ... ok
+test preprocessing::standard_scaler::tests::transform_into_rejects_non_finite_output ... ok
+test preprocessing::standard_scaler::tests::transform_into_reuses_buffer_capacity ... ok
+test preprocessing::standard_scaler::tests::update_rejects_overflow_without_mutating_state ... ok
+test preprocessing::standard_scaler::tests::transform_into_with_zero_state_returns_original ... ok
+test preprocessing::standard_scaler::tests::with_mean_false_keeps_offset ... ok
+test preprocessing::standard_scaler::tests::zero_features_rejected ... ok
+test replay::tests::duplicate_expired_and_schema_mismatch_are_counted ... ok
+test replay::tests::update_waits_for_outcome_and_reports_metrics ... ok
+test sparse::tests::duplicate_merge_rejects_overflow ... ok
+test sparse::tests::empty_construction ... ok
+test sparse::tests::from_sorted_duplicate_rejected ... ok
+test sparse::tests::from_sorted_success ... ok
+test replay::tests::replay_digest_is_deterministic_and_restore_continues ... ok
+test sparse::tests::from_sorted_unsorted_rejected ... ok
+test sparse::tests::from_unsorted_sorts_and_merges ... ok
+test sparse::tests::get_binary_search ... ok
+test sparse::tests::iter_works ... ok
+test sparse::tests::non_finite_rejected ... ok
+test sparse::tests::push_duplicate_rejected ... ok
+test sparse::tests::push_success ... ok
+test sparse::tests::push_unsorted_rejected ... ok
+test sparse::tests::serde_rejects_invalid_state ... ok
+test sparse::tests::serde_roundtrip ... ok
+test stats::count::tests::count_increments ... ok
+test stats::ew_mean::tests::alpha_one_tracks_last_value ... ok
+test stats::ew_mean::tests::first_sample_seeds_mean ... ok
+test stats::ew_mean::tests::invalid_alpha_rejected ... ok
+test stats::ew_mean::tests::reset_clears_state ... ok
+test stats::ew_mean::tests::weighted_update_matches_formula ... ok
+test stats::extrema::tests::max_tracks_maximum ... ok
+test stats::extrema::tests::min_tracks_minimum ... ok
+test stats::mean::tests::mean_empty_is_zero ... ok
+test stats::mean::tests::mean_of_simple_sequence ... ok
+test stats::mean::tests::mean_rejects_non_finite ... ok
+test stats::mean::tests::mean_rejects_overflow_without_mutating_state ... ok
+test stats::mean::tests::mean_reset ... ok
+test stats::quantile::tests::bootstrap_values_are_exact ... ok
+test stats::quantile::tests::extreme_finite_values_and_non_finite_rejection_are_atomic ... ok
+test stats::mean::tests::mean_matches_batch_formula ... ok
+test stats::quantile::tests::multiple_quantiles_are_bounded_resettable_and_validated ... ok
+test stats::quantile::tests::serde_roundtrip_preserves_future_continuity ... ok
+test stats::quantile::tests::validation_rejects_corrupt_marker_counts_and_positions ... ok
+test stats::quantile::tests::monotonic_and_constant_streams ... ok
+test stats::robust::tests::clipped_mean_matches_offline_clipped_calculation ... ok
+test stats::robust::tests::failure_is_atomic_and_reset_clears_state ... ok
+test stats::robust::tests::representable_extreme_summaries_remain_finite ... ok
+test stats::robust::tests::minority_extreme_contamination_does_not_control_the_summary ... ok
+test stats::robust::tests::rolling_summary_and_modified_z_match_offline_reference ... ok
+test stats::robust::tests::rolling_window_evicts_and_tracks_lifetime_samples ... ok
+test stats::robust::tests::serde_roundtrip_preserves_future_updates ... ok
+test stats::robust::tests::warmup_configuration_and_non_finite_updates_are_strict ... ok
+test stats::robust::tests::zero_mad_is_explicit_and_never_non_finite ... ok
+test stats::rolling::tests::rolling_mean_basic ... ok
+test stats::robust::tests::rolling_serde_roundtrip_preserves_eviction_and_rejects_corrupt_state ... ok
+test stats::rolling::tests::rolling_mean_empty_returns_none ... ok
+test stats::rolling::tests::rolling_mean_evicts_oldest ... ok
+test stats::rolling::tests::rolling_mean_zero_capacity_rejected ... ok
+test stats::rolling::tests::rolling_variance_evicts_correctly ... ok
+test stats::rolling::tests::rolling_variance_population ... ok
+test stats::rolling::tests::rolling_variance_sample_insufficient ... ok
+test stats::rolling::tests::rolling_variance_zero_capacity_rejected ... ok
+test models::ftrl::tests::high_dim_sparse ... ok
+test stats::sum::tests::sum_accumulates ... ok
+test stats::sum::tests::sum_rejects_overflow_without_mutating_state ... ok
+test stats::variance::tests::population_variance_of_simple_sequence ... ok
+test stats::variance::tests::sample_variance_of_simple_sequence ... ok
+test stats::variance::tests::variance_constant_sequence_is_zero ... ok
+test stats::variance::tests::variance_insufficient_data_returns_none ... ok
+test stats::variance::tests::variance_rejects_non_finite ... ok
+test stats::variance::tests::variance_rejects_overflow_without_mutating_state ... ok
+test traits::tests::accuracy_samples_seen_equals_successful_updates ... ok
+test traits::tests::f1_samples_seen_equals_successful_updates ... ok
+test traits::tests::failed_update_does_not_advance_samples_seen ... ok
+test traits::tests::log_loss_samples_seen_equals_successful_updates ... ok
+test stats::variance::tests::variance_matches_batch_formula ... ok
+test traits::tests::mae_samples_seen_equals_successful_updates ... ok
+test traits::tests::mse_samples_seen_equals_successful_updates ... ok
+test traits::tests::precision_samples_seen_equals_successful_updates ... ok
+test traits::tests::r2_samples_seen_equals_successful_updates ... ok
+test traits::tests::recall_samples_seen_equals_successful_updates ... ok
+test traits::tests::rmse_samples_seen_equals_successful_updates ... ok
+test weighted::tests::integer_weight_ew_mean_matches_repeated_samples ... ok
+test weighted::tests::weighted_errors_match_offline_calculation_and_reset ... ok
+test weighted::tests::weighted_mean_and_variance_match_offline ... ok
+test weighted::tests::weighted_state_roundtrip_and_corruption_rejected ... ok
+test weighted::tests::zero_weight_is_validated_noop_and_bad_weights_are_atomic ... ok
+test drift::adwin::tests::no_false_positive_on_stable_stream ... ok
+test stats::quantile::tests::seeded_random_stream_matches_offline_rank ... ok
+test descriptor::tests::hash_is_deterministic_for_valid_names ... ok
+test stats::quantile::tests::property_estimate_stays_within_observed_range ... ok
+test stats::robust::tests::rolling_summary_matches_independent_offline_calculation ... ok
+
+test result: ok. 759 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/bandit_learning.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/bandit_learning-ef5ff65ffe0b1703)
+
+running 14 tests
+test epsilon_greedy_rejects_invalid_inputs ... ok
+test epsilon_greedy_reset_clears_state ... ok
+test linucb_rejects_invalid_inputs ... ok
+test linucb_reset_clears_state ... ok
+test bandit_select_returns_valid_arm ... ok
+test thompson_rejects_invalid_inputs ... ok
+test thompson_reset_clears_state ... ok
+test linucb_select_returns_valid_arm ... ok
+test ucb1_rejects_invalid_inputs ... ok
+test ucb1_reset_clears_state ... ok
+test epsilon_greedy_finds_best_arm ... ok
+test ucb1_finds_best_arm ... ok
+test linucb_learns_contextual_policy ... ok
+test thompson_sampling_finds_best_arm ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/classification_learning.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/classification_learning-24395d729b17e57c)
+
+running 5 tests
+test dimension_mismatch_rejected ... ok
+test predict_does_not_update_state ... ok
+test reset_clears_classifier_state ... ok
+test logistic_regression_probabilities_bounded ... ok
+test logistic_regression_separates_linearly ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/drift_detection.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/drift_detection-52c84d3115462158)
+
+running 15 tests
+test drift_aware_model_resets_on_reset_model_action ... ok
+test drift_aware_model_replace_with_baseline_action_recorded ... ok
+test drift_aware_model_does_not_auto_reset_with_default_strategy ... ok
+test fixed_window_buffer_overwrites_oldest ... ok
+test drift_aware_model_logs_events_on_drift ... ok
+test learning_rate_scheduler_increases_on_drift ... ok
+test page_hinkley_config_validation ... ok
+test static_strategy_decides_correctly_per_level ... ok
+test time_decayed_mean_weights_recent_data ... ok
+test kswin_detects_variance_change ... ok
+test kswin_detects_distribution_shape_change ... ok
+test page_hinkley_detects_sudden_mean_shift ... ok
+test adwin_detects_gradual_drift ... ok
+test drift_aware_model_with_linear_regression_and_adwin ... ok
+test kswin_no_false_positive_on_stable_stream ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ftrl_learning.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/ftrl_learning-4eceffa361fc41e1)
+
+running 9 tests
+test ftrl_resource_diagnostics_report_cap_and_rejection_signal ... ok
+test ftrl_regressor_dynamic_features ... ok
+test ftrl_classifier_predict_proba_in_range ... ok
+test ftrl_regressor_l1_sparsity ... ok
+test ftrl_regressor_converges_on_linear_data ... ok
+test ftrl_classifier_converges ... ok
+test ftrl_classifier_logloss_decreases ... ok
+test ftrl_regressor_comparable_to_linear_regression ... ok
+test ftrl_with_feature_hasher ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/generate_v1_fixtures.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/generate_v1_fixtures-6186b4bfee6c0719)
+
+running 1 test
+test generate_v1_fixtures ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/naive_bayes.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/naive_bayes-9906b31e2d52e0d2)
+
+running 8 tests
+test bernoulli_nb_rejects_negative ... ok
+test multinomial_nb_rejects_negative ... ok
+test naive_bayes_predict_does_not_update ... ok
+test gaussian_nb_separable_data ... ok
+test gaussian_nb_predict_proba_in_range ... ok
+test gaussian_nb_comparable_to_logistic ... ok
+test multinomial_nb_count_features ... ok
+test bernoulli_nb_binary_features ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pipeline_behavior.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/pipeline_behavior-b65594b6ff5c84f8)
+
+running 8 tests
+test pipeline_rejects_dimension_mismatch ... ok
+test pipeline_transformer_does_not_see_target ... ok
+test pipeline_predict_is_side_effect_free ... ok
+test pipeline_reset_clears_state ... ok
+test clipper_in_pipeline_clamps_values ... ok
+test pipeline_learns_linear_relation ... ok
+test classification_pipeline_learns ... ok
+test pipeline_with_minmax_scaler_works ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/portable_drift_state.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/portable_drift_state-6152ded57cf48f97)
+
+running 4 tests
+test load_portable_v1_kswin ... ok
+test load_portable_v1_adwin ... ok
+test load_portable_v1_page_hinkley ... ok
+test portable_v1_fixtures_reject_unknown_fields ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/progressive_order.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/progressive_order-626ea818b5eb3495)
+
+running 5 tests
+test progressive_regression_with_mse ... ok
+test progressive_empty_stream_returns_none ... ok
+test progressive_steps_record_index_sequence ... ok
+test progressive_regression_predicts_before_learning ... ok
+test progressive_classification_tracks_accuracy ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/regression_learning.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/regression_learning-0742d7841f1dfbf5)
+
+running 7 tests
+test ew_mean_regressor_weights_recent ... ok
+test mean_regressor_converges_to_mean ... ok
+test predict_is_side_effect_free ... ok
+test last_value_regressor_tracks_last ... ok
+test reset_clears_model_state ... ok
+test linear_regression_with_adagrad_converges ... ok
+test linear_regression_converges_to_true_weights ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/serialization.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/serialization-66d8539660f824de)
+
+running 43 tests
+test bernoulli_naive_bayes_serialization_roundtrip ... ok
+test drift_action_serde_roundtrip ... ok
+test epsilon_greedy_serialization_roundtrip ... ok
+test drift_event_serde_roundtrip ... ok
+test adwin_config_serde_roundtrip ... ok
+test constant_imputer_serialization_roundtrip ... ok
+test ew_mean_serialization_roundtrip ... ok
+test drift_level_serde_roundtrip ... ok
+test drift_aware_model_serde_roundtrip ... ok
+test adwin_serde_roundtrip ... ok
+test feature_hasher_serialization_roundtrip ... ok
+test fixed_window_buffer_serde_roundtrip ... ok
+test forward_fill_serialization_roundtrip ... ok
+test frequency_encoder_serialization_roundtrip ... ok
+test ftrl_classifier_serialization_roundtrip ... ok
+test kswin_config_serde_roundtrip ... ok
+test ftrl_regressor_serialization_roundtrip ... ok
+test gaussian_naive_bayes_serialization_roundtrip ... ok
+test learning_rate_scheduler_serde_roundtrip ... ok
+test kswin_serde_roundtrip ... ok
+test linear_regression_serialization_roundtrip ... ok
+test mean_imputer_serialization_roundtrip ... ok
+test linucb_serialization_roundtrip ... ok
+test mean_regressor_serialization_roundtrip ... ok
+test mean_serialization_roundtrip ... ok
+test missing_indicator_serialization_roundtrip ... ok
+test multinomial_naive_bayes_serialization_roundtrip ... ok
+test one_hot_encoder_serialization_roundtrip ... ok
+test optimizer_serialization_roundtrip ... ok
+test ordinal_encoder_serialization_roundtrip ... ok
+test page_hinkley_config_serde_roundtrip ... ok
+test page_hinkley_serde_roundtrip ... ok
+test regression_loss_serialization_roundtrip ... ok
+test snapshot_envelope_roundtrip ... ok
+test snapshot_rejects_incompatible_version ... ok
+test sparse_features_serialization_roundtrip ... ok
+test static_strategy_serde_roundtrip ... ok
+test standard_scaler_serialization_roundtrip ... ok
+test snapshot_preserves_trained_model_predictions ... ok
+test thompson_sampling_serialization_roundtrip ... ok
+test time_decayed_mean_serde_roundtrip ... ok
+test ucb1_serialization_roundtrip ... ok
+test variance_serialization_roundtrip ... ok
+
+test result: ok. 43 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sparse_features.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/sparse_features-5457e6aece59751f)
+
+running 8 tests
+test sparse_features_roundtrip ... ok
+test feature_hasher_collision_handling ... ok
+test feature_hasher_different_seeds ... ok
+test sparse_features_empty_rejected ... ok
+test feature_hasher_string_hashing ... ok
+test feature_hasher_reproducible ... ok
+test sparse_features_from_unsorted_merges ... ok
+test feature_hasher_with_linear_regression ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/state_fixtures.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/state_fixtures-d46136d5e37cc0ab)
+
+running 64 tests
+test incompatible_format_version_rejected ... ok
+test encoder_mapping_inconsistency_rejected ... ok
+test failed_restore_returns_no_model ... ok
+test drift_buffer_capacity_overflow_rejected ... ok
+test bandit_arm_count_mismatch_rejected ... ok
+test dimension_mismatch_in_linear_regression_rejected ... ok
+test load_v0_13_0_bernoulli_naive_bayes ... ok
+test load_v0_13_0_epsilon_greedy ... ok
+test load_v0_13_0_constant_imputer ... ok
+test load_v0_13_0_feature_hasher ... ok
+test load_v0_13_0_ew_mean ... ok
+test load_v0_13_0_forward_fill ... ok
+test load_v0_13_0_mean ... ok
+test load_v0_13_0_linear_regression ... ok
+test load_v0_13_0_frequency_encoder ... ok
+test load_v0_13_0_ftrl_regressor ... ok
+test load_v0_13_0_linucb ... ok
+test load_v0_13_0_mean_imputer ... ok
+test load_v0_13_0_missing_indicator ... ok
+test load_v0_13_0_mean_regressor ... ok
+test load_v0_13_0_ftrl_classifier ... ok
+test load_v0_13_0_gaussian_naive_bayes ... ok
+test load_v0_13_0_one_hot_encoder ... ok
+test load_v0_13_0_multinomial_naive_bayes ... ok
+test load_v0_13_0_optimizer_sgd ... ok
+test load_v0_13_0_regression_loss ... ok
+test load_v0_13_0_sparse_features ... ok
+test load_v0_13_0_ordinal_encoder ... ok
+test load_v0_13_0_standard_scaler ... ok
+test load_v1_bernoulli_naive_bayes ... ok
+test load_v1_constant_imputer ... ok
+test load_v0_13_0_ucb1 ... ok
+test load_v0_13_0_variance ... ok
+test load_v0_13_0_thompson_sampling ... ok
+test load_v1_epsilon_greedy ... ok
+test load_v1_ew_mean ... ok
+test load_v1_feature_hasher ... ok
+test load_v1_forward_fill ... ok
+test load_v1_frequency_encoder ... ok
+test load_v1_ftrl_classifier ... ok
+test load_v1_ftrl_regressor ... ok
+test load_v1_gaussian_naive_bayes ... ok
+test load_v1_linear_regression ... ok
+test load_v1_mean ... ok
+test load_v1_linucb ... ok
+test load_v1_mean_imputer ... ok
+test load_v1_mean_regressor ... ok
+test load_v1_missing_indicator ... ok
+test load_v1_multinomial_naive_bayes ... ok
+test load_v1_one_hot_encoder ... ok
+test load_v1_optimizer_sgd ... ok
+test load_v1_ordinal_encoder ... ok
+test load_v1_regression_loss ... ok
+test load_v1_sparse_features ... ok
+test load_v1_thompson_sampling ... ok
+test load_v1_standard_scaler ... ok
+test load_v1_variance ... ok
+test load_v1_ucb1 ... ok
+test null_mean_rejected_by_serde ... ok
+test negative_m2_in_variance_rejected ... ok
+test optimizer_param_count_mismatch_rejected ... ok
+test sgd_invalid_learning_rate_rejected ... ok
+test validate_state_rejects_non_finite_values ... ok
+test oversized_json_rejected_before_deserialization ... ok
+
+test result: ok. 64 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/stats_reference.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/stats_reference-ad26dc31efa11242)
+
+running 9 tests
+test ew_mean_matches_manual_recursion ... ok
+test count_and_sum_match_reference ... ok
+test min_max_match_reference ... ok
+test reset_clears_all_state ... ok
+test mean_matches_batch_formula ... ok
+test population_variance_matches_batch_formula ... ok
+test rolling_variance_matches_batch_window ... ok
+test rolling_mean_matches_batch_window ... ok
+test sample_variance_matches_batch_formula ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_ml_arrow-5dfa844cf6dd9ae5)
+
+running 6 tests
+test tests::floats_to_arrow_roundtrip ... ok
+test tests::non_float_column_errors ... ok
+test tests::append_predictions_mismatched_length_errors ... ok
+test tests::missing_column_errors ... ok
+test tests::extracts_features_and_target ... ok
+test tests::append_predictions_column_adds_column ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/arrow_roundtrip.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/arrow_roundtrip-cbcc4d20af4746f5)
+
+running 2 tests
+test floats_to_arrow_roundtrip ... ok
+test arrow_batch_drives_rillml_model ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_ml_ffi-57296bb916dbace3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ffi_abi.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/ffi_abi-3b1cd0765d0536a1)
+
+running 20 tests
+test create_with_zero_features_is_rejected ... ok
+test invalid_binary_target_reports_invalid_argument ... ok
+test feature_dimension_mismatch_is_rejected ... ok
+test malformed_json_is_rejected ... ok
+test logistic_regression_roundtrip_snapshot ... ok
+test linear_regression_roundtrip_snapshot ... ok
+test classification_pipeline_roundtrip_snapshot ... ok
+test mean_lifecycle ... ok
+test logistic_regression_learns_and_predicts ... ok
+test mean_roundtrip_snapshot ... ok
+test linear_regression_learns_and_predicts ... ok
+test null_handle_reports_invalid_handle ... ok
+test snapshot_format_version_is_stable ... ok
+test regression_pipeline_roundtrip_snapshot ... ok
+test standard_scaler_updates_and_transforms ... ok
+test regression_pipeline_learns_and_predicts ... ok
+test undersized_output_buffer_reports_buffer_too_small ... ok
+test classification_pipeline_learns_and_predicts ... ok
+test standard_scaler_roundtrip_snapshot ... ok
+test version_string_matches_crate_version ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_ml_polars-3e32dae6a660ca21)
+
+running 4 tests
+test tests::append_predictions_mismatched_length_errors ... ok
+test tests::append_predictions_adds_column ... ok
+test tests::extracts_features_and_target ... ok
+test tests::missing_column_errors ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/polars_roundtrip.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/polars_roundtrip-6311c529bc19fd78)
+
+running 1 test
+test polars_frame_drives_rillml_model ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_ml_tokio-8bd42ed964f0631d)
+
+running 6 tests
+test tests::stream_matches_sync_evaluation ... ok
+test tests::classify_empty_stream_leaves_metric_unchanged ... ok
+test tests::empty_stream_leaves_metric_unchanged ... ok
+test tests::classify_stream_matches_sync_evaluation ... ok
+test tests::mpsc_channel_stream_works ... ok
+test tests::classify_stream_learns_separable_data ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/stream_eval.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/stream_eval-54b2e1006f37039d)
+
+running 4 tests
+test stream_handles_finite_value_correctly ... ok
+test classify_stream_empty_returns_none ... ok
+test long_stream_increments_samples_seen ... ok
+test classify_stream_long_run_increments_samples ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_ml_wasm-3321787186420b1e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/host_compile_check.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/host_compile_check-c19d1c9b5a42fda4)
+
+running 1 test
+test crate_compiles_on_host ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/wasm_api.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/wasm_api-c196ed35f0d7b52a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_runtime-300e089c9b3d0531)
+
+running 76 tests
+test archive::tests::compression_ratio_rejects_one_byte_over_boundary ... ok
+test archive::tests::compression_ratio_rejects_overflowing_product ... ok
+test archive::tests::compression_ratio_skips_zero_compressed_size ... ok
+test archive::tests::compression_ratio_accepts_exact_boundary ... ok
+test handler::tests::effective_capabilities_reject_missing ... ok
+test handler::tests::effective_capabilities_intersect ... ok
+test handler::wasm::tests::memory_limiter_accepts_growth_within_max ... ok
+test handler::wasm::tests::memory_limiter_rejects_growth_exceeding_max ... ok
+test archive::tests::trust_metadata_rejects_old_authenticated_document_after_revocation ... ok
+test archive::tests::trust_metadata_rejects_generation_tampering ... ok
+test archive::tests::trust_metadata_rejects_future_expired_revoked_and_emergency_keys ... ok
+test handler::wasm::tests::table_limiter_accepts_growth_within_max ... ok
+test handler::wasm::tests::table_limiter_rejects_growth_exceeding_max ... ok
+test archive::tests::trust_metadata_rejects_same_generation_content_conflict ... ok
+test archive::tests::trust_metadata_rejects_unknown_damaged_and_downgraded ... ok
+test handler_package::tests::handler_pack_rejects_duplicate_capabilities ... ok
+test handler_package::tests::handler_pack_rejects_empty_capabilities ... ok
+test handler_package::tests::handler_pack_rejects_duplicate_entry ... ok
+test archive::tests::trust_metadata_current_key_passes ... ok
+test archive::tests::trust_metadata_overlap_next_key_passes ... ok
+test archive::tests::trust_metadata_accepts_future_generation_for_consumer_promotion ... ok
+test handler_package::tests::handler_pack_rejects_absolute_path ... ok
+test handler_package::tests::handler_pack_rejects_oversized_module ... ok
+test handler_package::tests::handler_pack_rejects_path_traversal ... ok
+test handler_package::tests::handler_pack_rejects_extra_file ... ok
+test handler_package::tests::handler_pack_rejects_invalid_semver ... ok
+test handler_package::tests::handler_pack_rejects_load_time_module_digest_mismatch ... ok
+test handler_package::tests::handler_pack_rejects_model_trust_key ... ok
+test handler_package::tests::handler_pack_rejects_runtime_too_old ... ok
+test handler_package::tests::handler_pack_rejects_unknown_format_version ... ok
+test handler_package::tests::handler_pack_rejects_unknown_handler_api_version ... ok
+test handler_package::tests::handler_pack_rejects_unknown_publisher_key ... ok
+test handler_package::tests::handler_pack_rejects_wrong_module_digest ... ok
+test handler_package::tests::handler_pack_rejects_tampered_checksums ... ok
+test handler_package::tests::handler_pack_rejects_tampered_manifest ... ok
+test package::tests::release_index_rejects_v1_schema ... ok
+test handler_package::tests::handler_pack_rejects_tampered_module ... ok
+test handler_package::tests::handler_pack_rejects_tampered_signature ... ok
+test package::tests::release_index_supports_handler_artifact ... ok
+test package::tests::release_index_signature_covers_artifact_hashes ... ok
+test server::tests::engine_log_does_not_emit_oversized_guest_detail ... ok
+test server::tests::engine_invoke_error_does_not_leak_guest_detail_in_message ... ok
+test server::tests::engine_logs_invoke_error_exactly_once ... ok
+test server::tests::engine_log_traps_backtrace_is_truncated ... ok
+test server::tests::engine_preserves_guest_variant_kind_for_all_wit_variants ... ok
+test server::tests::handshake_reports_loaded_pack ... ok
+test server::tests::incompatible_api_is_a_typed_error ... ok
+test server::tests::invoke_error_detail_truncation_respects_multibyte_chars ... ok
+test server::tests::invoke_error_detail_is_truncated_to_4kib_on_char_boundary ... ok
+test server::tests::invoke_error_guest_variants_have_distinct_public_messages ... ok
+test server::tests::invoke_error_public_message_never_contains_detail ... ok
+test server::tests::invoke_error_retryable_only_for_timeout ... ok
+test server::tests::invoke_error_stable_codes_match_wire_format ... ok
+test server::tests::invoke_error_without_detail_has_no_detail ... ok
+test server::tests::invoke_rejects_capability_not_declared_by_signed_manifest ... ok
+test server::tests::invoke_without_handler_returns_no_invoke_handler_error ... ok
+test server::tests::v1_handshake_omits_handler_fields ... ok
+test server::tests::linear_regression_handler_validates_and_predicts ... ok
+test server::tests::v2_handshake_without_handler_has_empty_fields ... ok
+test server::tests::v2_handshake_includes_handler_fields ... ok
+test stateful::tests::corrupt_snapshot_checksum_is_rejected_without_mutation ... ok
+test stateful::tests::invalid_next_state_is_fail_closed ... ok
+test stateful::tests::inspect_and_diagnostics_do_not_reenter_the_state_lock ... ok
+test handler_package::tests::handler_pack_roundtrip_and_tamper_rejection ... ok
+test stateful::tests::ipc_and_snapshot_limits_fail_closed_without_mutation ... ok
+test stateful::tests::json_entrypoint_rejects_malformed_and_oversized_messages ... ok
+test stateful::tests::stale_generation_and_expired_request_are_rejected ... ok
+test stateful::tests::state_update_is_atomic_and_increments_generation ... ok
+test handler_package::tests::handler_pack_skips_directory_entries ... ok
+test package::tests::signed_pack_roundtrip_and_tamper_rejection ... ok
+test handler_package::tests::handler_pack_rejects_compression_bomb ... ok
+test stateful::tests::timeout_trap_and_oversize_leave_state_unchanged ... ok
+test handler_package::tests::handler_pack_rejects_oversized_file_in_zip ... ok
+test handler::wasm::tests::metadata_loop_failure_restores_active_ticker_count ... ok
+test handler::wasm::tests::normal_handler_drop_restores_active_ticker_count ... ok
+test handler::wasm::tests::ticker_probe_is_available_to_internal_tests ... ok
+
+test result: ok. 76 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.04s
+
+     Running unittests src/bin/rill-pack.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_pack-d7df01edc91dc91c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/rill-runtime.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_runtime-b2ed7a8493c47e95)
+
+running 3 tests
+test tests::trust_store_rejects_short_keys ... ok
+test tests::trust_store_rejects_duplicate_ids ... ok
+test tests::preview_handler_accepts_contextual_actions ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/runtime_process.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/runtime_process-3d2952bd9fe56e2e)
+
+running 7 tests
+test missing_handler_option_returns_error ... ok
+test signed_pack_handshake_and_invoke_work_across_the_real_process_boundary ... ok
+test builtin_handler_deprecation_notice_printed ... ok
+test v1_client_receives_v1_wire_format ... ok
+test preview_v3_uses_opaque_action_ids_and_context_features ... ok
+test preview_v3_real_subprocess_restart_and_feedback_ledger ... ok
+test wasm_handler_handshake_across_process_boundary ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.67s
+
+     Running tests/stateful_handler_v2.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/stateful_handler_v2-285ef669688d3362)
+
+running 5 tests
+test stateful_v2_trap_timeout_and_oversize_are_typed ... ok
+test stateful_v2_normal_state_update_and_repeated_call ... ok
+test stateful_v2_invalid_and_oversized_state_are_fail_closed ... ok
+test stateful_v2_real_trap_timeout_and_output_limit_are_fail_closed ... ok
+test stateful_v2_metadata_mismatch_is_rejected ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.05s
+
+     Running tests/wasm_handler.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/wasm_handler-b1e5e89ad419b499)
+
+running 17 tests
+test metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers ... ok
+test echo_handler_metadata_mismatch_rejected ... ok
+test wasm_handler_invalid_json_output_returns_invalid_output ... ok
+test echo_handler_rejects_unsupported_capability ... ok
+test wasm_handler_infinite_loop_returns_timeout ... ok
+test echo_handler_invoke_returns_input ... ok
+test wasm_handler_failure_does_not_affect_other_instances ... ok
+test wasm_handler_echo_mode_works_as_baseline ... ok
+test wasm_handler_configure_infinite_loop_returns_timeout ... ok
+test wasm_handler_fuel_exhaustion_returns_timeout ... ok
+test wasm_handler_long_error_string_is_truncated ... ok
+test wasm_handler_metadata_infinite_loop_returns_load_error ... ok
+test wasm_handler_oversized_output_returns_output_too_large ... ok
+test wasm_handler_rejects_oversized_output ... ok
+test wasm_handler_remains_usable_after_output_too_large ... ok
+test wasm_handler_sandbox_limits_verified ... ok
+test wasm_handler_trap_returns_handler_trap_error ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.27s
+
+     Running tests/wit_v1_component.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/wit_v1_component-200f467a38e60eb8)
+
+running 6 tests
+test wit_v1_constants_are_frozen ... ok
+test v1_component_loads_and_invokes_with_current_runtime ... ok
+test v1_component_fixture_exists_and_hash_matches ... ok
+test v1_component_rejects_unsupported_capability ... ok
+test v1_component_metadata_reports_api_version_1 ... ok
+test v1_component_packs_and_loads_as_rillhandler ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.07s
+
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rill_runtime_protocol-234241aef5415c3c)
+
+running 15 tests
+test tests::release_artifacts_enforce_platform_boundaries ... ok
+test tests::handler_manifest_validates_shape ... ok
+test tests::v1_handshake_response_fixture_is_stable ... ok
+test tests::pm_adapter_artifact_roundtrip_and_shape_validation ... ok
+test tests::historical_v151_pm_adapter_index_remains_readable ... ok
+test tests::v1_handshake_fixture_is_stable ... ok
+test tests::protocol_v1_roundtrip_is_tagged_and_strict ... ok
+test tests::invoke_roundtrip_preserves_capability_and_input ... ok
+test tests::v2_handshake_response_fixture_is_stable ... ok
+test tests::v1_response_rejects_handler_fields ... ok
+test v3::tests::v3_error_retryability_is_canonical ... ok
+test v3::tests::v3_rejects_bad_hash_and_expired_deadline ... ok
+test v3::tests::v3_rejects_payload_over_declared_limit ... ok
+test v3::tests::decide_envelope_roundtrips_and_validates ... ok
+test v3::tests::v3_rejects_unknown_fields ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ipc_fixtures.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/ipc_fixtures-95a5396e60a1d776)
+
+running 38 tests
+test frozen_error_codes_are_unique_and_sorted ... ok
+test frozen_error_codes_match_wire_strings ... ok
+test handler_pack_manifest_roundtrip_and_shape ... ok
+test is_frozen_recognises_all_frozen_codes ... ok
+test is_frozen_rejects_unknown_codes ... ok
+test model_pack_manifest_roundtrip_and_shape ... ok
+test release_artifact_runtime_roundtrip_and_shape ... ok
+test release_index_payload_roundtrip_and_shape ... ok
+test request_with_api_version_zero_is_out_of_range ... ok
+test request_with_future_api_version_is_out_of_range ... ok
+test v1_request_handshake_roundtrip ... ok
+test v1_request_health_roundtrip ... ok
+test v1_request_health_rejects_unknown_fields ... ok
+test v1_response_error_rejects_unknown_fields ... ok
+test v1_error_fixture_uses_frozen_code ... ok
+test v1_request_invoke_roundtrip ... ok
+test v1_request_invoke_rejects_unknown_fields ... ok
+test v1_response_handshake_rejects_unknown_fields ... ok
+test v1_response_error_roundtrip ... ok
+test v1_request_handshake_rejects_unknown_fields ... ok
+test v1_response_handshake_roundtrip ... ok
+test v1_response_health_roundtrip ... ok
+test v1_response_health_rejects_unknown_fields ... ok
+test v1_response_result_rejects_unknown_fields ... ok
+test v1_response_rejects_v2_handler_fields ... ok
+test v1_response_result_roundtrip ... ok
+test v2_error_fixture_uses_frozen_code ... ok
+test v2_request_handshake_roundtrip ... ok
+test v2_request_health_roundtrip ... ok
+test v2_request_invoke_roundtrip ... ok
+test v2_response_error_rejects_unknown_fields ... ok
+test v2_response_error_roundtrip ... ok
+test v2_response_handshake_rejects_unknown_fields ... ok
+test v2_response_handshake_roundtrip ... ok
+test v2_response_health_roundtrip ... ok
+test v2_response_health_rejects_unknown_fields ... ok
+test v2_response_result_rejects_unknown_fields ... ok
+test v2_response_result_roundtrip ... ok
+
+test result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/ipc_v3_fixtures.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/ipc_v3_fixtures-c4fd5244c6be5721)
+
+running 4 tests
+test v3_negative_fixtures_are_rejected ... ok
+test v3_json_schema_is_valid_json_and_names_all_methods ... ok
+test v3_positive_response_fixtures_roundtrip_and_validate ... ok
+test v3_positive_request_fixtures_roundtrip_and_validate ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/rillml_inspect-5e9c8764a4bb0c6d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cli_inspect.rs (/tmp/cfip-g2.9hpU2U/stable-target/debug/deps/cli_inspect-7baec3caf7e69386)
+
+running 4 tests
+test version_outputs_version ... ok
+test validate_rejects_bad_version ... ok
+test view_snapshot_reads_json ... ok
+test summary_reports_weights ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+   Doc-tests rill_handler_api
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rill_ml
+
+running 42 tests
+test src/bandit/thompson.rs - bandit::thompson::ThompsonConfig (line 37) ... ok
+test src/diagnostics/baseline_comparator.rs - diagnostics::baseline_comparator (line 12) ... ok
+test src/bandit/ucb1.rs - bandit::ucb1::Ucb1 (line 87) ... ok
+test src/bandit/epsilon_greedy.rs - bandit::epsilon_greedy::EpsilonGreedyConfig (line 30) ... ok
+test src/bandit/mod.rs - bandit (line 30) ... ok
+test src/bandit/linucb.rs - bandit::linucb::LinUcb (line 139) ... ok
+test src/bandit/ucb1.rs - bandit::ucb1::Ucb1Config (line 39) ... ok
+test src/bandit/thompson.rs - bandit::thompson::ThompsonSampling (line 103) ... ok
+test src/bandit/epsilon_greedy.rs - bandit::epsilon_greedy::EpsilonGreedy (line 97) ... ok
+test src/diagnostics/model_selector.rs - diagnostics::model_selector (line 15) ... ok
+test src/bandit/linucb.rs - bandit::linucb::LinUcbConfig (line 45) ... ok
+test src/diagnostics/training_summary.rs - diagnostics::training_summary::TrainingSummary (line 36) ... ok
+test src/diagnostics/warmup.rs - diagnostics::warmup::WarmupTracker (line 87) ... ok
+test src/diagnostics/model_health.rs - diagnostics::model_health::ModelHealthReport (line 19) ... ok
+test src/diagnostics/prediction_interval.rs - diagnostics::prediction_interval::ResidualInterval (line 73) ... ok
+test src/diagnostics/model_selector.rs - diagnostics::model_selector::OnlineModelSelector (line 77) ... ok
+test src/diagnostics/prediction_report.rs - diagnostics::prediction_report::PredictionReporter (line 121) ... ok
+test src/drift/decay.rs - drift::decay::LearningRateScheduler (line 154) ... ok
+test src/drift/page_hinkley.rs - drift::page_hinkley::PageHinkley (line 159) ... ok
+test src/drift/aware_model.rs - drift::aware_model::DriftAwareModel (line 44) ... ok
+test src/drift/decay.rs - drift::decay::TimeDecayedMean (line 34) ... ok
+test src/drift/adwin.rs - drift::adwin::Adwin (line 147) ... ok
+test src/drift/mod.rs - drift (line 24) ... ok
+test src/drift/decay.rs - drift::decay::FixedWindowBuffer (line 272) ... ok
+test src/drift/strategy.rs - drift::strategy::StaticStrategy (line 29) ... ok
+test src/drift/kswin.rs - drift::kswin::Kswin (line 166) ... ok
+test src/models/ftrl.rs - models::ftrl::FtrlClassifier (line 766) ... ok
+test src/models/ftrl.rs - models::ftrl::FtrlRegressor (line 497) ... ok
+test src/models/naive_bayes.rs - models::naive_bayes::BernoulliNaiveBayes (line 529) ... ok
+test src/lib.rs - (line 16) ... ok
+test src/feature_hasher.rs - feature_hasher (line 9) ... ok
+test src/models/naive_bayes.rs - models::naive_bayes::GaussianNaiveBayes (line 261) ... ok
+test src/persistence.rs - persistence::Snapshot (line 65) ... ok
+test src/models/linear_regression.rs - models::linear_regression::LinearRegression (line 41) ... ok
+test src/persistence.rs - persistence::Snapshot<T>::from_json_validated (line 189) ... ok
+test src/persistence.rs - persistence::Snapshot<T>::into_validated_model (line 150) ... ok
+test src/stats/mean.rs - stats::mean::Mean (line 15) ... ok
+test src/sparse/mod.rs - sparse::SparseFeatures (line 23) ... ok
+test src/stats/variance.rs - stats::variance::Variance (line 51) ... ok
+test src/models/naive_bayes.rs - models::naive_bayes::MultinomialNaiveBayes (line 795) ... ok
+test src/stats/rolling.rs - stats::rolling::RollingMean (line 23) ... ok
+test src/stats/ew_mean.rs - stats::ew_mean::ExponentiallyWeightedMean (line 20) ... ok
+
+test result: ok. 42 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+all doctests ran in 0.58s; merged doctests compilation took 0.25s
+   Doc-tests rill_ml_arrow
+
+running 1 test
+test crates/rill-ml-arrow/src/lib.rs - (line 9) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.66s; merged doctests compilation took 0.37s
+   Doc-tests rill_ml_ffi
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rill_ml_polars
+
+running 1 test
+test crates/rill-ml-polars/src/lib.rs - (line 8) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 1.77s; merged doctests compilation took 1.00s
+   Doc-tests rill_ml_tokio
+
+running 1 test
+test crates/rill-ml-tokio/src/lib.rs - (line 9) - compile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.45s; merged doctests compilation took 0.17s
+   Doc-tests rill_ml_wasm
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rill_runtime
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rill_runtime_protocol
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

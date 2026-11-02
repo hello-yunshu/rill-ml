@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/Users/yunshu/Documents/GitHub/luci-app-performance-manager/scripts/rill_runtime_v3_integration.py", line 172, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/Users/yunshu/Documents/GitHub/luci-app-performance-manager/scripts/rill_runtime_v3_integration.py", line 56, in main
+    raise RuntimeError(f"handshake did not negotiate v3: {handshake}")
+RuntimeError: handshake did not negotiate v3: {'requestId': 'invalid-request', 'apiVersion': 3, 'runtimeIdentity': {'name': 'rill-runtime', 'version': '1.5.6'}, 'modelGeneration': 2, 'stateGeneration': 0, 'response': {'kind': 'error', 'error': {'code': 'invalidJson', 'message': 'request is not valid IPC V3 JSON', 'retryable': False}}}

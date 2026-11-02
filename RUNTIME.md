@@ -199,8 +199,14 @@ RillML 与 Rill Runtime 的可复现构建依赖以下固定来源的工具链�
 | 工具 | 来源 | 版本约束 | 说明 |
 |---|---|---|---|
 | `rustc` / `cargo` | `dtolnay/rust-toolchain` Action | stable（CI 默认） | 主构建工具链，跟随 Rust 官方 stable 通道 |
-| MSRV 校验 | `dtolnay/rust-toolchain` Action | `1.94.0` 固定 | 见 [pipeline.yml](.github/workflows/pipeline.yml) 的 `msrv` job |
+| MSRV 校验 | `dtolnay/rust-toolchain` Action | core-only `1.94.0`；默认 WASM Runtime `1.96.0` | 见 [pipeline.yml](.github/workflows/pipeline.yml) 的 `msrv` job |
 | Rust 缓存 | `Swatinem/rust-cache@v2` | major 固定 | 仅影响构建速度，不影响产物 |
+
+完整 Runtime 默认保留 WASM，安全补丁候选采用 Wasmtime 49.0.3。
+core-only 的 Rust 1.94 边界不变，默认 WASM 构建要求 Rust 1.96。
+下游 OpenWrt 包在采用候选源码前必须同步构建工具链并重新资格化，
+不能以关闭 WASM 或复用旧资格证明替代。未启用 `component-model-async`；
+安全工作流同时执行新鲜 RustSec 审计和目标 feature 检查。
 
 ### WASM 工具链
 

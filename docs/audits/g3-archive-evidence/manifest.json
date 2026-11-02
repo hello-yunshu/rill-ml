@@ -1,0 +1,49 @@
+{
+  "scope": "G3 archive dependency source follow-up",
+  "releaseEligible": false,
+  "baseCommits": {
+    "stable": "b990cd7043d313b0ff29c9693f091a94a5bdaf47",
+    "preview": "da8389fec7f879b826d8d17cbc6bb98c03ef8462"
+  },
+  "rustToolchain": "1.96.0",
+  "resolvedZip": "9.0.3",
+  "runtimeDefaultFeatures": true,
+  "runtimeTests": {
+    "stable": 114,
+    "preview": 119
+  },
+  "workspaceTestsWithoutPython": {
+    "stable": 1225,
+    "preview": 1230
+  },
+  "excludedWorkspaceCrate": "rill-ml-python (macOS native extension link failure retained)",
+  "sourceSha256": {
+    "Cargo.toml": "df6657ef3f7f10498896abb4b327d3122e2e8af17b89fff015316d8d75a9a411",
+    "Cargo.lock": "e6285fe82e14cc72d4257592a6e8bb1a3b7b977588f48c4413615d26071a92de",
+    "crates/rill-runtime/src/archive.rs": "cd27a3ca9cc474784d99815b34fc9dbf8e5f7e5de47fe956d4b3fae3b781bc92",
+    "crates/rill-runtime/src/handler_package.rs": "2df363d46f9e20fe0eca6e163692adbb1fe2c659d0bd77ced0fe0e05e5e8e65e"
+  },
+  "evidenceSha256": {
+    "audit-after.json": "2524b20a21675b380b6dc86c31131344ecb23befd8773d11272976500e511675",
+    "audit-after.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cargo-update.log": "9650a7e090469e8040da920bf92caafa3b6131b078afd7adadec65714513898d",
+    "fixture-inputs.json": "06681ad3babe04a89aa80be77a216eae14842a16162d957b275284c492d140db",
+    "020-archive-dependency.patch": "6d324e108eb3afb56870b6761c44a818cf6b072a495087a4de1be1a00cbf77ef",
+    "stable-runtime-tests-final.log": "5df90842fa07f2922908c5be2b963fa0746ee3405177f15cfc0eb56aef4b5cc0",
+    "preview-runtime-tests-final.log": "52b8fe34a036e22a166dd85a97a09064644b6a7f9ff1521c24adec6c678eb7db",
+    "stable-workspace-without-python.log": "7c736ace0815e9c483d350303039173f5af77a6b3203d109eb7523aa2beeba4c",
+    "preview-workspace-without-python.log": "b912836ad383060bd7f3606471c42d860441cb92d3772fbb7f10a1a361fb3973",
+    "stable-tests.log": "9d23d70ff9e9ed5bee565fdc960d8d450e2b039eb6464a0475efa765361eb521",
+    "preview-tests.log": "16f95e3aaaae3d91acd7850d50934ead50e3406d4d907de22c2aeca31df6bdc8",
+    "stable-tests-after.log": "44e9feeb1e1a8079136a635d74def9b59c2a9a06566ed53699ff31e96e3f7425",
+    "preview-tests-after.log": "c82e97c784211d08be048a15def2ca92c7cab4250a1c59922ea863bb5f122947",
+    "stable-runtime-tests.log": "3fa75b7e41641288493e72f32d2af93cc0ee29c71c45c228fd037981f3c8abca",
+    "preview-runtime-tests.log": "6c6bb2ca30363e2bc2ad132f9fcde2a7736f14e16311c33f5ac905c0c4927298",
+    "old-signed-archive-compatibility.json": "c99f7e79b8eb01e4f7e791715230c633d3b170877248d2cfd21054b83fbf066b"
+  },
+  "open": [
+    "Linux SDK full package rebuild",
+    "new signed WASM and consumer integration against new package bytes",
+    "hosted qualification and immutable package commit"
+  ]
+}
