@@ -54,17 +54,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable @ 2026-11-05
+      - uses: dtolnay/rust-toolchain@stable # stable
         with:
           toolchain: 1.97.0
           # The native GNU gates run `cargo fmt` and `cargo clippy` inside
           # qemu-cross-gate.sh, so rustfmt + clippy must be installed here.
           components: rustfmt, clippy
           targets: x86_64-unknown-linux-gnu
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: linux-x86_64-gnu
       - name: Native x86_64 GNU gate (fmt / clippy / test / doc / runtime smoke)
@@ -75,17 +75,17 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable @ 2026-11-05
+      - uses: dtolnay/rust-toolchain@stable # stable
         with:
           toolchain: 1.97.0
           # The native GNU gates run `cargo fmt` and `cargo clippy` inside
           # qemu-cross-gate.sh, so rustfmt + clippy must be installed here.
           components: rustfmt, clippy
           targets: aarch64-unknown-linux-gnu
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: linux-aarch64-gnu
       - name: Native ARM64 GNU gate (test / doc / runtime smoke)
@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Install OHOS SDK dependencies
@@ -109,23 +109,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libgl1-mesa-dev
       - name: Restore OHOS SDK cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@v6
         with:
           path: ~/ohos-sdk
           key: ohos-sdk-${{ runner.os }}-${{ runner.arch }}-6.1.1.280
       - name: Set up official HarmonyOS/OpenHarmony SDK
-        uses: ErBWs/setup-ohos@4dbb63025116eb6165ceac58a4bf47cbdc5ac721 # v2
+        uses: ErBWs/setup-ohos@v2
         with:
           # HarmonyOS SDK 6.1.1.125 / API 24 Release; CLI tools 6.1.1.280.
           version: 6.1.1.280
           cache: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable @ 2026-11-05
+      - uses: dtolnay/rust-toolchain@stable # stable
         with:
           toolchain: 1.97.0
           targets: aarch64-unknown-linux-ohos
       - name: Build Full Runtime with official OHOS SDK
         run: bash scripts/ohos-build.sh dist/rill-runtime-ohos-aarch64
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7
         with:
           name: ohos-runtime-qualification
           path: dist/rill-runtime-ohos-aarch64
@@ -140,14 +140,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable @ 2026-11-05
+      - uses: dtolnay/rust-toolchain@stable # stable
         with:
           toolchain: 1.97.0
           targets: x86_64-unknown-linux-musl
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: linux-x86_64-musl
       - name: Build + execute x86_64 musl Runtime
@@ -158,14 +158,14 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable @ 2026-11-05
+      - uses: dtolnay/rust-toolchain@stable # stable
         with:
           toolchain: 1.97.0
           targets: aarch64-unknown-linux-musl
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: linux-aarch64-musl
       - name: Build + execute ARM64 musl Runtime
@@ -183,14 +183,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable @ 2026-11-05
+      - uses: dtolnay/rust-toolchain@stable # stable
         with:
           toolchain: 1.97.0
           targets: riscv64gc-unknown-linux-gnu
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: riscv64-gnu
       - name: RISC-V64 direct QEMU gate (test + runtime + WASM handler)
@@ -206,19 +206,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable @ 2026-11-05
+      - uses: dtolnay/rust-toolchain@stable # stable
         with:
           toolchain: 1.97.0
           targets: loongarch64-unknown-linux-gnu
       - name: Cache pinned LoongArch cross toolchain
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@v6 # v6
         with:
           path: ~/.rillml-loongarch-toolchain
           key: loongarch-toolchain-20260812-latest
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: loongarch64-gnu
       - name: LoongArch64 direct QEMU gate (test + runtime + Pulley WASM handler)
@@ -246,14 +246,14 @@ jobs:
           - target: powerpc64le-unknown-linux-gnu
             runtime_smoke: 0
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable @ 2026-11-05
+      - uses: dtolnay/rust-toolchain@stable # stable
         with:
           toolchain: 1.97.0
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
         with:
           key: direct-qemu-${{ matrix.target }}
       - name: Direct QEMU gate on ${{ matrix.target }}
@@ -275,11 +275,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Set up QEMU / binfmt_misc
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+        uses: docker/setup-qemu-action@v4 # v4
         with:
           # Avoid the shared binfmt cache reservation race with concurrent
           # workflow runs; the setup cost is small for this single WASM gate.
@@ -298,7 +298,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: Android FFI cross-build (aarch64 + x86_64, JNI shim)
@@ -313,13 +313,13 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable @ 2026-11-05
+      - uses: dtolnay/rust-toolchain@stable # stable
         with:
           targets: aarch64-apple-ios, aarch64-apple-ios-sim
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: Swatinem/rust-cache@v2 # v2
       - name: iOS FFI XCFramework build (device + simulator)
         run: ./scripts/build-ios-framework.sh
 
@@ -334,11 +334,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
       - name: FreeBSD native CI (fmt / clippy / test / runtime smoke)
-        uses: vmactions/freebsd-vm@c46abacb49f09938ca4e1702d15d836285d694cc # v1
+        uses: vmactions/freebsd-vm@v1 # v1
         with:
           usesh: true
           # The VM gate is behavioral evidence only. Copying the entire
