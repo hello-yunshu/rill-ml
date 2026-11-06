@@ -221,13 +221,14 @@ jobs:
       - uses: actions/checkout@v7 # v7
         with:
           persist-credentials: false
-      - name: Install Rust (nightly)
-        # cargo-public-api uses the nightly toolchain to build rustdoc JSON.
-        # The baseline files were generated against a recent nightly, so we
-        # use `nightly` (latest) here to stay in sync. The semver-checks job
-        # pins a specific nightly because cargo-semver-checks has tighter
-        # compatibility constraints with the rustdoc JSON format version.
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Install Rust (nightly, pinned)
+        # cargo-public-api 的 rustdoc JSON 输出随 nightly 变化，用 "latest" 会让
+        # 同一 baseline 在 toolchain 滚动后无故变红（2026-11-05 即因此失败）。
+        # 固定到生成 baseline 时的 nightly，保证结果可复现。
+        # 升级 nightly 需同时重生成 api-baseline 并在同一 PR 内评审差异。
+        run: |
+          rustup toolchain install nightly-2026-07-26 --profile minimal
+          rustup default nightly-2026-07-26
       - name: Record resolved nightly toolchain version
         run: rustc --version
       - name: Install cargo-public-api
