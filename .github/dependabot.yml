@@ -26,6 +26,12 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # libc 0.2.190+ drops the riscv64-musl REG_* constants
+      # (REG_PC/REG_SP/REG_S0/...), so the riscv64gc-unknown-linux-musl
+      # runtime build fails. Hold patch bumps until upstream restores them;
+      # lifting this ignore requires a green riscv64 musl build in the same PR.
+      - dependency-name: "libc"
+        update-types: ["version-update:semver-patch"]
     commit-message:
       prefix: "deps"
       include: "scope"
