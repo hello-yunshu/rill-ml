@@ -424,7 +424,7 @@ mod tests {
         let mut entries = BTreeMap::new();
         for index in 0..archive.len() {
             let mut file = archive.by_index(index).unwrap();
-            let name = file.name().to_string();
+            let name = file.name().unwrap().into_owned();
             let mut data = Vec::new();
             file.read_to_end(&mut data).unwrap();
             entries.insert(name, data);

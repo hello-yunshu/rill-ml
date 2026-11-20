@@ -1,0 +1,70 @@
+[
+  {
+    "channel": "stable",
+    "binarySha256": "a206b1b3d82f2c6a36de67a1477519faeb2b6be47e60f62a92bf90b700c41253",
+    "result": [
+      {
+        "kind": "handshake",
+        "requestId": "g3",
+        "apiVersion": 2,
+        "runtimeVersion": "1.5.6",
+        "modelPackId": "rillml.example.default",
+        "modelPackVersion": "1.5.6",
+        "capabilities": [
+          "rillml.linearRegression.predict"
+        ],
+        "handlerId": "rillml.echo.handler",
+        "handlerVersion": "1.5.6",
+        "handlerApiVersion": 1,
+        "effectiveCapabilities": [
+          "rillml.linearRegression.predict"
+        ]
+      },
+      {
+        "kind": "result",
+        "requestId": "g3-invoke",
+        "apiVersion": 2,
+        "output": {
+          "features": [
+            1.0
+          ]
+        }
+      }
+    ],
+    "scope": "native Rust1.96 source build, old signed archive compatibility; not SDK qualification"
+  },
+  {
+    "channel": "preview",
+    "binarySha256": "37c48d28cfa2516a8bbe4052de7990921a57ce01373b3cc8a1ab88ad4a580fe4",
+    "result": [
+      {
+        "kind": "handshake",
+        "requestId": "g3",
+        "apiVersion": 2,
+        "runtimeVersion": "1.5.6",
+        "modelPackId": "rillml.example.default",
+        "modelPackVersion": "1.5.6",
+        "capabilities": [
+          "rillml.linearRegression.predict"
+        ],
+        "handlerId": "rillml.echo.handler",
+        "handlerVersion": "1.5.6",
+        "handlerApiVersion": 1,
+        "effectiveCapabilities": [
+          "rillml.linearRegression.predict"
+        ]
+      },
+      {
+        "kind": "result",
+        "requestId": "g3-invoke",
+        "apiVersion": 2,
+        "output": {
+          "features": [
+            1.0
+          ]
+        }
+      }
+    ],
+    "scope": "native Rust1.96 source build, old signed archive compatibility; not SDK qualification"
+  }
+]

@@ -1,0 +1,5 @@
+{
+  "name": "wasm-tools-1.254.0-aarch64-macos.tar.gz",
+  "digest": "sha256:66538c0bb527c68b12824cb6997834e121b4026b83432d77a0278e5f3ee4117a",
+  "browser_download_url": "https://github.com/bytecodealliance/wasm-tools/releases/download/v1.254.0/wasm-tools-1.254.0-aarch64-macos.tar.gz"
+}

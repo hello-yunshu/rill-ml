@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-24",
+  "status": "LOCAL PASS / HOSTED QUALIFICATION PENDING",
+  "wasmtime": "49.0.4",
+  "tokio": "1.53.3",
+  "advisories": [
+    "RUSTSEC-2026-0378",
+    "RUSTSEC-2026-0379",
+    "RUSTSEC-2026-0386"
+  ],
+  "audit": {
+    "tool": "cargo-audit 0.22.2",
+    "databaseCommit": "84d943a6deeb8cc6c6f632531aaf4f1c62275239",
+    "vulnerabilityCount": 0,
+    "warnings": {},
+    "ignoredAdvisories": []
+  },
+  "lockSha256": "3e20b673fd5c32c881a80242556532a919c8b1d2836dc6d538ee00740cad6311",
+  "features": "default WASM component-model, Cranelift and Pulley retained; component-model-async absent",
+  "device": "DEFERRED BY USER",
+  "publication": "NOT RUN",
+  "repository": "rill-ml",
+  "localTests": {
+    "runtimeLib": 82,
+    "runtimeProcess": 8,
+    "statefulHandlerV2": 5,
+    "securityProfileUnit": 2
+  }
+}
