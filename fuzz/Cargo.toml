@@ -19,7 +19,7 @@ libfuzzer-sys = "0.4"
 ed25519-dalek = "3"
 hex = "0.4"
 serde_json = "1"
-zip = "2"
+zip = "9"
 rill-ml = { path = "..", features = ["serde"] }
 rill-runtime = { path = "../crates/rill-runtime", default-features = false }
 rill-runtime-protocol = { path = "../crates/rill-runtime-protocol" }
