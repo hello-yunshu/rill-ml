@@ -22,9 +22,12 @@ with the Rust-specific convention that 0.x releases may break the public API.
 
 ### Security
 
-- Upgrade the default WASM engine to Wasmtime 49.0.3 without disabling
+- Upgrade the default WASM engine to Wasmtime 49.0.6 without disabling
   signed handlers, resource limits, or the Component Model. Audit the resolved
   target feature union and reject unreviewed component-model async support.
+- Upgrade `zip` to 9.0.5 and `rustix` to 1.1.6 so the shipped Runtime graph
+  stays free of the November 2026 RustSec advisories; no advisory ignore is
+  added to the audit gate.
 
 ### Changed
 
