@@ -1,0 +1,169 @@
+   Compiling rill-runtime v1.5.6 (/tmp/cfip-g3/zip-refresh/preview-source/crates/rill-runtime)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.95s
+     Running unittests src/lib.rs (/tmp/cfip-g2.9hpU2U/preview-target/debug/deps/rill_runtime-25cc00d8c2e2123d)
+
+running 80 tests
+test archive::tests::compression_ratio_rejects_one_byte_over_boundary ... ok
+test archive::tests::compression_ratio_rejects_overflowing_product ... ok
+test archive::tests::compression_ratio_skips_zero_compressed_size ... ok
+test archive::tests::compression_ratio_accepts_exact_boundary ... ok
+test handler::tests::effective_capabilities_reject_missing ... ok
+test handler::tests::effective_capabilities_intersect ... ok
+test handler::wasm::tests::memory_limiter_accepts_growth_within_max ... ok
+test handler::wasm::tests::memory_limiter_rejects_growth_exceeding_max ... ok
+test archive::tests::trust_metadata_rejects_generation_tampering ... ok
+test archive::tests::trust_metadata_rejects_old_authenticated_document_after_revocation ... ok
+test handler::wasm::tests::table_limiter_accepts_growth_within_max ... ok
+test archive::tests::trust_metadata_rejects_future_expired_revoked_and_emergency_keys ... ok
+test handler::wasm::tests::table_limiter_rejects_growth_exceeding_max ... ok
+test archive::tests::trust_metadata_rejects_same_generation_content_conflict ... ok
+test archive::tests::trust_metadata_rejects_unknown_damaged_and_downgraded ... ok
+test handler_package::tests::handler_pack_rejects_duplicate_capabilities ... ok
+test handler_package::tests::handler_pack_rejects_empty_capabilities ... ok
+test handler_package::tests::handler_pack_rejects_duplicate_entry ... ok
+test archive::tests::trust_metadata_current_key_passes ... ok
+test archive::tests::trust_metadata_overlap_next_key_passes ... ok
+test handler_package::tests::handler_pack_rejects_absolute_path ... ok
+test archive::tests::trust_metadata_accepts_future_generation_for_consumer_promotion ... ok
+test handler_package::tests::handler_pack_rejects_oversized_module ... ok
+test handler_package::tests::handler_pack_rejects_path_traversal ... ok
+test handler_package::tests::handler_pack_rejects_extra_file ... ok
+test handler_package::tests::handler_pack_rejects_load_time_module_digest_mismatch ... ok
+test handler_package::tests::handler_pack_rejects_invalid_semver ... ok
+test handler_package::tests::handler_pack_rejects_model_trust_key ... ok
+test handler_package::tests::handler_pack_rejects_runtime_too_old ... ok
+test handler_package::tests::handler_pack_rejects_unknown_format_version ... ok
+test handler_package::tests::handler_pack_rejects_unknown_handler_api_version ... ok
+test handler_package::tests::handler_pack_rejects_tampered_checksums ... ok
+test handler_package::tests::handler_pack_rejects_wrong_module_digest ... ok
+test handler_package::tests::handler_pack_rejects_tampered_module ... ok
+test handler_package::tests::handler_pack_rejects_unknown_publisher_key ... ok
+test handler_package::tests::handler_pack_rejects_tampered_manifest ... ok
+test package::tests::release_index_rejects_v1_schema ... ok
+test package::tests::release_index_supports_handler_artifact ... ok
+test handler_package::tests::handler_pack_rejects_tampered_signature ... ok
+test server::tests::engine_invoke_error_does_not_leak_guest_detail_in_message ... ok
+test package::tests::release_index_signature_covers_artifact_hashes ... ok
+test server::tests::engine_log_does_not_emit_oversized_guest_detail ... ok
+test server::tests::engine_log_traps_backtrace_is_truncated ... ok
+test server::tests::engine_logs_invoke_error_exactly_once ... ok
+test server::tests::engine_preserves_guest_variant_kind_for_all_wit_variants ... ok
+test server::tests::handshake_reports_loaded_pack ... ok
+test server::tests::incompatible_api_is_a_typed_error ... ok
+test server::tests::invoke_error_detail_is_truncated_to_4kib_on_char_boundary ... ok
+test server::tests::invoke_error_detail_truncation_respects_multibyte_chars ... ok
+test server::tests::invoke_error_guest_variants_have_distinct_public_messages ... ok
+test server::tests::invoke_error_retryable_only_for_timeout ... ok
+test server::tests::invoke_error_public_message_never_contains_detail ... ok
+test server::tests::invoke_error_stable_codes_match_wire_format ... ok
+test server::tests::invoke_error_without_detail_has_no_detail ... ok
+test server::tests::invoke_rejects_capability_not_declared_by_signed_manifest ... ok
+test server::tests::invoke_without_handler_returns_no_invoke_handler_error ... ok
+test server::tests::v1_handshake_omits_handler_fields ... ok
+test server::tests::linear_regression_handler_validates_and_predicts ... ok
+test server::tests::v2_handshake_includes_handler_fields ... ok
+test server::tests::v2_handshake_without_handler_has_empty_fields ... ok
+test stateful::tests::corrupt_snapshot_checksum_is_rejected_without_mutation ... ok
+test handler_package::tests::handler_pack_roundtrip_and_tamper_rejection ... ok
+test stateful::tests::invalid_next_state_is_fail_closed ... ok
+test stateful::tests::ipc_and_snapshot_limits_fail_closed_without_mutation ... ok
+test stateful::tests::client_identity_and_partition_key_are_both_part_of_the_namespace ... ok
+test handler_package::tests::handler_pack_skips_directory_entries ... ok
+test stateful::tests::json_entrypoint_rejects_malformed_and_oversized_messages ... ok
+test stateful::tests::inspect_and_diagnostics_do_not_reenter_the_state_lock ... ok
+test stateful::tests::stale_generation_and_expired_request_are_rejected ... ok
+test stateful::tests::state_update_is_atomic_and_increments_generation ... ok
+test package::tests::signed_pack_roundtrip_and_tamper_rejection ... ok
+test stateful::tests::rejected_feedback_does_not_mutate_or_cross_namespaces ... ok
+test stateful::tests::resource_partition_limit_is_exact_and_fail_closed ... ok
+test stateful::tests::partitions_isolate_state_and_delayed_feedback ... ok
+test handler_package::tests::handler_pack_rejects_compression_bomb ... ok
+test stateful::tests::timeout_trap_and_oversize_leave_state_unchanged ... ok
+test handler_package::tests::handler_pack_rejects_oversized_file_in_zip ... ok
+test handler::wasm::tests::metadata_loop_failure_restores_active_ticker_count ... ok
+test handler::wasm::tests::normal_handler_drop_restores_active_ticker_count ... ok
+test handler::wasm::tests::ticker_probe_is_available_to_internal_tests ... ok
+
+test result: ok. 80 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.04s
+
+     Running unittests src/bin/rill-pack.rs (/tmp/cfip-g2.9hpU2U/preview-target/debug/deps/rill_pack-5776c6e40b9dff62)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/rill-runtime.rs (/tmp/cfip-g2.9hpU2U/preview-target/debug/deps/rill_runtime-49ac30c6bf4e9280)
+
+running 3 tests
+test tests::trust_store_rejects_short_keys ... ok
+test tests::trust_store_rejects_duplicate_ids ... ok
+test tests::preview_handler_accepts_contextual_actions ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/runtime_process.rs (/tmp/cfip-g2.9hpU2U/preview-target/debug/deps/runtime_process-56774fcd40729fb8)
+
+running 8 tests
+test missing_handler_option_returns_error ... ok
+test signed_pack_handshake_and_invoke_work_across_the_real_process_boundary ... ok
+test v1_client_receives_v1_wire_format ... ok
+test builtin_handler_deprecation_notice_printed ... ok
+test preview_v3_real_subprocess_restart_and_feedback_ledger ... ok
+test preview_v3_uses_opaque_action_ids_and_context_features ... ok
+test preview_v3_cold_process_restores_two_clients_and_two_partitions_each ... ok
+test wasm_handler_handshake_across_process_boundary ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.66s
+
+     Running tests/stateful_handler_v2.rs (/tmp/cfip-g2.9hpU2U/preview-target/debug/deps/stateful_handler_v2-5e6912e27563193a)
+
+running 5 tests
+test stateful_v2_invalid_and_oversized_state_are_fail_closed ... ok
+test stateful_v2_real_trap_timeout_and_output_limit_are_fail_closed ... ok
+test stateful_v2_metadata_mismatch_is_rejected ... ok
+test stateful_v2_normal_state_update_and_repeated_call ... ok
+test stateful_v2_trap_timeout_and_oversize_are_typed ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.05s
+
+     Running tests/wasm_handler.rs (/tmp/cfip-g2.9hpU2U/preview-target/debug/deps/wasm_handler-dd654f15792583e3)
+
+running 17 tests
+test wasm_handler_failure_does_not_affect_other_instances ... ok
+test wasm_handler_configure_infinite_loop_returns_timeout ... ok
+test echo_handler_metadata_mismatch_rejected ... ok
+test echo_handler_invoke_returns_input ... ok
+test wasm_handler_fuel_exhaustion_returns_timeout ... ok
+test echo_handler_rejects_unsupported_capability ... ok
+test metadata_loop_handler_failure_does_not_leak_ticker_or_block_later_handlers ... ok
+test wasm_handler_infinite_loop_returns_timeout ... ok
+test wasm_handler_echo_mode_works_as_baseline ... ok
+test wasm_handler_invalid_json_output_returns_invalid_output ... ok
+test wasm_handler_long_error_string_is_truncated ... ok
+test wasm_handler_metadata_infinite_loop_returns_load_error ... ok
+test wasm_handler_oversized_output_returns_output_too_large ... ok
+test wasm_handler_rejects_oversized_output ... ok
+test wasm_handler_remains_usable_after_output_too_large ... ok
+test wasm_handler_sandbox_limits_verified ... ok
+test wasm_handler_trap_returns_handler_trap_error ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.26s
+
+     Running tests/wit_v1_component.rs (/tmp/cfip-g2.9hpU2U/preview-target/debug/deps/wit_v1_component-ac90120c51c9c150)
+
+running 6 tests
+test wit_v1_constants_are_frozen ... ok
+test v1_component_fixture_exists_and_hash_matches ... ok
+test v1_component_metadata_reports_api_version_1 ... ok
+test v1_component_loads_and_invokes_with_current_runtime ... ok
+test v1_component_packs_and_loads_as_rillhandler ... ok
+test v1_component_rejects_unsupported_capability ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.07s
+
+   Doc-tests rill_runtime
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
