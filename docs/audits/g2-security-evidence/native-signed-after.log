@@ -1,0 +1,21 @@
+{"kind":"handshake","requestId":"g2-handshake","apiVersion":2,"runtimeVersion":"1.5.6","modelPackId":"rillml.example.default","modelPackVersion":"1.5.6","capabilities":["rillml.linearRegression.predict"],"handlerId":"rillml.echo.handler","handlerVersion":"1.5.6","handlerApiVersion":1,"effectiveCapabilities":["rillml.linearRegression.predict"]}
+{"kind":"health","requestId":"g2-health","apiVersion":2,"healthy":true,"modelPackId":"rillml.example.default","modelPackVersion":"1.5.6"}
+{"kind":"result","requestId":"g2-invoke","apiVersion":2,"output":{"features":[1.0]}}
+        1.01 real         0.03 user         0.02 sys
+            20103168  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                1826  page reclaims
+                   0  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                 832  involuntary context switches
+           260768574  instructions retired
+           166852635  cycles elapsed
+            12960152  peak memory footprint

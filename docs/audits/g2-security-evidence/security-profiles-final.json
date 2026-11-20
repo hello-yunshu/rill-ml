@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "target": "x86_64-unknown-linux-musl",
+      "engine": "wasmtime v49.0.3",
+      "features": [
+        "component-model",
+        "cranelift",
+        "once_cell",
+        "parallel-compilation",
+        "pulley",
+        "runtime",
+        "std",
+        "wasmtime-jit-icache-coherence"
+      ]
+    },
+    {
+      "target": "aarch64-unknown-linux-musl",
+      "engine": "wasmtime v49.0.3",
+      "features": [
+        "component-model",
+        "cranelift",
+        "once_cell",
+        "parallel-compilation",
+        "pulley",
+        "runtime",
+        "std",
+        "wasmtime-jit-icache-coherence"
+      ]
+    },
+    {
+      "target": "riscv64gc-unknown-linux-musl",
+      "engine": "wasmtime v49.0.3",
+      "features": [
+        "component-model",
+        "cranelift",
+        "once_cell",
+        "parallel-compilation",
+        "pulley",
+        "runtime",
+        "std",
+        "wasmtime-jit-icache-coherence"
+      ]
+    },
+    {
+      "target": "aarch64-unknown-linux-ohos",
+      "engine": "wasmtime v49.0.3",
+      "features": [
+        "all-arch",
+        "component-model",
+        "cranelift",
+        "once_cell",
+        "parallel-compilation",
+        "pulley",
+        "runtime",
+        "std",
+        "wasmtime-jit-icache-coherence"
+      ]
+    },
+    {
+      "target": "aarch64-apple-darwin",
+      "engine": "wasmtime v49.0.3",
+      "features": [
+        "component-model",
+        "cranelift",
+        "once_cell",
+        "parallel-compilation",
+        "pulley",
+        "runtime",
+        "std",
+        "wasmtime-jit-icache-coherence"
+      ]
+    }
+  ]
+}
