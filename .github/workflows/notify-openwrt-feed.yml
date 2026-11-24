@@ -1,0 +1,41 @@
+name: Notify OpenWrt feed
+
+# A published Stable runtime release is the signal the OpenWrt distribution
+# recipe may need to move its pinned upstream commit.  The feed keeps its own
+# promotion policy (immutable pin, qualification, immutable tag), so all this
+# does is trigger the feed's pin check instead of silently tracking main.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    if: >-
+      !github.event.release.draft &&
+      !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Dispatch rill-upstream-release
+        env:
+          GH_TOKEN: ${{ secrets.RILL_FEED_DISPATCH_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Pointer/index releases are not runtime versions; only vX.Y.Z matters.
+          if ! [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::notice::${TAG} 不是运行时版本，跳过 rill-openwrt-packages 通知"
+            exit 0
+          fi
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::notice::未配置 RILL_FEED_DISPATCH_TOKEN，跳过 rill-openwrt-packages 通知"
+            exit 0
+          fi
+          payload="$(jq -nc --arg tag "${TAG}" \
+            '{event_type: "rill-upstream-release", client_payload: {tag: $tag}}')"
+          printf '%s' "${payload}" | gh api -X POST repos/hello-yunshu/rill-openwrt-packages/dispatches --input -
+          echo "已通知 rill-openwrt-packages（${TAG}）"
